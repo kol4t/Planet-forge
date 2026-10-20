@@ -98,4 +98,13 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 52. Po ukończeniu: komunikat „Zbadano: …”, gwiazda wypełniona, produkcja metalu i kryształów rośnie. Badanie kończy się też przy zamkniętej grze.
 53. „Zamknij” → wracasz do planety; obrót i przybliżanie planety działają jak wcześniej.
 
+### Od 0.11: mapa galaktyki
+
+54. Panel planety pokazuje adres (np. „adres 1:4:7”); Twoja planeta i postęp są takie jak wcześniej.
+55. „Mapa” → galaktyka: 100 układów jako kolorowe gwiazdy, Twój układ ze złotym pierścieniem i podpisem. Przesuń palcem, przybliż dwoma (pojawiają się nazwy układów). Dotknij układu → szczegóły (gwiazda, liczba planet, miejsca startowe graczy).
+56. „Pokaż układ” → gwiazda w środku, planety na orbitach (miniatury). Złoty pierścień — Twoja, czerwony — inny gracz (bot), fioletowy — forma obca, bez pierścienia — wolna.
+57. Dotknij wolnej planety w swoim układzie → „Skolonizuj” → gra przechodzi na nową planetę, komunikat „Skolonizowano: …”. Typ planety pasuje do miejsca: blisko gorącej gwiazdy pustynie i wulkany, daleko lód.
+58. Planeta w innym układzie → „Wymaga statku”; dotknięcie wyjaśnia, że potrzebne będą badanie i statek kolonizacyjny.
+59. „Planety” → przy każdej planecie adres; przycisk „Mapa układu” otwiera Twój układ.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

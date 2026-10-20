@@ -13,7 +13,7 @@ import { openTextPanel } from '../ui/textPanel.ts';
 import { computeLayout, TOUCH, type Insets, type Layout, type PanelState, type Rect } from '../ui/layout.ts';
 import { loadPanels, savePanels } from '../ui/uiPrefs.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
-import { RESEARCH_CLOSED } from './ResearchScene.ts';
+import { OVERLAY_CLOSED } from './OverlayScene.ts';
 
 export interface Viewport {
   width: number;
@@ -110,8 +110,8 @@ export class PlanetScene extends Phaser.Scene {
   private cancelArmedUntil = 0;
   /** Przełączenie na nową wersję gry (gdy service worker ją pobrał). */
   private updateApply: (() => void) | null = null;
-  /** Otwarty ekran „Badania” (HUD planety nie reaguje wtedy na dotyk). */
-  private researchOpen = false;
+  /** Otwarty ekran pełnoekranowy — Badania albo Mapa (HUD planety nie reaguje wtedy na dotyk). */
+  private screenOpen = false;
 
   constructor(deps: SceneDeps) {
     super({ key: 'planet' });
@@ -133,7 +133,7 @@ export class PlanetScene extends Phaser.Scene {
       }
     };
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      if (over.length > 0 || this.overlay || this.researchOpen) return;
+      if (over.length > 0 || this.overlay || this.screenOpen) return;
       apply(this.gestures.down(pointer.id, pointer.x, pointer.y));
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => apply(this.gestures.move(pointer.id, pointer.x, pointer.y)));
@@ -143,7 +143,7 @@ export class PlanetScene extends Phaser.Scene {
     this.input.on('gameout', () => apply(this.gestures.cancel()));
     // Komputer: kółko myszy przybliża planetę (nad panelami nie).
     this.input.on('wheel', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
-      if (over.length === 0 && !this.overlay && !this.researchOpen) apply(this.gestures.wheel(dy));
+      if (over.length === 0 && !this.overlay && !this.screenOpen) apply(this.gestures.wheel(dy));
     });
 
     controller.onPlanetChange(() => {
@@ -153,13 +153,14 @@ export class PlanetScene extends Phaser.Scene {
     });
 
     controller.onResearchComplete((id) => {
-      if (!this.researchOpen) this.showToast(`Zbadano: ${findResearch(id)?.name ?? id}.`, 'ok', 3000);
+      if (!this.screenOpen) this.showToast(`Zbadano: ${findResearch(id)?.name ?? id}.`, 'ok', 3000);
       this.refreshValues();
     });
-    this.game.events.on(RESEARCH_CLOSED, () => {
-      this.researchOpen = false;
+    this.game.events.on(OVERLAY_CLOSED, (message?: string) => {
+      this.screenOpen = false;
       this.input.enabled = true;
       this.refreshValues();
+      if (message) this.showToast(message, 'ok', 3000);
     });
 
     controller.onBuildComplete((done) => {
@@ -197,15 +198,25 @@ export class PlanetScene extends Phaser.Scene {
     }
   }
 
-  /** Ekran „Badania” (galaktyka) — osobna scena nad HUD-em planety. */
+  /** Ekran „Badania” (galaktyka badań) — osobna scena nad HUD-em planety. */
   openResearch(): void {
-    if (this.researchOpen) return;
+    this.openScreen('research');
+  }
+
+  /** Ekran „Mapa”: cała galaktyka albo od razu wskazany układ. */
+  openMap(system?: number): void {
+    this.openScreen('map', system ? { system } : {});
+  }
+
+  private openScreen(key: 'research' | 'map', data: object = {}): void {
+    if (this.screenOpen) return;
     this.closeOverlay();
-    this.researchOpen = true;
+    this.screenOpen = true;
     this.input.enabled = false;
     if (this.gestures.cancel().length > 0) this.deps.display.endDrag();
-    this.scene.launch('research');
+    this.scene.launch(key, data);
   }
+
 
   update(_time: number, delta: number): void {
     this.refreshTimer -= delta;
@@ -496,7 +507,7 @@ export class PlanetScene extends Phaser.Scene {
         wordWrap: { width: this.px(box.w - 2 * pad) },
       });
       y += this.s(17);
-      this.text(box.x + pad, y, `seed  ${planet.seed}`, 10.5, COLORS.faint, { fontFamily: FONTS.mono });
+      this.text(box.x + pad, y, addressLine(this.deps.controller.address, planet.seed), 10.5, COLORS.faint, { fontFamily: FONTS.mono });
       y += this.s(22);
       if (open) {
         this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
@@ -515,8 +526,10 @@ export class PlanetScene extends Phaser.Scene {
           lineSpacing: this.px(2),
         });
       }
-      this.addButton(box.x + pad, box.y + box.h - pad - 2 * buttonH - this.s(8), box.w - 2 * pad, buttonH, 'Badania', 'secondary', () =>
-        this.openResearch(), 13.5);
+      const half = (box.w - 2 * pad - this.s(8)) / 2;
+      const rowY = box.y + box.h - pad - 2 * buttonH - this.s(8);
+      this.addButton(box.x + pad, rowY, half, buttonH, 'Badania', 'secondary', () => this.openResearch(), 13.5);
+      this.addButton(box.x + pad + half + this.s(8), rowY, half, buttonH, 'Mapa', 'secondary', () => this.openMap(), 13.5);
       buttons(box.x + pad, box.y + box.h - pad - buttonH, box.w - 2 * pad);
       return;
     }
@@ -527,7 +540,7 @@ export class PlanetScene extends Phaser.Scene {
     if (!open) {
       const y = box.y + (box.h - this.s(38)) / 2;
       this.text(box.x + pad, y, planet.displayName, 18, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(colW) });
-      this.text(box.x + pad, y + this.s(24), `${planet.category} · ${planet.seed}`, 10.5, COLORS.faint, { fixedWidth: this.px(colW) });
+      this.text(box.x + pad, y + this.s(24), `${planet.category} · ${this.deps.controller.address}`, 10.5, COLORS.faint, { fixedWidth: this.px(colW) });
       buttons(box.x + 2 * pad + colW, box.y + (box.h - buttonH) / 2, btnW, 12.5);
       return;
     }
@@ -538,7 +551,7 @@ export class PlanetScene extends Phaser.Scene {
       wordWrap: { width: this.px(colW) },
     });
     y += this.s(15);
-    this.text(box.x + pad, y, planet.seed, 10, COLORS.faint, { fontFamily: FONTS.mono });
+    this.text(box.x + pad, y, addressLine(this.deps.controller.address, planet.seed), 10, COLORS.faint, { fontFamily: FONTS.mono });
     buttons(box.x + pad, box.y + box.h - this.s(8) - buttonH, btnW, 12.5);
     const x2 = box.x + 2 * pad + colW;
     let y2 = box.y + this.s(10);
@@ -746,7 +759,7 @@ export class PlanetScene extends Phaser.Scene {
         card.effect.setText(
           current
             ? `Badanie: ${findResearch(current.id)?.name ?? ''} · zostało ${formatDuration(controller.researchSecondsLeft(now))}`
-            : `Na poz. ${level + 1}: pierścień ${ring}, szybsze badania${energyNext}`,
+            : `Na poz. ${level + 1}: pierścień ${ring}${energyNext}`,
         );
       } else if (def.produces === 'antimatter') {
         const gain = scaled(def.baseOutput, level + 1, growth) - scaled(def.baseOutput, level, growth);
@@ -983,7 +996,7 @@ export class PlanetScene extends Phaser.Scene {
         fontStyle: '600',
         fixedWidth: textW,
       });
-      const detail = `${p.category} · suma poziomów ${p.totalLevels}${p.building ? ` · buduje: ${p.building}` : ''}`;
+      const detail = `${p.address} · ${p.category} · suma poziomów ${p.totalLevels}${p.building ? ` · buduje: ${p.building}` : ''}`;
       const info = text(textX, y + this.px(this.s(31)), detail, 11.5, COLORS.muted, {
         wordWrap: { width: textW },
         maxLines: 2,
@@ -1020,11 +1033,11 @@ export class PlanetScene extends Phaser.Scene {
     y += this.px(4);
     const free = slots.used < slots.unlocked;
     const half = (w - 2 * pad - gap) / 2;
-    const add = new Button(this, pad, y, half, buttonH, 'Nowa planeta', this.dpr, () => {
-      const result = controller.addPlanet();
+    // Nowe planety kolonizuje się z mapy (wolne planety Twojego układu).
+    const add = new Button(this, pad, y, half, buttonH, 'Mapa układu', this.dpr, () => {
       this.closeOverlay();
-      this.showToast(result.message, result.ok ? 'ok' : 'error', 3000);
-    }, this.s(15)).setStyle(free ? 'primary' : 'disabled');
+      this.openMap(controller.homeSystem);
+    }, this.s(15)).setStyle('primary');
     const close = new Button(this, pad + half + gap, y, half, buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle(
       'secondary',
     );
@@ -1033,8 +1046,8 @@ export class PlanetScene extends Phaser.Scene {
       pad,
       y,
       free
-        ? 'Nowa planeta trafia na wolne miejsce. Pozostałe dalej produkują (jak podczas nieobecności, do 8 h).'
-        : 'Wszystkie miejsca zajęte — usuń planetę, żeby odkryć nową.',
+        ? 'Nowe planety kolonizujesz z mapy: wolne planety Twojego układu. Pozostałe dalej produkują (jak podczas nieobecności, do 8 h).'
+        : 'Wszystkie miejsca zajęte — usuń planetę, żeby skolonizować nową.',
       11.5,
       COLORS.faint,
       { wordWrap: { width: w - 2 * pad } },
@@ -1216,4 +1229,9 @@ export class PlanetScene extends Phaser.Scene {
       },
     });
   }
+}
+
+/** „1:42:7 · seed …” — dla planet z galaktyki (seed = adres) sam adres. */
+function addressLine(address: string, seed: string): string {
+  return seed === address ? `adres  ${address}` : `${address} · ${seed}`;
 }

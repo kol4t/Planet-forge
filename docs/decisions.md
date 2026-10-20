@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — v0.11: mapa galaktyki, układy gwiezdne, adresy planet
+
+- **Galaktyka = przyszły serwer.** Cała galaktyka powstaje deterministycznie z numeru (`core/galaxy/galaxy.ts`, `GALAXY_VERSION = 1`, dane `data/galaxy.ts` — robocze): 100 układów w spiralnym dysku z odstępami (miejsce na przyszłe stacje, porty handlowe, planety gildii). Na razie jedna galaktyka, gra bez serwera.
+- **Adres planety** `galaktyka:układ:orbita` (np. `1:4:5`). Planety z galaktyki mają seed = adres, nazwę od układu („Wolf-122 f”), typ wynikający z gwiazdy i odległości (temperatura = √(jasność / orbita) → strefa gorąca…mroźna → wagi typów). `GENERATOR_VERSION` bez zmian — wygląd planety z seeda działa jak dotąd.
+- **Układ:** 3–10 planet; miejsca startowe graczy: 2 przy ≤ 7 planetach, 3 przy większych (decyzja właściciela: przy 7 planetach maks. 2 graczy, zawsze min. 2). Bez serwera pozostałe miejsca startowe zajmują boty (na razie tylko oznaczenie na mapie). Reszta planet: wolne (do przejęcia) albo z formą obcą (~20%, przejęcie — wkrótce).
+- **Gracz:** startuje na miejscu startowym w strefie umiarkowanej pierwszego układu z ≥ 5 wolnymi planetami. Kolonizacja wolnych planet własnego układu z mapy („Skolonizuj” zastępuje losowe „Nowa planeta”). Inne układy: po badaniu i ze statkiem kolonizacyjnym (decyzja właściciela — kolejne etapy).
+- **Zgodność zapisów:** adres planety (`planet.address`) i miejsce startowe (`home`) to pola opcjonalne. Zapisy sprzed v0.11: pierwsza planeta trafia na miejsce startowe, kolejne na wolne planety układu startowego — z zachowaniem seeda, wyglądu i postępu.
+- **Ekrany pełnoekranowe** (Badania, Mapa) mają wspólną podstawę `game/scenes/OverlayScene.ts` (tło, przesuwanie/przybliżanie, stuknięcie, panele, komunikaty).
+
 ## 2026-10-20 — strojenie balansu na koniec
 
 - Ceny, czasy i koszty (budynki, badania, antymateria) właściciel ustawi pod koniec prac, przed MVP. Do tego czasu wszystkie liczby w `src/data` są robocze i nie są osobnym etapem.

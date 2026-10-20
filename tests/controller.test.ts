@@ -23,6 +23,11 @@ function withMemoryStorage(run: () => void): void {
   }
 }
 
+/** Wolne planety układu startowego (do kolonizacji w testach). */
+function freeAddresses(game: GameController): string[] {
+  return game.system(game.homeSystem)!.planets.filter((p) => game.occupantAt(p) === 'free').map((p) => p.address);
+}
+
 test('budowa: start → ukończenie zgłoszone raz, z zapisem', () => {
   withMemoryStorage(() => {
     const game = new GameController(0);
@@ -76,9 +81,11 @@ test('„Ukończ teraz” w kontrolerze zgłasza ukończenie od razu', () => {
 
 test('kopiuj zapis → wczytaj w „drugiej kopii gry” przenosi planetę i postęp', () => {
   let exported = '';
+  let seed = '';
   withMemoryStorage(() => {
     const game = new GameController(0);
-    assert.ok(game.addPlanet('PF-PRZE-NIES', 0).ok);
+    assert.ok(game.colonize(freeAddresses(game)[0]!, 0).ok);
+    seed = game.planet.seed;
     game.upgrade('metalMine', 0);
     exported = game.exportSave(1000);
   });
@@ -89,12 +96,13 @@ test('kopiuj zapis → wczytaj w „drugiej kopii gry” przenosi planetę i pos
     other.onPlanetChange(() => changes.push(other.planet.seed));
     const result = other.importSave(exported, 5000);
     assert.ok(result.ok, result.message);
-    assert.equal(other.planet.seed, 'PF-PRZE-NIES');
+    assert.equal(other.planet.seed, seed);
     assert.equal(other.economy.construction?.building, 'metalMine');
-    assert.deepEqual(changes, ['PF-PRZE-NIES']);
+    assert.deepEqual(changes, [seed]);
     assert.equal(other.slotInfo.used, 2, 'przeniesione całe imperium (planeta startowa + nowa)');
     const stored = JSON.parse(localStorage.getItem(EMPIRE_KEY)!);
-    assert.equal(stored.slots[stored.active].planet.seed, 'PF-PRZE-NIES', 'od razu zapisane');
+    assert.equal(stored.slots[stored.active].planet.seed, seed, 'od razu zapisane');
+    assert.equal(stored.slots[stored.active].planet.address, seed, 'adres w zapisie');
   });
 });
 
@@ -112,9 +120,10 @@ test('kilka planet: dodawanie, przełączanie, limit 5 miejsc, usuwanie', () => 
   withMemoryStorage(() => {
     const game = new GameController(0);
     assert.deepEqual(game.slotInfo, { used: 1, unlocked: 5, max: 10 });
-    for (let i = 1; i < 5; i++) assert.ok(game.addPlanet(`PF-SLOT-${i}`, 0).ok);
-    assert.equal(game.planet.seed, 'PF-SLOT-4', 'nowa planeta staje się aktywna');
-    const full = game.addPlanet('PF-SLOT-5', 0);
+    const free = freeAddresses(game);
+    for (let i = 0; i < 4; i++) assert.ok(game.colonize(free[i]!, 0).ok);
+    assert.equal(game.address, free[3], 'nowa planeta staje się aktywna');
+    const full = game.colonize(free[4]!, 0);
     assert.equal(full.ok, false);
     assert.match(full.message, /Wszystkie miejsca \(5\) są zajęte/);
 
@@ -138,7 +147,7 @@ test('nieaktywna planeta dalej produkuje i kończy budowy (jak podczas nieobecno
     const game = new GameController(0);
     game.upgrade('metalMine', 0); // budowa poz. 2 na planecie startowej (1 min)
     const metalBefore = game.economy.stock.metal;
-    game.addPlanet('PF-DRUGA', 0);
+    game.colonize(freeAddresses(game)[0]!, 0);
     const done: string[] = [];
     game.onBuildComplete((d) => done.push(d.building));
     game.switchPlanet(0, 10 * 60_000);
@@ -152,7 +161,7 @@ test('antymateria jest wspólna: przyrost pasywny liczony raz, kolektory wszystk
   withMemoryStorage(() => {
     const game = new GameController(0);
     const start = game.economy.antimatter;
-    game.addPlanet('PF-DRUGA', 0);
+    game.colonize(freeAddresses(game)[0]!, 0);
     assert.equal(game.economy.antimatter, start, 'nowa planeta nie dodaje zapasu startowego');
     game.switchPlanet(0, 3600_000);
     // Godzina: +1 pasywnie (raz), planety bez kolektora nic nie dodają.
@@ -178,5 +187,59 @@ test('stary zapis jednej planety (v0.1–0.6) przechodzi do imperium', () => {
     assert.equal(game.economy.levels.metalMine, 4);
     assert.equal(game.economy.antimatter, 3);
     assert.equal(game.slotInfo.used, 1);
+  });
+});
+
+test('mapa: planeta startowa ma adres w układzie startowym, kolonizacja tylko wolnych planet', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    const system = game.system(game.homeSystem)!;
+    assert.equal(game.planet.seed, 'KEPLER-186F-ALFA', 'planeta startowa bez zmian');
+    assert.match(game.address, /^1:\d+:\d+$/);
+    assert.ok(system.planets.some((p) => p.address === game.address && p.occupant === 'home'));
+    const others = system.planets.filter((p) => p.occupant === 'home' && p.address !== game.address);
+    assert.ok(others.length >= 1, 'co najmniej 2 graczy w układzie');
+    assert.equal(game.occupantAt(others[0]!), 'bot');
+    assert.match(game.colonize(others[0]!.address, 0).message, /innego gracza/);
+    const alien = system.planets.find((p) => p.occupant === 'alien');
+    if (alien) assert.equal(game.colonize(alien.address, 0).ok, false);
+    const target = freeAddresses(game)[0]!;
+    const result = game.colonize(target, 0);
+    assert.ok(result.ok, result.message);
+    assert.equal(game.planet.seed, target, 'seed = adres');
+    assert.ok(game.planet.displayName.startsWith(system.name), game.planet.displayName);
+    assert.equal(game.occupantAt(system.planets.find((p) => p.address === target)!), 'you');
+    // Inny układ: wymaga badania i statku.
+    const elsewhere = game.system(game.homeSystem === 1 ? 2 : 1)!.planets.find((p) => p.occupant === 'free');
+    if (elsewhere) assert.match(game.colonize(elsewhere.address, 0).message, /statku kolonizacyjnego/);
+    // Po wczytaniu nazwa i adres zostają.
+    const again = new GameController(1000);
+    assert.equal(again.address, target);
+    assert.equal(again.planet.displayName, game.planet.displayName);
+  });
+});
+
+test('mapa: stary zapis kilku planet dostaje adresy w układzie startowym (wygląd bez zmian)', () => {
+  withMemoryStorage(() => {
+    const economy = { stock: { metal: 1, crystal: 1 }, levels: {}, lastUpdate: 0 };
+    localStorage.setItem(
+      EMPIRE_KEY,
+      JSON.stringify({
+        saveVersion: 2,
+        active: 1,
+        unlockedSlots: 5,
+        antimatter: 2,
+        slots: [
+          { kind: 'planet', planet: { definitionId: 'kepler-186f', seed: 'KEPLER-186F-ALFA', generatorVersion: 1 }, economy },
+          { kind: 'planet', planet: { definitionId: 'ice', seed: 'PF-STARA', generatorVersion: 1 }, economy },
+        ],
+      }),
+    );
+    const game = new GameController(0);
+    const addresses = game.planets().map((p) => p.address);
+    assert.equal(new Set(addresses).size, 2);
+    assert.ok(addresses.every((a) => a.startsWith(`1:${game.homeSystem}:`)));
+    assert.equal(game.planet.seed, 'PF-STARA');
+    assert.equal(game.planet.definitionId, 'ice');
   });
 });

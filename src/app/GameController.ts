@@ -29,12 +29,23 @@ import {
   type ResearchCost,
   type ResearchStatus,
 } from '../core/research/research.ts';
-import { GENERATOR_VERSION, generatePlanet, pickDefinition } from '../core/generation/generatePlanet.ts';
+import {
+  formatAddress,
+  generateGalaxy,
+  generateSystem,
+  parseAddress,
+  planetAt,
+  starterSystem,
+  type Galaxy,
+  type StarSystem,
+  type SystemPlanet,
+} from '../core/galaxy/galaxy.ts';
+import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
 import type { Balance, BuildingId, EconomyState, Planet, ResearchState, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
-import { findDefinition, PLANET_DEFINITIONS, STARTER } from '../data/planets.ts';
+import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
 
 export interface OfflineGain {
@@ -52,7 +63,15 @@ export interface CompletedBuild {
 interface Slot {
   planet: Planet;
   economy: EconomyState;
+  /** Adres w galaktyce, np. „1:42:7” (pusty tylko na chwilę — przed rozmieszczeniem na mapie). */
+  address: string;
 }
+
+/** Kto jest na planecie — z punktu widzenia gracza. */
+export type MapOccupant = 'you' | 'bot' | 'alien' | 'free';
+
+/** Galaktyka gracza (na razie jedna; w przyszłości jedna galaktyka = jeden serwer). */
+const GALAXY_ID = 1;
 
 /** Skrót planety do listy „Twoje planety”. */
 export interface PlanetSummary {
@@ -62,6 +81,8 @@ export interface PlanetSummary {
   name: string;
   category: string;
   active: boolean;
+  /** Adres w galaktyce (np. „1:42:7”). */
+  address: string;
   /** Suma poziomów budynków — prosta miara rozwoju. */
   totalLevels: number;
   /** Nazwa budynku w budowie (jeśli jest). */
@@ -93,6 +114,8 @@ export class GameController {
   private slots: Slot[];
   private active = 0;
   private unlockedSlots: number = BALANCE.planetSlots.base;
+  /** Miejsce startowe gracza w galaktyce (jego układ = układ startowy). */
+  private home = '';
   private readonly listeners = new Set<() => void>();
   private readonly completeListeners = new Set<(done: CompletedBuild) => void>();
   private readonly planetListeners = new Set<() => void>();
@@ -105,15 +128,18 @@ export class GameController {
       this.slots = slots;
       this.unlockedSlots = saved.unlockedSlots;
       this.research = saved.research;
+      this.home = saved.home ?? '';
       this.active = Math.min(saved.active, slots.length - 1);
+      this.placeOnMap();
       const before = { ...this.slots[this.active]!.economy, antimatter: saved.antimatter };
       this.economy = before;
       this.researchedWhileAway = this.advanceActive(now);
       this.reportAway(before, now);
     } else {
       this.slots = [
-        { planet: generatePlanet(STARTER.definition, STARTER.seed), economy: createEconomy(now) },
+        { planet: generatePlanet(STARTER.definition, STARTER.seed), economy: createEconomy(now), address: '' },
       ];
+      this.placeOnMap();
     }
   }
 
@@ -249,6 +275,7 @@ export class GameController {
         planet: slot.planet,
         name: slot.planet.displayName,
         category: slot.planet.category,
+        address: slot.address,
         active: index === this.active,
         totalLevels: Object.values(slot.economy.levels).reduce((sum, level) => sum + level, 0),
         building: c ? (BALANCE.buildings.find((b) => b.id === c.building)?.name ?? null) : null,
@@ -359,21 +386,101 @@ export class GameController {
     return { ok: true, message: `Przeniesiono na: ${target.planet.displayName}.` };
   }
 
-  /** Nowa planeta na wolnym miejscu (typ wynika z seeda). Obecna zostaje i dalej produkuje. */
-  addPlanet(seed = randomSeed(), now = Date.now()): ActionMessage {
-    if (!hasFreeSlot(this.slots.length, this.openSlots)) {
-      return {
-        ok: false,
-        message: `Wszystkie miejsca (${this.openSlots}) są zajęte — usuń planetę, żeby odkryć nową.`,
-      };
+  // ——— mapa galaktyki ———
+
+  get galaxy(): Galaxy {
+    return generateGalaxy(GALAXY_ID);
+  }
+
+  /** Adres aktywnej planety. */
+  get address(): string {
+    return this.slots[this.active]!.address;
+  }
+
+  /** Numer układu startowego gracza. */
+  get homeSystem(): number {
+    return parseAddress(this.home)?.system ?? 1;
+  }
+
+  system(index: number): StarSystem | null {
+    return generateSystem(this.galaxy, index);
+  }
+
+  /** Indeks planety gracza pod adresem (albo −1). */
+  slotAt(address: string): number {
+    return this.slots.findIndex((slot) => slot.address === address);
+  }
+
+  /** Planeta gracza pod adresem (do miniatur na mapie). */
+  planetAtSlot(index: number): Planet | null {
+    return this.slots[index]?.planet ?? null;
+  }
+
+  /** Kto jest na planecie: Ty, bot (inny gracz), forma obca albo nikt. */
+  occupantAt(planet: SystemPlanet): MapOccupant {
+    if (this.slotAt(planet.address) >= 0) return 'you';
+    // Własne miejsce startowe po usunięciu planety jest znów wolne.
+    if (planet.occupant === 'home') return planet.address === this.home ? 'free' : 'bot';
+    return planet.occupant;
+  }
+
+  /**
+   * Kolonizacja wolnej planety we własnym układzie (inne układy: po badaniu i ze statkiem — wkrótce).
+   * Obecne planety zostają i dalej produkują.
+   */
+  colonize(address: string, now = Date.now()): ActionMessage {
+    const where = parseAddress(address);
+    const target = where ? planetAt(this.galaxy, where) : null;
+    if (!where || !target) return { ok: false, message: 'Nie ma takiej planety.' };
+    const occupant = this.occupantAt(target);
+    if (occupant === 'you') return { ok: false, message: `${target.name} już należy do Ciebie.` };
+    if (occupant === 'bot') return { ok: false, message: 'Tu jest miejsce startowe innego gracza.' };
+    if (occupant === 'alien') return { ok: false, message: 'Na tej planecie żyje forma obca — jej przejęcie będzie możliwe wkrótce.' };
+    if (where.system !== this.homeSystem) {
+      return { ok: false, message: 'Kolonizacja innych układów wymaga badania i statku kolonizacyjnego — wkrótce.' };
     }
-    const planet = generatePlanet(pickDefinition(seed, PLANET_DEFINITIONS), seed);
+    if (!hasFreeSlot(this.slots.length, this.openSlots)) {
+      return { ok: false, message: `Wszystkie miejsca (${this.openSlots}) są zajęte — usuń planetę, żeby skolonizować nową.` };
+    }
+    const planet = galaxyPlanet(target);
     // Zapas startowy antymaterii dostaje tylko pierwsza planeta (portfel jest wspólny).
-    this.slots.push({ planet, economy: { ...createEconomy(now), antimatter: 0 } });
+    this.slots.push({ planet, economy: { ...createEconomy(now), antimatter: 0 }, address });
     const result = this.switchPlanet(this.slots.length - 1, now);
     this.offlineGain = null;
     this.completedWhileAway = null;
-    return result.ok ? { ok: true, message: `Nowa planeta: ${planet.displayName} (${planet.category}).` } : result;
+    return result.ok ? { ok: true, message: `Skolonizowano: ${planet.displayName} (${planet.category}).` } : result;
+  }
+
+  /**
+   * Każda planeta gracza ma adres. Zapisy sprzed v0.11: pierwsza planeta trafia na miejsce startowe
+   * gracza, pozostałe — na wolne planety układu startowego (wygląd i postęp się nie zmieniają).
+   */
+  private placeOnMap(): void {
+    const galaxy = this.galaxy;
+    if (!parseAddress(this.home)) {
+      this.home = starterSystem(galaxy, BALANCE.planetSlots.base).home.address;
+    }
+    const seen = new Set<string>();
+    for (const slot of this.slots) {
+      if (seen.has(slot.address) || !parseAddress(slot.address)) slot.address = '';
+      if (slot.address) seen.add(slot.address);
+    }
+    const system = generateSystem(galaxy, this.homeSystem)!;
+    const open = [this.home, ...system.planets.filter((p) => p.occupant === 'free').map((p) => p.address)];
+    for (const slot of this.slots) {
+      if (slot.address) continue;
+      // Brak miejsca w układzie (nie powinno się zdarzyć) — kolejne układy po kolei.
+      slot.address = open.find((a) => !seen.has(a)) ?? this.spareAddress(seen);
+      seen.add(slot.address);
+    }
+  }
+
+  private spareAddress(taken: Set<string>): string {
+    for (const summary of this.galaxy.systems) {
+      const free = generateSystem(this.galaxy, summary.index)!.planets.find((p) => p.occupant === 'free' && !taken.has(p.address));
+      if (free) return free.address;
+    }
+    return formatAddress({ galaxy: GALAXY_ID, system: 1, position: 1 });
   }
 
   /** Usunięcie planety (nie aktywnej). Postęp tej planety przepada. */
@@ -409,7 +516,9 @@ export class GameController {
     this.slots = slots;
     this.unlockedSlots = result.data.unlockedSlots;
     this.research = result.data.research;
+    this.home = result.data.home ?? '';
     this.active = result.data.active;
+    this.placeOnMap();
     this.economy = { ...this.economy, antimatter: result.data.antimatter };
     this.advanceActive(now);
     this.offlineGain = null;
@@ -427,6 +536,7 @@ export class GameController {
       // Miejsca z badań też trafiają do zapisu (walidacja: planet ≤ odblokowanych miejsc).
       unlockedSlots: this.openSlots,
       research: this.research,
+      home: this.home,
       antimatter: this.economy.antimatter,
       slots: this.slots.map((slot) => ({
         kind: 'planet',
@@ -434,6 +544,7 @@ export class GameController {
           definitionId: slot.planet.definitionId,
           seed: slot.planet.seed,
           generatorVersion: slot.planet.generatorVersion,
+          address: slot.address,
         },
         economy: { ...slot.economy, antimatter: 0 },
       })),
@@ -475,7 +586,15 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
   for (const slot of saved) {
     const definition = findDefinition(slot.planet.definitionId);
     if (!definition || slot.planet.generatorVersion !== GENERATOR_VERSION) continue;
-    slots.push({ planet: generatePlanet(definition, slot.planet.seed), economy: slot.economy });
+    const planet = generatePlanet(definition, slot.planet.seed);
+    // Planeta z galaktyki (seed = adres) nosi nazwę od swojego układu.
+    const where = slot.planet.address === slot.planet.seed ? parseAddress(slot.planet.address) : null;
+    const fromGalaxy = where ? planetAt(generateGalaxy(where.galaxy), where) : null;
+    slots.push({
+      planet: fromGalaxy ? { ...planet, displayName: fromGalaxy.name } : planet,
+      economy: slot.economy,
+      address: slot.planet.address ?? '',
+    });
   }
   return slots;
 }
@@ -486,11 +605,8 @@ function finishedBuild(before: EconomyState, after: EconomyState): CompletedBuil
   return after.levels[c.building] === c.targetLevel ? { building: c.building, level: c.targetLevel } : null;
 }
 
-/** Losowy seed gracza, np. „PF-A2TQ-7QWR” (bez mylących znaków 0/O, 1/I). */
-export function randomSeed(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes = new Uint8Array(8);
-  globalThis.crypto.getRandomValues(bytes);
-  const text = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
-  return `PF-${text.slice(0, 4)}-${text.slice(4)}`;
+/** Planeta z galaktyki: typ z układu, seed = adres, nazwa od układu (np. „HD-412 c”). */
+function galaxyPlanet(target: SystemPlanet): Planet {
+  const definition = findDefinition(target.definitionId) ?? STARTER.definition;
+  return { ...generatePlanet(definition, target.address), displayName: target.name };
 }

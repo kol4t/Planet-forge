@@ -1,29 +1,15 @@
 import Phaser from 'phaser';
-import type { GameController } from '../../app/GameController.ts';
 import { antimatterAmount } from '../../core/economy/economy.ts';
 import { createRng } from '../../core/random/rng.ts';
 import { describeEffects, labLevelFor, researchableCount, type ResearchStatus } from '../../core/research/research.ts';
 import type { ResearchNodeDef } from '../../core/types.ts';
 import { findArm, findResearch, RESEARCH_ARMS, RESEARCH_NODES, RESEARCH_RULES } from '../../data/research.ts';
-import { Button, type ButtonStyle } from '../ui/Button.ts';
+import type { ButtonStyle } from '../ui/Button.ts';
 import { armPoint, GALAXY_RADIUS, galaxyLayout, hitTest, ringRadius, type Point } from '../ui/galaxy.ts';
-import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
 import { COLORS, FONTS, formatDuration, formatInt } from '../ui/theme.ts';
-import type { Viewport } from './PlanetScene.ts';
+import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
-export interface ResearchSceneDeps {
-  controller: GameController;
-  getViewport: () => Viewport;
-}
-
-/** Zdarzenie gry: ekran badań zamknięty (HUD planety odzyskuje dotyk). */
-export const RESEARCH_CLOSED = 'research-closed';
-
-const MIN_ZOOM = 0.7;
-const MAX_ZOOM = 3.5;
-/** Ruch palca (pt), poniżej którego dotknięcie jest „stuknięciem”, a nie przesunięciem. */
-const TAP_SLOP = 10;
 const CANCEL_CONFIRM_MS = 3000;
 const POSITIONS = galaxyLayout(RESEARCH_ARMS, RESEARCH_NODES);
 
@@ -31,11 +17,7 @@ const POSITIONS = galaxyLayout(RESEARCH_ARMS, RESEARCH_NODES);
  * Ekran „Badania”: galaktyka z jądrem w centrum i spiralnymi ramionami (kategoriami).
  * Jeden palec przesuwa mapę, dwa przybliżają; dotknięcie gwiazdy pokazuje szczegóły badania.
  */
-export class ResearchScene extends Phaser.Scene {
-  private readonly deps: ResearchSceneDeps;
-  private dpr = 1;
-  private u = 1;
-  private ui: Phaser.GameObjects.Container | undefined;
+export class ResearchScene extends OverlayScene {
   private world: Phaser.GameObjects.Container | undefined;
   private nodes: Phaser.GameObjects.Graphics | undefined;
   private labels: { text: Phaser.GameObjects.Text; at: Point; node: boolean }[] = [];
@@ -43,158 +25,51 @@ export class ResearchScene extends Phaser.Scene {
   private detailsKey = '';
   private detailsLive: { countdown?: Phaser.GameObjects.Text; bar?: { g: Phaser.GameObjects.Graphics; rect: Rect } } = {};
   private header: Phaser.GameObjects.Text | undefined;
-  private toast: Phaser.GameObjects.Container | undefined;
   /** Środek galaktyki na ekranie i jednostka (px urządzenia na 1 jednostkę galaktyki). */
   private view = { cx: 0, cy: 0, unit: 1 };
-  private area: Rect = { x: 0, y: 0, w: 1, h: 1 };
-  private panelRect: Rect = { x: 0, y: 0, w: 1, h: 1 };
-  private pan = { x: 0, y: 0 };
-  private zoom = 1;
-  private readonly gestures = new GestureTracker(MIN_ZOOM, MAX_ZOOM);
-  /** Palce na mapie i kandydat na „stuknięcie” (unieważniany ruchem albo drugim palcem). */
-  private readonly fingers = new Set<number>();
-  private tap: { id: number; x: number; y: number; valid: boolean } | null = null;
-  private backdrop: Phaser.GameObjects.Graphics | undefined;
   private selected: string | null = null;
   private cancelArmedUntil = 0;
-  private refreshTimer = 0;
 
-  constructor(deps: ResearchSceneDeps) {
-    super({ key: 'research' });
-    this.deps = deps;
+  constructor(deps: OverlaySceneDeps) {
+    super('research', deps, { min: 0.7, max: 3.5 });
   }
 
   create(): void {
     this.selected = this.deps.controller.research.current?.id ?? null;
-    this.zoom = 1;
-    this.pan = { x: 0, y: 0 };
-    this.gestures.zoom = 1;
+    this.setupInput();
     this.relayout();
-
-    const apply = (events: GestureEvent[]) => {
-      for (const e of events) {
-        if (e.type === 'drag') {
-          this.pan.x += e.dx;
-          this.pan.y += e.dy;
-          this.applyTransform();
-        } else if (e.type === 'zoom') {
-          // Przybliżenie wokół środka mapy.
-          const ratio = e.zoom / this.zoom;
-          this.zoom = e.zoom;
-          this.pan.x *= ratio;
-          this.pan.y *= ratio;
-          this.applyTransform();
-        }
-      }
-    };
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      if (over.length > 0) return;
-      this.fingers.add(pointer.id);
-      if (this.fingers.size === 1) this.tap = { id: pointer.id, x: pointer.x, y: pointer.y, valid: true };
-      else if (this.tap) this.tap.valid = false;
-      apply(this.gestures.down(pointer.id, pointer.x, pointer.y));
-    });
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      const tap = this.tap;
-      if (tap?.id === pointer.id && Math.hypot(pointer.x - tap.x, pointer.y - tap.y) > TAP_SLOP * this.dpr) tap.valid = false;
-      apply(this.gestures.move(pointer.id, pointer.x, pointer.y));
-    });
-    const release = (pointer: Phaser.Input.Pointer) => {
-      apply(this.gestures.up(pointer.id));
-      if (!this.fingers.delete(pointer.id)) return;
-      const tap = this.tap;
-      if (tap?.id === pointer.id && tap.valid) this.onTap(pointer.x, pointer.y);
-      if (tap?.id === pointer.id || this.fingers.size === 0) this.tap = null;
-    };
-    this.input.on('pointerup', release);
-    this.input.on('pointerupoutside', release);
-    this.input.on('gameout', () => {
-      apply(this.gestures.cancel());
-      this.fingers.clear();
-      this.tap = null;
-    });
-    this.input.on('wheel', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
-      if (over.length === 0) apply(this.gestures.wheel(dy));
-    });
 
     const offComplete = this.deps.controller.onResearchComplete((id) => {
       this.showToast(`Zbadano: ${findResearch(id)?.name ?? id}.`, 'ok');
       this.refresh(true);
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      offComplete();
-      this.gestures.cancel();
-      this.fingers.clear();
-      this.tap = null;
-    });
-  }
-
-  update(_time: number, delta: number): void {
-    this.refreshTimer -= delta;
-    if (this.refreshTimer > 0) return;
-    this.refreshTimer = 250;
-    this.refresh();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, offComplete);
   }
 
   // ——— układ ———
 
   relayout(): void {
-    const viewport = this.deps.getViewport();
-    this.dpr = viewport.dpr;
-    const { width, height, safe } = viewport;
-    this.u = Math.min(1.1, Math.max(0.8, Math.min(width, height) / 880));
-    const gap = Math.round(10 * this.u);
-    const left = safe.left + gap;
-    const right = width - safe.right - gap;
-    const top = safe.top + gap;
-    const bottom = height - safe.bottom - gap;
-    const bar: Rect = { x: left, y: top, w: right - left, h: Math.round(54 * this.u) };
-    const contentTop = bar.y + bar.h + gap;
-    // Szeroki ekran: szczegóły po prawej; wąski: na dole.
-    const wide = width / height >= 1.15 && width >= 700;
-    if (wide) {
-      const w = Math.min(340 * this.u, (right - left) * 0.36);
-      this.panelRect = { x: right - w, y: contentTop, w, h: bottom - contentTop };
-      this.area = { x: left, y: contentTop, w: right - left - w - gap, h: bottom - contentTop };
-    } else {
-      const h = Math.round((width < 520 ? 236 : 206) * this.u);
-      this.panelRect = { x: left, y: bottom - h, w: right - left, h };
-      this.area = { x: left, y: contentTop, w: right - left, h: bottom - h - gap - contentTop };
-    }
+    const { bar } = this.frame(206, 236);
     this.view = {
       cx: this.px(this.area.x + this.area.w / 2),
       cy: this.px(this.area.y + this.area.h / 2),
       unit: this.px(Math.min(this.area.w, this.area.h) / 2 / GALAXY_RADIUS),
     };
 
-    this.ui?.destroy(true);
     this.world?.destroy(true);
-    this.backdrop?.destroy();
     this.details?.destroy(true);
     this.details = undefined;
     this.detailsKey = '';
     for (const label of this.labels) label.text.destroy();
     this.labels = [];
-    this.cameras.main.setBackgroundColor('#04080a');
-    this.buildStarfield(width, height);
     this.world = this.add.container(0, 0);
     this.buildGalaxy();
     this.buildLabels();
-    this.ui = this.add.container(0, 0).setDepth(10);
+    this.beginUi();
     this.buildTopBar(bar);
     this.panel(this.panelRect);
     this.applyTransform();
     this.refresh(true);
-  }
-
-  private buildStarfield(width: number, height: number): void {
-    const rng = createRng('badania-gwiazdy');
-    const g = this.add.graphics();
-    for (let i = 0; i < 160; i++) {
-      const size = rng.range(0.5, 1.4) * this.dpr;
-      g.fillStyle(0xdfe7e1, rng.range(0.15, 0.55)).fillRect(rng.range(0, this.px(width)), rng.range(0, this.px(height)), size, size);
-    }
-    this.backdrop = g;
   }
 
   /** Pył ramion, pierścienie i jądro (statyczne — rysowane raz na układ). */
@@ -262,7 +137,7 @@ export class ResearchScene extends Phaser.Scene {
   }
 
   /** Przesunięcie i przybliżenie mapy (z ograniczeniem, żeby galaktyka nie uciekła z ekranu). */
-  private applyTransform(): void {
+  protected applyTransform(): void {
     const limit = GALAXY_RADIUS * this.view.unit * this.zoom * 0.85;
     this.pan.x = Math.max(-limit, Math.min(limit, this.pan.x));
     this.pan.y = Math.max(-limit, Math.min(limit, this.pan.y));
@@ -289,7 +164,7 @@ export class ResearchScene extends Phaser.Scene {
 
   // ——— rysowanie stanu ———
 
-  private refresh(force = false): void {
+  protected refresh(force = false): void {
     const controller = this.deps.controller;
     this.drawNodes();
     const lab = controller.labLevel;
@@ -543,7 +418,7 @@ export class ResearchScene extends Phaser.Scene {
 
   // ——— akcje ———
 
-  private onTap(px: number, py: number): void {
+  protected onTap(px: number, py: number): void {
     const scale = this.view.unit * this.zoom;
     const gx = (px - this.view.cx - this.pan.x) / scale;
     const gy = (py - this.view.cy - this.pan.y) / scale;
@@ -576,97 +451,5 @@ export class ResearchScene extends Phaser.Scene {
     const result = this.deps.controller.cancelResearch(now);
     this.showToast(result.message, result.ok ? 'info' : 'error', 3200);
     this.refresh(true);
-  }
-
-  private close(): void {
-    this.game.events.emit(RESEARCH_CLOSED);
-    this.scene.stop();
-  }
-
-  // ——— pomocnicze ———
-
-  private px(v: number): number {
-    return Math.round(v * this.dpr);
-  }
-
-  private s(v: number): number {
-    return v * this.u;
-  }
-
-  private text(
-    x: number,
-    y: number,
-    content: string,
-    size: number,
-    color: string,
-    style: Phaser.Types.GameObjects.Text.TextStyle = {},
-    toUi = true,
-  ): Phaser.GameObjects.Text {
-    const t = this.add.text(this.px(x), this.px(y), content, {
-      fontFamily: FONTS.body,
-      fontSize: `${this.px(this.s(size))}px`,
-      color,
-      ...style,
-    });
-    if (toUi) this.ui!.add(t);
-    return t;
-  }
-
-  private panel(rect: Rect): void {
-    const g = this.add.graphics();
-    const radius = this.px(this.s(14));
-    const [x, y, w, h] = [this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h)];
-    g.fillStyle(COLORS.panel, 0.94).fillRoundedRect(x, y, w, h, radius);
-    g.lineStyle(this.px(1), COLORS.panelBorder, 1).strokeRoundedRect(x, y, w, h, radius);
-    const blocker = this.add.zone(x, y, w, h).setOrigin(0).setInteractive();
-    this.ui!.add([g, blocker]);
-  }
-
-  private button(x: number, y: number, w: number, label: string, style: ButtonStyle, onTap: () => void): Button {
-    return new Button(this, this.px(x), this.px(y), this.px(w), this.px(TOUCH), label, this.dpr, onTap, this.s(14)).setStyle(style);
-  }
-
-  private addButton(x: number, y: number, w: number, h: number, label: string, style: ButtonStyle, onTap: () => void): Button {
-    const button = new Button(this, this.px(x), this.px(y), this.px(w), this.px(h), label, this.dpr, onTap, this.s(14)).setStyle(style);
-    this.ui!.add(button);
-    return button;
-  }
-
-  private showToast(message: string, kind: 'ok' | 'error' | 'info', duration = 2400): void {
-    this.toast?.destroy(true);
-    const label = this.add
-      .text(0, 0, message, {
-        fontFamily: FONTS.body,
-        fontSize: `${this.px(this.s(13.5))}px`,
-        fontStyle: '600',
-        color: kind === 'error' ? COLORS.danger : kind === 'ok' ? COLORS.teal : COLORS.text,
-        align: 'center',
-        wordWrap: { width: this.px(Math.min(this.area.w - 24, 480)) },
-      })
-      .setOrigin(0.5);
-    const w = label.width + this.px(this.s(32));
-    const h = label.height + this.px(this.s(18));
-    const bg = this.add
-      .graphics()
-      .fillStyle(COLORS.panel, 0.95)
-      .fillRoundedRect(-w / 2, -h / 2, w, h, h / 2)
-      .lineStyle(this.px(1), kind === 'error' ? COLORS.dangerHex : COLORS.tealHex, 0.7)
-      .strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2);
-    const toast = this.add
-      .container(this.px(this.area.x + this.area.w / 2), this.px(this.area.y + this.area.h) - h / 2 - this.px(this.s(10)), [bg, label])
-      .setDepth(50)
-      .setAlpha(0);
-    this.toast = toast;
-    this.tweens.add({ targets: toast, alpha: 1, duration: 150 });
-    this.tweens.add({
-      targets: toast,
-      alpha: 0,
-      delay: duration,
-      duration: 400,
-      onComplete: () => {
-        toast.destroy(true);
-        if (this.toast === toast) this.toast = undefined;
-      },
-    });
   }
 }

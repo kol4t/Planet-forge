@@ -264,3 +264,46 @@ export interface ResearchState {
   done: readonly string[];
   current: ResearchProject | null;
 }
+
+// ——— galaktyka (mapa) ———
+
+export type StarKind = 'red-dwarf' | 'yellow' | 'blue-giant' | 'binary' | 'pulsar' | 'black-hole';
+
+export interface StarKindDef {
+  id: StarKind;
+  label: string;
+  description: string;
+  /** Szansa wylosowania dla układu. */
+  weight: number;
+  /** Jasność względem Słońca — razem z odległością decyduje o temperaturze planet. */
+  luminosity: number;
+  color: string;
+  status: DataStatus;
+}
+
+/** Strefa temperatury na orbicie (od niej zależą wagi typów planet). */
+export type OrbitZone = 'hot' | 'warm' | 'temperate' | 'cold' | 'frozen';
+
+export interface GalaxyRules {
+  systemCount: number;
+  /** Promień dysku galaktyki (jednostki mapy). */
+  radius: number;
+  /** Najmniejsza odległość między układami (miejsce na przyszłe stacje i porty). */
+  minSpacing: number;
+  planetCount: Range;
+  /** Do tylu planet w układzie: 2 miejsca startowe graczy; więcej planet — 3. */
+  twoHomesUpTo: number;
+  /** Szansa, że planeta (nie startowa) ma formę obcą. */
+  alienChance: number;
+  /** Minimalna temperatura (wzgl. Ziemi = 1) dla każdej strefy, od najgorętszej. */
+  zones: readonly [zone: OrbitZone, minTemperature: number][];
+  /** Wagi typów planet (id definicji) w każdej strefie. */
+  zoneTypes: Record<OrbitZone, Readonly<Record<string, number>>>;
+}
+
+/** Adres w galaktyce: galaktyka : układ : orbita (np. 1:42:7). */
+export interface GalaxyAddress {
+  galaxy: number;
+  system: number;
+  position: number;
+}

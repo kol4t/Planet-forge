@@ -191,8 +191,10 @@ test('kontroler: Osadnictwo daje 6. miejsce na planetę, które przetrwa zapis',
     const game = new GameController(0);
     game.research = { done: ['planet-1', 'planet-2', 'planet-3'], current: null };
     assert.equal(game.slotInfo.unlocked, 6);
-    for (let i = 0; i < 5; i++) assert.ok(game.addPlanet(`SLOT-${i}`, 0).ok, `planeta ${i + 2}`);
-    assert.ok(!game.addPlanet('SLOT-X', 0).ok);
+    const free = game.system(game.homeSystem)!.planets.filter((p) => p.occupant === 'free').map((p) => p.address);
+    assert.ok(free.length >= 5, `wolnych planet w układzie startowym: ${free.length}`);
+    for (let i = 0; i < 5; i++) assert.ok(game.colonize(free[i]!, 0).ok, `planeta ${i + 2}`);
+    assert.equal(game.slotInfo.used, 6);
     const loaded = new GameController(1000);
     assert.equal(loaded.slotInfo.used, 6);
   });

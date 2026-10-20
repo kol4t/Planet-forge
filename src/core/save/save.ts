@@ -7,7 +7,8 @@ export const SAVE_KEY = 'planet-forge.save.v1';
 
 export interface SaveData {
   saveVersion: number;
-  planet: { definitionId: string; seed: string; generatorVersion: number };
+  /** `address` (np. „1:42:7”) — miejsce planety w galaktyce (od v0.11; starsze zapisy go nie mają). */
+  planet: { definitionId: string; seed: string; generatorVersion: number; address?: string };
   economy: EconomyState;
 }
 
@@ -38,7 +39,10 @@ export function parsePlanetRef(raw: any): SaveData['planet'] | null {
   if (!raw || typeof raw.definitionId !== 'string' || typeof raw.seed !== 'string' || !isNum(raw.generatorVersion)) {
     return null;
   }
-  return { definitionId: raw.definitionId, seed: raw.seed, generatorVersion: raw.generatorVersion };
+  const ref: SaveData['planet'] = { definitionId: raw.definitionId, seed: raw.seed, generatorVersion: raw.generatorVersion };
+  // Błędny adres nie psuje zapisu — planeta dostanie nowe miejsce w układzie startowym.
+  if (typeof raw.address === 'string' && /^\d{1,3}:\d{1,4}:\d{1,2}$/.test(raw.address)) ref.address = raw.address;
+  return ref;
 }
 
 /** Stan gospodarki z walidacją (brakujące nowsze pola → wartości startowe) albo null. */

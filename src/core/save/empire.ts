@@ -31,6 +31,8 @@ export interface EmpireSave {
   slots: SlotSave[];
   /** Badania (wspólne dla imperium). Brak w zapisach sprzed v0.10 = nic nie zbadano. */
   research: ResearchState;
+  /** Miejsce startowe gracza w galaktyce (np. „1:42:3”). Brak w zapisach sprzed v0.11. */
+  home?: string;
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -70,6 +72,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     antimatter: data.antimatter,
     slots,
     research: parseResearch(data.research),
+    ...(typeof data.home === 'string' && /^\d{1,3}:\d{1,4}:\d{1,2}$/.test(data.home) ? { home: data.home } : {}),
   };
 }
 
