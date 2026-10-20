@@ -15,6 +15,18 @@ export const SURFACE_DETAIL = 56;
 const FOV = 32;
 const LIGHT_POSITION = new THREE.Vector3(-4, 2.5, 3.5);
 const BUILDING_IDS: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
+/**
+ * Limit pikseli bufora planety (szer. × wys. × ratio²). Pełny ekran iPada w Retinie to ~3,9 mln —
+ * razem z wygładzaniem krawędzi za dużo pamięci grafiki dla starszych iPadów.
+ */
+const PIXEL_BUDGET = 2_400_000;
+
+/** Gęstość pikseli renderowania mieszcząca się w budżecie (maks. 2). */
+export function renderPixelRatio(width: number, height: number, devicePixelRatio: number): number {
+  const wanted = Math.min(devicePixelRatio || 1, 2);
+  const fit = Math.sqrt(PIXEL_BUDGET / Math.max(1, width * height));
+  return Math.max(1, Math.min(wanted, fit));
+}
 
 export function hasWebGL(): boolean {
   try {
@@ -49,11 +61,12 @@ export class PlanetView implements PlanetDisplay {
   constructor(canvas: HTMLCanvasElement, onContextLost?: () => void) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      // Na ekranach Retina wygładzanie jest prawie niewidoczne, a kosztuje dużo pamięci grafiki.
+      antialias: (window.devicePixelRatio || 1) < 2,
       alpha: true,
-      powerPreference: 'high-performance',
+      powerPreference: 'default',
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(1);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setClearColor(0x000000, 0);
     canvas.addEventListener('webglcontextlost', (event) => {
@@ -125,7 +138,7 @@ export class PlanetView implements PlanetDisplay {
   resize(width: number, height: number): void {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(renderPixelRatio(this.width, this.height, window.devicePixelRatio));
     this.renderer.setSize(this.width, this.height, false);
     this.updateCamera();
   }

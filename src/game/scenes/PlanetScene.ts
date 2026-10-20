@@ -22,6 +22,18 @@ export interface SceneDeps {
   getViewport: () => Viewport;
   /** Wersja gry pokazywana w ustawieniach. */
   appVersion: string;
+  graphics: GraphicsInfo;
+}
+
+/** Tryb grafiki i diagnostyka startu (z app/bootGuard). */
+export interface GraphicsInfo {
+  /** Gra działa w widoku 2D z wyboru albo po awarii. */
+  safeMode: boolean;
+  crashedLastTime: boolean;
+  active: 'webgl' | 'canvas2d';
+  /** Zmiana trybu zapisuje grę i przeładowuje stronę. */
+  setMode(mode: 'auto' | '2d'): void;
+  diagnostics(): string;
 }
 
 interface BuildingCard {
@@ -132,7 +144,13 @@ export class PlanetScene extends Phaser.Scene {
       display.showBuilding(done.building);
     });
 
-    if (controller.offlineGain || controller.completedWhileAway) {
+    if (this.deps.graphics.crashedLastTime) {
+      this.showToast(
+        'Poprzednie uruchomienie się nie powiodło — gra działa w trybie bezpiecznym (2D). Szczegóły: Ustawienia.',
+        'info',
+        6000,
+      );
+    } else if (controller.offlineGain || controller.completedWhileAway) {
       const lines: string[] = [];
       const gain = controller.offlineGain;
       if (gain) {
@@ -779,12 +797,41 @@ export class PlanetScene extends Phaser.Scene {
       this.confirmNewPlanet();
     }, this.s(15)).setStyle('secondary');
     y += buttonH + gap * 1.5;
+    const g = this.deps.graphics;
+    const gfxLabel = this.add.text(pad, y, 'GRAFIKA', font(11, COLORS.muted, { fontStyle: '600' }));
+    y += gfxLabel.height + this.px(4);
+    const gfxHint = this.add.text(
+      pad,
+      y,
+      g.active === 'webgl'
+        ? 'Planeta 3D. Jeśli gra się zamyka albo iPad się restartuje, włącz tryb bezpieczny (2D).'
+        : g.crashedLastTime
+          ? 'Tryb bezpieczny (2D) — poprzednie uruchomienie się nie powiodło. Skopiuj diagnostykę i prześlij ją.'
+          : 'Tryb bezpieczny (2D): planeta bez efektów 3D, mniejsze zużycie grafiki.',
+      font(13, COLORS.muted),
+    );
+    y += gfxHint.height + gap;
+    const toggle = new Button(
+      this,
+      pad,
+      y,
+      halfW,
+      buttonH,
+      g.active === 'webgl' ? 'Tryb 2D' : 'Włącz 3D',
+      this.dpr,
+      () => g.setMode(g.active === 'webgl' ? '2d' : 'auto'),
+      this.s(15),
+    ).setStyle('secondary');
+    const diag = new Button(this, pad + halfW + gap, y, halfW, buttonH, 'Diagnostyka', this.dpr, () => this.copyDiagnostics(), this.s(15)).setStyle(
+      'secondary',
+    );
+    y += buttonH + gap * 1.5;
     const version = this.add.text(pad, y + (buttonH - this.px(this.s(16))) / 2, `Planet Forge ${this.deps.appVersion}`, font(12, COLORS.faint, { fontFamily: FONTS.mono }));
     const closeBtn = new Button(this, w - pad - halfW, y, halfW, buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle(
       'primary',
     );
     y += buttonH + pad;
-    items.push(title, saveLabel, saveHint, copy, load, expLabel, newPlanet, version, closeBtn);
+    items.push(title, saveLabel, saveHint, copy, load, expLabel, newPlanet, gfxLabel, gfxHint, toggle, diag, version, closeBtn);
 
     const h = y;
     const x = (W - w) / 2;
@@ -799,6 +846,20 @@ export class PlanetScene extends Phaser.Scene {
     const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
     const dialog = this.add.container(x, top, [box, blocker, ...items]);
     this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+  }
+
+  private copyDiagnostics(): void {
+    const text = this.deps.graphics.diagnostics();
+    const fallback = () =>
+      openTextPanel({ title: 'Diagnostyka', hint: 'Zaznacz cały tekst, skopiuj i wklej w rozmowie.', text, readOnly: true });
+    try {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => this.showToast('Diagnostyka skopiowana — wklej ją w rozmowie.', 'ok', 3500))
+        .catch(fallback);
+    } catch {
+      fallback();
+    }
   }
 
   private copySave(): void {

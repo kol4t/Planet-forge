@@ -4,7 +4,10 @@
  * `onUpdate` dostaje funkcję `apply`, która przełącza na nową wersję i przeładowuje stronę
  * (wywołaj ją po dotknięciu „Odśwież”).
  */
-export function registerServiceWorker(onUpdate: (apply: () => void) => void): void {
+export function registerServiceWorker(
+  onUpdate: (apply: () => void) => void,
+  options: { applyImmediately?: boolean } = {},
+): void {
   if (!__PWA__) return;
   try {
     if (!('serviceWorker' in navigator) || !location.protocol.startsWith('http')) return;
@@ -18,10 +21,13 @@ export function registerServiceWorker(onUpdate: (apply: () => void) => void): vo
   });
 
   const offer = (worker: ServiceWorker) => {
-    onUpdate(() => {
+    const apply = () => {
       reloadRequested = true;
       worker.postMessage({ type: 'SKIP_WAITING' });
-    });
+    };
+    // Po awarii nie czekamy na gracza — nowa wersja może zawierać poprawkę.
+    if (options.applyImmediately) apply();
+    else onUpdate(apply);
   };
 
   navigator.serviceWorker

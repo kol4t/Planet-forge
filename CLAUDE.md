@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Pełna wizja: `docs/technical-brief.md`. Dec
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku.
 
-## Stan obecny (v0.6 — działa)
+## Stan obecny (v0.6.1 — działa)
 
 - Planeta 3D (Three.js) generowana deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **5 typów planet** (dane robocze): umiarkowana (Kepler-186 f, planeta startowa), pustynna, lodowa, oceaniczna, wulkaniczna (świecąca lawa). Typ nowej planety wynika z seeda (`pickDefinition`).
@@ -29,9 +29,10 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **Czas budowy**: ulepszenie trwa `buildSecondsPerLevel` (30 s) × docelowy poziom; naraz jedna budowa; koszt pobierany na starcie, anulowanie (drugim dotknięciem) zwraca go w całości. Budowa kończy się także offline (`advance` dzieli czas w chwili ukończenia). Na karcie pasek postępu i odliczanie, na planecie złote rusztowanie rosnące z postępem.
 - Zapis w `localStorage` (co 10 s, przy schowaniu karty, po akcji, po ukończeniu budowy) + naliczanie produkcji offline (maks. 8 h). Trwająca budowa jest częścią zapisu (pole opcjonalne). Format zapisu i `GENERATOR_VERSION` bez zmian względem v0.1 — stare zapisy działają.
 - **PWA**: manifest, ikony (180/192/512 px, renderowane skryptem z planety startowej), meta tagi iOS (pełny ekran, przezroczysty pasek statusu, `viewport-fit=cover`), service worker (offline, cache-first; nowa wersja → pasek „Dostępna aktualizacja” z przyciskiem „Odśwież”).
+- **Bezpiecznik startu** (`app/bootGuard.ts`): start, który nie dotrwał do 8 s pracy, przełącza następny w tryb bezpieczny 2D; Ustawienia → „Grafika” (3D / 2D) i „Diagnostyka”. Panele Phaser w **Canvas 2D** — jedyny kontekst WebGL ma planeta (pamięć grafiki iPada!).
 - **Ustawienia** (przycisk w panelu planety): „Kopiuj zapis” (tekst `PF1:…` do schowka), „Wczytaj zapis” (pole tekstowe HTML, walidacja, błędy po polsku), „Nowa planeta…”, wersja gry. Na iPadzie Safari i aplikacja z ekranu początkowego mają osobną pamięć — zapis przenosi się tym tekstem.
 - Układ responsywny: iPad poziomo (kolumny), pionowo i telefon (wiersz kart); safe-area; brak przewijania/zoomu strony.
-- 80 testów: seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu, rozmieszczenie kolonii, eksport/import zapisu, zawartość buildu (manifest, ikony, service worker).
+- 86 testów: seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu, rozmieszczenie kolonii, eksport/import zapisu, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -61,7 +62,7 @@ dist/              index.html (gra w jednym pliku), manifest.webmanifest, sw.js,
 4. Generowanie: seed + id definicji + `GENERATOR_VERSION`. Strumienie `gameplay` i `visual` są rozdzielone (`rng.fork`). Jeśli zmieniasz algorytm tak, że stare seedy dadzą inne planety — **podbij `GENERATOR_VERSION`**.
 5. Nowy typ planety = nowy obiekt w `src/data/planets.ts` (dopisany do `PLANET_DEFINITIONS`) — testy automatycznie sprawdzą jego dane i kolonię. Renderer nie wymaga zmian: wygląd opisują pola `visual` (paleta, `ocean`, `clouds`, `polarCap`).
 6. Dotyk: gest obrotu startuje tylko poza panelami (każdy panel ma blokującą strefę). Cele dotykowe ≥ 44 pt. Nic nie może zależeć od hovera.
-7. Wydajność iPada: pilnuj liczby wierzchołków (`SURFACE_DETAIL`), draw calli i ciężkich shaderów. Nowe efekty dodawaj po jednym.
+7. Wydajność iPada: pilnuj liczby wierzchołków (`SURFACE_DETAIL`), draw calli, ciężkich shaderów i **pamięci grafiki** (jeden kontekst WebGL, budżet pikseli `renderPixelRatio`, bez MSAA na Retinie). Nowe efekty dodawaj po jednym.
 8. Zachowuj fallback Canvas przy każdej zmianie renderera.
 9. Ścieżki w buildzie są **względne** (gra może działać w podfolderze, np. GitHub Pages). Service worker tylko w `npm run build` (`__PWA__`), nigdy w `npm run dev`. Każda zmiana plików w `dist/` = nowa wersja pamięci podręcznej i komunikat o aktualizacji u graczy.
 
@@ -87,7 +88,7 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 ## Git
 
 - Małe, logiczne commity z opisem po polsku. Przed większą zmianą `git status`.
-- **`main` = gra opublikowana** (każde wypchnięcie do `main` publikuje grę na GitHub Pages). Pracuj na gałęzi `claude/…`; do `main` scalaj dopiero po akceptacji właściciela.
+- **`main` = gra opublikowana** (każde wypchnięcie do `main` publikuje grę na GitHub Pages). Pracuj na gałęzi `claude/…`; do `main` scalaj dopiero po akceptacji właściciela. Wyjątek: poprawka błędu, przez który opublikowana gra nie działa (hotfix) — od razu, z informacją dla właściciela.
 - Nie twórz ani nie podpinaj zdalnego repozytorium GitHub bez potwierdzenia adresu przez właściciela.
 - Istotne decyzje architektoniczne dopisuj do `docs/decisions.md`.
 

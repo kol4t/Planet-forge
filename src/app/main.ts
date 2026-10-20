@@ -3,6 +3,7 @@ import { PlanetScene, type Viewport } from '../game/scenes/PlanetScene.ts';
 import { CanvasPlanetFallback } from '../planet-renderer/CanvasPlanetFallback.ts';
 import type { PlanetDisplay } from '../planet-renderer/PlanetDisplay.ts';
 import { hasWebGL, PlanetView } from '../planet-renderer/PlanetView.ts';
+import { BootGuard } from './bootGuard.ts';
 import { GameController } from './GameController.ts';
 import { registerServiceWorker } from './pwa.ts';
 
@@ -29,23 +30,47 @@ function readSafeArea(): Viewport['safe'] {
 
 function getViewport(): Viewport {
   const vv = window.visualViewport;
+  // Tuż po starcie z ekranu początkowego iOS potrafi zgłosić zerowy rozmiar — wtedy bierzemy inne źródło.
+  const pick = (...values: (number | undefined)[]) => Math.round(values.find((v) => v !== undefined && v > 0) ?? 1);
   return {
-    width: Math.round(vv?.width ?? window.innerWidth),
-    height: Math.round(vv?.height ?? window.innerHeight),
-    dpr: Math.min(window.devicePixelRatio || 1, 3),
+    width: pick(vv?.width, window.innerWidth, document.documentElement.clientWidth),
+    height: pick(vv?.height, window.innerHeight, document.documentElement.clientHeight),
+    // Panele (Phaser) w maks. 2× — wyżej nie widać różnicy, a rośnie zużycie pamięci.
+    dpr: Math.min(window.devicePixelRatio || 1, 2),
     safe: readSafeArea(),
   };
 }
 
-function start(): void {
+function safeStorage(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function isStandalone(): boolean {
+  try {
+    return matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
+  } catch {
+    return false;
+  }
+}
+
+function start(boot: BootGuard): void {
   const planetCanvas = document.getElementById('planet') as HTMLCanvasElement;
   const uiRoot = document.getElementById('ui')!;
   const controller = new GameController();
+  boot.step('zapis wczytany');
 
+  const { safeMode } = boot.state;
   let display: PlanetDisplay;
-  if (hasWebGL()) {
+  if (!safeMode && hasWebGL()) {
     try {
-      display = new PlanetView(planetCanvas, () => showError('Utracono kontekst grafiki 3D. Odśwież stronę.'));
+      display = new PlanetView(planetCanvas, () => {
+        boot.step('utrata kontekstu 3D');
+        showError('Utracono kontekst grafiki 3D. Zamknij i otwórz grę ponownie — uruchomi się w trybie bezpiecznym.');
+      });
     } catch (error) {
       console.warn('WebGL nie zadziałał, używam widoku awaryjnego', error);
       display = new CanvasPlanetFallback(planetCanvas);
@@ -53,14 +78,41 @@ function start(): void {
   } else {
     display = new CanvasPlanetFallback(planetCanvas);
   }
+  boot.step(`grafika ${display.kind}`);
   display.setPlanet(controller.planet);
   display.setStructures(controller.economy.levels);
   document.body.dataset.renderer = display.kind;
+  boot.step('planeta gotowa');
 
   const viewport = getViewport();
-  const scene = new PlanetScene({ controller, display, getViewport, appVersion: __APP_VERSION__ });
+  const scene = new PlanetScene({
+    controller,
+    display,
+    getViewport,
+    appVersion: __APP_VERSION__,
+    graphics: {
+      safeMode,
+      crashedLastTime: boot.crashedLastTime,
+      active: display.kind,
+      setMode: (mode) => {
+        boot.setGraphics(mode);
+        controller.save();
+        location.reload();
+      },
+      diagnostics: () =>
+        boot.diagnostics({
+          wersja: __APP_VERSION__,
+          przeglądarka: navigator.userAgent,
+          ekran: `${screen.width}×${screen.height} @${window.devicePixelRatio}`,
+          okno: `${viewport.width}×${viewport.height}`,
+          'z ekranu początkowego': isStandalone() ? 'tak' : 'nie',
+          'grafika teraz': display.kind,
+        }),
+    },
+  });
   const game = new Phaser.Game({
-    type: Phaser.AUTO,
+    // Panele rysowane w Canvas 2D: jedyny kontekst WebGL ma planeta (mniej pamięci grafiki).
+    type: Phaser.CANVAS,
     parent: uiRoot,
     transparent: true,
     width: viewport.width * viewport.dpr,
@@ -95,11 +147,22 @@ function start(): void {
   setInterval(() => controller.save(), 10_000);
 
   game.events.once('ready', () => {
+    boot.step('panele gotowe');
     const status = document.getElementById('status');
     if (status && !status.classList.contains('error')) status.hidden = true;
-    // Offline + aktualizacje (tylko build produkcyjny serwowany przez https/http).
-    registerServiceWorker((apply) => scene.showUpdateAvailable(apply));
+    // Offline + aktualizacje. Po awarii nowa wersja (może z poprawką) włącza się od razu.
+    registerServiceWorker((apply) => scene.showUpdateAvailable(apply), { applyImmediately: boot.crashedLastTime });
   });
+
+  // Stabilnie = 8 s widocznej pracy. Dopiero wtedy start nie liczy się jako awaria.
+  let visibleMs = 0;
+  const stableTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') visibleMs += 1000;
+    if (visibleMs >= 8000) {
+      boot.markStable();
+      clearInterval(stableTimer);
+    }
+  }, 1000);
 
   // Safari: blokada powiększania strony gestem szczypania.
   for (const type of ['gesturestart', 'gesturechange']) {
@@ -107,9 +170,11 @@ function start(): void {
   }
 }
 
+const boot = new BootGuard(safeStorage(), Date.now());
 try {
-  start();
+  start(boot);
 } catch (error) {
+  boot.step(`błąd: ${(error as Error).message}`);
   console.error(error);
   showError(`Nie udało się uruchomić gry: ${(error as Error).message}`);
 }

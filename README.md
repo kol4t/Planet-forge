@@ -62,5 +62,7 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 28. „Ustawienia” → „Kopiuj zapis” → zielony komunikat; wklej w Notatkach: tekst zaczyna się od „PF1:”.
 29. „Ustawienia” → „Wczytaj zapis” → wklej zły tekst → czerwony błąd po polsku, gra bez zmian; wklej poprawny → planeta i postęp z zapisu.
 30. Po wgraniu nowej wersji na hosting i ponownym otwarciu aplikacji: pasek „Dostępna aktualizacja” → „Odśwież” → gra przeładowuje się w nowej wersji, postęp zostaje.
+31. **Nowe w 0.6.1:** gra z ikony uruchamia się i działa ponad minutę bez restartu iPada.
+32. **Nowe w 0.6.1:** „Ustawienia” → „Grafika”: „Tryb 2D” przełącza na planetę 2D (gra się przeładowuje), „Włącz 3D” wraca. „Diagnostyka” kopiuje raport do schowka.
 
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.
