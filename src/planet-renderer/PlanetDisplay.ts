@@ -37,6 +37,7 @@ export const STRUCTURE_COLORS: Record<BuildingId, { body: string; light: string 
   powerPlant: { body: '#c9b27a', light: '#ffcc55' },
   storage: { body: '#8f9c98', light: '#f2e2b0' },
   antimatterCollector: { body: '#6f7d84', light: '#c9b8ff' },
+  laboratory: { body: '#9fb7c4', light: '#f4f0e0' },
 };
 
 /**

@@ -1,5 +1,5 @@
 import { BALANCE } from '../../data/balance.ts';
-import type { Balance, BuildingDef, BuildingId, Construction, EconomyState, Planet, Resources } from '../types.ts';
+import type { Balance, BuildingDef, BuildingId, Construction, EconomyState, Planet, Resources, YieldId } from '../types.ts';
 
 export interface Rates {
   /** Produkcja na minutę. */
@@ -54,8 +54,21 @@ export function upgradeCost(id: BuildingId, level: number, balance: Balance = BA
   };
 }
 
+/**
+ * Mnożnik środowiska planety dla danego wydobycia. Kary (< 1) słabną z `environmentPenalty`
+ * (badania Planetologii); premie (> 1) zostają bez zmian.
+ */
+export function environmentEffect(planet: Planet, id: YieldId, balance: Balance = BALANCE): number {
+  const effect = planet.gameplay.environment.effects[id] ?? 1;
+  return effect >= 1 ? effect : 1 - (1 - effect) * Math.max(0, balance.environmentPenalty);
+}
+
 export function productionRates(state: EconomyState, planet: Planet, balance: Balance = BALANCE): Rates {
-  const env = planet.gameplay.environment.effects;
+  const env = {
+    metal: environmentEffect(planet, 'metal', balance),
+    crystal: environmentEffect(planet, 'crystal', balance),
+    energy: environmentEffect(planet, 'energy', balance),
+  };
   const rich = planet.gameplay.richness;
   const growth = balance.levelGrowth;
   let energyProduced = 0;
@@ -67,9 +80,9 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
     const level = state.levels[def.id] ?? 0;
     const output = scaled(def.baseOutput, level, growth);
     energyUsed += scaled(def.baseEnergyUse, level, growth);
-    if (def.produces === 'energy') energyProduced += output * rich.energy * (env.energy ?? 1);
-    if (def.produces === 'metal') metal += output * rich.metal * (env.metal ?? 1);
-    if (def.produces === 'crystal') crystal += output * rich.crystal * (env.crystal ?? 1);
+    if (def.produces === 'energy') energyProduced += output * rich.energy * env.energy;
+    if (def.produces === 'metal') metal += output * rich.metal * env.metal;
+    if (def.produces === 'crystal') crystal += output * rich.crystal * env.crystal;
     if (def.produces === 'antimatter') collector += output;
   }
   const efficiency = energyUsed <= 0 ? 1 : Math.min(1, energyProduced / energyUsed);

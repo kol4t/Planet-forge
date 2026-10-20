@@ -87,6 +87,15 @@ function createShapes(): Record<BuildingId, Shape> {
         at(new THREE.TorusGeometry(0.21, 0.025, 4, 16).rotateX(Math.PI / 2), 0, 1.12, 0),
       ]),
     },
+    // Laboratorium: niska kopuła obserwatorium z antenką i podstawą.
+    laboratory: {
+      body: prepare([
+        at(new THREE.CylinderGeometry(0.36, 0.4, 0.14, 10), 0, 0.07, 0),
+        at(new THREE.SphereGeometry(0.3, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.14, 0),
+        at(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 4), 0.14, 0.52, 0),
+      ]),
+      light: prepare([at(new THREE.BoxGeometry(0.08, 0.05, 0.3).rotateY(0.4), 0, 0.42, 0)]),
+    },
   };
 }
 

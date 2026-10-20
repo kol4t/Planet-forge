@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Pełna wizja: `docs/technical-brief.md`. Dec
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku.
 
-## Stan obecny (v0.9 — działa)
+## Stan obecny (v0.10 — w testach; v0.9 opublikowana)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **Przybliżanie dwoma palcami** (1×–3,5×, `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
@@ -34,7 +34,8 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **Bezpiecznik startu** (`app/bootGuard.ts`): tryb grafiki (`'2d'` domyślnie / `'3d'`); start w 3D, który nie dotrwał do 8 s pracy, przełącza na stałe na 2D; Ustawienia → „Grafika” i „Diagnostyka” (z licznikiem płynności `app/fpsMeter.ts`). Panele Phaser w **Canvas 2D** — jedyny kontekst WebGL ma planeta (pamięć grafiki iPada!).
 - **Ustawienia** (przycisk w panelu planety): „Kopiuj zapis” (tekst `PF2:…` — całe imperium — do schowka; `PF1:` nadal się wczytuje), „Wczytaj zapis” (pole tekstowe HTML, walidacja, błędy po polsku), wersja gry. „Nowa planeta” jest w oknie „Twoje planety”. Na iPadzie Safari i aplikacja z ekranu początkowego mają osobną pamięć — zapis przenosi się tym tekstem.
 - **Skalowanie komputer/tablet/telefon**: `u` z rozmiaru ekranu (0,8–1,1), boczne panele tylko na szerokich i wysokich ekranach, karty w kolumnach/siatce wg miejsca; safe-area; brak przewijania/zoomu strony; komputer: kółko myszy = przybliżenie.
-- 104 testy: seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
+- **Badania — galaktyka (v0.10)**: ekran „Badania” (`game/scenes/ResearchScene.ts`, układ `game/ui/galaxy.ts`) — jądro i 6 spiralnych ramion; aktywne Produktywność i Planetologia, reszta „wkrótce”, gwiazdy mistrzowskie (maks. 2 aktywne — kolejny krok). Reguły `core/research/research.ts`, dane `data/research.ts`. Badania wspólne dla imperium, jedno naraz, efekty przez `applyResearch` → `GameController.balance`. Budynek **Laboratorium** (6. karta; poziomo pod panelem planety) ogranicza pierścień.
+- 115 testów (w tym badania i galaktyka): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -103,7 +104,7 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 4. **Typy planet z Lore Bible** — podmiana roboczych danych w `src/data/planets.ts` na kanon (mechanizm już działa dla 5 typów).
 5. **Wizualia** — ~~pinch-zoom~~ (v0.8); dalej: pierścienie jako opcja w danych (zapas płynności: 60/53 kl./s na iPadzie właściciela).
 7. ~~Poprawki UI~~ (v0.9: zwijane panele, mniejsze UI, skalowanie).
-8. **Badania — galaktyka** (plan zatwierdzony, szczegóły w `docs/decisions.md`): 6 ramion (Produktywność z antymaterią, Planetologia, Eksploracja, Stacja i handel, SI, Flota cywilna), budynek Laboratorium ogranicza głębokość. Etapy: silnik badań + ekran galaktyki → SI (Matka + wykonawcze) → Stacja i handel → Eksploracja → Flota (walka później).
+8. **Badania — galaktyka** (etap 1 = v0.10; szczegóły w `docs/decisions.md`): 6 ramion (Produktywność z antymaterią, Planetologia, Eksploracja, Stacja i handel, SI, Flota cywilna), budynek Laboratorium ogranicza głębokość. Etapy: ~~silnik badań + ekran galaktyki~~ (v0.10; dalej mosty i gwiazdy mistrzowskie) → SI (Matka + wykonawcze) → Stacja i handel → Eksploracja → Flota (walka później).
 
 **Do zrobienia później (decyzja właściciela — odłożone, nie zapominać):** lokacje wokół planety — księżyc jako pierwsza (mała pikselowa kulka na orbicie w 2D, opcja w danych planety), potem stacje kosmiczne, ekspedycje, szlaki handlowe; odblokowują miejsca 6–10 w „Twoje planety” (`planetSlots.max`, `SlotSave.kind`).
 6. ~~PWA~~ (v0.6), ~~hosting~~: GitHub Pages `https://kol4t.github.io/Planet-forge/`, automatycznie z `main` (`.github/workflows/pages.yml`).

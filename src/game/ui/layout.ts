@@ -44,6 +44,8 @@ export interface Layout {
     toggle: Rect;
     /** Karty budynków (puste, gdy zwinięty). */
     cards: Rect[];
+    /** Szeroki ekran: dodatkowy panel pod panelem planety na karty spoza prawej kolumny. */
+    overflow: Rect | null;
   };
   planet: { cx: number; cy: number; r: number };
   toastY: number;
@@ -66,7 +68,7 @@ export function computeLayout(
   width: number,
   height: number,
   safe: Insets = NO_INSETS,
-  cardCount = 5,
+  cardCount = 6,
   state: PanelState = OPEN_PANELS,
 ): Layout {
   const u = clamp(Math.min(width, height) / 880, 0.8, 1.1);
@@ -91,15 +93,24 @@ export function computeLayout(
       x: left,
       y: contentTop,
       w: infoW,
-      h: Math.min(avail, Math.round((state.infoOpen ? 352 : 158) * u)),
+      // +52: przycisk „Badania” nad „Planety”/„Ustawienia”.
+      h: Math.min(avail, Math.round((state.infoOpen ? 404 : 210) * u)),
     };
 
     let cardH = CARD_H_COLUMN * u;
     const space = avail - HEADER_H * u - 2 * pad;
     // Ile kart mieści się w kolumnie; reszta w kolejnych kolumnach (niskie ekrany, np. telefon poziomo).
-    const perColumn = clamp(Math.floor((space + gap) / (cardH + gap)), 1, cardCount);
-    const cols = Math.ceil(cardCount / perColumn);
-    const rows = Math.ceil(cardCount / cols);
+    let perColumn = clamp(Math.floor((space + gap) / (cardH + gap)), 1, cardCount);
+    // Szeroki ekran: karty, które nie mieszczą się w prawej kolumnie, trafiają pod panel planety
+    // (zamiast drugiej kolumny, która mocno zmniejsza planetę) — o ile jest tam miejsce.
+    const infoBottom = info.y + info.h + gap;
+    const extra = cardCount - perColumn;
+    const overflowH = extra * cardH + (extra - 1) * gap + 2 * pad;
+    const overflow = wide && state.productionOpen && extra > 0 && extra <= 2 && infoBottom + overflowH <= bottom;
+    if (overflow) perColumn = cardCount - extra;
+    const columnCount = overflow ? perColumn : cardCount;
+    const cols = Math.ceil(columnCount / perColumn);
+    const rows = Math.ceil(columnCount / cols);
     // Kilka kolumn musi zmieścić się obok panelu planety.
     const roomW = right - (left + infoW + gap) - 2 * pad - (cols - 1) * gap;
     const cardW = Math.min(clamp(width * (wide ? 0.25 : 0.29), 220, 300), roomW / cols);
@@ -111,12 +122,19 @@ export function computeLayout(
       rows,
       cardW,
       cardH,
-      cardCount,
+      columnCount,
       pad,
       gap,
       u,
       { x: right - 168 * u, y: contentTop },
     );
+    if (overflow) {
+      const rect: Rect = { x: left, y: infoBottom, w: info.w, h: overflowH };
+      production.overflow = rect;
+      for (let i = 0; i < extra; i++) {
+        production.cards.push({ x: rect.x + pad, y: rect.y + pad + i * (cardH + gap), w: rect.w - 2 * pad, h: cardH });
+      }
+    }
 
     let planet: Layout['planet'];
     if (wide) {
@@ -148,7 +166,8 @@ export function computeLayout(
   // Na wąskim ekranie (telefon) tekst w kolumnie zawija się częściej — panel jest wyższy.
   const infoOpenH = width < 520 ? 150 : 124;
   const info: Rect = { x: left, y: contentTop, w: innerW, h: Math.round((state.infoOpen ? infoOpenH : 62) * u) };
-  const minCardW = (width < 520 ? 150 : 190) * u;
+  // Niski ekran (telefon poziomo): węższe karty, żeby zmieściły się w jednym wierszu.
+  const minCardW = (width < 520 ? 150 : height < 500 ? 155 : 190) * u;
   const maxCols = clamp(Math.floor((innerW - 2 * pad + gap) / (minCardW + gap)), 1, cardCount);
   const rows = Math.ceil(cardCount / maxCols);
   const cols = Math.ceil(cardCount / rows);
@@ -199,7 +218,7 @@ function productionPanel(
 ): Layout['production'] {
   if (!open) {
     const rect: Rect = { x: tabOrigin.x, y: tabOrigin.y, w: 168 * u, h: TOUCH };
-    return { open, rect, toggle: rect, cards: [] };
+    return { open, rect, toggle: rect, cards: [], overflow: null };
   }
   const w = cols * cardW + (cols - 1) * gap + 2 * pad;
   const h = HEADER_H * u + 2 * pad + rows * cardH + (rows - 1) * gap;
@@ -213,5 +232,5 @@ function productionPanel(
     const offset = ((cols - inRow) * (cardW + gap)) / 2;
     cards.push({ x: rect.x + pad + offset + (i % cols) * (cardW + gap), y: cardsTop + row * (cardH + gap), w: cardW, h: cardH });
   }
-  return { open, rect, toggle: { x: rect.x + rect.w - TOUCH, y: rect.y, w: TOUCH, h: TOUCH }, cards };
+  return { open, rect, toggle: { x: rect.x + rect.w - TOUCH, y: rect.y, w: TOUCH, h: TOUCH }, cards, overflow: null };
 }

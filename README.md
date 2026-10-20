@@ -88,4 +88,14 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 45. Po zwinięciu paneli planeta płynnie rośnie. iPad w pionie: panele też po bokach — otwarta „Produkcja” odsuwa planetę w lewo, panel planety w prawo, po zamknięciu obu planeta wraca na środek.
 46. Zamknij i otwórz grę: panele są tak, jak je zostawiłeś.
 
+### Od 0.10: badania — galaktyka
+
+47. „Produkcja” → nowa karta **Laboratorium** (poz. 0). Poziomo karta stoi pod panelem planety, planeta nie maleje. Ulepsz do 1.
+48. „Badania” (w panelu planety albo na karcie Laboratorium) → ekran galaktyki: złote jądro w środku, 6 spiralnych ramion. Produktywność i Planetologia świecą, pozostałe są podpisane „wkrótce”.
+49. Przesuń mapę palcem, przybliż dwoma palcami (przy zbliżeniu pojawiają się nazwy gwiazd). Dotknij gwiazdy → na dole szczegóły: efekt, koszt, czas.
+50. „Podstawy przemysłu” → „Badaj” → koszt znika z zasobów, na gwieździe złoty pierścień postępu, na dole odliczanie. Druga gwiazda → „Trwa inne badanie”.
+51. „Anuluj” → „Na pewno?” → zwrot kosztu. Gwiazda z pierścienia 2 przy Laboratorium poz. 1 → „Laboratorium 2”.
+52. Po ukończeniu: komunikat „Zbadano: …”, gwiazda wypełniona, produkcja metalu i kryształów rośnie. Badanie kończy się też przy zamkniętej grze.
+53. „Zamknij” → wracasz do planety; obrót i przybliżanie planety działają jak wcześniej.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -2,6 +2,17 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — v0.10: badania (etap 1 — silnik i galaktyka)
+
+- **Gwiazdy mistrzowskie (decyzja właściciela: b).** Na krawędzi każdego ramienia jedna gwiazda mistrzowska; zbadać będzie można wszystkie, ale aktywne naraz maks. 2 (specjalizacje imperium). W tym etapie widoczne jako „wkrótce”.
+- **Reguły (`core/research/research.ts`, dane `data/research.ts`, robocze).** Badania wspólne dla imperium (`EmpireSave.research`, pole opcjonalne — stare zapisy = nic nie zbadano; `EMPIRE_VERSION` bez zmian). Naraz jedno badanie, niezależnie od budowy. Koszt płaci aktywna planeta (metal, kryształy), od pierścienia 4 także antymateria ze wspólnego portfela; anulowanie zwraca wszystko (surowce do planety, która płaciła). Koszt × 2,6 na pierścień i × 1,03 za każde ukończone badanie. Czas 90 s × 2,2^(pierścień − 1), krótszy o 8% za każdy poziom Laboratorium ponad 1.
+- **Laboratorium** (6. budynek, startuje od poz. 0, zużywa trochę energii). Liczy się najwyższe Laboratorium w imperium. Pierścienie 1–5 wymagają poz. 1, 2, 4, 6, 8.
+- **Efekty jako zmiana balansu.** `applyResearch(BALANCE, zbadane)` daje nowy obiekt `Balance` (wydobycie, zużycie energii, czas i koszt budowy, magazyn, godziny offline, antymateria, „Ukończ teraz”, kary środowiska, miejsca na planety); gospodarka liczy dalej tymi samymi funkcjami. Procenty jednego rodzaju sumują się. Badanie ukończone w trakcie naliczania działa od chwili ukończenia (podział czasu jak przy budowie). Kary środowiska (efekty < 1) słabną z `environmentPenalty`; premie zostają.
+- **Miejsca na planety z badań** (Osadnictwo: +1) trafiają do zapisu jako `unlockedSlots`, więc walidacja zapisu z 6 planetami przechodzi.
+- **Ekran „Badania”** to osobna scena Phaser nad HUD-em (HUD planety ma wtedy wyłączony dotyk). Układ galaktyki to czysta matematyka (`game/ui/galaxy.ts`, testowana: gwiazdy nie nachodzą na siebie). Jeden palec przesuwa, dwa przybliżają (ten sam `GestureTracker`), stuknięcie zaznacza gwiazdę (cel ≥ 24 pt promienia). Nazwy gwiazd dopiero przy przybliżeniu.
+- **Układ HUD:** 6 kart. Na szerokim ekranie karta, która nie mieści się w prawej kolumnie, trafia do osobnego panelu pod panelem planety (zamiast drugiej kolumny, która zmniejszała planetę). Panel planety ma przycisk „Badania” (tryb boczny); na telefonie wejście przez kartę Laboratorium.
+- **Mosty między ramionami** — w kolejnym kroku.
+
 ## 2026-10-20 — plan: badania jako galaktyka (ustalenia przed v0.10)
 
 - **Drzewko badań w kształcie galaktyki:** jądro w centrum, 6 spiralnych ramion (kategorii), im dalej od centrum, tym droższe badania; mosty między ramionami. Badania globalne dla całego imperium, własna kolejka (niezależna od budów), koszt w metalu i kryształach, dalsze pierścienie także w antymaterii. Nazwy i liczby robocze.
@@ -9,7 +20,7 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
 - **Flota:** najpierw cywilna (transport, ekspedycje), walka w kolejnym etapie — świadome rozszerzenie zakresu MVP przez właściciela.
 - **Laboratorium:** nowy budynek; jego poziom ogranicza, jak daleko od centrum galaktyki można badać.
 - **Kolejność etapów:** (1) silnik badań + ekran galaktyki (aktywne Produktywność i Planetologia), (2) SI, (3) Stacja i handel, (4) Eksploracja, (5) Flota.
-- Otwarte: czy „gwiazdy mistrzowskie” na krawędzi ramion mają limit aktywnych naraz.
+- Gwiazdy mistrzowskie: maks. 2 aktywne naraz (decyzja: b, zob. v0.10).
 
 ## 2026-10-20 — v0.9: zwijane panele, mniejsze UI, skalowanie komputer/tablet/telefon
 

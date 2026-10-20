@@ -1,7 +1,8 @@
 // Zapis „imperium”: kilka miejsc (na razie planety; później księżyce, stacje…),
 // aktywne miejsce i wspólny portfel antymaterii. Czysty TypeScript.
 import { BALANCE } from '../../data/balance.ts';
-import type { EconomyState } from '../types.ts';
+import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
+import type { EconomyState, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 
 export const EMPIRE_VERSION = 2;
@@ -28,6 +29,8 @@ export interface EmpireSave {
   /** Wspólna antymateria całego imperium. */
   antimatter: number;
   slots: SlotSave[];
+  /** Badania (wspólne dla imperium). Brak w zapisach sprzed v0.10 = nic nie zbadano. */
+  research: ResearchState;
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -60,7 +63,14 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;
   if (!isNum(data.antimatter) || data.antimatter < 0) return null;
-  return { saveVersion: EMPIRE_VERSION, active: data.active, unlockedSlots: unlocked, antimatter: data.antimatter, slots };
+  return {
+    saveVersion: EMPIRE_VERSION,
+    active: data.active,
+    unlockedSlots: unlocked,
+    antimatter: data.antimatter,
+    slots,
+    research: parseResearch(data.research),
+  };
 }
 
 /** Zapis jednej planety (v0.1–0.6) → imperium z jednym miejscem; antymateria trafia do portfela. */
@@ -71,6 +81,7 @@ export function empireFromLegacy(save: SaveData): EmpireSave {
     unlockedSlots: BALANCE.planetSlots.base,
     antimatter: save.economy.antimatter,
     slots: [{ kind: 'planet', planet: save.planet, economy: { ...save.economy, antimatter: 0 } }],
+    research: EMPTY_RESEARCH,
   };
 }
 

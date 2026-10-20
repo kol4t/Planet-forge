@@ -2,7 +2,7 @@
 
 export type ResourceId = 'metal' | 'crystal';
 export type YieldId = ResourceId | 'energy';
-export type BuildingId = 'metalMine' | 'crystalMine' | 'powerPlant' | 'storage' | 'antimatterCollector';
+export type BuildingId = 'metalMine' | 'crystalMine' | 'powerPlant' | 'storage' | 'antimatterCollector' | 'laboratory';
 
 export type Range = readonly [min: number, max: number];
 export type Resources = Record<ResourceId, number>;
@@ -146,8 +146,8 @@ export interface BuildingDef {
   description: string;
   baseCost: Resources;
   costGrowth: number;
-  /** Co daje budynek: wydobycie/energię, pojemność magazynu albo antymaterię (na godzinę). */
-  produces: YieldId | 'storage' | 'antimatter';
+  /** Co daje budynek: wydobycie/energię, pojemność magazynu, antymaterię (na godzinę) albo badania. */
+  produces: YieldId | 'storage' | 'antimatter' | 'research';
   baseOutput: number;
   baseEnergyUse: number;
 }
@@ -175,5 +175,92 @@ export interface Balance {
     /** „Ukończ teraz” powyżej darmowego progu: 1 antymateria za każde rozpoczęte N sekund. */
     finishSecondsPerUnit: number;
   };
+  /**
+   * Siła kar środowiska planety (efekty < 1): 1 = pełna kara, 0 = brak kary.
+   * Zmniejszają ją badania Planetologii.
+   */
+  environmentPenalty: number;
+  /** Mnożnik czasu badań (badania „przyspieszające badania” go zmniejszają). */
+  researchTimeFactor: number;
   buildings: readonly BuildingDef[];
+}
+
+// ——— badania (galaktyka) ———
+
+export type ResearchArmId = 'productivity' | 'planetology' | 'exploration' | 'station' | 'ai' | 'fleet';
+
+/** Efekt badania. Procenty tego samego rodzaju sumują się (+10% i +15% = +25%). */
+export type ResearchEffect =
+  | { kind: 'output'; resource: YieldId | 'antimatter'; percent: number }
+  | { kind: 'energyUse'; percent: number }
+  | { kind: 'buildTime'; percent: number }
+  | { kind: 'buildCost'; percent: number }
+  | { kind: 'storage'; percent: number }
+  | { kind: 'offlineHours'; hours: number }
+  | { kind: 'antimatterPassive'; perHour: number }
+  | { kind: 'finishPrice'; percent: number }
+  | { kind: 'freeFinish'; levels: number }
+  | { kind: 'researchTime'; percent: number }
+  | { kind: 'environment'; percent: number }
+  | { kind: 'planetSlots'; add: number };
+
+export interface ResearchArmDef {
+  id: ResearchArmId;
+  name: string;
+  description: string;
+  /** Kierunek ramienia w galaktyce (stopnie; 0 = w prawo, −90 = w górę). */
+  angleDeg: number;
+  color: number;
+  /** Ramię aktywne (badania działają) albo „wkrótce” (widoczne, bez badań). */
+  active: boolean;
+  status: DataStatus;
+}
+
+export interface ResearchNodeDef {
+  id: string;
+  arm: ResearchArmId;
+  /** Pierścień galaktyki: 1 = przy jądrze; dalej = drożej, dłużej i wyższe Laboratorium. */
+  ring: number;
+  /** Gałąź w szerokim ramieniu (przesunięcie w bok; 0 = środek ramienia). */
+  lane: number;
+  name: string;
+  description: string;
+  requires: readonly string[];
+  effects: readonly ResearchEffect[];
+  /** Gwiazda mistrzowska na krawędzi ramienia (naraz aktywne maks. 2 — w kolejnym etapie). */
+  master?: boolean;
+}
+
+export interface ResearchRules {
+  /** Wymagany poziom Laboratorium dla pierścieni 1, 2, 3… */
+  labLevelForRing: readonly number[];
+  /** Koszt pierścienia 1; kolejne × `ringCostGrowth`; każde ukończone badanie × `doneCostGrowth`. */
+  baseCost: Resources;
+  ringCostGrowth: number;
+  doneCostGrowth: number;
+  /** Antymateria od pierścienia `antimatterFromRing`: `antimatterBase` × (pierścień − próg + 1). */
+  antimatterFromRing: number;
+  antimatterBase: number;
+  /** Czas pierścienia 1 (s); kolejne × `ringTimeGrowth`. */
+  baseSeconds: number;
+  ringTimeGrowth: number;
+  /** Każdy poziom Laboratorium ponad 1 przyspiesza badania o tyle (0,08 = 8%). */
+  labSpeedPerLevel: number;
+}
+
+/** Trwające badanie (naraz jedno w całym imperium). */
+export interface ResearchProject {
+  id: string;
+  startedAt: number;
+  finishesAt: number;
+  /** Pobrany koszt — zwracany przy anulowaniu. */
+  cost: Resources;
+  antimatter: number;
+  /** Seed planety, która zapłaciła (zwrot trafia do niej). */
+  paidBy: string;
+}
+
+export interface ResearchState {
+  done: readonly string[];
+  current: ResearchProject | null;
 }

@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import type { GameController } from '../../app/GameController.ts';
-import { antimatterAmount, buildSeconds, capacityAtLevel, fitsInStorage, scaled } from '../../core/economy/economy.ts';
+import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled } from '../../core/economy/economy.ts';
+import { ringLimit } from '../../core/research/research.ts';
 import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
+import { findResearch } from '../../data/research.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
@@ -11,6 +13,7 @@ import { openTextPanel } from '../ui/textPanel.ts';
 import { computeLayout, TOUCH, type Insets, type Layout, type PanelState, type Rect } from '../ui/layout.ts';
 import { loadPanels, savePanels } from '../ui/uiPrefs.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
+import { RESEARCH_CLOSED } from './ResearchScene.ts';
 
 export interface Viewport {
   width: number;
@@ -47,6 +50,8 @@ interface BuildingCard {
   button: Button;
   /** „Ukończ teraz” — widoczny obok „Anuluj” podczas budowy (za darmo do poz. z balansu). */
   finish: Button;
+  /** Laboratorium: przycisk „Badania” obok „Ulepsz”. */
+  extra: Button | null;
   /** Miejsce na przyciski: x, pełna szerokość, odstęp między połówkami (w px urządzenia). */
   buttons: { x: number; w: number; gap: number };
   /** Pasek postępu budowy (rysowany nad przyciskiem). */
@@ -105,6 +110,8 @@ export class PlanetScene extends Phaser.Scene {
   private cancelArmedUntil = 0;
   /** Przełączenie na nową wersję gry (gdy service worker ją pobrał). */
   private updateApply: (() => void) | null = null;
+  /** Otwarty ekran „Badania” (HUD planety nie reaguje wtedy na dotyk). */
+  private researchOpen = false;
 
   constructor(deps: SceneDeps) {
     super({ key: 'planet' });
@@ -126,7 +133,7 @@ export class PlanetScene extends Phaser.Scene {
       }
     };
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      if (over.length > 0 || this.overlay) return;
+      if (over.length > 0 || this.overlay || this.researchOpen) return;
       apply(this.gestures.down(pointer.id, pointer.x, pointer.y));
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => apply(this.gestures.move(pointer.id, pointer.x, pointer.y)));
@@ -136,13 +143,23 @@ export class PlanetScene extends Phaser.Scene {
     this.input.on('gameout', () => apply(this.gestures.cancel()));
     // Komputer: kółko myszy przybliża planetę (nad panelami nie).
     this.input.on('wheel', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
-      if (over.length === 0 && !this.overlay) apply(this.gestures.wheel(dy));
+      if (over.length === 0 && !this.overlay && !this.researchOpen) apply(this.gestures.wheel(dy));
     });
 
     controller.onPlanetChange(() => {
       display.setPlanet(controller.planet);
       display.setStructures(controller.economy.levels);
       this.relayout();
+    });
+
+    controller.onResearchComplete((id) => {
+      if (!this.researchOpen) this.showToast(`Zbadano: ${findResearch(id)?.name ?? id}.`, 'ok', 3000);
+      this.refreshValues();
+    });
+    this.game.events.on(RESEARCH_CLOSED, () => {
+      this.researchOpen = false;
+      this.input.enabled = true;
+      this.refreshValues();
     });
 
     controller.onBuildComplete((done) => {
@@ -158,7 +175,7 @@ export class PlanetScene extends Phaser.Scene {
         'info',
         6000,
       );
-    } else if (controller.offlineGain || controller.completedWhileAway) {
+    } else if (controller.offlineGain || controller.completedWhileAway || controller.researchedWhileAway.length > 0) {
       const lines: string[] = [];
       const gain = controller.offlineGain;
       if (gain) {
@@ -172,10 +189,22 @@ export class PlanetScene extends Phaser.Scene {
         lines.push(`Ukończono: ${name}, poziom ${done.level}.`);
         display.showBuilding(done.building);
       }
+      for (const id of controller.researchedWhileAway) lines.push(`Zbadano: ${findResearch(id)?.name ?? id}.`);
       this.showToast(lines.join('\n'), 'info', 5000);
       controller.offlineGain = null;
       controller.completedWhileAway = null;
+      controller.researchedWhileAway = [];
     }
+  }
+
+  /** Ekran „Badania” (galaktyka) — osobna scena nad HUD-em planety. */
+  openResearch(): void {
+    if (this.researchOpen) return;
+    this.closeOverlay();
+    this.researchOpen = true;
+    this.input.enabled = false;
+    if (this.gestures.cancel().length > 0) this.deps.display.endDrag();
+    this.scene.launch('research');
   }
 
   update(_time: number, delta: number): void {
@@ -308,7 +337,7 @@ export class PlanetScene extends Phaser.Scene {
     this.ui!.add([g, blocker]);
   }
 
-  private icon(kind: YieldId | 'storage' | 'antimatter', x: number, y: number, size: number): void {
+  private icon(kind: YieldId | 'storage' | 'antimatter' | 'research', x: number, y: number, size: number): void {
     const g = this.add.graphics();
     const r = this.px(this.s(size));
     const cx = this.px(x);
@@ -325,6 +354,16 @@ export class PlanetScene extends Phaser.Scene {
       // Pierścień z jądrem.
       g.lineStyle(Math.max(1.5, r * 0.28), COLORS.antimatterHex, 1).strokeCircle(cx, cy, r * 0.95);
       g.fillStyle(COLORS.antimatterHex, 1).fillCircle(cx, cy, r * 0.38);
+    } else if (kind === 'research') {
+      // Mała galaktyka: jądro i dwa łuki ramion.
+      g.fillStyle(COLORS.goldHex, 1).fillCircle(cx, cy, r * 0.32);
+      g.lineStyle(Math.max(1.5, r * 0.22), COLORS.tealHex, 1);
+      g.beginPath();
+      g.arc(cx, cy, r * 0.8, Math.PI * 0.1, Math.PI * 0.85, false);
+      g.strokePath();
+      g.beginPath();
+      g.arc(cx, cy, r * 0.8, Math.PI * 1.1, Math.PI * 1.85, false);
+      g.strokePath();
     } else if (kind === 'storage') {
       // Skrzynia: kwadrat z poprzeczką.
       g.fillStyle(COLORS.stoneHex, 1).fillRect(cx - r, cy - r * 0.85, r * 2, r * 1.7);
@@ -476,6 +515,8 @@ export class PlanetScene extends Phaser.Scene {
           lineSpacing: this.px(2),
         });
       }
+      this.addButton(box.x + pad, box.y + box.h - pad - 2 * buttonH - this.s(8), box.w - 2 * pad, buttonH, 'Badania', 'secondary', () =>
+        this.openResearch(), 13.5);
       buttons(box.x + pad, box.y + box.h - pad - buttonH, box.w - 2 * pad);
       return;
     }
@@ -541,6 +582,7 @@ export class PlanetScene extends Phaser.Scene {
       return;
     }
     this.panel(rect);
+    if (layout.production.overflow) this.panel(layout.production.overflow);
     this.text(rect.x + this.s(14), rect.y + this.s(13), 'PRODUKCJA', 11, COLORS.teal, { fontStyle: '600', letterSpacing: 1.5 });
     this.iconButton(toggle, 'menu', () => this.togglePanel('productionOpen'));
     BALANCE.buildings.forEach((def, index) => {
@@ -579,9 +621,14 @@ export class PlanetScene extends Phaser.Scene {
         () => this.onFinish(),
         narrow ? 12.5 : 13.5,
       ).setShown(false);
+      const extra =
+        def.produces === 'research'
+          ? this.addButton(card.x + pad, card.y + card.h - pad - buttonH, (card.w - 2 * pad) / 2, buttonH, 'Badania', 'secondary', () =>
+              this.openResearch(), narrow ? 12.5 : 13.5)
+          : null;
       if (narrow) level.setVisible(false);
       const buttons = { x: this.px(card.x + pad), w: this.px(card.w - 2 * pad), gap: this.px(this.s(6)) };
-      this.cards.push({ id: def.id, level, effect, cost, button, finish, buttons, progress, bar });
+      this.cards.push({ id: def.id, level, effect, cost, button, finish, extra, buttons, progress, bar });
     });
   }
 
@@ -683,32 +730,43 @@ export class PlanetScene extends Phaser.Scene {
       this.res.antimatterNote.setColor(COLORS.antimatter);
     }
 
-    const growth = BALANCE.levelGrowth;
+    const balance = controller.balance;
+    const growth = balance.levelGrowth;
     for (const card of this.cards) {
-      const def = BALANCE.buildings.find((b) => b.id === card.id)!;
+      const def = balance.buildings.find((b) => b.id === card.id)!;
       const level = controller.economy.levels[card.id];
       card.level.setText(`poz. ${level}`);
-      if (def.produces === 'antimatter') {
+      const energyNext =
+        def.baseEnergyUse > 0
+          ? ` · −${formatRate(scaled(def.baseEnergyUse, level + 1, growth) - scaled(def.baseEnergyUse, level, growth))} energii`
+          : '';
+      if (def.produces === 'research') {
+        const ring = ringLimit(level + 1);
+        const current = controller.research.current;
+        card.effect.setText(
+          current
+            ? `Badanie: ${findResearch(current.id)?.name ?? ''} · zostało ${formatDuration(controller.researchSecondsLeft(now))}`
+            : `Na poz. ${level + 1}: pierścień ${ring}, szybsze badania${energyNext}`,
+        );
+      } else if (def.produces === 'antimatter') {
         const gain = scaled(def.baseOutput, level + 1, growth) - scaled(def.baseOutput, level, growth);
         const energyCost = scaled(def.baseEnergyUse, level + 1, growth) - scaled(def.baseEnergyUse, level, growth);
         card.effect.setText(`Na poz. ${level + 1}: +${formatRate(gain)} antymaterii/h · −${formatRate(energyCost)} energii`);
       } else if (def.produces === 'storage') {
-        const next = capacityAtLevel(level + 1);
-        card.effect.setText(`Na poz. ${level + 1}: pojemność ${formatInt(next)} (+${formatInt(next - capacityAtLevel(level))})`);
+        const next = capacityAtLevel(level + 1, balance);
+        card.effect.setText(`Na poz. ${level + 1}: pojemność ${formatInt(next)} (+${formatInt(next - capacityAtLevel(level, balance))})`);
       } else {
         const richness = controller.planet.gameplay.richness[def.produces];
-        const env = controller.planet.gameplay.environment.effects[def.produces] ?? 1;
+        const env = environmentEffect(controller.planet, def.produces, balance);
         const gain = (scaled(def.baseOutput, level + 1, growth) - scaled(def.baseOutput, level, growth)) * richness * env;
         const unit = def.produces === 'energy' ? 'energii' : def.produces === 'metal' ? 'metalu/min' : 'kryształów/min';
-        const energyCost =
-          def.baseEnergyUse > 0
-            ? ` · −${formatRate(scaled(def.baseEnergyUse, level + 1, growth) - scaled(def.baseEnergyUse, level, growth))} energii`
-            : '';
-        card.effect.setText(`Na poz. ${level + 1}: +${formatRate(gain)} ${unit}${energyCost}`);
+        card.effect.setText(`Na poz. ${level + 1}: +${formatRate(gain)} ${unit}${energyNext}`);
       }
+      card.effect.setColor(def.produces === 'research' && controller.research.current ? COLORS.gold : COLORS.teal);
       card.progress.clear();
       const { x: bx, w: bw, gap: bgap } = card.buttons;
       const building = construction?.building === card.id;
+      card.extra?.setShown(!building);
       if (building) {
         // Ten budynek się buduje: odliczanie, pasek, „Ukończ teraz” (do poz. 5 za darmo,
         // wyżej za antymaterię) i anulowanie.
@@ -719,7 +777,7 @@ export class PlanetScene extends Phaser.Scene {
         card.effect.setColor(COLORS.gold);
         card.cost.setText(
           price === 0
-            ? `Ukończ teraz — za darmo do poz. ${BALANCE.freeFinishMaxLevel}.`
+            ? `Ukończ teraz — za darmo do poz. ${balance.freeFinishMaxLevel}.`
             : `Ukończ teraz: ${antimatterAmount(price)} (masz ${have}).`,
         );
         card.cost.setColor(price > have ? COLORS.danger : price > 0 ? COLORS.antimatter : COLORS.muted);
@@ -741,28 +799,34 @@ export class PlanetScene extends Phaser.Scene {
         continue;
       }
       card.finish.setShown(false);
-      card.button.setSpan(bx, bw);
+      // Laboratorium: „Ulepsz” i „Badania” obok siebie (krótsze napisy).
+      const half = card.extra ? (bw - bgap) / 2 : bw;
+      card.button.setSpan(bx, half);
+      card.extra?.setSpan(bx + half + bgap, half);
+      const short = !!card.extra;
       card.cost.setColor(COLORS.muted);
-      card.effect.setColor(COLORS.teal);
       const cost = controller.costOf(card.id);
-      const time = formatDuration(buildSeconds(level + 1));
+      const time = formatDuration(controller.buildSecondsFor(level + 1));
       card.cost.setText(`Koszt: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów · ${time}`);
       card.cost.setY(card.effect.y + card.effect.height + this.px(this.s(4)));
-      if (level >= BALANCE.maxLevel) {
-        card.button.setText('Maksymalny poziom').setStyle('disabled');
+      if (level >= balance.maxLevel) {
+        card.button.setText(short ? 'Maks. poziom' : 'Maksymalny poziom').setStyle('disabled');
         continue;
       }
       if (construction) {
-        card.button.setText('Trwa inna budowa').setStyle('disabled');
+        card.button.setText(short ? 'Trwa budowa' : 'Trwa inna budowa').setStyle('disabled');
         continue;
       }
-      if (!fitsInStorage(controller.economy, controller.costOf(card.id))) {
-        card.button.setText('Za mały magazyn').setStyle('disabled');
+      if (!fitsInStorage(controller.economy, controller.costOf(card.id), balance)) {
+        card.button.setText(short ? 'Mały magazyn' : 'Za mały magazyn').setStyle('disabled');
         continue;
       }
       const wait = controller.waitSecondsFor(card.id);
-      if (wait <= 0) card.button.setText(`Ulepsz do ${level + 1}`).setStyle('primary');
-      else card.button.setText(Number.isFinite(wait) ? `Dostępne za ${formatDuration(wait)}` : 'Brak produkcji').setStyle('disabled');
+      if (wait <= 0) card.button.setText(short ? `Ulepsz (${level + 1})` : `Ulepsz do ${level + 1}`).setStyle('primary');
+      else {
+        const label = Number.isFinite(wait) ? `${short ? 'Za' : 'Dostępne za'} ${formatDuration(wait)}` : 'Brak produkcji';
+        card.button.setText(label).setStyle('disabled');
+      }
     }
   }
 

@@ -5,7 +5,7 @@ export const BALANCE: Balance = {
   levelGrowth: 1.1,
   passiveIncome: { metal: 6, crystal: 3 },
   startingStock: { metal: 250, crystal: 120 },
-  startingLevels: { metalMine: 1, crystalMine: 1, powerPlant: 1, storage: 1, antimatterCollector: 0 },
+  startingLevels: { metalMine: 1, crystalMine: 1, powerPlant: 1, storage: 1, antimatterCollector: 0, laboratory: 0 },
   maxLevel: 40,
   maxOfflineSeconds: 8 * 60 * 60,
   buildSecondsPerLevel: 30,
@@ -13,6 +13,8 @@ export const BALANCE: Balance = {
   storage: { base: 1000, growth: 1.6 },
   planetSlots: { base: 5, max: 10 },
   antimatter: { passivePerHour: 1, startingStock: 5, finishSecondsPerUnit: 15 * 60 },
+  environmentPenalty: 1,
+  researchTimeFactor: 1,
   buildings: [
     {
       id: 'metalMine',
@@ -64,6 +66,16 @@ export const BALANCE: Balance = {
       // Na godzinę (nie na minutę jak kopalnie).
       baseOutput: 0.6,
       baseEnergyUse: 18,
+    },
+    {
+      id: 'laboratory',
+      name: 'Laboratorium',
+      description: 'Prowadzi badania. Wyższy poziom sięga dalej od jądra galaktyki i przyspiesza badania.',
+      baseCost: { metal: 200, crystal: 400 },
+      costGrowth: 1.6,
+      produces: 'research',
+      baseOutput: 0,
+      baseEnergyUse: 6,
     },
   ],
 };

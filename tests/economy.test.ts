@@ -38,7 +38,7 @@ test('koszt rośnie wykładniczo i jest całkowity', () => {
 
 test('brak energii obniża wydajność kopalń', () => {
   const e = createEconomy(0);
-  const low = productionRates({ ...e, levels: { metalMine: 6, crystalMine: 6, powerPlant: 1, storage: 1, antimatterCollector: 0 } }, planet);
+  const low = productionRates({ ...e, levels: { metalMine: 6, crystalMine: 6, powerPlant: 1, storage: 1, antimatterCollector: 0, laboratory: 0 } }, planet);
   assert.ok(low.efficiency < 1);
   const ok = productionRates(e, planet);
   assert.ok(ok.metal > BALANCE.passiveIncome.metal);

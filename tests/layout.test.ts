@@ -26,17 +26,18 @@ const STATES: PanelState[] = [
 for (const [name, w, h] of SCREENS) {
   test(`układ mieści się i nic nie nachodzi: ${name}`, () => {
     for (const state of STATES) {
-      const l = computeLayout(w, h, { top: 20, right: 0, bottom: 20, left: 0 }, 5, state);
+      const l = computeLayout(w, h, { top: 20, right: 0, bottom: 20, left: 0 }, 6, state);
       const label = `${name} ${JSON.stringify(state)}`;
-      const panels = [l.topBar, l.info.rect, l.production.rect];
+      const panels = [l.topBar, l.info.rect, l.production.rect, ...(l.production.overflow ? [l.production.overflow] : [])];
       for (const r of [...panels, ...l.production.cards]) assert.ok(inside(r, w, h), `${label}: ${JSON.stringify(r)}`);
       for (let i = 0; i < panels.length; i++) {
         for (let j = i + 1; j < panels.length; j++) assert.ok(!overlap(panels[i]!, panels[j]!), `${label}: ${i} nachodzi na ${j}`);
       }
-      assert.equal(l.production.cards.length, state.productionOpen ? 5 : 0);
+      assert.equal(l.production.cards.length, state.productionOpen ? 6 : 0);
       for (const card of l.production.cards) {
         assert.ok(card.w >= 100 && card.h >= 100, `${label}: karta ${card.w}×${card.h}`);
-        assert.ok(card.x >= l.production.rect.x && card.x + card.w <= l.production.rect.x + l.production.rect.w + 0.5, label);
+        const box = [l.production.rect, l.production.overflow].find((r) => r && card.x >= r.x && card.x + card.w <= r.x + r.w + 0.5 && card.y >= r.y && card.y + card.h <= r.y + r.h + 0.5);
+        assert.ok(box, `${label}: karta poza panelem`);
       }
       for (const t of [l.info.toggle, l.production.toggle]) assert.ok(t.w >= TOUCH && t.h >= TOUCH, `${label}: przycisk ≥ 44 pt`);
       assert.ok(l.planet.r >= 60, label);
@@ -46,8 +47,8 @@ for (const [name, w, h] of SCREENS) {
 
 test('zwinięcie paneli powiększa planetę (poziomo, komputer, telefon)', () => {
   for (const [w, h] of [[1080, 810], [1920, 1080], [390, 844]] as const) {
-    const open = computeLayout(w, h, undefined, 5, { infoOpen: true, productionOpen: true });
-    const closed = computeLayout(w, h, undefined, 5, { infoOpen: false, productionOpen: false });
+    const open = computeLayout(w, h, undefined, 6, { infoOpen: true, productionOpen: true });
+    const closed = computeLayout(w, h, undefined, 6, { infoOpen: false, productionOpen: false });
     // Szeroki monitor: planetę ogranicza wysokość, więc może zostać tej samej wielkości.
     const grows = w === 1920 ? closed.planet.r >= open.planet.r : closed.planet.r > open.planet.r;
     assert.ok(grows, `${w}×${h}: ${open.planet.r} → ${closed.planet.r}`);
@@ -70,7 +71,7 @@ test('tablet i komputer: panele po bokach planety (także iPad pionowo); telefon
 });
 
 test('iPad pionowo: otwarty panel odsuwa scenę (prawy → planeta w lewo, lewy → w prawo)', () => {
-  const at = (infoOpen: boolean, productionOpen: boolean) => computeLayout(810, 1080, undefined, 5, { infoOpen, productionOpen }).planet;
+  const at = (infoOpen: boolean, productionOpen: boolean) => computeLayout(810, 1080, undefined, 6, { infoOpen, productionOpen }).planet;
   const none = at(false, false);
   assert.ok(at(false, true).cx < none.cx, 'produkcja otwarta → planeta w lewo');
   assert.ok(at(true, false).cx > none.cx, 'panel planety otwarty → planeta w prawo');
@@ -82,4 +83,12 @@ test('UI mniejsze niż w v0.8 i skalowane do ekranu', () => {
   assert.ok(computeLayout(1080, 810).u < 0.95, 'iPad');
   assert.equal(computeLayout(390, 844).u, 0.8, 'telefon: minimum czytelności');
   assert.equal(computeLayout(2560, 1440).u, 1.1, 'duży monitor: maksimum');
+});
+
+test('iPad poziomo: 6 kart w jednej kolumnie + karta pod panelem planety (planeta nie maleje)', () => {
+  const six = computeLayout(1080, 810, { top: 20, right: 0, bottom: 20, left: 0 }, 6);
+  const five = computeLayout(1080, 810, { top: 20, right: 0, bottom: 20, left: 0 }, 5);
+  assert.ok(six.production.overflow, 'panel pod panelem planety');
+  assert.equal(six.production.rect.w, five.production.rect.w, 'jedna kolumna jak przy 5 kartach');
+  assert.equal(six.planet.r, five.planet.r);
 });

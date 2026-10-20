@@ -15,6 +15,10 @@ const empire: Omit<EmpireSave, 'saveVersion'> = {
   unlockedSlots: 5,
   antimatter: 7.5,
   slots: [slot('kepler-186f', 'KEPLER-186F-ALFA'), slot('ice', 'PF-ŻÓŁW-1')],
+  research: {
+    done: ['prod-core'],
+    current: { id: 'eng-1', startedAt: 1000, finishesAt: 5000, cost: { metal: 10, crystal: 20 }, antimatter: 0, paidBy: 'PF-ŻÓŁW-1' },
+  },
 };
 const known = (id: string) => ['ice', 'kepler-186f'].includes(id);
 const load = (text: string) => importSave(text, known, 1);
