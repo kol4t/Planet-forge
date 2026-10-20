@@ -42,6 +42,8 @@ interface Slot {
 /** Skrót planety do listy „Twoje planety”. */
 export interface PlanetSummary {
   index: number;
+  /** Planeta (np. do miniatury). */
+  planet: Planet;
   name: string;
   category: string;
   active: boolean;
@@ -189,6 +191,7 @@ export class GameController {
       const c = slot.economy.construction;
       return {
         index,
+        planet: slot.planet,
         name: slot.planet.displayName,
         category: slot.planet.category,
         active: index === this.active,

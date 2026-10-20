@@ -4,7 +4,9 @@ import { antimatterAmount, buildSeconds, capacityAtLevel, fitsInStorage, scaled 
 import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
+import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
+import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
 import { openTextPanel } from '../ui/textPanel.ts';
 import { computeLayout, type Insets, type Layout, type Rect } from '../ui/layout.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
@@ -90,8 +92,7 @@ export class PlanetScene extends Phaser.Scene {
   private res: ResourceTexts | undefined;
   private layoutState: Layout | undefined;
   private dpr = 1;
-  private dragPointer: number | null = null;
-  private lastPointer = { x: 0, y: 0 };
+  private readonly gestures = new GestureTracker();
   private refreshTimer = 0;
   private cancelArmedUntil = 0;
   /** Przełączenie na nową wersję gry (gdy service worker ją pobrał). */
@@ -106,30 +107,25 @@ export class PlanetScene extends Phaser.Scene {
     const { controller, display } = this.deps;
     this.relayout();
 
-    // Gest obrotu startuje tylko poza panelami (panele mają strefy blokujące).
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      if (over.length > 0 || this.dragPointer !== null || this.overlay) return;
-      this.dragPointer = pointer.id;
-      this.lastPointer = { x: pointer.x, y: pointer.y };
-      display.beginDrag();
-    });
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.id !== this.dragPointer) return;
-      display.drag((pointer.x - this.lastPointer.x) / this.dpr, (pointer.y - this.lastPointer.y) / this.dpr);
-      this.lastPointer = { x: pointer.x, y: pointer.y };
-    });
-    const release = (pointer: Phaser.Input.Pointer) => {
-      if (pointer.id !== this.dragPointer) return;
-      this.dragPointer = null;
-      display.endDrag();
+    // Gesty startują tylko poza panelami (panele mają strefy blokujące):
+    // jeden palec obraca planetę, dwa palce ją przybliżają.
+    const apply = (events: GestureEvent[]) => {
+      for (const e of events) {
+        if (e.type === 'drag-start') display.beginDrag();
+        else if (e.type === 'drag') display.drag(e.dx / this.dpr, e.dy / this.dpr);
+        else if (e.type === 'drag-end') display.endDrag();
+        else display.setZoom(e.zoom);
+      }
     };
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      if (over.length > 0 || this.overlay) return;
+      apply(this.gestures.down(pointer.id, pointer.x, pointer.y));
+    });
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => apply(this.gestures.move(pointer.id, pointer.x, pointer.y)));
+    const release = (pointer: Phaser.Input.Pointer) => apply(this.gestures.up(pointer.id));
     this.input.on('pointerup', release);
     this.input.on('pointerupoutside', release);
-    this.input.on('gameout', () => {
-      if (this.dragPointer === null) return;
-      this.dragPointer = null;
-      display.endDrag();
-    });
+    this.input.on('gameout', () => apply(this.gestures.cancel()));
 
     controller.onPlanetChange(() => {
       display.setPlanet(controller.planet);
@@ -748,6 +744,10 @@ export class PlanetScene extends Phaser.Scene {
     });
   }
 
+  /** Animowane miniatury w otwartym oknie „Twoje planety” (sprzątane przy zamknięciu). */
+  private thumbnails: { textureKey: string; thumb: PlanetThumbnail; yaw: number }[] = [];
+  private thumbnailTimer: Phaser.Time.TimerEvent | undefined;
+
   /** Dwa dotknięcia „Usuń” w ciągu 3 s: { indeks planety, do kiedy czekamy }. */
   private removeArmed: { index: number; until: number } | null = null;
 
@@ -780,6 +780,7 @@ export class PlanetScene extends Phaser.Scene {
     items.push(title, sub);
 
     const now = Date.now();
+    const thumbD = this.px(this.s(48));
     const goW = this.px(this.s(104));
     const delW = this.px(this.s(76));
     for (const p of controller.planets()) {
@@ -790,18 +791,30 @@ export class PlanetScene extends Phaser.Scene {
         .fillRoundedRect(pad, y, w - 2 * pad, rowH, this.px(10))
         .lineStyle(this.px(1), p.active ? COLORS.goldHex : COLORS.panelBorder, p.active ? 0.8 : 1)
         .strokeRoundedRect(pad, y, w - 2 * pad, rowH, this.px(10));
+      // Miniatura: mała, obracająca się pikselowa planeta.
+      const textureKey = `thumb-${p.index}-${now}`;
+      const texture = this.textures.createCanvas(textureKey, THUMBNAIL_SIZE, THUMBNAIL_SIZE)!;
+      texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      const thumb = new PlanetThumbnail(p.planet);
+      const yaw = p.index * 1.7;
+      thumb.draw(texture.context, yaw);
+      texture.refresh();
+      this.thumbnails.push({ textureKey, thumb, yaw });
+      const image = this.add.image(pad + gap + thumbD / 2, y + rowH / 2, textureKey).setDisplaySize(thumbD, thumbD);
+      const textX = pad + 2 * gap + thumbD;
       // Aktywna planeta nie ma przycisków — tekst może zająć więcej miejsca.
-      const textW = w - 2 * pad - (p.active ? this.px(this.s(90)) : goW + delW + gap) - 3 * gap;
-      const name = text(pad + gap, y + this.px(this.s(9)), p.name, 15, p.active ? COLORS.gold : COLORS.text, {
+      const textW = w - textX - pad - (p.active ? this.px(this.s(90)) : goW + delW + gap) - 2 * gap;
+      const name = text(textX, y + this.px(this.s(9)), p.name, 15, p.active ? COLORS.gold : COLORS.text, {
         fontStyle: '600',
         fixedWidth: textW,
       });
       const detail = `${p.category} · suma poziomów ${p.totalLevels}${p.building ? ` · buduje: ${p.building}` : ''}`;
-      const info = text(pad + gap, y + this.px(this.s(31)), detail, 11.5, COLORS.muted, {
+      const info = text(textX, y + this.px(this.s(31)), detail, 11.5, COLORS.muted, {
         wordWrap: { width: textW },
         maxLines: 2,
       });
-      items.push(row, name, info);
+      // Kolejność = kolejność rysowania: tło wiersza pod miniaturą i tekstem.
+      items.push(row, image, name, info);
       const by = y + (rowH - buttonH) / 2;
       const goX = w - pad - gap - goW - delW - gap;
       if (p.active) {
@@ -864,11 +877,28 @@ export class PlanetScene extends Phaser.Scene {
     const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
     const dialog = this.add.container((W - w) / 2, Math.max(this.px(8), (H - h) / 2), [box, blocker, ...items]);
     this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+    // Obrót miniatur ~12 klatek/s — płynnie, a tanio (mała tarcza).
+    this.thumbnailTimer = this.time.addEvent({
+      delay: 80,
+      loop: true,
+      callback: () => {
+        for (const t of this.thumbnails) {
+          t.yaw += 0.07;
+          const texture = this.textures.get(t.textureKey) as Phaser.Textures.CanvasTexture;
+          t.thumb.draw(texture.context, t.yaw);
+          texture.refresh();
+        }
+      },
+    });
   }
 
   private closeOverlay(): void {
+    this.thumbnailTimer?.remove();
+    this.thumbnailTimer = undefined;
     this.overlay?.destroy(true);
     this.overlay = undefined;
+    for (const t of this.thumbnails) this.textures.remove(t.textureKey);
+    this.thumbnails = [];
   }
 
   /** Okno ustawień: przenoszenie zapisu, nowa planeta, wersja gry. */

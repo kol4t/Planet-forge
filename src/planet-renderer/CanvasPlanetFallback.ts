@@ -3,14 +3,19 @@ import { BALANCE } from '../data/balance.ts';
 import { layoutColony, visibleStructures, type ColonyLayout } from './colony.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { facingAngles, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
+import { renderDisc } from './discRenderer.ts';
 import { createSurfaceSampler, hexToRgb, type RGB, type SurfaceSampler } from './surface.ts';
 
-// Awaryjny widok 2D (gdy brak WebGL): ta sama planeta z tego samego seeda,
-// rysowana piksel po pikselu do małego bufora i skalowana.
+// Widok 2D (domyślny od v0.7): ta sama planeta z tego samego seeda, rysowana piksel
+// po pikselu do małego bufora i skalowana — pikselowy styl gry.
 
+/** Rozdzielczość tarczy (piksele planety na średnicę) bez przybliżenia. */
 const BUFFER = 180;
+/** Przy przybliżeniu rozdzielczość rośnie maks. do BUFFER × 1,6 (koszt rysowania ~2,6×). */
+const MAX_BUFFER_SCALE = 1.6;
+export const MIN_ZOOM = 1;
+export const MAX_ZOOM = 3.5;
 const BUILDING_IDS: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
-const LIGHT = normalize([-0.6, 0.45, 0.65]);
 
 export class CanvasPlanetFallback implements PlanetDisplay {
   readonly kind = 'canvas2d' as const;
@@ -32,6 +37,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private last = performance.now();
   private lastDrawn = { yaw: NaN, pitch: NaN };
   private disposed = false;
+  private zoom = 1;
+  /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
+  private size = BUFFER;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -69,7 +77,18 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   }
 
   drag(dx: number, dy: number): void {
-    this.rotator.move(dx, dy, performance.now());
+    // Przy przybliżeniu ten sam ruch palca obraca planetę wolniej (teren „pod palcem”).
+    this.rotator.move(dx / this.zoom, dy / this.zoom, performance.now());
+  }
+
+  setZoom(zoom: number): void {
+    this.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+    const size = Math.round(BUFFER * Math.min(this.zoom, MAX_BUFFER_SCALE));
+    if (size !== this.size) {
+      this.size = size;
+      this.buffer.width = this.buffer.height = size;
+      this.lastDrawn = { yaw: NaN, pitch: NaN };
+    }
   }
 
   endDrag(): void {
@@ -91,36 +110,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
 
   private renderDisc(): void {
     if (!this.sampler) return;
-    const image = this.bctx.createImageData(BUFFER, BUFFER);
+    const image = this.bctx.createImageData(this.size, this.size);
     const { yaw, pitch } = this.rotator;
-    const cy = Math.cos(yaw);
-    const sy = Math.sin(yaw);
-    const cp = Math.cos(pitch);
-    const sp = Math.sin(pitch);
-    for (let row = 0; row < BUFFER; row++) {
-      for (let col = 0; col < BUFFER; col++) {
-        const sx = (col / (BUFFER - 1)) * 2 - 1;
-        const syy = -((row / (BUFFER - 1)) * 2 - 1);
-        const d2 = sx * sx + syy * syy;
-        if (d2 > 1) continue;
-        const sz = Math.sqrt(1 - d2);
-        // Ekran → współrzędne planety (odwrotność pochylenia i obrotu).
-        const py = syy * cp + sz * sp;
-        const hz = -syy * sp + sz * cp;
-        const px = sx * cy - hz * sy;
-        const pz = sx * sy + hz * cy;
-        const height = this.sampler.height(px, py, pz);
-        const color = this.sampler.color(height, py);
-        const light = Math.max(0, sx * LIGHT[0] + syy * LIGHT[1] + sz * LIGHT[2]);
-        const shade = 0.18 + 0.95 * light + (height < this.sea ? 0.25 * light ** 24 : 0);
-        const haze = (1 - sz) ** 3 * 0.45 * (0.3 + 0.7 * light);
-        const i = (row * BUFFER + col) * 4;
-        image.data[i] = 255 * Math.min(1, color[0] * shade + this.atmosphere[0] * haze);
-        image.data[i + 1] = 255 * Math.min(1, color[1] * shade + this.atmosphere[1] * haze);
-        image.data[i + 2] = 255 * Math.min(1, color[2] * shade + this.atmosphere[2] * haze);
-        image.data[i + 3] = 255;
-      }
-    }
+    renderDisc(image.data, this.size, { sampler: this.sampler, seaLevel: this.sea, atmosphere: this.atmosphere }, yaw, pitch);
     this.bctx.putImageData(image, 0, 0);
     this.lastDrawn = { yaw, pitch };
   }
@@ -131,7 +123,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
    */
   private drawStructures(): void {
     if (!this.colony || !this.levels) return;
-    const { cx, cy: centerY, r } = this.focus;
+    const { cx, cy: centerY } = this.focus;
+    const r = this.focus.r * this.zoom;
     const { yaw, pitch } = this.rotator;
     const cy = Math.cos(yaw);
     const sy = Math.sin(yaw);
@@ -139,7 +132,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const sp = Math.sin(pitch);
     const ctx = this.ctx;
     // Rozmiar jednego piksela planety na ekranie i przyciąganie do jego siatki.
-    const pixel = (2 * r) / BUFFER;
+    const pixel = (2 * r) / this.size;
     const left = cx - r;
     const top = centerY - r;
     const snapX = (x: number) => left + Math.floor((x - left) / pixel) * pixel;
@@ -196,7 +189,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     ) {
       this.renderDisc();
     }
-    const { cx, cy, r } = this.focus;
+    const { cx, cy } = this.focus;
+    const r = this.focus.r * this.zoom;
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.w, this.h);
     // Miękka poświata zanikająca do zera (bez wyraźnego pierścienia).
@@ -213,7 +207,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.clip();
-    ctx.imageSmoothingEnabled = true;
+    // Bez przybliżenia lekko wygładzone (dotychczasowy wygląd); przybliżone — ostre piksele.
+    ctx.imageSmoothingEnabled = this.zoom < 1.25;
     ctx.drawImage(this.buffer, cx - r, cy - r, r * 2, r * 2);
     ctx.restore();
     this.drawStructures();
@@ -223,9 +218,4 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
   }
-}
-
-function normalize(v: RGB): RGB {
-  const len = Math.hypot(v[0], v[1], v[2]);
-  return [v[0] / len, v[1] / len, v[2] / len];
 }

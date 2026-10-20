@@ -1,0 +1,64 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { generatePlanet } from '../src/core/generation/generatePlanet.ts';
+import { PLANET_DEFINITIONS } from '../src/data/planets.ts';
+import { GestureTracker } from '../src/game/ui/gestures.ts';
+import { renderDisc } from '../src/planet-renderer/discRenderer.ts';
+import { createSurfaceSampler, hexToRgb } from '../src/planet-renderer/surface.ts';
+
+test('jeden palec: obrót (start → ruch → koniec)', () => {
+  const g = new GestureTracker();
+  assert.deepEqual(g.down(1, 100, 100), [{ type: 'drag-start' }]);
+  assert.deepEqual(g.move(1, 110, 95), [{ type: 'drag', dx: 10, dy: -5 }]);
+  assert.deepEqual(g.up(1), [{ type: 'drag-end' }]);
+  assert.deepEqual(g.move(1, 120, 95), [], 'po podniesieniu palca nic');
+});
+
+test('dwa palce: obrót się kończy, rozsunięcie przybliża, ściśnięcie oddala (w granicach)', () => {
+  const g = new GestureTracker(1, 3.5);
+  g.down(1, 100, 100);
+  assert.deepEqual(g.down(2, 200, 100), [{ type: 'drag-end' }]);
+  assert.deepEqual(g.move(2, 300, 100), [{ type: 'zoom', zoom: 2 }]);
+  assert.deepEqual(g.move(2, 900, 100), [{ type: 'zoom', zoom: 3.5 }], 'maksimum');
+  assert.deepEqual(g.move(2, 110, 100), [{ type: 'zoom', zoom: 1 }], 'minimum');
+  assert.deepEqual(g.move(1, 101, 100), [], 'bez zmiany = bez zdarzenia');
+});
+
+test('palec pozostały po szczypaniu nie obraca planety; nowy dotyk znów obraca', () => {
+  const g = new GestureTracker();
+  g.down(1, 100, 100);
+  g.down(2, 200, 100);
+  g.move(2, 300, 100);
+  assert.deepEqual(g.up(2), []);
+  assert.deepEqual(g.move(1, 150, 100), []);
+  assert.deepEqual(g.up(1), []);
+  assert.deepEqual(g.down(3, 100, 100), [{ type: 'drag-start' }]);
+  assert.equal(g.zoom, 2, 'przybliżenie zostaje');
+});
+
+test('trzeci palec jest ignorowany, anulowanie kończy obrót', () => {
+  const g = new GestureTracker();
+  g.down(1, 0, 0);
+  g.down(2, 10, 0);
+  assert.deepEqual(g.down(3, 20, 0), []);
+  const solo = new GestureTracker();
+  solo.down(1, 0, 0);
+  assert.deepEqual(solo.cancel(), [{ type: 'drag-end' }]);
+  assert.deepEqual(solo.cancel(), []);
+});
+
+test('tarcza 2D/miniatura: deterministyczna, przezroczysta poza kołem, kryjąca w środku', () => {
+  for (const def of PLANET_DEFINITIONS) {
+    const planet = generatePlanet(def, 'PF-DISC');
+    const look = { sampler: createSurfaceSampler(planet), seaLevel: planet.visual.seaLevel, atmosphere: hexToRgb(planet.visual.atmosphereColor) };
+    const size = 24;
+    const a = new Uint8ClampedArray(size * size * 4);
+    const b = new Uint8ClampedArray(size * size * 4);
+    renderDisc(a, size, look, 1.2, 0.3);
+    renderDisc(b, size, look, 1.2, 0.3);
+    assert.deepEqual(a, b, def.id);
+    assert.equal(a[3], 0, 'róg przezroczysty');
+    const center = ((size / 2) * size + size / 2) * 4;
+    assert.equal(a[center + 3], 255, 'środek kryjący');
+  }
+});

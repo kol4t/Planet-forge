@@ -14,10 +14,11 @@ Jest głównym briefem technicznym. Pełna wizja: `docs/technical-brief.md`. Dec
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku.
 
-## Stan obecny (v0.7 — działa)
+## Stan obecny (v0.8 — działa)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
-- **Imperium — kilka planet**: 5 miejsc na start (do 10 po odblokowaniu w przyszłości), okno „Twoje planety” (przejdź / nowa / usuń), nieaktywne planety nadrabiają czas jak offline, antymateria wspólna. Zapis `empire.ts` (`planet-forge.empire.v1`), miejsca mają `kind` (na razie `'planet'`; później księżyce, stacje…).
+- **Przybliżanie dwoma palcami** (1×–3,5×, `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
+- **Imperium — kilka planet**: 5 miejsc na start (do 10 po odblokowaniu w przyszłości), okno „Twoje planety” z animowanymi pikselowymi miniaturami (`PlanetThumbnail`, przejdź / nowa / usuń), nieaktywne planety nadrabiają czas jak offline, antymateria wspólna. Zapis `empire.ts` (`planet-forge.empire.v1`), miejsca mają `kind` (na razie `'planet'`; później księżyce, stacje…).
 - **5 typów planet** (dane robocze): umiarkowana (Kepler-186 f, planeta startowa), pustynna, lodowa, oceaniczna, wulkaniczna (świecąca lawa). Typ nowej planety wynika z seeda (`pickDefinition`).
 - **Kolonia na powierzchni**: każdy poziom budynku = kolejna budowla na planecie (do 10 na typ, potem budowle rosną). Po ulepszeniu planeta obraca się, by pokazać nową budowlę, która „wyrasta” z animacją.
 - Atmosfera: poświata zanikająca płynnie poza krawędzią + mgiełka na tarczy, słabsza po nocnej stronie (naprawiona „aureola” z v0.1).
@@ -33,7 +34,7 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **Bezpiecznik startu** (`app/bootGuard.ts`): tryb grafiki (`'2d'` domyślnie / `'3d'`); start w 3D, który nie dotrwał do 8 s pracy, przełącza na stałe na 2D; Ustawienia → „Grafika” i „Diagnostyka” (z licznikiem płynności `app/fpsMeter.ts`). Panele Phaser w **Canvas 2D** — jedyny kontekst WebGL ma planeta (pamięć grafiki iPada!).
 - **Ustawienia** (przycisk w panelu planety): „Kopiuj zapis” (tekst `PF2:…` — całe imperium — do schowka; `PF1:` nadal się wczytuje), „Wczytaj zapis” (pole tekstowe HTML, walidacja, błędy po polsku), wersja gry. „Nowa planeta” jest w oknie „Twoje planety”. Na iPadzie Safari i aplikacja z ekranu początkowego mają osobną pamięć — zapis przenosi się tym tekstem.
 - Układ responsywny: iPad poziomo (kolumny), pionowo i telefon (wiersz kart); safe-area; brak przewijania/zoomu strony.
-- 92 testy: seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu, rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
+- 98 testów: seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu, rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -47,9 +48,10 @@ src/
     types.ts
   data/            planets.ts (definicje typów planet), balance.ts (wartości robocze)
   planet-renderer/ Three.js: PlanetView.ts, atmosphere.ts, colonyMeshes.ts, CanvasPlanetFallback.ts
-                   czysta matematyka (bez three, testowalna): surface.ts, colony.ts, input/dragRotator.ts
+                   PlanetThumbnail.ts (miniatury), discRenderer.ts (tarcza 2D piksel po pikselu)
+                   czysta matematyka (bez three, testowalna): surface.ts, colony.ts, discRenderer.ts, input/dragRotator.ts
                    PlanetDisplay.ts = JEDYNY interfejs między Phaser a rendererem
-  game/            Phaser: scenes/PlanetScene.ts (HUD), ui/ (Button, layout, theme)
+  game/            Phaser: scenes/PlanetScene.ts (HUD), ui/ (Button, layout, theme, gestures, textPanel)
   app/             main.ts (start, resize), GameController.ts (spina core + zapis + UI),
                    pwa.ts (rejestracja SW), serviceWorker.ts (→ dist/sw.js)
 tests/             node:test (*.test.ts)
@@ -99,7 +101,7 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 2. ~~Czas budowy~~ (v0.3).
 3. ~~Magazyny~~ (v0.4), ~~antymateria~~ (v0.5). Zakup antymaterii za pieniądze — dopiero z backendem.
 4. **Typy planet z Lore Bible** — podmiana roboczych danych w `src/data/planets.ts` na kanon (mechanizm już działa dla 5 typów).
-5. **Wizualia** — pinch-zoom planety 2D, pierścienie/księżyc jako opcja w danych (po pomiarze płynności z Diagnostyki na iPadzie).
+5. **Wizualia** — ~~pinch-zoom~~ (v0.8); dalej: pierścienie/księżyc jako opcja w danych (zapas płynności: 60/53 kl./s na iPadzie właściciela).
 6. ~~PWA~~ (v0.6), ~~hosting~~: GitHub Pages `https://kol4t.github.io/Planet-forge/`, automatycznie z `main` (`.github/workflows/pages.yml`).
 
 Dopiero po stabilnym MVP: badania, anomalie, dawne cywilizacje, a na końcu backend/konta/multiplayer.

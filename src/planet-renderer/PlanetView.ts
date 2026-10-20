@@ -54,6 +54,7 @@ export class PlanetView implements PlanetDisplay {
   private width = 1;
   private height = 1;
   private focus = { cx: 0.5, cy: 0.5, r: 200 };
+  private zoom = 1;
   private frame = 0;
   private lastTime = performance.now();
   private disposed = false;
@@ -123,7 +124,13 @@ export class PlanetView implements PlanetDisplay {
   }
 
   drag(dx: number, dy: number): void {
-    this.rotator.move(dx, dy, performance.now());
+    // Przy przybliżeniu ten sam ruch palca obraca planetę wolniej.
+    this.rotator.move(dx / this.zoom, dy / this.zoom, performance.now());
+  }
+
+  setZoom(zoom: number): void {
+    this.zoom = Math.min(3.5, Math.max(1, zoom));
+    this.updateCamera();
   }
 
   endDrag(): void {
@@ -148,8 +155,9 @@ export class PlanetView implements PlanetDisplay {
     const { width, height } = this;
     this.camera.aspect = width / height;
     const halfFov = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
-    const distance = height / (2 * this.focus.r * halfFov);
-    this.camera.position.set(0, 0, Math.max(1.6, distance));
+    const distance = height / (2 * this.focus.r * this.zoom * halfFov);
+    // Minimum 1,3: przy dużym przybliżeniu kamera nie wchodzi w atmosferę.
+    this.camera.position.set(0, 0, Math.max(1.3, distance));
     this.camera.lookAt(0, 0, 0);
     this.camera.setViewOffset(width, height, width / 2 - this.focus.cx, height / 2 - this.focus.cy, width, height);
     this.camera.updateProjectionMatrix();
@@ -198,7 +206,7 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
       index = positions.length / 3;
       indexByKey.set(key, index);
       positions.push(p.x * r, p.y * r, p.z * r);
-      colors.push(...sampler.color(h, p.y));
+      colors.push(...sampler.color(h, p.x, p.y, p.z));
     }
     indices.push(index);
   }

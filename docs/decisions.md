@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — v0.8: przybliżanie dwoma palcami, miniatury planet, krawędź lodu
+
+- **Pomiar przed decyzją:** iPad właściciela (10,2", iPadOS 26) w 2D: średnio 60 kl./s, najsłabsza sekunda 53 → jest zapas na przybliżanie i animowane miniatury.
+- **Przybliżanie (1×–3,5×):** logika gestów w `src/game/ui/gestures.ts` (czysta, testowana): jeden palec obraca, drugi palec przełącza na szczypanie, palec pozostały po szczypaniu nic nie robi do podniesienia. `PlanetDisplay.setZoom()`: w 2D tarcza rośnie wokół środka (pod panelami), rozdzielczość bufora rośnie maks. do 1,6× (koszt ~2,6×), a od 1,25× piksele są ostre (bez wygładzania — styl pixel-art); w 3D kamera się przybliża. Ruch palca obraca planetę wolniej przy zbliżeniu (teren „pod palcem”).
+- **Miniatury w „Twoje planety”:** `PlanetThumbnail` (planet-renderer) rysuje tarczę 36 × 36 px tym samym kodem co planeta 2D (`discRenderer.ts`, wydzielony z widoku 2D); UI wstawia ją jako teksturę Canvas z filtrem NEAREST i obraca ~12 kl./s tylko przy otwartym oknie.
+- **Krawędź lodu:** płynne przejście lodu nad morzem dawało w 2D rozmyte pionowe „zacieki”, a czapa kończyła się prostą linią. Teraz granica jest nieregularna (drobny szum) i wyraźna; zamarznięte morze jest nieco ciemniejsze od lodu na lądzie. Zmiana tylko wizualna (`surface.color` dostaje pełną pozycję punktu) — seedy, planety i zapisy bez zmian; ikony aplikacji odświeżone przy buildzie.
+
 ## 2026-10-20 — v0.7: planeta 2D domyślnie, kilka planet, licznik płynności
 
 - **2D domyślnie (decyzja właściciela).** Pikselowa planeta 2D z obrotem palcem to główny wygląd gry; model 3D jest opcją w Ustawieniach → Grafika („Włącz 3D” / „Wróć do 2D”). Tryb zapisany w `bootGuard` (`'2d' | '3d'`, stare „auto” = 2D). Nieudany start w 3D przełącza na stałe na 2D. Budowle w 2D to kwadraty 2 × 2 piksele planety, wyrównane do jej siatki; plac budowy — złota ramka wypełniana od dołu wraz z postępem.

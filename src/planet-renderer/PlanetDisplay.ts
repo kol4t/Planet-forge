@@ -14,7 +14,9 @@ export interface PlanetDisplay {
   beginDrag(): void;
   drag(dx: number, dy: number): void;
   endDrag(): void;
-  /** Środek i promień planety w pikselach CSS. */
+  /** Przybliżenie (1 = cała planeta, maks. ok. 3,5). Planeta rośnie wokół swojego środka. */
+  setZoom(zoom: number): void;
+    /** Środek i promień planety w pikselach CSS. */
   setFocus(cx: number, cy: number, r: number): void;
   resize(width: number, height: number): void;
   dispose(): void;

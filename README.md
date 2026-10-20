@@ -1,6 +1,6 @@
 # Planet Forge
 
-Przeglądarkowa gra strategiczna science-fiction: jedna planeta 3D generowana z seeda, kolonia rosnąca na jej powierzchni i pierwsza pętla ekonomii. Wersja **0.7**, projektowana pod **iPada i Safari**.
+Przeglądarkowa gra strategiczna science-fiction: jedna planeta 3D generowana z seeda, kolonia rosnąca na jej powierzchni i pierwsza pętla ekonomii. Wersja **0.8**, projektowana pod **iPada i Safari**.
 
 ## Jak zagrać
 
@@ -73,5 +73,12 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 36. „Planety” → „Przejdź” przy starej planecie → wraca z całym postępem (+ to, co wyprodukowała w międzyczasie). Antymateria jest wspólna.
 37. „Usuń” przy nieaktywnej planecie → „Na pewno?” → drugie dotknięcie usuwa. Przy 5 planetach „Nowa planeta” jest wyszarzona.
 38. „Ustawienia” → „Diagnostyka” po minucie gry: wiersz „płynność (ostatnia minuta)”.
+
+### Od 0.8: przybliżanie i miniatury
+
+39. Dwa palce na planecie, rozsuń → planeta się przybliża (ostre piksele terenu, budowle jako wyraźne kwadraty); zsuń → oddala do całej planety.
+40. Po przybliżeniu jeden palec nadal obraca planetę (wolniej — teren zostaje pod palcem). Gest zaczęty na panelu nie przybliża.
+41. „Planety” → przy każdej planecie mała, obracająca się pikselowa miniatura w jej kolorach.
+42. Lodowa planeta: krawędź lodu wyraźna i nieregularna, bez rozmytych pionowych smug.
 
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

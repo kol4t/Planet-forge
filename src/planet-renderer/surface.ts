@@ -10,8 +10,8 @@ export interface SurfaceSampler {
   height(x: number, y: number, z: number): number;
   /** Promień powierzchni lądu dla wysokości `h` (≥ 1 nad poziomem morza). */
   radius(h: number): number;
-  /** Kolor terenu dla wysokości `h` i szerokości `y` (-1..1). */
-  color(h: number, y: number): RGB;
+  /** Kolor terenu dla wysokości `h` w punkcie (x, y, z) sfery jednostkowej. */
+  color(h: number, x: number, y: number, z: number): RGB;
   isLand(h: number): boolean;
 }
 
@@ -56,7 +56,7 @@ export function createSurfaceSampler(planet: Planet): SurfaceSampler {
     radius(h) {
       return 1 + Math.max(0, h - sea) * v.terrainAmplitude * 2.2;
     },
-    color(h, y) {
+    color(h, x, y, z) {
       let c: RGB;
       if (h < sea) {
         c = mix(p.deep, p.shallow, smoothstep(sea - 0.14, sea, h));
@@ -66,8 +66,13 @@ export function createSurfaceSampler(planet: Planet): SurfaceSampler {
         c = mix(c, p.high, smoothstep(0.18, 0.42, t));
         c = mix(c, p.peak, smoothstep(0.5, 0.7, t));
       }
-      const ice = smoothstep(cap, cap + 0.12, Math.abs(y) + (h - sea) * 0.25);
-      return mix(c, p.peak, ice * 0.85);
+      // Granica lodu: nieregularna (drobny szum) i wyraźna — bez rozmytych „zacieków”
+      // nad morzem i bez prostej linii czapy polarnej.
+      const edge = (warp(x * 7 + 31, y * 7, z * 7) - 0.5) * 0.16 + (warp(x * 19, y * 19 + 5, z * 19) - 0.5) * 0.06;
+      const iceLine = Math.abs(y) + Math.max(0, h - sea) * 0.25 + edge;
+      const ice = smoothstep(cap, cap + 0.025, iceLine);
+      // Zamarznięte morze jest nieco ciemniejsze niż lód na lądzie.
+      return mix(c, h < sea ? mix(p.shallow, p.peak, 0.82) : p.peak, ice * 0.9);
     },
     isLand(h) {
       return h >= sea;
