@@ -17,6 +17,7 @@ import {
   type Rates,
   type UpgradeResult,
 } from '../core/economy/economy.ts';
+import { simulateAwayAi } from '../core/ai/offline.ts';
 import { DEFAULT_AI_LEVELS, suggest, type AiAction, type AiLevel, type AiRuleId, type AiSuggestion } from '../core/ai/advisor.ts';
 import {
   applyResearch,
@@ -68,6 +69,8 @@ interface Slot {
   economy: EconomyState;
   /** Adres w galaktyce, np. „1:42:7” (pusty tylko na chwilę — przed rozmieszczeniem na mapie). */
   address: string;
+  /** Badania tej planety (od v0.15 każda planeta bada sama). */
+  research: ResearchState;
 }
 
 /** Kto jest na planecie — z punktu widzenia gracza. */
@@ -127,8 +130,7 @@ export class GameController {
   completedWhileAway: CompletedBuild | null = null;
   /** Badania ukończone podczas nieobecności (do jednorazowego komunikatu). */
   researchedWhileAway: string[] = [];
-  /** Badania imperium (wspólne dla wszystkich planet). */
-  research: ResearchState = EMPTY_RESEARCH;
+
   /** Kolonie założone przez statki podczas nieobecności (nazwy, do jednorazowego komunikatu). */
   arrivedWhileAway: string[] = [];
   /** Statki kolonizacyjne w drodze. */
@@ -141,7 +143,8 @@ export class GameController {
   /** Odrzucone propozycje: reguła → do kiedy SI o nią nie pyta (tylko w tej sesji). */
   private readonly aiSnooze = new Map<AiRuleId, number>();
   private readonly aiListeners = new Set<(text: string) => void>();
-  private balanceCache: { done: readonly string[]; balance: Balance } | null = null;
+  /** Balans z efektami badań — osobno dla każdej listy zbadanych (planety). */
+  private readonly balanceCache = new WeakMap<readonly string[], Balance>();
   private slots: Slot[];
   private active = 0;
   private unlockedSlots: number = BALANCE.planetSlots.base;
@@ -158,15 +161,16 @@ export class GameController {
     if (saved && slots.length > 0) {
       this.slots = slots;
       this.unlockedSlots = saved.unlockedSlots;
-      this.research = saved.research;
       this.home = saved.home ?? '';
       this.missions = saved.missions ?? [];
       this.journal = saved.journal ?? [];
       this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
+      migrateResearch(this.slots, saved.slots, saved.research, this.active);
       this.placeOnMap();
       const before = { ...this.slots[this.active]!.economy, antimatter: saved.antimatter };
       this.economy = before;
+      this.runAwayAi(this.slots[this.active]!, now, this.balance);
       this.researchedWhileAway = this.advanceActive(now);
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
@@ -176,7 +180,7 @@ export class GameController {
       }
     } else {
       this.slots = [
-        { planet: generatePlanet(STARTER.definition, STARTER.seed), economy: createEconomy(now), address: '' },
+        { planet: generatePlanet(STARTER.definition, STARTER.seed), economy: createEconomy(now), address: '', research: EMPTY_RESEARCH },
       ];
       this.placeOnMap();
       this.log('empire', `Początek ekspedycji: ${this.planet.displayName} (${this.address}).`, now);
@@ -195,12 +199,27 @@ export class GameController {
     this.slots[this.active]!.economy = value;
   }
 
-  /** Balans gry z efektami zbadanych badań (liczony ponownie tylko po nowym badaniu). */
+  /** Badania aktywnej planety. */
+  get research(): ResearchState {
+    return this.slots[this.active]!.research;
+  }
+
+  set research(value: ResearchState) {
+    this.slots[this.active]!.research = value;
+  }
+
+  /** Balans aktywnej planety z efektami jej badań (liczony ponownie tylko po nowym badaniu). */
   get balance(): Balance {
-    if (this.balanceCache?.done !== this.research.done) {
-      this.balanceCache = { done: this.research.done, balance: applyResearch(BALANCE, this.research.done) };
+    return this.balanceFor(this.slots[this.active]!);
+  }
+
+  private balanceFor(slot: Slot): Balance {
+    let balance = this.balanceCache.get(slot.research.done);
+    if (!balance) {
+      balance = applyResearch(BALANCE, slot.research.done);
+      this.balanceCache.set(slot.research.done, balance);
     }
-    return this.balanceCache.balance;
+    return balance;
   }
 
   get rates(): Rates {
@@ -223,6 +242,7 @@ export class GameController {
   tick(now = Date.now()): void {
     const before = this.economy;
     const researched = this.advanceActive(now);
+    this.completeInactiveResearch(now);
     const done = finishedBuild(before, this.economy);
     if (done) this.logBuild(done, before.construction!.finishesAt);
     const arrived = this.processMissions(now);
@@ -250,7 +270,7 @@ export class GameController {
     if (result.completed) {
       this.research = result.research;
       completed.push(result.completed);
-      this.log('research', `Zbadano: ${findResearch(result.completed)?.name ?? result.completed}.`, c!.finishesAt);
+      this.log('research', `${this.planet.displayName}: zbadano ${findResearch(result.completed)?.name ?? result.completed}.`, c!.finishesAt);
     }
     this.economy = advance(this.economy, this.planet, now, this.balance);
     return completed;
@@ -330,9 +350,9 @@ export class GameController {
     });
   }
 
-  /** Odblokowane miejsca: z zapisu albo więcej, jeśli dają je badania. */
+  /** Odblokowane miejsca: z zapisu albo więcej, jeśli daje je badanie na którejkolwiek planecie. */
   private get openSlots(): number {
-    return Math.max(this.unlockedSlots, this.balance.planetSlots.base);
+    return Math.max(this.unlockedSlots, ...this.slots.map((slot) => this.balanceFor(slot).planetSlots.base));
   }
 
   get slotInfo(): { used: number; unlocked: number; max: number } {
@@ -344,9 +364,9 @@ export class GameController {
    * (jak przy przejściu na nie) — zapis i stan gry się nie zmieniają.
    */
   overview(now = Date.now()): PlanetOverview[] {
-    const balance = this.balance;
     return this.planets().map((summary) => {
       const slot = this.slots[summary.index]!;
+      const balance = this.balanceFor(slot);
       const economy = summary.active ? this.economy : advance(slot.economy, slot.planet, now, catchUpBalance(balance));
       const c = economy.construction;
       return {
@@ -385,9 +405,24 @@ export class GameController {
     this.log('build', `${this.planet.displayName}: ${name} — poziom ${done.level} gotowy.`, at);
   }
 
-  /** Czy badania odblokowały funkcję gry. */
-  private unlocked(feature: 'colony-ship' | 'ai-mother' | 'ai-executors'): boolean {
-    return this.research.done.some((id) => findResearch(id)?.effects.some((e) => e.kind === 'unlock' && e.feature === feature));
+  /** Czy funkcję gry odblokowało badanie na którejkolwiek planecie (funkcje działają na całe imperium). */
+  private unlocked(feature: 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline'): boolean {
+    return this.slots.some((slot) =>
+      slot.research.done.some((id) => findResearch(id)?.effects.some((e) => e.kind === 'unlock' && e.feature === feature)),
+    );
+  }
+
+  /** Badania nieaktywnych planet kończą się w swoim czasie (efekty działają od następnego naliczenia). */
+  private completeInactiveResearch(now: number): void {
+    this.slots.forEach((slot, index) => {
+      if (index === this.active) return;
+      const c = slot.research.current;
+      const result = completeResearch(slot.research, now);
+      if (!c || !result.completed) return;
+      slot.research = result.research;
+      this.log('research', `${slot.planet.displayName}: zbadano ${findResearch(c.id)?.name ?? c.id}.`, c.finishesAt);
+      for (const listener of this.researchListeners) listener(c.id);
+    });
   }
 
   // ——— SI Matka ———
@@ -462,6 +497,27 @@ export class GameController {
   private effectiveAiLevel(rule: AiRuleId): AiLevel {
     const level = this.aiLevels[rule];
     return level === 'auto' && !this.aiAutoUnlocked ? 'ask' : level;
+  }
+
+  /** SI buduje przy zamkniętej grze (badanie „Autonomia”). */
+  get aiOfflineUnlocked(): boolean {
+    return this.unlocked('ai-offline');
+  }
+
+  /**
+   * Nieobecność planety z SI („Autonomia”): SI zaczyna budowy według reguł „działa samo”,
+   * każda o 50% dłuższa. Po symulacji czas jest już naliczony do `now`.
+   */
+  private runAwayAi(slot: Slot, now: number, balance: Balance): void {
+    if (!this.aiUnlocked || !this.aiAutoUnlocked || !this.aiOfflineUnlocked) return;
+    if (now - slot.economy.lastUpdate < 60_000) return;
+    const before = slot.economy;
+    const result = simulateAwayAi({ economy: before, planet: slot.planet, balance, research: slot.research, levels: this.aiLevels }, now);
+    slot.economy = result.economy;
+    for (const s of result.started) {
+      const name = BALANCE.buildings.find((b) => b.id === s.building)?.name ?? s.building;
+      this.log('ai', `SI Matka (podczas nieobecności) na ${slot.planet.displayName}: ${name} — budowa poz. ${s.level}.`, s.at);
+    }
   }
 
   /** SI wykonawcze: jedno samodzielne działanie na odświeżenie. Zwraca opis albo null. */
@@ -600,7 +656,7 @@ export class GameController {
       const target = where ? planetAt(this.galaxy, where) : null;
       if (!target || this.slotAt(mission.target) >= 0) continue;
       const planet = galaxyPlanet(target);
-      this.slots.push({ planet, economy: { ...createEconomy(mission.arrivesAt), antimatter: 0 }, address: mission.target });
+      this.slots.push({ planet, economy: { ...createEconomy(mission.arrivesAt), antimatter: 0 }, address: mission.target, research: EMPTY_RESEARCH });
       this.log('colony', `Statek dotarł — skolonizowano ${planet.displayName} (${mission.target}).`, mission.arrivesAt);
       arrived.push(planet.displayName);
     }
@@ -622,9 +678,9 @@ export class GameController {
 
   // ——— badania ———
 
-  /** Najwyższe Laboratorium w imperium (badania są wspólne). */
+  /** Laboratorium aktywnej planety (każda planeta bada sama). */
   get labLevel(): number {
-    return Math.max(0, ...this.slots.map((slot) => slot.economy.levels.laboratory ?? 0));
+    return this.economy.levels.laboratory ?? 0;
   }
 
   /** Najdalszy pierścień galaktyki dostępny z obecnym Laboratorium. */
@@ -704,7 +760,10 @@ export class GameController {
     this.economy = { ...this.economy, antimatter: 0 };
     this.active = index;
     const before = { ...target.economy, antimatter: 0 };
-    const caughtUp = advance(before, target.planet, now, catchUpBalance(this.balance));
+    // SI może dalej budować podczas nieobecności (po badaniu „Autonomia”), wolniej o 50%.
+    target.economy = before;
+    this.runAwayAi(target, now, catchUpBalance(this.balanceFor(target)));
+    const caughtUp = advance(target.economy, target.planet, now, catchUpBalance(this.balanceFor(target)));
     // Antymateria wyprodukowana przez kolektor tej planety trafia do wspólnego portfela.
     this.economy = { ...caughtUp, antimatter: wallet + caughtUp.antimatter };
     this.reportAway(before, now);
@@ -775,7 +834,7 @@ export class GameController {
     if (blocked) return { ok: false, message: blocked };
     const planet = galaxyPlanet(target);
     // Zapas startowy antymaterii dostaje tylko pierwsza planeta (portfel jest wspólny).
-    this.slots.push({ planet, economy: { ...createEconomy(now), antimatter: 0 }, address });
+    this.slots.push({ planet, economy: { ...createEconomy(now), antimatter: 0 }, address, research: EMPTY_RESEARCH });
     this.log('colony', `Skolonizowano: ${planet.displayName} (${address}).`, now);
     const result = this.switchPlanet(this.slots.length - 1, now);
     this.offlineGain = null;
@@ -848,12 +907,12 @@ export class GameController {
     const slots = restoreSlots(result.data.slots);
     this.slots = slots;
     this.unlockedSlots = result.data.unlockedSlots;
-    this.research = result.data.research;
     this.home = result.data.home ?? '';
     this.missions = result.data.missions ?? [];
     this.journal = result.data.journal ?? [];
     this.aiLevels = result.data.ai ?? { ...DEFAULT_AI_LEVELS };
     this.active = result.data.active;
+    migrateResearch(this.slots, result.data.slots, result.data.research, this.active);
     this.placeOnMap();
     this.economy = { ...this.economy, antimatter: result.data.antimatter };
     this.advanceActive(now);
@@ -873,7 +932,8 @@ export class GameController {
       active: this.active,
       // Miejsca z badań też trafiają do zapisu (walidacja: planet ≤ odblokowanych miejsc).
       unlockedSlots: this.openSlots,
-      research: this.research,
+      // Badania są teraz przy planetach; pole imperium zostaje puste (zgodność formatu).
+      research: EMPTY_RESEARCH,
       home: this.home,
       missions: this.missions,
       journal: this.journal,
@@ -888,6 +948,7 @@ export class GameController {
           address: slot.address,
         },
         economy: { ...slot.economy, antimatter: 0 },
+        research: slot.research,
       })),
     };
   }
@@ -935,9 +996,22 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       planet: fromGalaxy ? { ...planet, displayName: fromGalaxy.name } : planet,
       economy: slot.economy,
       address: slot.planet.address ?? '',
+      research: slot.research ?? EMPTY_RESEARCH,
     });
   }
   return slots;
+}
+
+/**
+ * Zapisy sprzed v0.15 (badania wspólne dla imperium): zbadane trafiają na wszystkie planety,
+ * a trwające badanie — na planetę, która za nie zapłaciła (albo aktywną).
+ */
+function migrateResearch(slots: Slot[], saved: readonly SlotSave[], empire: ResearchState, active: number): void {
+  if (saved.some((s) => s.research)) return;
+  const payer = slots.findIndex((s) => s.planet.seed === empire.current?.paidBy);
+  slots.forEach((slot, index) => {
+    slot.research = { done: [...empire.done], current: index === (payer >= 0 ? payer : active) ? empire.current : null };
+  });
 }
 
 function finishedBuild(before: EconomyState, after: EconomyState): CompletedBuild | null {

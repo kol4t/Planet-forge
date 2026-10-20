@@ -19,6 +19,8 @@ export interface SlotSave {
   planet: PlanetRef;
   /** Gospodarka miejsca. Antymateria NIE jest tu trzymana (portfel wspólny). */
   economy: EconomyState;
+  /** Badania tej planety (od v0.15; brak = zapis sprzed v0.15 — badania imperium z pola `research`). */
+  research?: ResearchState;
 }
 
 export interface EmpireSave {
@@ -103,7 +105,12 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     const planet = parsePlanetRef(raw.planet);
     const economy = parseEconomy(raw.economy);
     if (!planet || !economy) return null;
-    slots.push({ kind: 'planet', planet, economy: { ...economy, antimatter: 0 } });
+    slots.push({
+      kind: 'planet',
+      planet,
+      economy: { ...economy, antimatter: 0 },
+      ...(raw.research ? { research: parseResearch(raw.research) } : {}),
+    });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;
   if (!isNum(data.antimatter) || data.antimatter < 0) return null;

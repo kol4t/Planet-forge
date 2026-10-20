@@ -60,7 +60,8 @@ export function suggest(input: AdvisorInput): AiSuggestion[] {
   const builderFree = economy.construction === null;
   const canBuild = (id: BuildingId) => {
     const level = economy.levels[id] ?? 0;
-    if (level >= balance.maxLevel) return null;
+    // SI rozwija budynki najwyżej do poziomu Laboratorium tej planety (decyzja właściciela).
+    if (level >= balance.maxLevel || level + 1 > input.labLevel) return null;
     const cost = upgradeCost(id, level, balance);
     return affordable(economy, cost, balance) ? { level, cost } : null;
   };

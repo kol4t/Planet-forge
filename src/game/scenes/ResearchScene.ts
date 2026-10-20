@@ -170,7 +170,7 @@ export class ResearchScene extends OverlayScene {
     const lab = controller.labLevel;
     const done = controller.research.done.length;
     this.header?.setText(
-      `Laboratorium poz. ${lab} · zasięg: pierścień ${controller.researchRing} z 5 · zbadano ${done} z ${researchableCount()}`,
+      `${controller.planet.displayName} · Laboratorium poz. ${lab} · pierścień ${controller.researchRing} z 5 · zbadano ${done} z ${researchableCount()}`,
     );
     const key = this.detailsSignature();
     if (force || key !== this.detailsKey) {

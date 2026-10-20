@@ -107,7 +107,7 @@ export class PlanetScene extends Phaser.Scene {
   /** Zwinięta „Produkcja”: pasek postępu budowy na zakładce. */
   private productionTab: { progress: Phaser.GameObjects.Graphics; bar: { x: number; y: number; w: number } } | null = null;
   /** Dymek SI Matki z bieżącą propozycją (klucz = propozycja + poziom). */
-  private aiBubble: { container: Phaser.GameObjects.Container; key: string } | null = null;
+  private aiBubble: { container: Phaser.GameObjects.Container; key: string; top: number; bottom: boolean } | null = null;
   private refreshTimer = 0;
   private cancelArmedUntil = 0;
   /** Przełączenie na nową wersję gry (gdy service worker ją pobrał). */
@@ -964,7 +964,7 @@ export class PlanetScene extends Phaser.Scene {
     );
     const container = this.add.container(this.px(x), this.px(by), [bg, blocker, ...items, ...buttons]).setDepth(40);
     this.ui.add(container);
-    this.aiBubble = { container, key };
+    this.aiBubble = { container, key, top: by, bottom: anchor === 'bottom' };
   }
 
   private onAiAccept(key: string, action: AiAction, always = false): void {
@@ -1003,7 +1003,12 @@ export class PlanetScene extends Phaser.Scene {
       .lineStyle(this.px(1), kind === 'error' ? COLORS.dangerHex : COLORS.tealHex, 0.7)
       .strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2);
     const toast = this.add
-      .container(this.px(layout.planet.cx), this.px(layout.toastY), [bg, label])
+      // Dymek SI na dole ekranu — komunikat nad nim, żeby go nie zasłaniał.
+      .container(
+        this.px(layout.planet.cx),
+        this.px(this.aiBubble?.bottom ? Math.min(layout.toastY, this.aiBubble.top) : layout.toastY) - (this.aiBubble?.bottom ? h / 2 + this.px(8) : 0),
+        [bg, label],
+      )
       .setDepth(50)
       .setAlpha(0);
     this.toast = toast;

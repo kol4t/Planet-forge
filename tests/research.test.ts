@@ -183,7 +183,7 @@ test('kontroler: Laboratorium → badanie → ukończenie (także po wczytaniu),
     assert.deepEqual(later.researchedWhileAway, ['prod-core']);
     game.tick(finishesAt);
     assert.deepEqual(done, ['prod-core']);
-    assert.deepEqual(JSON.parse(localStorage.getItem(EMPIRE_KEY)!).research.done, ['prod-core']);
+    assert.deepEqual(JSON.parse(localStorage.getItem(EMPIRE_KEY)!).slots[0].research.done, ['prod-core'], 'badania przy planecie');
     assert.ok(game.rates.metal > productionRates(game.economy, game.planet).metal, 'efekt działa od razu');
   });
 });
@@ -218,4 +218,42 @@ test('galaktyka: gwiazdy nie nachodzą na siebie i mieszczą się w promieniu; d
   const core = positions.get('prod-core')!;
   assert.equal(hitTest(positions, core.x + 0.1, core.y, 0.4), 'prod-core');
   assert.equal(hitTest(positions, 0, 0, 0.4), null);
+});
+
+test('badania przypisane do planety: efekty tylko tam; odblokowania (statek, SI, miejsca) dla całego imperium; stary zapis → wszystkie planety', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.research = { done: ['prod-core', 'explore-1'], current: null };
+    const metalHere = game.rates.metal;
+    const free = game.system(game.homeSystem)!.planets.filter(isColonizable).map((p) => p.address);
+    assert.ok(game.colonize(free[0]!, 0).ok);
+    assert.deepEqual(game.research.done, [], 'nowa kolonia bada od zera');
+    assert.ok(game.colonyShipUnlocked, 'statek odblokowany badaniem innej planety');
+    game.switchPlanet(0, 0);
+    assert.equal(game.rates.metal, metalHere, 'efekt na planecie, która zbadała');
+  });
+  withMemoryStorage(() => {
+    const economy = { stock: { metal: 1, crystal: 1 }, levels: {}, lastUpdate: 0 };
+    const planet = (seed: string, def = 'ice') => ({ kind: 'planet', planet: { definitionId: def, seed, generatorVersion: 1 }, economy });
+    localStorage.setItem(
+      EMPIRE_KEY,
+      JSON.stringify({
+        saveVersion: 2,
+        active: 0,
+        unlockedSlots: 5,
+        antimatter: 1,
+        slots: [planet('KEPLER-186F-ALFA', 'kepler-186f'), planet('PF-B')],
+        research: {
+          done: ['prod-core'],
+          current: { id: 'planet-1', startedAt: 0, finishesAt: 9e12, cost: { metal: 1, crystal: 1 }, antimatter: 0, paidBy: 'PF-B' },
+        },
+      }),
+    );
+    const game = new GameController(1000);
+    assert.deepEqual(game.research.done, ['prod-core']);
+    assert.equal(game.research.current?.id, undefined, 'trwające badanie zostaje przy planecie, która płaciła');
+    game.switchPlanet(1, 1000);
+    assert.deepEqual(game.research.done, ['prod-core']);
+    assert.equal(game.research.current?.id, 'planet-1');
+  });
 });

@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — v0.15: badania przypisane do planety, limit SI, SI podczas nieobecności
+
+- **Badania na planetę** (decyzja właściciela): każda planeta ma własne Laboratorium, kolejkę i listę zbadanych (`SlotSave.research`); efekty (`applyResearch`) działają tylko na niej — balans liczony osobno dla każdej planety. Trudniejsze badania dla całego imperium przyjdą ze **stacją badawczą** (etap „Stacja i handel”).
+- **Odblokowania działają w całym imperium**, jeśli zbadała je którakolwiek planeta: statek kolonizacyjny, SI Matka/wykonawcze/Autonomia, dodatkowe miejsce na planetę. Antymateria zostaje wspólna.
+- **Zapisy sprzed v0.15:** zbadane trafiają na wszystkie planety; trwające badanie — na planetę, która za nie zapłaciła (pole `research` imperium zostaje puste dla zgodności formatu).
+- **Limit SI = Laboratorium** (decyzja właściciela): SI proponuje i buduje budynki najwyżej do poziomu Laboratorium tej planety; Laboratorium ulepsza tylko gracz (inaczej SI podnosiłaby sobie limit).
+- **SI podczas nieobecności** (decyzja właściciela, budowy ~50% dłuższe): po badaniu „Autonomia” (ramię SI, pierścień 3) reguły „działa samo” budują przy zamkniętej grze — symulacja czasu w `core/ai/offline.ts` (w limicie nieobecności; tylko budowy, bez badań). Działa dla aktywnej planety przy wczytaniu i dla każdej planety przy przejściu na nią. Wpisy w dzienniku z czasem zdarzenia.
+- **DNA** (pomysł właściciela, na później): generator planet, SI i badania oparte na „DNA”, z którego powstają stworzenia — do doprecyzowania i z Lore Bible.
+
 ## 2026-10-20 — v0.14: SI Matka (etap 1)
 
 - **Koncepcja właściciela:** SI Matka proponuje, gracz decyduje; trzy poziomy samodzielności na regułę: podpowiada / pyta / działa samo (raport w dzienniku).

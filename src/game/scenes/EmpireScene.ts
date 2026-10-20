@@ -268,9 +268,13 @@ export class EmpireScene extends OverlayScene {
       line('SI Matka jeszcze śpi. Zbadaj „SI Matka” (Badania → ramię SI), a zacznie proponować działania.', 12.5, COLORS.muted, {}, 14);
     } else {
       line(
-        c.aiAutoUnlocked
+        (c.aiAutoUnlocked
           ? 'SI obserwuje aktywną planetę. Dla każdej reguły wybierz, jak samodzielna ma być. „Działa samo” — wykonuje i zapisuje w dzienniku.'
-          : 'SI obserwuje aktywną planetę i pyta o zgodę. Działanie bez pytania odblokuje badanie „SI wykonawcze”.',
+          : 'SI obserwuje aktywną planetę i pyta o zgodę. Działanie bez pytania odblokuje badanie „SI wykonawcze”.') +
+          ' Budynki rozwija najwyżej do poziomu Laboratorium danej planety (Laboratorium ulepszasz sam).' +
+          (c.aiOfflineUnlocked
+            ? ' Przy zamkniętej grze reguły „działa samo” dalej budują — każda budowa trwa o 50% dłużej.'
+            : ' Budowanie przy zamkniętej grze odblokuje badanie „Autonomia”.'),
         12,
         COLORS.muted,
         {},

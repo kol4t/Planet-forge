@@ -262,6 +262,7 @@ export function describeEffects(node: ResearchNodeDef): string {
           'colony-ship': 'statek kolonizacyjny — kolonizacja innych układów',
           'ai-mother': 'SI Matka — propozycje działań',
           'ai-executors': 'SI działa sama (poziom „działa samo”)',
+          'ai-offline': 'SI buduje przy zamkniętej grze (budowy o 50% dłuższe)',
         }[e.feature];
     }
   });

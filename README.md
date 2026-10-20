@@ -130,4 +130,11 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 72. Po zbadaniu „SI wykonawcze” (pierścień 2) w dymku jest „Zawsze tak rób” — od tej chwili ta reguła działa sama: komunikat „SI Matka: …” i wpis w Dzienniku.
 73. „Imperium” → „SI”: dla każdej reguły „Podpowiada” / „Pyta” / „Działa samo” (to ostatnie po „SI wykonawcze”). Ustawienia zostają po zamknięciu gry.
 
+### Od 0.15: badania na planetę, limit SI, SI przy zamkniętej grze
+
+74. Twoje dotychczasowe badania są na każdej Twojej planecie (nic nie przepadło). „Badania” pokazują u góry nazwę planety i jej Laboratorium.
+75. Nowa kolonia ma pustą galaktykę badań — bada od zera własnym Laboratorium; efekty (np. +10% metalu) działają tylko na planecie, która zbadała. Statek kolonizacyjny, SI i dodatkowe miejsce na planetę działają w całym imperium, jeśli zbadała je którakolwiek planeta.
+76. SI proponuje budynki najwyżej do poziomu Laboratorium tej planety (np. Laboratorium 5 → inne budynki do 5); samo Laboratorium ulepszasz sam.
+77. Badania → SI → „Autonomia” (pierścień 3): po zbadaniu reguły „Działa samo” budują także przy zamkniętej grze, każda budowa o 50% dłużej. Po powrocie: Imperium → Dziennik — wpisy „SI Matka (podczas nieobecności)”.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

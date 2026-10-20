@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { GameController } from '../src/app/GameController.ts';
 import { parseAiLevels, suggest } from '../src/core/ai/advisor.ts';
+import { simulateAwayAi } from '../src/core/ai/offline.ts';
 import { createEconomy } from '../src/core/economy/economy.ts';
 import { generatePlanet } from '../src/core/generation/generatePlanet.ts';
 import { EMPTY_RESEARCH } from '../src/core/research/research.ts';
@@ -11,7 +12,7 @@ import { STARTER } from '../src/data/planets.ts';
 
 const planet = generatePlanet(STARTER.definition, STARTER.seed);
 const base = createEconomy(0);
-const input = (economy: EconomyState, labLevel = 0) => ({ economy, planet, balance: BALANCE, research: EMPTY_RESEARCH, labLevel });
+const input = (economy: EconomyState, labLevel = 10) => ({ economy, planet, balance: BALANCE, research: EMPTY_RESEARCH, labLevel });
 
 test('SI: brak energii → najpierw Elektrownia (z powodem po polsku)', () => {
   const economy = { ...base, stock: { metal: 900, crystal: 900 }, levels: { ...base.levels, metalMine: 6, crystalMine: 6 } };
@@ -31,6 +32,13 @@ test('SI: pełny magazyn → Magazyn; wolne Laboratorium → najtańsze badanie;
   assert.ok(suggest(input(busy)).every((s) => s.action.kind !== 'build'));
   const poor = { ...base, stock: { metal: 0, crystal: 0 } };
   assert.deepEqual(suggest(input(poor)), [], 'bez surowców — bez propozycji');
+});
+
+test('SI: budynki najwyżej do poziomu Laboratorium (decyzja właściciela)', () => {
+  const economy = { ...base, stock: { metal: 9000, crystal: 9000 }, levels: { ...base.levels, metalMine: 6, crystalMine: 6, powerPlant: 3, storage: 3 } };
+  assert.deepEqual(suggest(input(economy, 3)).filter((s) => s.action.kind === 'build'), [], 'Elektrownia 3 = Laboratorium 3 — stop');
+  assert.ok(suggest(input(economy, 4)).some((s) => s.rule === 'energy'));
+  assert.ok(suggest(input(economy, 10)).every((s) => !(s.action.kind === 'build' && s.action.building === 'laboratory')), 'Laboratorium ulepsza gracz');
 });
 
 test('SI: poziomy z zapisu — błędne wracają do „pyta”', () => {
@@ -56,7 +64,7 @@ function withMemoryStorage(run: () => void): void {
 test('kontroler: SI Matka po badaniu proponuje, „Tak” wykonuje, „Nie” wycisza, „działa samo” po SI wykonawczych', () => {
   withMemoryStorage(() => {
     const game = new GameController(0);
-    game.economy = { ...game.economy, stock: { metal: 900, crystal: 900 }, levels: { ...game.economy.levels, metalMine: 6, crystalMine: 6 } };
+    game.economy = { ...game.economy, stock: { metal: 900, crystal: 900 }, levels: { ...game.economy.levels, metalMine: 6, crystalMine: 6, laboratory: 6 } };
     assert.equal(game.aiSuggestion(0), null, 'bez badania SI milczy');
     game.research = { done: ['ai-1'], current: null };
     const s = game.aiSuggestion(0)!;
@@ -82,5 +90,36 @@ test('kontroler: SI Matka po badaniu proponuje, „Tak” wykonuje, „Nie” wy
     assert.equal(actions.length, 1);
     const again = new GameController(11 * 60_000 + 4);
     assert.equal(again.aiLevel('energy'), 'auto', 'ustawienie w zapisie');
+  });
+});
+
+test('SI przy zamkniętej grze (Autonomia): buduje sama, wolniej o 50%, wpisy w dzienniku', () => {
+  const economy = { ...base, lastUpdate: 0, stock: { metal: 2000, crystal: 2000 }, levels: { ...base.levels, metalMine: 5, crystalMine: 5, laboratory: 6 } };
+  const auto = { energy: 'auto', storage: 'auto', research: 'auto', mines: 'auto' } as const;
+  const result = simulateAwayAi({ economy, planet, balance: BALANCE, research: EMPTY_RESEARCH, levels: auto }, 4 * 3600_000);
+  assert.ok(result.started.length >= 2, `budów: ${result.started.length}`);
+  const first = result.started[0]!;
+  assert.equal(first.building, 'powerPlant', 'najpierw energia');
+  assert.equal(result.economy.lastUpdate, 4 * 3600_000);
+  // Budowa SI trwa 1,5× dłużej niż zwykła.
+  const normal = BALANCE.buildSecondsPerLevel * first.level * 1000;
+  const second = result.started[1]!;
+  assert.ok(second.at - first.at >= normal * 1.5 - 1, `${second.at - first.at} vs ${normal * 1.5}`);
+  assert.ok(result.started.every((s) => s.level <= 6), 'limit Laboratorium');
+  const asked = simulateAwayAi({ economy, planet, balance: BALANCE, research: EMPTY_RESEARCH, levels: { ...auto, energy: 'ask', mines: 'ask', storage: 'ask' } }, 3600_000);
+  assert.equal(asked.started.length, 0, 'reguły „pyta” nie działają bez gracza');
+});
+
+test('kontroler: po „Autonomii” SI buduje podczas nieobecności (wpis w dzienniku)', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.research = { done: ['ai-1', 'ai-2', 'ai-3'], current: null };
+    game.economy = { ...game.economy, stock: { metal: 3000, crystal: 3000 }, levels: { ...game.economy.levels, metalMine: 5, crystalMine: 5, laboratory: 6, storage: 4 } };
+    for (const rule of ['energy', 'storage', 'mines'] as const) assert.ok(game.setAiLevel(rule, 'auto').ok);
+    game.save();
+    const later = new GameController(3 * 3600_000);
+    const texts = later.journalEntries().map((e) => e.text);
+    assert.ok(texts.some((t) => t.includes('(podczas nieobecności)')), texts.join(' | '));
+    assert.ok(later.economy.levels.powerPlant > 1, 'Elektrownia rozbudowana pod nieobecność');
   });
 });

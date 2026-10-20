@@ -206,7 +206,7 @@ export type ResearchEffect =
   | { kind: 'environment'; percent: number }
   | { kind: 'planetSlots'; add: number }
   /** Odblokowanie funkcji gry (np. statek kolonizacyjny). */
-  | { kind: 'unlock'; feature: 'colony-ship' | 'ai-mother' | 'ai-executors' };
+  | { kind: 'unlock'; feature: 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' };
 
 export interface ResearchArmDef {
   id: ResearchArmId;
