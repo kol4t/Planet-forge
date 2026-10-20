@@ -5,6 +5,7 @@ import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
+import { openTextPanel } from '../ui/textPanel.ts';
 import { computeLayout, type Insets, type Layout, type Rect } from '../ui/layout.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 
@@ -19,6 +20,8 @@ export interface SceneDeps {
   controller: GameController;
   display: PlanetDisplay;
   getViewport: () => Viewport;
+  /** Wersja gry pokazywana w ustawieniach. */
+  appVersion: string;
 }
 
 interface BuildingCard {
@@ -79,6 +82,8 @@ export class PlanetScene extends Phaser.Scene {
   private lastPointer = { x: 0, y: 0 };
   private refreshTimer = 0;
   private cancelArmedUntil = 0;
+  /** Przełączenie na nową wersję gry (gdy service worker ją pobrał). */
+  private updateApply: (() => void) | null = null;
 
   constructor(deps: SceneDeps) {
     super({ key: 'planet' });
@@ -168,6 +173,7 @@ export class PlanetScene extends Phaser.Scene {
     this.buildTopBar(layout);
     this.buildInfo(layout);
     this.buildBuildings(layout);
+    this.buildUpdateBanner(layout);
     this.refreshValues();
     if (this.overlay) this.children.bringToTop(this.overlay);
   }
@@ -379,8 +385,8 @@ export class PlanetScene extends Phaser.Scene {
         wordWrap: { width: this.px(box.w - 2 * pad) },
         lineSpacing: this.px(3),
       });
-      this.addButton(box.x + pad, box.y + box.h - pad - buttonH, box.w - 2 * pad, buttonH, 'Nowa planeta', 'secondary', () =>
-        this.confirmNewPlanet(),
+      this.addButton(box.x + pad, box.y + box.h - pad - buttonH, box.w - 2 * pad, buttonH, 'Ustawienia', 'secondary', () =>
+        this.openSettings(),
       );
     } else {
       const colW = (box.w - 3 * pad) / 2;
@@ -394,7 +400,7 @@ export class PlanetScene extends Phaser.Scene {
       });
       const btnW = Math.min(colW, this.s(150));
       const btnH = Math.max(36, this.s(32));
-      this.addButton(box.x + pad, box.y + box.h - this.s(10) - btnH, btnW, btnH, 'Nowa planeta', 'secondary', () => this.confirmNewPlanet(), 13);
+      this.addButton(box.x + pad, box.y + box.h - this.s(10) - btnH, btnW, btnH, 'Ustawienia', 'secondary', () => this.openSettings(), 13);
       const x2 = box.x + 2 * pad + colW;
       let y2 = box.y + this.s(12);
       this.text(x2, y2, g.environment.label, 14, COLORS.text, { fontStyle: '600' });
@@ -692,6 +698,140 @@ export class PlanetScene extends Phaser.Scene {
       onComplete: () => {
         toast.destroy(true);
         if (this.toast === toast) this.toast = undefined;
+      },
+    });
+  }
+
+  /** Pokazuje pasek „Dostępna aktualizacja” (zostaje do odświeżenia). */
+  showUpdateAvailable(apply: () => void): void {
+    this.updateApply = apply;
+    if (this.layoutState) this.relayout();
+  }
+
+  private buildUpdateBanner(layout: Layout): void {
+    if (!this.updateApply) return;
+    const viewport = this.deps.getViewport();
+    const w = Math.min(viewport.width - 2 * this.s(16), this.s(380));
+    const h = this.s(60);
+    const top = layout.topBar.y + layout.topBar.h + this.s(12);
+    const y = Math.max(layout.mode === 'portrait' ? layout.info.y + layout.info.h + this.s(12) : top, layout.planet.cy - layout.planet.r - h - this.s(8));
+    const rect: Rect = { x: layout.planet.cx - w / 2, y, w, h };
+    this.panel(rect, true);
+    const pad = this.s(10);
+    this.text(rect.x + this.s(16), rect.y + h / 2, 'Dostępna aktualizacja', 14, COLORS.text, { fontStyle: '600' }).setOrigin(0, 0.5);
+    const buttonW = this.s(120);
+    this.addButton(rect.x + w - pad - buttonW, rect.y + (h - 44) / 2, buttonW, 44, 'Odśwież', 'primary', () => {
+      this.deps.controller.save();
+      this.updateApply?.();
+    });
+  }
+
+  private closeOverlay(): void {
+    this.overlay?.destroy(true);
+    this.overlay = undefined;
+  }
+
+  /** Okno ustawień: przenoszenie zapisu, nowa planeta, wersja gry. */
+  private openSettings(): void {
+    if (this.overlay) return;
+    const viewport = this.deps.getViewport();
+    const W = this.px(viewport.width);
+    const H = this.px(viewport.height);
+    const shade = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0).setInteractive();
+    shade.on('pointerup', () => this.closeOverlay());
+    const w = this.px(Math.min(viewport.width - 32, this.s(440)));
+    const pad = this.px(this.s(20));
+    const buttonH = this.px(Math.max(44, this.s(44)));
+    const gap = this.px(this.s(12));
+    const font = (size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}) => ({
+      fontFamily: FONTS.body,
+      fontSize: `${this.px(this.s(size))}px`,
+      color,
+      wordWrap: { width: w - 2 * pad },
+      lineSpacing: this.px(3),
+      ...extra,
+    });
+    const halfW = (w - 2 * pad - gap) / 2;
+
+    // Najpierw treść (żeby znać wysokość okna), potem tło pod nią.
+    const items: Phaser.GameObjects.GameObject[] = [];
+    let y = pad;
+    const title = this.add.text(pad, y, 'Ustawienia', { ...font(22, COLORS.gold), fontFamily: FONTS.serif });
+    y += title.height + gap;
+    const saveLabel = this.add.text(pad, y, 'ZAPIS GRY', font(11, COLORS.muted, { fontStyle: '600' }));
+    y += saveLabel.height + this.px(4);
+    const saveHint = this.add.text(
+      pad,
+      y,
+      'Gra w Safari i gra z ekranu początkowego mają osobną pamięć. Skopiuj zapis w jednej i wczytaj w drugiej (albo zachowaj kopię w notatkach).',
+      font(13, COLORS.muted),
+    );
+    y += saveHint.height + gap;
+    const copy = new Button(this, pad, y, halfW, buttonH, 'Kopiuj zapis', this.dpr, () => this.copySave(), this.s(15)).setStyle('secondary');
+    const load = new Button(this, pad + halfW + gap, y, halfW, buttonH, 'Wczytaj zapis', this.dpr, () => this.loadSave(), this.s(15)).setStyle(
+      'secondary',
+    );
+    y += buttonH + gap * 1.5;
+    const expLabel = this.add.text(pad, y, 'EKSPEDYCJA', font(11, COLORS.muted, { fontStyle: '600' }));
+    y += expLabel.height + this.px(6);
+    const newPlanet = new Button(this, pad, y, w - 2 * pad, buttonH, 'Nowa planeta…', this.dpr, () => {
+      this.closeOverlay();
+      this.confirmNewPlanet();
+    }, this.s(15)).setStyle('secondary');
+    y += buttonH + gap * 1.5;
+    const version = this.add.text(pad, y + (buttonH - this.px(this.s(16))) / 2, `Planet Forge ${this.deps.appVersion}`, font(12, COLORS.faint, { fontFamily: FONTS.mono }));
+    const closeBtn = new Button(this, w - pad - halfW, y, halfW, buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle(
+      'primary',
+    );
+    y += buttonH + pad;
+    items.push(title, saveLabel, saveHint, copy, load, expLabel, newPlanet, version, closeBtn);
+
+    const h = y;
+    const x = (W - w) / 2;
+    const top = Math.max(this.px(8), (H - h) / 2);
+    const box = this.add
+      .graphics()
+      .fillStyle(COLORS.panel, 0.98)
+      .fillRoundedRect(0, 0, w, h, this.px(16))
+      .lineStyle(this.px(1), COLORS.goldHex, 0.7)
+      .strokeRoundedRect(0, 0, w, h, this.px(16));
+    // Strefa pod oknem łapie dotyk, żeby nie zamykał go „klik w tło”.
+    const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
+    const dialog = this.add.container(x, top, [box, blocker, ...items]);
+    this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+  }
+
+  private copySave(): void {
+    const text = this.deps.controller.exportSave();
+    const fallback = () =>
+      openTextPanel({
+        title: 'Kopiuj zapis',
+        hint: 'Nie udało się skopiować automatycznie. Przytrzymaj tekst, wybierz „Zaznacz wszystko”, a potem „Kopiuj”.',
+        text,
+        readOnly: true,
+      });
+    try {
+      // Wywołane prosto z dotknięcia przycisku — Safari wymaga gestu użytkownika.
+      navigator.clipboard
+        .writeText(text)
+        .then(() => this.showToast('Zapis skopiowany. Wklej go w notatkach albo w drugiej kopii gry.', 'ok', 3500))
+        .catch(fallback);
+    } catch {
+      fallback();
+    }
+  }
+
+  private loadSave(): void {
+    openTextPanel({
+      title: 'Wczytaj zapis',
+      hint: 'Wklej tekst zapisu (zaczyna się od „PF1:”). Obecna planeta i postęp zostaną zastąpione.',
+      confirmLabel: 'Wczytaj',
+      onConfirm: (text) => {
+        const result = this.deps.controller.importSave(text);
+        if (!result.ok) return result.message;
+        this.closeOverlay();
+        this.showToast(result.message, 'ok', 3000);
+        return null;
       },
     });
   }

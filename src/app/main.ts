@@ -4,6 +4,7 @@ import { CanvasPlanetFallback } from '../planet-renderer/CanvasPlanetFallback.ts
 import type { PlanetDisplay } from '../planet-renderer/PlanetDisplay.ts';
 import { hasWebGL, PlanetView } from '../planet-renderer/PlanetView.ts';
 import { GameController } from './GameController.ts';
+import { registerServiceWorker } from './pwa.ts';
 
 function showError(message: string): void {
   const status = document.getElementById('status');
@@ -57,7 +58,7 @@ function start(): void {
   document.body.dataset.renderer = display.kind;
 
   const viewport = getViewport();
-  const scene = new PlanetScene({ controller, display, getViewport });
+  const scene = new PlanetScene({ controller, display, getViewport, appVersion: __APP_VERSION__ });
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: uiRoot,
@@ -96,6 +97,8 @@ function start(): void {
   game.events.once('ready', () => {
     const status = document.getElementById('status');
     if (status && !status.classList.contains('error')) status.hidden = true;
+    // Offline + aktualizacje (tylko build produkcyjny serwowany przez https/http).
+    registerServiceWorker((apply) => scene.showUpdateAvailable(apply));
   });
 
   // Safari: blokada powiększania strony gestem szczypania.

@@ -73,3 +73,35 @@ test('„Ukończ teraz” w kontrolerze zgłasza ukończenie od razu', () => {
     assert.equal(game.capacity, 1600);
   });
 });
+
+test('kopiuj zapis → wczytaj w „drugiej kopii gry” przenosi planetę i postęp', () => {
+  let exported = '';
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.startNewPlanet('PF-PRZE-NIES', 0);
+    game.upgrade('metalMine', 0);
+    exported = game.exportSave(1000);
+  });
+  withMemoryStorage(() => {
+    const other = new GameController(5000);
+    assert.equal(other.planet.seed, 'KEPLER-186F-ALFA');
+    const changes: string[] = [];
+    other.onPlanetChange(() => changes.push(other.planet.seed));
+    const result = other.importSave(exported, 5000);
+    assert.ok(result.ok, result.message);
+    assert.equal(other.planet.seed, 'PF-PRZE-NIES');
+    assert.equal(other.economy.construction?.building, 'metalMine');
+    assert.deepEqual(changes, ['PF-PRZE-NIES']);
+    assert.equal(JSON.parse(localStorage.getItem(SAVE_KEY)!).planet.seed, 'PF-PRZE-NIES', 'od razu zapisane');
+  });
+});
+
+test('nieudany import nie zmienia gry', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    const before = game.economy;
+    const result = game.importSave('PF1:zepsute', 0);
+    assert.equal(result.ok, false);
+    assert.equal(game.economy, before);
+  });
+});

@@ -16,7 +16,8 @@ import {
   type UpgradeResult,
 } from '../core/economy/economy.ts';
 import { GENERATOR_VERSION, generatePlanet, pickDefinition } from '../core/generation/generatePlanet.ts';
-import { clearSave, loadSave, writeSave } from '../core/save/save.ts';
+import { clearSave, loadSave, writeSave, type SaveData } from '../core/save/save.ts';
+import { exportSave, importSave } from '../core/save/transfer.ts';
 import type { BuildingId, EconomyState, Planet, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, PLANET_DEFINITIONS, STARTER } from '../data/planets.ts';
@@ -155,19 +156,42 @@ export class GameController {
   }
 
   save(): boolean {
-    return writeSave({
+    return writeSave(this.saveData());
+  }
+
+  /** Zapis jako tekst „PF1:…” do skopiowania. */
+  exportSave(now = Date.now()): string {
+    this.tick(now);
+    return exportSave(this.saveData());
+  }
+
+  /**
+   * Wczytanie zapisu z tekstu: zastępuje obecną planetę i postęp.
+   * Czas od eksportu nalicza się jak nieobecność (maks. 8 h).
+   */
+  importSave(text: string, now = Date.now()): { ok: boolean; message: string } {
+    const result = importSave(text, (id) => findDefinition(id) !== undefined, GENERATOR_VERSION);
+    if (!result.ok) return result;
+    const definition = findDefinition(result.data.planet.definitionId)!;
+    this.planet = generatePlanet(definition, result.data.planet.seed);
+    this.economy = advance(result.data.economy, this.planet, now);
+    this.offlineGain = null;
+    this.completedWhileAway = null;
+    this.save();
+    for (const listener of this.planetListeners) listener();
+    this.emit();
+    return { ok: true, message: `Wczytano zapis: ${this.planet.displayName}.` };
+  }
+
+  private saveData(): Omit<SaveData, 'saveVersion'> {
+    return {
       planet: {
         definitionId: this.planet.definitionId,
         seed: this.planet.seed,
         generatorVersion: this.planet.generatorVersion,
       },
       economy: this.economy,
-    });
-  }
-
-  onChange(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    };
   }
 
   onBuildComplete(listener: (done: CompletedBuild) => void): () => void {

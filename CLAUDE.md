@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Pełna wizja: `docs/technical-brief.md`. Dec
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku.
 
-## Stan obecny (v0.5 — działa)
+## Stan obecny (v0.6 — działa)
 
 - Planeta 3D (Three.js) generowana deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **5 typów planet** (dane robocze): umiarkowana (Kepler-186 f, planeta startowa), pustynna, lodowa, oceaniczna, wulkaniczna (świecąca lawa). Typ nowej planety wynika z seeda (`pickDefinition`).
@@ -28,8 +28,10 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - Ekonomia w czasie rzeczywistym (na minutę), energia ogranicza wydajność kopalń.
 - **Czas budowy**: ulepszenie trwa `buildSecondsPerLevel` (30 s) × docelowy poziom; naraz jedna budowa; koszt pobierany na starcie, anulowanie (drugim dotknięciem) zwraca go w całości. Budowa kończy się także offline (`advance` dzieli czas w chwili ukończenia). Na karcie pasek postępu i odliczanie, na planecie złote rusztowanie rosnące z postępem.
 - Zapis w `localStorage` (co 10 s, przy schowaniu karty, po akcji, po ukończeniu budowy) + naliczanie produkcji offline (maks. 8 h). Trwająca budowa jest częścią zapisu (pole opcjonalne). Format zapisu i `GENERATOR_VERSION` bez zmian względem v0.1 — stare zapisy działają.
+- **PWA**: manifest, ikony (180/192/512 px, renderowane skryptem z planety startowej), meta tagi iOS (pełny ekran, przezroczysty pasek statusu, `viewport-fit=cover`), service worker (offline, cache-first; nowa wersja → pasek „Dostępna aktualizacja” z przyciskiem „Odśwież”).
+- **Ustawienia** (przycisk w panelu planety): „Kopiuj zapis” (tekst `PF1:…` do schowka), „Wczytaj zapis” (pole tekstowe HTML, walidacja, błędy po polsku), „Nowa planeta…”, wersja gry. Na iPadzie Safari i aplikacja z ekranu początkowego mają osobną pamięć — zapis przenosi się tym tekstem.
 - Układ responsywny: iPad poziomo (kolumny), pionowo i telefon (wiersz kart); safe-area; brak przewijania/zoomu strony.
-- 69 testów: seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu, rozmieszczenie kolonii.
+- 80 testów: seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu, rozmieszczenie kolonii, eksport/import zapisu, zawartość buildu (manifest, ikony, service worker).
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -39,16 +41,18 @@ src/
     random/        rng.ts (jedyny PRNG; zakaz Math.random w logice), noise.ts
     generation/    generatePlanet.ts (GENERATOR_VERSION!, pickDefinition, validateDefinition)
     economy/       economy.ts — czyste funkcje: stan → nowy stan lub błąd
-    save/          serializacja + bezpieczny dostęp do localStorage
+    save/          serializacja + bezpieczny dostęp do localStorage, transfer.ts (eksport/import „PF1:”)
     types.ts
   data/            planets.ts (definicje typów planet), balance.ts (wartości robocze)
   planet-renderer/ Three.js: PlanetView.ts, atmosphere.ts, colonyMeshes.ts, CanvasPlanetFallback.ts
                    czysta matematyka (bez three, testowalna): surface.ts, colony.ts, input/dragRotator.ts
                    PlanetDisplay.ts = JEDYNY interfejs między Phaser a rendererem
   game/            Phaser: scenes/PlanetScene.ts (HUD), ui/ (Button, layout, theme)
-  app/             main.ts (start, resize), GameController.ts (spina core + zapis + UI)
+  app/             main.ts (start, resize), GameController.ts (spina core + zapis + UI),
+                   pwa.ts (rejestracja SW), serviceWorker.ts (→ dist/sw.js)
 tests/             node:test (*.test.ts)
-scripts/build.mjs  esbuild → dist/index.html (jeden plik)
+scripts/           build.ts (→ dist/), dev.ts (podgląd), icons.ts + png.ts (ikony bez zewnętrznych usług)
+dist/              index.html (gra w jednym pliku), manifest.webmanifest, sw.js, icons/*.png
 ```
 
 1. **Phaser = UI** (HUD, panele, przyciski, gesty → przekazanie do renderera). **Three.js = tylko wygląd planety.** **core = reguły.** Nie mieszaj.
@@ -59,6 +63,7 @@ scripts/build.mjs  esbuild → dist/index.html (jeden plik)
 6. Dotyk: gest obrotu startuje tylko poza panelami (każdy panel ma blokującą strefę). Cele dotykowe ≥ 44 pt. Nic nie może zależeć od hovera.
 7. Wydajność iPada: pilnuj liczby wierzchołków (`SURFACE_DETAIL`), draw calli i ciężkich shaderów. Nowe efekty dodawaj po jednym.
 8. Zachowuj fallback Canvas przy każdej zmianie renderera.
+9. Ścieżki w buildzie są **względne** (gra może działać w podfolderze, np. GitHub Pages). Service worker tylko w `npm run build` (`__PWA__`), nigdy w `npm run dev`. Każda zmiana plików w `dist/` = nowa wersja pamięci podręcznej i komunikat o aktualizacji u graczy.
 
 ## Komendy
 
@@ -67,7 +72,7 @@ npm install          # raz
 npm run dev          # podgląd: http://localhost:5173 (też w sieci lokalnej), buduje przy odświeżeniu
 npm test             # testy (node:test, Node ≥ 22.18)
 npm run typecheck    # TypeScript
-npm run build        # dist/index.html — jeden plik do wrzucenia gdziekolwiek
+npm run build        # dist/ — cały folder do wrzucenia na hosting https (PWA)
 npm run check        # wszystko powyżej
 ```
 
@@ -92,6 +97,6 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 3. ~~Magazyny~~ (v0.4), ~~antymateria~~ (v0.5). Zakup antymaterii za pieniądze — dopiero z backendem.
 4. **Typy planet z Lore Bible** — podmiana roboczych danych w `src/data/planets.ts` na kanon (mechanizm już działa dla 5 typów).
 5. **Wizualia** — pinch-zoom planety, pierścienie/księżyc jako opcja w danych, lepsze shadery (po pomiarze FPS na iPadzie).
-6. **PWA** — „Dodaj do ekranu początkowego” jako pełnoekranowa aplikacja, praca offline.
+6. ~~PWA~~ (v0.6) → **hosting https** (decyzja właściciela: GitHub Pages lub Cloudflare Pages).
 
 Dopiero po stabilnym MVP: badania, anomalie, dawne cywilizacje, a na końcu backend/konta/multiplayer.

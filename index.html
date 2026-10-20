@@ -4,10 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Planet Forge</title>
+  <!-- PWA: „Udostępnij → Do ekranu początkowego” otwiera grę na pełnym ekranie. -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
+  <!-- Pasek statusu przezroczysty: gra rysuje się pod nim, a HUD omija go dzięki safe-area. -->
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Planet Forge" />
   <meta name="theme-color" content="#060b0d" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <style>
 :root {
   --bg-deep: #05090b;
@@ -72,6 +78,61 @@ html, body {
 }
 #status.error { color: var(--danger); border-color: var(--danger); border-radius: 14px; }
 #status[hidden] { display: none; }
+
+/* Panel z polem tekstowym (eksport/import zapisu) — src/game/ui/textPanel.ts */
+#text-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(0, 0, 0, 0.6);
+  touch-action: auto;
+}
+#text-panel .tp-box {
+  width: min(100%, 480px);
+  box-sizing: border-box;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(216, 180, 99, 0.7);
+  background: #0a1417;
+  color: var(--text);
+}
+#text-panel h2 {
+  margin: 0 0 6px;
+  font: 400 22px "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  color: var(--gold);
+}
+#text-panel .tp-hint { margin: 0 0 12px; font-size: 14px; line-height: 1.45; color: #8ea6a0; }
+#text-panel textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #2b4846;
+  background: #05090b;
+  color: var(--text);
+  font: 13px "SF Mono", Menlo, Consolas, monospace;
+  word-break: break-all;
+  resize: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#text-panel textarea:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+#text-panel .tp-error { margin: 10px 0 0; font-size: 14px; color: var(--danger); }
+#text-panel .tp-error[hidden] { display: none; }
+#text-panel .tp-actions { display: flex; gap: 12px; margin-top: 16px; }
+#text-panel button {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 10px;
+  font: 600 15px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+}
+#text-panel button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+#text-panel .tp-secondary { border: 1.5px solid var(--teal); background: #1a2b2d; color: var(--teal); }
+#text-panel .tp-primary { border: 0; background: var(--gold); color: #0c1513; }
   </style>
 </head>
 <body>

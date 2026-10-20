@@ -1,10 +1,12 @@
 # Planet Forge
 
-Przeglądarkowa gra strategiczna science-fiction: jedna planeta 3D generowana z seeda, kolonia rosnąca na jej powierzchni i pierwsza pętla ekonomii. Wersja **0.5**, projektowana pod **iPada i Safari**.
+Przeglądarkowa gra strategiczna science-fiction: jedna planeta 3D generowana z seeda, kolonia rosnąca na jej powierzchni i pierwsza pętla ekonomii. Wersja **0.6**, projektowana pod **iPada i Safari**.
 
 ## Jak zagrać
 
-- Najprościej: otwórz plik `dist/index.html` w przeglądarce. To jeden samodzielny plik — można go też wrzucić na dowolny darmowy hosting statyczny (np. GitHub Pages, Netlify Drop, Cloudflare Pages).
+- Gra to folder `dist/` — wrzuć go w całości na hosting https (np. GitHub Pages, Cloudflare Pages). Na iPadzie otwórz adres w Safari → „Udostępnij” → „Do ekranu początkowego”: gra otwiera się z ikony na pełnym ekranie i działa offline.
+- Sam plik `dist/index.html` też da się otworzyć w przeglądarce (bez trybu offline i ikony).
+- Safari i aplikacja z ekranu początkowego mają osobną pamięć. Postęp przenosisz w „Ustawienia” → „Kopiuj zapis” / „Wczytaj zapis”.
 - Obracaj planetę palcem. Ulepszaj budynki przyciskami po prawej (poziomo) lub na dole (pionowo).
 - Ulepszenie trwa (30 s × docelowy poziom), naraz buduje się jeden budynek. Na planecie widać złote rusztowanie, a po ukończeniu wyrasta nowa budowla. Budowę można anulować (drugie dotknięcie potwierdza) — koszt wraca w całości. Do poziomu 5 budowę można też ukończyć od razu za darmo („Ukończ teraz”), wyżej za antymaterię (1 za każde rozpoczęte 15 minut).
 - Antymateria przybywa sama (1 na godzinę, także offline) i szybciej z Kolektorem antymaterii.
@@ -50,5 +52,14 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 22. **Nowe w 0.5:** u góry czwarta kolumna „ANTYMATERIA” (na start 5, „+1,0/h”). W poziomie karta „Kolektor antymaterii” stoi pod panelem planety, w pionie karty układają się 3 + 2.
 23. **Nowe w 0.5:** budowa poziomu 6+ → przycisk „Ukończ (N)”; dotknięcie kończy budowę i zabiera N antymaterii (komunikat pokazuje koszt). Bez antymaterii przycisk jest szary, a dotknięcie mówi, ile brakuje.
 24. **Nowe w 0.5:** zbuduj Kolektor (poz. 1): przyrost antymaterii rośnie, na planecie pojawia się iglica z fioletową kulą.
+
+### PWA (od 0.6, na grze z hostingu https)
+
+25. Safari → adres gry → „Udostępnij” → „Do ekranu początkowego” → „Dodaj”: na ekranie jest ikona planety ze złotą orbitą i nazwa „Planet Forge”.
+26. Otwarcie z ikony: pełny ekran bez paska Safari; pasek zasobów nie wchodzi pod zegar/baterię (także po obrocie iPada).
+27. Tryb samolotowy → zamknij aplikację (przesuń w górę w przełączniku aplikacji) → otwórz z ikony: gra startuje i działa (produkcja, budowy), postęp się zapisuje.
+28. „Ustawienia” → „Kopiuj zapis” → zielony komunikat; wklej w Notatkach: tekst zaczyna się od „PF1:”.
+29. „Ustawienia” → „Wczytaj zapis” → wklej zły tekst → czerwony błąd po polsku, gra bez zmian; wklej poprawny → planeta i postęp z zapisu.
+30. Po wgraniu nowej wersji na hosting i ponownym otwarciu aplikacji: pasek „Dostępna aktualizacja” → „Odśwież” → gra przeładowuje się w nowej wersji, postęp zostaje.
 
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.
