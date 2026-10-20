@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — v0.9: zwijane panele, mniejsze UI, skalowanie komputer/tablet/telefon
+
+- **Poprawki właściciela (zrzuty z zaznaczeniami):** UI „trochę za duże”; planeta ma dominować; panel planety z minimalizacją (żółte), budynki w zwijanym panelu „Produkcja” z przyciskiem w prawym górnym rogu (czerwone). Pionowo: panel planety **nad** planetą, „Produkcja” **pod** nią; poziomo: po bokach. Start z rozwiniętymi panelami, stan zapamiętany na urządzeniu (`game/ui/uiPrefs.ts`, `planet-forge.ui.v1`). Zwijanie wyłącznie przyciskami (gest na planecie nic nie zamyka).
+- **Układ (`game/ui/layout.ts`)** liczy prostokąty z rozmiaru ekranu i stanu paneli; planeta zajmuje wolne miejsce między panelami i płynnie (0,32 s) rośnie po ich zwinięciu. Zwinięty panel planety: nazwa, typ, seed, klasa + „Planety”/„Ustawienia”. Zwinięta „Produkcja”: zakładka z ikoną menu i paskiem postępu trwającej budowy. Wszystkie 5 budynków w jednym panelu (koniec osobnej karty Kolektora pod panelem planety).
+- **Skalowanie:** jeden układ dla komputera, tabletu i telefonu; `u = clamp(min(szer., wys.) / 880, 0,8, 1,1)` — na iPadzie ok. 14% mniej niż w v0.8. Boczne panele tylko na ekranach szerokich i ≥ 500 pt wysokich (telefon poziomo → układ góra/dół). Przy ciasnym miejscu karty układają się w więcej kolumn. Przyciski zawsze ≥ 44 pt. Komputer: kółko myszy przybliża planetę. Testy układu: 8 rozmiarów ekranu × 4 stany paneli.
+
 ## 2026-10-20 — v0.8: przybliżanie dwoma palcami, miniatury planet, krawędź lodu
 
 - **Pomiar przed decyzją:** iPad właściciela (10,2", iPadOS 26) w 2D: średnio 60 kl./s, najsłabsza sekunda 53 → jest zapas na przybliżanie i animowane miniatury.

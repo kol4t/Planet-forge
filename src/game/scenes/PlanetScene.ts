@@ -8,7 +8,8 @@ import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThu
 import { Button, type ButtonStyle } from '../ui/Button.ts';
 import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
 import { openTextPanel } from '../ui/textPanel.ts';
-import { computeLayout, type Insets, type Layout, type Rect } from '../ui/layout.ts';
+import { computeLayout, TOUCH, type Insets, type Layout, type PanelState, type Rect } from '../ui/layout.ts';
+import { loadPanels, savePanels } from '../ui/uiPrefs.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 
 export interface Viewport {
@@ -93,6 +94,13 @@ export class PlanetScene extends Phaser.Scene {
   private layoutState: Layout | undefined;
   private dpr = 1;
   private readonly gestures = new GestureTracker();
+  /** Rozwinięte/zwinięte panele (zapamiętane na urządzeniu). */
+  private panels: PanelState = loadPanels();
+  /** Bieżąca pozycja planety na ekranie (do płynnego przejścia przy zwijaniu paneli). */
+  private focus: { cx: number; cy: number; r: number } | null = null;
+  private focusTween: Phaser.Tweens.Tween | undefined;
+  /** Zwinięta „Produkcja”: pasek postępu budowy na zakładce. */
+  private productionTab: { progress: Phaser.GameObjects.Graphics; bar: { x: number; y: number; w: number } } | null = null;
   private refreshTimer = 0;
   private cancelArmedUntil = 0;
   /** Przełączenie na nową wersję gry (gdy service worker ją pobrał). */
@@ -126,6 +134,10 @@ export class PlanetScene extends Phaser.Scene {
     this.input.on('pointerup', release);
     this.input.on('pointerupoutside', release);
     this.input.on('gameout', () => apply(this.gestures.cancel()));
+    // Komputer: kółko myszy przybliża planetę (nad panelami nie).
+    this.input.on('wheel', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
+      if (over.length === 0 && !this.overlay) apply(this.gestures.wheel(dy));
+    });
 
     controller.onPlanetChange(() => {
       display.setPlanet(controller.planet);
@@ -174,22 +186,80 @@ export class PlanetScene extends Phaser.Scene {
     this.refreshValues();
   }
 
-  relayout(): void {
+  /** `animate` — planeta płynnie przechodzi do nowego miejsca (zwijanie/rozwijanie paneli). */
+  relayout(animate = false): void {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
-    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length);
+    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels);
     this.layoutState = layout;
     this.deps.display.resize(viewport.width, viewport.height);
-    this.deps.display.setFocus(layout.planet.cx, layout.planet.cy, layout.planet.r);
+    this.moveFocus(layout.planet, animate);
     this.ui?.destroy(true);
     this.ui = this.add.container(0, 0);
     this.cards = [];
+    this.productionTab = null;
     this.buildTopBar(layout);
     this.buildInfo(layout);
-    this.buildBuildings(layout);
+    this.buildProduction(layout);
     this.buildUpdateBanner(layout);
     this.refreshValues();
     if (this.overlay) this.children.bringToTop(this.overlay);
+  }
+
+  private moveFocus(target: { cx: number; cy: number; r: number }, animate: boolean): void {
+    this.focusTween?.stop();
+    const from = this.focus;
+    const apply = (f: { cx: number; cy: number; r: number }) => {
+      this.focus = f;
+      this.deps.display.setFocus(f.cx, f.cy, f.r);
+    };
+    if (!animate || !from) {
+      apply(target);
+      return;
+    }
+    this.focusTween = this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: 320,
+      ease: 'Sine.easeInOut',
+      onUpdate: (tween) => {
+        const t = tween.getValue() ?? 1;
+        apply({
+          cx: from.cx + (target.cx - from.cx) * t,
+          cy: from.cy + (target.cy - from.cy) * t,
+          r: from.r + (target.r - from.r) * t,
+        });
+      },
+    });
+  }
+
+  private togglePanel(key: keyof PanelState): void {
+    this.panels = { ...this.panels, [key]: !this.panels[key] };
+    savePanels(this.panels);
+    this.relayout(true);
+  }
+
+  /** Mały przycisk-ikona (44 × 44 pt): minimalizuj / rozwiń / menu „hamburger”. */
+  private iconButton(rect: Rect, kind: 'minimize' | 'expand' | 'menu', onTap: () => void): void {
+    const g = this.add.graphics();
+    const cx = this.px(rect.x + rect.w / 2);
+    const cy = this.px(rect.y + rect.h / 2);
+    const box = this.px(this.s(26));
+    g.lineStyle(this.px(1), COLORS.panelBorder, 1).strokeRoundedRect(cx - box / 2, cy - box / 2, box, box, this.px(6));
+    g.lineStyle(this.px(1.6), COLORS.tealHex, 1);
+    const half = this.px(this.s(6.5));
+    if (kind === 'menu') {
+      for (const dy of [-1, 0, 1]) g.lineBetween(cx - half, cy + dy * this.px(this.s(4.5)), cx + half, cy + dy * this.px(this.s(4.5)));
+    } else {
+      g.lineBetween(cx - half, cy, cx + half, cy);
+      if (kind === 'expand') g.lineBetween(cx, cy - half, cx, cy + half);
+    }
+    const zone = this.add
+      .zone(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h))
+      .setOrigin(0)
+      .setInteractive({ useHandCursor: true });
+    zone.on('pointerup', onTap);
+    this.ui!.add([g, zone]);
   }
 
   // ——— pomocnicze ———
@@ -301,31 +371,31 @@ export class PlanetScene extends Phaser.Scene {
     const bar = layout.topBar;
     this.panel(bar);
     const showTitle = bar.w > 640;
-    const titleW = showTitle ? this.s(170) : 0;
+    const titleW = showTitle ? this.s(160) : 0;
     if (showTitle) {
-      this.text(bar.x + this.s(18), bar.y + bar.h / 2, 'PLANET FORGE', 15, COLORS.gold, {
+      this.text(bar.x + this.s(16), bar.y + bar.h / 2, 'PLANET FORGE', 14, COLORS.gold, {
         fontFamily: FONTS.serif,
         letterSpacing: 3,
       }).setOrigin(0, 0.5);
     }
     const colW = (bar.w - titleW - this.s(8)) / 4;
-    const notes = colW >= 130;
-    const valueSize = bar.w < 420 ? 15 : 19;
+    const notes = colW >= 120;
+    const valueSize = bar.w < 420 ? 14 : 17;
     const column = (index: number, kind: YieldId | 'antimatter', label: string) => {
       const x = bar.x + titleW + this.s(8) + index * colW;
       if (index > 0 || showTitle) {
         const divider = this.add
           .graphics()
           .fillStyle(COLORS.divider, 1)
-          .fillRect(this.px(x), this.px(bar.y + this.s(12)), this.px(1), this.px(bar.h - this.s(24)));
+          .fillRect(this.px(x), this.px(bar.y + this.s(10)), this.px(1), this.px(bar.h - this.s(20)));
         this.ui!.add(divider);
       }
-      this.icon(kind, x + this.s(20), bar.y + bar.h / 2, 7);
-      const tx = x + this.s(36);
-      this.text(tx, bar.y + this.s(9), label, 10.5, COLORS.muted, { fontStyle: '600' });
-      const value = this.text(tx, bar.y + this.s(22), '0', valueSize, COLORS.text, { fontStyle: '600' });
-      const note = this.text(tx, bar.y + this.s(22), '', 11, COLORS.teal);
-      const fillBar = { x: tx, y: bar.y + bar.h - this.s(9), w: Math.max(20, colW - this.s(36) - this.s(14)) };
+      this.icon(kind, x + this.s(18), bar.y + bar.h / 2, 6.5);
+      const tx = x + this.s(32);
+      this.text(tx, bar.y + this.s(7), label, 9.5, COLORS.muted, { fontStyle: '600' });
+      const value = this.text(tx, bar.y + this.s(19), '0', valueSize, COLORS.text, { fontStyle: '600' });
+      const note = this.text(tx, bar.y + this.s(19), '', 10.5, COLORS.teal);
+      const fillBar = { x: tx, y: bar.y + bar.h - this.s(8), w: Math.max(20, colW - this.s(32) - this.s(12)) };
       return { value, note, fillBar };
     };
     // Wąskie kolumny (telefon) dostają skrócone etykiety.
@@ -351,12 +421,14 @@ export class PlanetScene extends Phaser.Scene {
     };
   }
 
+  /** Panel planety: nazwa, typ, seed, klasa, przyciski; rozwinięty także złoża i środowisko. */
   private buildInfo(layout: Layout): void {
-    const box = layout.info;
+    const { rect: box, open, toggle } = layout.info;
     const { planet } = this.deps.controller;
     const g = planet.gameplay;
     this.panel(box, true);
-    const pad = this.s(16);
+    this.iconButton(toggle, open ? 'minimize' : 'expand', () => this.togglePanel('infoOpen'));
+    const pad = this.s(14);
     const percent = (m: number | undefined) =>
       m && m !== 1 ? `${m > 1 ? '+' : ''}${Math.round((m - 1) * 100)}%` : null;
     const effects =
@@ -367,117 +439,136 @@ export class PlanetScene extends Phaser.Scene {
         })
         .filter(Boolean)
         .join(' · ') || 'bez efektów';
-    const buttonH = Math.max(44, this.s(44));
+    const buttonH = TOUCH;
+    const buttons = (x: number, y: number, w: number, fontSize = 13.5) => {
+      const half = (w - this.s(8)) / 2;
+      this.addButton(x, y, half, buttonH, 'Planety', 'secondary', () => this.openPlanets(), fontSize);
+      this.addButton(x + half + this.s(8), y, half, buttonH, 'Ustawienia', 'secondary', () => this.openSettings(), fontSize);
+    };
+    const nameW = box.w - 2 * pad - TOUCH;
 
     if (layout.mode === 'landscape') {
-      let y = box.y + pad;
-      this.text(box.x + pad, y, 'PLANETA', 10.5, COLORS.muted, { fontStyle: '600' });
-      y += this.s(16);
-      this.text(box.x + pad, y, planet.displayName, 26, COLORS.gold, { fontFamily: FONTS.serif });
-      y += this.s(36);
-      this.text(box.x + pad, y, planet.category, 13, COLORS.stone);
-      y += this.s(22);
-      this.text(box.x + pad, y, `seed  ${planet.seed}`, 12, COLORS.faint, { fontFamily: FONTS.mono });
+      let y = box.y + pad - this.s(2);
+      this.text(box.x + pad, y, 'PLANETA', 9.5, COLORS.muted, { fontStyle: '600' });
+      y += this.s(13);
+      this.text(box.x + pad, y, planet.displayName, 22, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(nameW) });
       y += this.s(30);
-      this.text(box.x + pad, y, 'Klasa', 12.5, COLORS.muted);
-      this.text(box.x + box.w - pad, y, `${g.sizeClass.label} · ${formatInt(g.radiusKm)} km`, 13.5, COLORS.text, {
-        fontStyle: '600',
-      }).setOrigin(1, 0);
-      y += this.s(28);
-      this.text(box.x + pad, y, 'ZŁOŻA', 10.5, COLORS.muted, { fontStyle: '600' });
-      y += this.s(18);
-      for (const [id, label, color] of RICHNESS_ROWS) {
-        this.richnessBar(box.x + pad, y, box.w - 2 * pad, label, g.richness[id], color);
-        y += this.s(30);
-      }
-      y += this.s(4);
-      this.text(box.x + pad, y, 'ŚRODOWISKO', 10.5, COLORS.muted, { fontStyle: '600' });
-      y += this.s(17);
-      this.text(box.x + pad, y, g.environment.label, 15, COLORS.text, { fontStyle: '600' });
-      y += this.s(21);
-      this.text(box.x + pad, y, `${g.environment.description}\n${effects}`, 12, COLORS.muted, {
+      this.text(box.x + pad, y, `${planet.category} · ${g.sizeClass.label} · ${formatInt(g.radiusKm)} km`, 11.5, COLORS.stone, {
         wordWrap: { width: this.px(box.w - 2 * pad) },
-        lineSpacing: this.px(3),
       });
-      const half = (box.w - 2 * pad - this.s(10)) / 2;
-      const by = box.y + box.h - pad - buttonH;
-      this.addButton(box.x + pad, by, half, buttonH, 'Planety', 'secondary', () => this.openPlanets());
-      this.addButton(box.x + pad + half + this.s(10), by, half, buttonH, 'Ustawienia', 'secondary', () => this.openSettings());
-    } else {
-      const colW = (box.w - 3 * pad) / 2;
-      let y = box.y + this.s(12);
-      this.text(box.x + pad, y, planet.displayName, 22, COLORS.gold, { fontFamily: FONTS.serif });
-      y += this.s(30);
-      this.text(box.x + pad, y, `${g.sizeClass.label} · ${formatInt(g.radiusKm)} km`, 12, COLORS.stone);
-      y += this.s(18);
-      this.text(box.x + pad, y, planet.category, 11, COLORS.faint, {
-        wordWrap: { width: this.px(colW) },
-      });
-      const btnGap = this.s(8);
-      const btnW = (Math.min(colW, this.s(300)) - btnGap) / 2;
-      const btnH = 44;
-      const by = box.y + box.h - this.s(10) - btnH;
-      this.addButton(box.x + pad, by, btnW, btnH, 'Planety', 'secondary', () => this.openPlanets(), 13);
-      this.addButton(box.x + pad + btnW + btnGap, by, btnW, btnH, 'Ustawienia', 'secondary', () => this.openSettings(), 13);
-      const x2 = box.x + 2 * pad + colW;
-      let y2 = box.y + this.s(12);
-      this.text(x2, y2, g.environment.label, 14, COLORS.text, { fontStyle: '600' });
-      y2 += this.s(19);
-      this.text(x2, y2, effects, 11.5, COLORS.muted, { wordWrap: { width: this.px(colW) } });
-      y2 += this.s(22);
-      for (const [id, label, color] of RICHNESS_ROWS) {
-        this.richnessBar(x2, y2, colW, label, g.richness[id], color, true);
-        y2 += this.s(20);
+      y += this.s(17);
+      this.text(box.x + pad, y, `seed  ${planet.seed}`, 10.5, COLORS.faint, { fontFamily: FONTS.mono });
+      y += this.s(22);
+      if (open) {
+        this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
+        y += this.s(15);
+        for (const [id, label, color] of RICHNESS_ROWS) {
+          this.richnessBar(box.x + pad, y, box.w - 2 * pad, label, g.richness[id], color);
+          y += this.s(26);
+        }
+        y += this.s(2);
+        this.text(box.x + pad, y, 'ŚRODOWISKO', 9.5, COLORS.muted, { fontStyle: '600' });
+        y += this.s(14);
+        this.text(box.x + pad, y, g.environment.label, 13.5, COLORS.text, { fontStyle: '600' });
+        y += this.s(19);
+        this.text(box.x + pad, y, `${g.environment.description}\n${effects}`, 11, COLORS.muted, {
+          wordWrap: { width: this.px(box.w - 2 * pad) },
+          lineSpacing: this.px(2),
+        });
       }
+      buttons(box.x + pad, box.y + box.h - pad - buttonH, box.w - 2 * pad);
+      return;
+    }
+
+    // Pionowo: zwinięty = jeden wiersz (nazwa + przyciski); rozwinięty = dwie kolumny.
+    const colW = (box.w - 3 * pad - TOUCH) / 2;
+    const btnW = Math.min(colW, this.s(260));
+    if (!open) {
+      const y = box.y + (box.h - this.s(38)) / 2;
+      this.text(box.x + pad, y, planet.displayName, 18, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(colW) });
+      this.text(box.x + pad, y + this.s(24), `${planet.category} · ${planet.seed}`, 10.5, COLORS.faint, { fixedWidth: this.px(colW) });
+      buttons(box.x + 2 * pad + colW, box.y + (box.h - buttonH) / 2, btnW, 12.5);
+      return;
+    }
+    let y = box.y + this.s(10);
+    this.text(box.x + pad, y, planet.displayName, 19, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(colW) });
+    y += this.s(26);
+    this.text(box.x + pad, y, `${planet.category} · ${g.sizeClass.label} · ${formatInt(g.radiusKm)} km`, 10.5, COLORS.stone, {
+      wordWrap: { width: this.px(colW) },
+    });
+    y += this.s(15);
+    this.text(box.x + pad, y, planet.seed, 10, COLORS.faint, { fontFamily: FONTS.mono });
+    buttons(box.x + pad, box.y + box.h - this.s(8) - buttonH, btnW, 12.5);
+    const x2 = box.x + 2 * pad + colW;
+    let y2 = box.y + this.s(10);
+    this.text(x2, y2, `${g.environment.label} · ${effects}`, 11.5, COLORS.text, { fontStyle: '600', fixedWidth: this.px(colW) });
+    y2 += this.s(20);
+    for (const [id, label, color] of RICHNESS_ROWS) {
+      this.richnessBar(x2, y2, colW, label, g.richness[id], color, true);
+      y2 += this.s(19);
     }
   }
 
   private richnessBar(x: number, y: number, w: number, label: string, value: number, color: number, compact = false): void {
-    this.text(x, y, label, compact ? 11 : 12, COLORS.muted);
-    this.text(x + w, y, `${Math.round(value * 100)}%`, compact ? 11 : 12, COLORS.text, { fontStyle: '600' }).setOrigin(1, 0);
-    const barY = y + this.s(compact ? 14 : 17);
+    this.text(x, y, label, compact ? 10.5 : 11, COLORS.muted);
+    this.text(x + w, y, `${Math.round(value * 100)}%`, compact ? 10.5 : 11, COLORS.text, { fontStyle: '600' }).setOrigin(1, 0);
+    const barY = y + this.s(compact ? 13 : 15);
     const fill = Math.min(1, value / 1.5);
     const g = this.add.graphics();
-    g.fillStyle(COLORS.divider, 1).fillRoundedRect(this.px(x), this.px(barY), this.px(w), this.px(this.s(4)), this.px(2));
-    g.fillStyle(color, 0.9).fillRoundedRect(this.px(x), this.px(barY), this.px(w * fill), this.px(this.s(4)), this.px(2));
+    g.fillStyle(COLORS.divider, 1).fillRoundedRect(this.px(x), this.px(barY), this.px(w), this.px(this.s(3.5)), this.px(2));
+    g.fillStyle(color, 0.9).fillRoundedRect(this.px(x), this.px(barY), this.px(w * fill), this.px(this.s(3.5)), this.px(2));
     this.ui!.add(g);
   }
 
-  private buildBuildings(layout: Layout): void {
-    BALANCE.buildings.forEach((def, index) => {
-      const card = layout.cards[index]!;
-      this.panel(card);
-      const narrow = card.w < 150;
-      const pad = this.s(narrow ? 10 : 14);
-      this.icon(def.produces, card.x + pad + this.s(6), card.y + pad + this.s(9), 6);
-      const level = this.text(card.x + card.w - pad, card.y + pad, 'poz. 00', 12, COLORS.gold, { fontStyle: '600' }).setOrigin(1, 0);
-      // Nazwa zawija się przed etykietą poziomu, zamiast na nią nachodzić.
-      const levelSpace = narrow ? 0 : level.width / this.dpr + this.s(6);
-      const title = this.text(card.x + pad + this.s(18), card.y + pad, def.name, narrow ? 12.5 : 14.5, COLORS.text, {
-        fontStyle: '600',
-        wordWrap: { width: this.px(card.w - 2 * pad - this.s(18) - levelSpace) },
-      });
-      const textTop = Math.max(narrow ? this.s(40) : this.s(26), title.height / this.dpr + this.s(5));
-      const effect = this.text(card.x + pad, card.y + pad + textTop, '', narrow ? 11 : 12, COLORS.teal, {
-        wordWrap: { width: this.px(card.w - 2 * pad) },
-      });
-      const cost = this.text(card.x + pad, card.y + pad + textTop + this.s(narrow ? 32 : 20), '', narrow ? 11 : 12, COLORS.muted, {
-        wordWrap: { width: this.px(card.w - 2 * pad) },
-      });
-      const buttonH = Math.max(44, this.s(40));
-      const bar = { x: card.x + pad, y: card.y + card.h - pad - buttonH - this.s(9), w: card.w - 2 * pad };
+  /** Panel „Produkcja”: rozwinięty (nagłówek + karty budynków) albo zwinięty do zakładki. */
+  private buildProduction(layout: Layout): void {
+    const { rect, open, toggle, cards } = layout.production;
+    if (!open) {
+      // Zakładka: ikona menu + napis; pasek postępu, gdy coś się buduje.
+      this.panel(rect, true);
+      this.iconButton({ x: rect.x, y: rect.y, w: TOUCH, h: rect.h }, 'menu', () => this.togglePanel('productionOpen'));
+      this.text(rect.x + TOUCH, rect.y + rect.h / 2 - this.s(2), 'PRODUKCJA', 11, COLORS.teal, { fontStyle: '600', letterSpacing: 1.5 }).setOrigin(
+        0,
+        0.5,
+      );
       const progress = this.add.graphics();
       this.ui!.add(progress);
-      const button = this.addButton(
-        card.x + pad,
-        card.y + card.h - pad - buttonH,
-        card.w - 2 * pad,
-        buttonH,
-        'Ulepsz',
-        'primary',
-        () => this.onUpgrade(def.id),
-        narrow ? 13 : 14,
-      );
+      this.productionTab = { progress, bar: { x: rect.x + TOUCH, y: rect.y + rect.h - this.s(9), w: rect.w - TOUCH - this.s(12) } };
+      // Cała zakładka rozwija panel.
+      const zone = this.add.zone(this.px(rect.x + TOUCH), this.px(rect.y), this.px(rect.w - TOUCH), this.px(rect.h)).setOrigin(0).setInteractive();
+      zone.on('pointerup', () => this.togglePanel('productionOpen'));
+      this.ui!.add(zone);
+      return;
+    }
+    this.panel(rect);
+    this.text(rect.x + this.s(14), rect.y + this.s(13), 'PRODUKCJA', 11, COLORS.teal, { fontStyle: '600', letterSpacing: 1.5 });
+    this.iconButton(toggle, 'menu', () => this.togglePanel('productionOpen'));
+    BALANCE.buildings.forEach((def, index) => {
+      const card = cards[index]!;
+      this.subPanel(card);
+      const narrow = card.w < 150;
+      const pad = this.s(narrow ? 8 : 10);
+      this.icon(def.produces, card.x + pad + this.s(5), card.y + pad + this.s(8), 5.5);
+      const level = this.text(card.x + card.w - pad, card.y + pad, 'poz. 00', 11, COLORS.gold, { fontStyle: '600' }).setOrigin(1, 0);
+      // Nazwa zawija się przed etykietą poziomu, zamiast na nią nachodzić.
+      const levelSpace = narrow ? 0 : level.width / this.dpr + this.s(6);
+      const title = this.text(card.x + pad + this.s(16), card.y + pad, def.name, narrow ? 12 : 13, COLORS.text, {
+        fontStyle: '600',
+        wordWrap: { width: this.px(card.w - 2 * pad - this.s(16) - levelSpace) },
+      });
+      const textTop = Math.max(this.s(narrow ? 34 : 21), title.height / this.dpr + this.s(4));
+      const effect = this.text(card.x + pad, card.y + pad + textTop, '', narrow ? 10.5 : 11, COLORS.teal, {
+        wordWrap: { width: this.px(card.w - 2 * pad) },
+      });
+      const cost = this.text(card.x + pad, card.y + pad + textTop + this.s(16), '', narrow ? 10.5 : 11, COLORS.muted, {
+        wordWrap: { width: this.px(card.w - 2 * pad) },
+      });
+      const buttonH = TOUCH;
+      const bar = { x: card.x + pad, y: card.y + card.h - pad - buttonH - this.s(7), w: card.w - 2 * pad };
+      const progress = this.add.graphics();
+      this.ui!.add(progress);
+      const button = this.addButton(card.x + pad, card.y + card.h - pad - buttonH, card.w - 2 * pad, buttonH, 'Ulepsz', 'primary', () =>
+        this.onUpgrade(def.id), narrow ? 12.5 : 13.5);
       const finish = this.addButton(
         card.x + pad,
         card.y + card.h - pad - buttonH,
@@ -486,12 +577,21 @@ export class PlanetScene extends Phaser.Scene {
         'Ukończ',
         'primary',
         () => this.onFinish(),
-        narrow ? 13 : 14,
+        narrow ? 12.5 : 13.5,
       ).setShown(false);
       if (narrow) level.setVisible(false);
-      const buttons = { x: this.px(card.x + pad), w: this.px(card.w - 2 * pad), gap: this.px(this.s(8)) };
+      const buttons = { x: this.px(card.x + pad), w: this.px(card.w - 2 * pad), gap: this.px(this.s(6)) };
       this.cards.push({ id: def.id, level, effect, cost, button, finish, buttons, progress, bar });
     });
+  }
+
+  /** Karta wewnątrz panelu: jaśniejsza ramka, bez osobnej strefy (panel już blokuje gesty). */
+  private subPanel(rect: Rect): void {
+    const g = this.add.graphics();
+    const radius = this.px(this.s(10));
+    g.fillStyle(COLORS.buttonIdle, 0.45).fillRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), radius);
+    g.lineStyle(this.px(1), COLORS.panelBorder, 1).strokeRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), radius);
+    this.ui!.add(g);
   }
 
   // ——— akcje i odświeżanie ———
@@ -541,6 +641,16 @@ export class PlanetScene extends Phaser.Scene {
       controller.economy.levels,
       construction ? { building: construction.building, targetLevel: construction.targetLevel, progress } : null,
     );
+    if (this.productionTab) {
+      // Zwinięta „Produkcja”: cienki złoty pasek postępu budowy pod napisem.
+      const { progress: g, bar } = this.productionTab;
+      g.clear();
+      if (construction) {
+        const h = this.s(3);
+        g.fillStyle(COLORS.divider, 1).fillRect(this.px(bar.x), this.px(bar.y), this.px(bar.w), this.px(h));
+        g.fillStyle(COLORS.goldHex, 1).fillRect(this.px(bar.x), this.px(bar.y), this.px(Math.max(h, bar.w * progress)), this.px(h));
+      }
+    }
 
     if (this.res) {
       const showNotes = this.res.notes;
@@ -732,7 +842,8 @@ export class PlanetScene extends Phaser.Scene {
     const w = Math.min(viewport.width - 2 * this.s(16), this.s(380));
     const h = this.s(60);
     const top = layout.topBar.y + layout.topBar.h + this.s(12);
-    const y = Math.max(layout.mode === 'portrait' ? layout.info.y + layout.info.h + this.s(12) : top, layout.planet.cy - layout.planet.r - h - this.s(8));
+    const info = layout.info.rect;
+    const y = Math.max(layout.mode === 'portrait' ? info.y + info.h + this.s(12) : top, layout.planet.cy - layout.planet.r - h - this.s(8));
     const rect: Rect = { x: layout.planet.cx - w / 2, y, w, h };
     this.panel(rect, true);
     const pad = this.s(10);

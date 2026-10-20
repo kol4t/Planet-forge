@@ -63,6 +63,14 @@ export class GestureTracker {
     return [];
   }
 
+  /** Kółko myszy / gest na gładziku (komputer): w górę przybliża, w dół oddala. */
+  wheel(deltaY: number): GestureEvent[] {
+    const zoom = Math.min(this.max, Math.max(this.min, this.zoom * Math.exp(-deltaY * 0.0015)));
+    if (zoom === this.zoom) return [];
+    this.zoom = zoom;
+    return [{ type: 'zoom', zoom }];
+  }
+
   /** Wszystkie palce znikły (np. przełączenie aplikacji). */
   cancel(): GestureEvent[] {
     const wasDragging = this.dragId !== null;

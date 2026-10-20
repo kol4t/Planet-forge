@@ -36,6 +36,15 @@ test('palec pozostały po szczypaniu nie obraca planety; nowy dotyk znów obraca
   assert.equal(g.zoom, 2, 'przybliżenie zostaje');
 });
 
+test('kółko myszy (komputer): przybliża i oddala w granicach', () => {
+  const g = new GestureTracker(1, 3.5);
+  const [zoomIn] = g.wheel(-300);
+  assert.ok(zoomIn?.type === 'zoom' && zoomIn.zoom > 1);
+  assert.deepEqual(g.wheel(-100000), [{ type: 'zoom', zoom: 3.5 }]);
+  assert.deepEqual(g.wheel(100000), [{ type: 'zoom', zoom: 1 }]);
+  assert.deepEqual(g.wheel(500), [], 'już na minimum');
+});
+
 test('trzeci palec jest ignorowany, anulowanie kończy obrót', () => {
   const g = new GestureTracker();
   g.down(1, 0, 0);
