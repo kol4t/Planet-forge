@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { GameController } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled } from '../../core/economy/economy.ts';
+import type { AiAction, AiRuleId } from '../../core/ai/advisor.ts';
 import { ringLimit } from '../../core/research/research.ts';
 import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
@@ -105,6 +106,8 @@ export class PlanetScene extends Phaser.Scene {
   private focusTween: Phaser.Tweens.Tween | undefined;
   /** Zwinięta „Produkcja”: pasek postępu budowy na zakładce. */
   private productionTab: { progress: Phaser.GameObjects.Graphics; bar: { x: number; y: number; w: number } } | null = null;
+  /** Dymek SI Matki z bieżącą propozycją (klucz = propozycja + poziom). */
+  private aiBubble: { container: Phaser.GameObjects.Container; key: string } | null = null;
   private refreshTimer = 0;
   private cancelArmedUntil = 0;
   /** Przełączenie na nową wersję gry (gdy service worker ją pobrał). */
@@ -160,6 +163,11 @@ export class PlanetScene extends Phaser.Scene {
       this.input.enabled = true;
       this.refreshValues();
       if (message) this.showToast(message, 'ok', 3000);
+    });
+
+    controller.onAiAction((text) => {
+      if (!this.screenOpen) this.showToast(text, 'info', 3500);
+      this.refreshValues();
     });
 
     controller.onColonyArrived((name) => {
@@ -253,6 +261,7 @@ export class PlanetScene extends Phaser.Scene {
     this.buildInfo(layout);
     this.buildProduction(layout);
     this.buildUpdateBanner(layout);
+    this.aiBubble = null;
     this.refreshValues();
     if (this.overlay) this.children.bringToTop(this.overlay);
   }
@@ -706,6 +715,7 @@ export class PlanetScene extends Phaser.Scene {
     const controller = this.deps.controller;
     const rates = controller.rates;
     const now = Date.now();
+    this.refreshAiBubble();
     const construction = controller.economy.construction;
     const progress = controller.buildProgress(now);
     this.deps.display.setStructures(
@@ -876,6 +886,98 @@ export class PlanetScene extends Phaser.Scene {
       .fillRoundedRect(this.px(x), this.px(y), this.px(w), this.px(h), this.px(2))
       .fillStyle(COLORS.goldHex, 1)
       .fillRoundedRect(this.px(x), this.px(y), this.px(Math.max(h, w * value)), this.px(h), this.px(2));
+  }
+
+  /** Dymek SI Matki: przebudowa tylko, gdy zmieniła się propozycja. */
+  private refreshAiBubble(): void {
+    const layout = this.layoutState;
+    if (!layout || !this.ui) return;
+    const suggestion = this.deps.controller.aiSuggestion();
+    const key = suggestion ? `${suggestion.key}|${suggestion.level}|${this.deps.controller.aiAutoUnlocked}` : '';
+    if ((this.aiBubble?.key ?? '') === key) return;
+    this.aiBubble?.container.destroy(true);
+    this.aiBubble = null;
+    if (!suggestion) return;
+    const controller = this.deps.controller;
+    const viewport = this.deps.getViewport();
+    const gap = this.s(10);
+    // Miejsce: między panelami u góry (szeroki ekran), pod panelem planety (telefon), na dole (tablet pionowo).
+    const info = layout.info.rect;
+    const prod = layout.production.rect;
+    const middle = prod.x - (info.x + info.w) - 2 * gap;
+    let w: number;
+    let x: number;
+    let anchor: 'top' | 'bottom';
+    let top = layout.topBar.y + layout.topBar.h + gap;
+    if (layout.mode === 'stacked') {
+      w = info.w;
+      x = info.x;
+      top = info.y + info.h + gap;
+      anchor = 'top';
+    } else if (middle >= this.s(320)) {
+      w = Math.min(this.s(460), middle);
+      x = info.x + info.w + gap + (middle - w) / 2;
+      anchor = 'top';
+    } else {
+      w = Math.min(this.s(460), viewport.width - 2 * gap);
+      x = (viewport.width - w) / 2;
+      anchor = 'bottom';
+    }
+    const pad = this.s(12);
+    const items: Phaser.GameObjects.GameObject[] = [];
+    const t = (y: number, content: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}) => {
+      const text = this.add.text(this.px(pad), this.px(y), content, {
+        fontFamily: FONTS.body,
+        fontSize: `${this.px(this.s(size))}px`,
+        color,
+        wordWrap: { width: this.px(w - 2 * pad) },
+        ...extra,
+      });
+      items.push(text);
+      return y + text.height / this.dpr;
+    };
+    let y = pad - this.s(2);
+    y = t(y, 'SI MATKA', 10, COLORS.antimatter, { fontStyle: '600', letterSpacing: 1.5 }) + this.s(3);
+    y = t(y, suggestion.text, 13.5, COLORS.text, { fontStyle: '600' }) + this.s(2);
+    y = t(y, suggestion.reason, 11.5, COLORS.muted) + this.s(10);
+    const h = y + TOUCH + pad;
+    const bottom = viewport.height - viewport.safe.bottom - gap;
+    const by = anchor === 'top' ? top : bottom - h;
+    const bg = this.add.graphics();
+    const radius = this.px(this.s(12));
+    bg.fillStyle(COLORS.panel, 0.96).fillRoundedRect(0, 0, this.px(w), this.px(h), radius);
+    bg.lineStyle(this.px(1), COLORS.antimatterHex, 0.7).strokeRoundedRect(0, 0, this.px(w), this.px(h), radius);
+    const blocker = this.add.zone(0, 0, this.px(w), this.px(h)).setOrigin(0).setInteractive();
+    const choices: [string, ButtonStyle, () => void][] =
+      suggestion.level === 'propose'
+        ? [['Rozumiem', 'secondary', () => this.onAiDecline(suggestion.rule)]]
+        : [
+            ['Tak', 'primary', () => this.onAiAccept(suggestion.key, suggestion.action)],
+            ['Nie', 'secondary', () => this.onAiDecline(suggestion.rule)],
+            ...(controller.aiAutoUnlocked
+              ? [['Zawsze tak rób', 'secondary', () => this.onAiAccept(suggestion.key, suggestion.action, true)] as [string, ButtonStyle, () => void]]
+              : []),
+          ];
+    const bw = (w - 2 * pad - this.s(8) * (choices.length - 1)) / choices.length;
+    const buttons = choices.map(([label, style, onTap], i) =>
+      new Button(this, this.px(pad + i * (bw + this.s(8))), this.px(y), this.px(bw), this.px(TOUCH), label, this.dpr, onTap, this.s(13)).setStyle(style),
+    );
+    const container = this.add.container(this.px(x), this.px(by), [bg, blocker, ...items, ...buttons]).setDepth(40);
+    this.ui.add(container);
+    this.aiBubble = { container, key };
+  }
+
+  private onAiAccept(key: string, action: AiAction, always = false): void {
+    const controller = this.deps.controller;
+    const result = always ? controller.aiAlways(key) : controller.aiAccept(key);
+    this.showToast(result.message, result.ok ? 'ok' : 'error', 3000);
+    if (result.ok && action.kind === 'build') this.deps.display.showBuilding(action.building);
+    this.refreshValues();
+  }
+
+  private onAiDecline(rule: AiRuleId): void {
+    this.deps.controller.aiDecline(rule);
+    this.refreshValues();
   }
 
   private showToast(message: string, kind: ToastKind, duration = 2200): void {

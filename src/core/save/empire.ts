@@ -1,6 +1,7 @@
 // Zapis „imperium”: kilka miejsc (na razie planety; później księżyce, stacje…),
 // aktywne miejsce i wspólny portfel antymaterii. Czysty TypeScript.
 import { BALANCE } from '../../data/balance.ts';
+import { parseAiLevels, type AiLevel, type AiRuleId } from '../ai/advisor.ts';
 import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
 import type { ColonyMission, EconomyState, JournalEntry, JournalKind, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
@@ -37,10 +38,12 @@ export interface EmpireSave {
   missions?: ColonyMission[];
   /** Dziennik ekspedycji (od v0.13; najnowsze na końcu). */
   journal?: JournalEntry[];
+  /** Samodzielność SI Matki dla każdej reguły (od v0.14; brak = „pyta”). */
+  ai?: Record<AiRuleId, AiLevel>;
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
-const JOURNAL_KINDS: readonly JournalKind[] = ['build', 'research', 'colony', 'ship', 'away', 'empire'];
+const JOURNAL_KINDS: readonly JournalKind[] = ['build', 'research', 'colony', 'ship', 'away', 'empire', 'ai'];
 /** Ile wpisów dziennika trzymamy (starsze wypadają). */
 export const JOURNAL_LIMIT = 80;
 
@@ -114,6 +117,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(typeof data.home === 'string' && ADDRESS.test(data.home) ? { home: data.home } : {}),
     missions: parseMissions(data.missions),
     journal: parseJournal(data.journal),
+    ai: parseAiLevels(data.ai),
   };
 }
 

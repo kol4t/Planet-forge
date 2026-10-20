@@ -122,4 +122,12 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 67. Po zbadaniu: „Mapa” → inny układ → wolna planeta → widać koszt i czas lotu → „Wyślij statek”. Na mapie galaktyki złota przerywana trasa i statek; przy planecie przerywany pierścień i odliczanie. „Zawróć statek” zwraca koszt.
 68. Po przylocie (także przy zamkniętej grze): komunikat „Statek dotarł — skolonizowano …”, nowa planeta w „Imperium” (gra nie przełącza się sama).
 
+### Od 0.14: SI Matka
+
+69. „Badania” → ramię SI świeci; zbadaj „SI Matka” (pierścień 1).
+70. Po zbadaniu na ekranie planety pojawia się dymek „SI MATKA” z propozycją i powodem, np. przy braku energii: „Ulepszyć Elektrownię do poz. …?”. „Tak” → budowa rusza; „Nie” → SI nie pyta o to przez 10 minut.
+71. Kolejność ważności: energia → magazyn (≥ 90%) → badanie (gdy Laboratorium nic nie bada) → kopalnie (gdy nic się nie buduje).
+72. Po zbadaniu „SI wykonawcze” (pierścień 2) w dymku jest „Zawsze tak rób” — od tej chwili ta reguła działa sama: komunikat „SI Matka: …” i wpis w Dzienniku.
+73. „Imperium” → „SI”: dla każdej reguły „Podpowiada” / „Pyta” / „Działa samo” (to ostatnie po „SI wykonawcze”). Ustawienia zostają po zamknięciu gry.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

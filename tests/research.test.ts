@@ -44,7 +44,7 @@ test('dane badań: unikalne id, wymagania istnieją i leżą bliżej jądra', ()
     if (!n.master && !n.soon && findArm(n.arm)!.active) assert.ok(n.effects.length > 0, `${n.id}: brak efektu`);
   }
   assert.equal(RESEARCH_ARMS.length, 6);
-  assert.deepEqual(RESEARCH_ARMS.filter((a) => a.active).map((a) => a.id), ['productivity', 'planetology', 'exploration']);
+  assert.deepEqual(RESEARCH_ARMS.filter((a) => a.active).map((a) => a.id), ['productivity', 'planetology', 'exploration', 'ai']);
 });
 
 test('Laboratorium ogranicza pierścień: brak = nic, poz. 1 = pierścień 1, poz. 8 = 5', () => {

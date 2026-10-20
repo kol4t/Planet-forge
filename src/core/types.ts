@@ -206,7 +206,7 @@ export type ResearchEffect =
   | { kind: 'environment'; percent: number }
   | { kind: 'planetSlots'; add: number }
   /** Odblokowanie funkcji gry (np. statek kolonizacyjny). */
-  | { kind: 'unlock'; feature: 'colony-ship' };
+  | { kind: 'unlock'; feature: 'colony-ship' | 'ai-mother' | 'ai-executors' };
 
 export interface ResearchArmDef {
   id: ResearchArmId;
@@ -334,7 +334,7 @@ export interface ColonyMission {
   cost: Resources;
 }
 
-export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire';
+export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai';
 
 /** Wpis w dzienniku ekspedycji. */
 export interface JournalEntry {

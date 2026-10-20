@@ -17,6 +17,7 @@ import {
   type Rates,
   type UpgradeResult,
 } from '../core/economy/economy.ts';
+import { DEFAULT_AI_LEVELS, suggest, type AiAction, type AiLevel, type AiRuleId, type AiSuggestion } from '../core/ai/advisor.ts';
 import {
   applyResearch,
   completeResearch,
@@ -135,6 +136,11 @@ export class GameController {
   /** Dziennik ekspedycji (najnowsze na końcu). */
   private journal: JournalEntry[] = [];
   private readonly colonyListeners = new Set<(name: string) => void>();
+  /** Samodzielność SI Matki dla każdej reguły. */
+  private aiLevels: Record<AiRuleId, AiLevel> = { ...DEFAULT_AI_LEVELS };
+  /** Odrzucone propozycje: reguła → do kiedy SI o nią nie pyta (tylko w tej sesji). */
+  private readonly aiSnooze = new Map<AiRuleId, number>();
+  private readonly aiListeners = new Set<(text: string) => void>();
   private balanceCache: { done: readonly string[]; balance: Balance } | null = null;
   private slots: Slot[];
   private active = 0;
@@ -156,6 +162,7 @@ export class GameController {
       this.home = saved.home ?? '';
       this.missions = saved.missions ?? [];
       this.journal = saved.journal ?? [];
+      this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
       this.placeOnMap();
       const before = { ...this.slots[this.active]!.economy, antimatter: saved.antimatter };
@@ -219,7 +226,9 @@ export class GameController {
     const done = finishedBuild(before, this.economy);
     if (done) this.logBuild(done, before.construction!.finishesAt);
     const arrived = this.processMissions(now);
-    if (done || researched.length > 0 || arrived.length > 0) this.save();
+    const aiDone = this.runAutoAi(now);
+    if (done || researched.length > 0 || arrived.length > 0 || aiDone) this.save();
+    if (aiDone) for (const listener of this.aiListeners) listener(aiDone);
     if (done) for (const listener of this.completeListeners) listener(done);
     for (const id of researched) for (const listener of this.researchListeners) listener(id);
     for (const name of arrived) for (const listener of this.colonyListeners) listener(name);
@@ -376,11 +385,121 @@ export class GameController {
     this.log('build', `${this.planet.displayName}: ${name} — poziom ${done.level} gotowy.`, at);
   }
 
+  /** Czy badania odblokowały funkcję gry. */
+  private unlocked(feature: 'colony-ship' | 'ai-mother' | 'ai-executors'): boolean {
+    return this.research.done.some((id) => findResearch(id)?.effects.some((e) => e.kind === 'unlock' && e.feature === feature));
+  }
+
+  // ——— SI Matka ———
+
+  /** SI Matka działa (badanie „SI Matka”). */
+  get aiUnlocked(): boolean {
+    return this.unlocked('ai-mother');
+  }
+
+  /** SI może działać sama (badanie „SI wykonawcze”). */
+  get aiAutoUnlocked(): boolean {
+    return this.unlocked('ai-executors');
+  }
+
+  aiLevel(rule: AiRuleId): AiLevel {
+    return this.aiLevels[rule];
+  }
+
+  setAiLevel(rule: AiRuleId, level: AiLevel): ActionMessage {
+    if (level === 'auto' && !this.aiAutoUnlocked) {
+      return { ok: false, message: 'Samodzielne działanie SI wymaga badania „SI wykonawcze”.' };
+    }
+    this.aiLevels = { ...this.aiLevels, [rule]: level };
+    this.aiSnooze.delete(rule);
+    this.save();
+    this.emit();
+    return { ok: true, message: 'Zapisano ustawienie SI.' };
+  }
+
+  private aiSuggestions(): AiSuggestion[] {
+    return suggest({ economy: this.economy, planet: this.planet, balance: this.balance, research: this.research, labLevel: this.labLevel });
+  }
+
+  /** Bieżąca propozycja SI do pokazania graczowi (bez reguł „działa samo” i odrzuconych na chwilę). */
+  aiSuggestion(now = Date.now()): (AiSuggestion & { level: AiLevel }) | null {
+    if (!this.aiUnlocked) return null;
+    for (const s of this.aiSuggestions()) {
+      const level = this.effectiveAiLevel(s.rule);
+      if (level === 'auto' || (this.aiSnooze.get(s.rule) ?? 0) > now) continue;
+      return { ...s, level };
+    }
+    return null;
+  }
+
+  /** Zgoda gracza na propozycję (sprawdzaną ponownie — mogła się zdezaktualizować). */
+  aiAccept(key: string, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const s = this.aiSuggestions().find((x) => x.key === key);
+    if (!s) return { ok: false, message: 'Ta propozycja jest już nieaktualna.' };
+    const result = this.applyAiAction(s.action, now);
+    if (result.ok) this.log('ai', `SI Matka (za Twoją zgodą): ${result.message}`, now);
+    this.save();
+    this.emit();
+    return result;
+  }
+
+  /** „Nie” — SI nie pyta o tę regułę przez 10 minut. */
+  aiDecline(rule: AiRuleId, now = Date.now()): void {
+    this.aiSnooze.set(rule, now + 10 * 60_000);
+    this.emit();
+  }
+
+  /** „Zawsze tak rób” — reguła przechodzi na „działa samo” i propozycja wykonuje się od razu. */
+  aiAlways(key: string, now = Date.now()): ActionMessage {
+    const s = this.aiSuggestions().find((x) => x.key === key);
+    if (!s) return { ok: false, message: 'Ta propozycja jest już nieaktualna.' };
+    const set = this.setAiLevel(s.rule, 'auto');
+    return set.ok ? this.aiAccept(key, now) : set;
+  }
+
+  /** Reguła „działa samo” bez odblokowania wykonawców liczy się jak „pyta”. */
+  private effectiveAiLevel(rule: AiRuleId): AiLevel {
+    const level = this.aiLevels[rule];
+    return level === 'auto' && !this.aiAutoUnlocked ? 'ask' : level;
+  }
+
+  /** SI wykonawcze: jedno samodzielne działanie na odświeżenie. Zwraca opis albo null. */
+  private runAutoAi(now: number): string | null {
+    if (!this.aiUnlocked || !this.aiAutoUnlocked) return null;
+    const s = this.aiSuggestions().find((x) => this.effectiveAiLevel(x.rule) === 'auto');
+    if (!s) return null;
+    const result = this.applyAiAction(s.action, now);
+    if (!result.ok) return null;
+    const text = `SI Matka: ${result.message}`;
+    this.log('ai', text, now);
+    return text;
+  }
+
+  /** Wykonanie działania SI zwykłymi regułami gry (bez ponownego `tick`). */
+  private applyAiAction(action: AiAction, now: number): ActionMessage {
+    if (action.kind === 'build') {
+      const result = upgradeBuilding(this.economy, action.building, now, this.balance);
+      this.economy = result.state;
+      return result;
+    }
+    const result = startResearch(this.research, this.economy, action.id, this.labLevel, this.planet.seed, now, this.balance);
+    if (!result.ok) return result;
+    this.research = result.research;
+    this.economy = result.economy;
+    return result;
+  }
+
+  onAiAction(listener: (text: string) => void): () => void {
+    this.aiListeners.add(listener);
+    return () => this.aiListeners.delete(listener);
+  }
+
   // ——— statki kolonizacyjne (inne układy) ———
 
   /** Czy badania odblokowały statek kolonizacyjny. */
   get colonyShipUnlocked(): boolean {
-    return this.research.done.some((id) => findResearch(id)?.effects.some((e) => e.kind === 'unlock' && e.feature === 'colony-ship'));
+    return this.unlocked('colony-ship');
   }
 
   /** Czas lotu (s) z aktywnej planety do układu `system`. */
@@ -733,6 +852,7 @@ export class GameController {
     this.home = result.data.home ?? '';
     this.missions = result.data.missions ?? [];
     this.journal = result.data.journal ?? [];
+    this.aiLevels = result.data.ai ?? { ...DEFAULT_AI_LEVELS };
     this.active = result.data.active;
     this.placeOnMap();
     this.economy = { ...this.economy, antimatter: result.data.antimatter };
@@ -757,6 +877,7 @@ export class GameController {
       home: this.home,
       missions: this.missions,
       journal: this.journal,
+      ai: this.aiLevels,
       antimatter: this.economy.antimatter,
       slots: this.slots.map((slot) => ({
         kind: 'planet',

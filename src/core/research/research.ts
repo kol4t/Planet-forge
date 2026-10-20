@@ -258,7 +258,11 @@ export function describeEffects(node: ResearchNodeDef): string {
       case 'planetSlots':
         return `+${e.add} miejsce na planetę`;
       case 'unlock':
-        return 'statek kolonizacyjny — kolonizacja innych układów';
+        return {
+          'colony-ship': 'statek kolonizacyjny — kolonizacja innych układów',
+          'ai-mother': 'SI Matka — propozycje działań',
+          'ai-executors': 'SI działa sama (poziom „działa samo”)',
+        }[e.feature];
     }
   });
   return parts.join(' · ');

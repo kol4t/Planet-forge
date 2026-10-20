@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — v0.14: SI Matka (etap 1)
+
+- **Koncepcja właściciela:** SI Matka proponuje, gracz decyduje; trzy poziomy samodzielności na regułę: podpowiada / pyta / działa samo (raport w dzienniku).
+- **Reguły** (`core/ai/advisor.ts`, czyste funkcje): energia (brak albo za mały zapas na kolejną kopalnię) → magazyn (≥ 90%) → najtańsze badanie bez antymaterii → kopalnia surowca, którego jest mniej. Propozycja tylko, gdy da się ją wykonać teraz. Wykonanie zwykłymi akcjami gry (`upgradeBuilding`, `startResearch`).
+- **Odblokowanie w badaniach** (ramię SI aktywne): „SI Matka” (pierścień 1) — propozycje; „SI wykonawcze” (pierścień 2) — poziom „działa samo” („Zawsze tak rób”). „Autonomia” (działanie podczas nieobecności) — `soon`. Bez SI wykonawczych reguła ustawiona na „działa samo” liczy się jak „pyta”.
+- SI obserwuje **aktywną** planetę i działa tylko przy otwartej grze (jedno działanie na odświeżenie). „Nie” wycisza regułę na 10 min (tylko w tej sesji). Poziomy w zapisie: `EmpireSave.ai` (opcjonalne, domyślnie „pyta”).
+- **UI:** dymek nad planetą (szeroki ekran — między panelami u góry; tablet pionowo — na dole; telefon — pod panelem planety); zakładka „SI” w „Imperium”.
+
 ## 2026-10-20 — v0.13: statek kolonizacyjny, ekran „Imperium”, dziennik ekspedycji
 
 - **Kolonizacja innych układów** (decyzja właściciela: po badaniu i ze statkiem). Ramię Eksploracja jest aktywne; pierwsze badanie „Napęd międzygwiezdny” (efekt `unlock: colony-ship`) odblokowuje statek. Kolejne badania ramienia to `soon` (widoczne, niedostępne). Statek budowany i wysyłany jednym dotknięciem z mapy (koszt z aktywnej planety, `Balance.colonyShip` — robocze); czas lotu = podstawa + odległość między układami na mapie × współczynnik. Bez osobnego budynku Stoczni — wróci razem z flotą. Statki w drodze rezerwują miejsce w imperium, można je zawrócić (pełny zwrot). Przylot (też offline) zakłada nieaktywną kolonię. Zapis: `EmpireSave.missions` (opcjonalne).

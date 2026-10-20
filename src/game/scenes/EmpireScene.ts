@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { PlanetOverview } from '../../app/GameController.ts';
+import { AI_RULES, type AiLevel } from '../../core/ai/advisor.ts';
 import type { JournalKind } from '../../core/types.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
@@ -7,7 +8,7 @@ import { COLORS, FONTS, formatClock, formatDuration, formatInt, formatRate } fro
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
 export interface EmpireSceneData {
-  tab?: 'planets' | 'journal';
+  tab?: 'planets' | 'journal' | 'ai';
 }
 
 /** Kolor kropki wpisu dziennika. */
@@ -18,6 +19,7 @@ const KIND_COLOR: Record<JournalKind, number> = {
   ship: 0xcfe8ff,
   away: COLORS.stoneHex,
   empire: COLORS.antimatterHex,
+  ai: 0xb9a8f0,
 };
 
 interface CardLive {
@@ -34,7 +36,7 @@ interface CardLive {
  * statki w drodze i dziennik ekspedycji. Lista przewija się palcem.
  */
 export class EmpireScene extends OverlayScene {
-  private tab: 'planets' | 'journal' = 'planets';
+  private tab: 'planets' | 'journal' | 'ai' = 'planets';
   private content: Phaser.GameObjects.Container | undefined;
   private contentH = 0;
   private cards: CardLive[] = [];
@@ -68,7 +70,7 @@ export class EmpireScene extends OverlayScene {
     this.content = this.add.container(0, 0);
     const mask = this.make.graphics({}, false).fillRect(this.px(this.area.x), this.px(this.area.y), this.px(this.area.w), this.px(this.area.h));
     this.content.setMask(mask.createGeometryMask());
-    this.contentH = this.tab === 'planets' ? this.buildPlanets() : this.buildJournal();
+    this.contentH = this.tab === 'planets' ? this.buildPlanets() : this.tab === 'journal' ? this.buildJournal() : this.buildAi();
     this.beginUi();
     this.buildTopBar(bar);
     this.pan = { x: 0, y: Math.min(0, this.pan.y) };
@@ -80,22 +82,29 @@ export class EmpireScene extends OverlayScene {
     this.panel(bar);
     const pad = 12 * this.u;
     const c = this.deps.controller;
-    const buttonW = Math.min(this.s(112), (bar.w - this.s(130)) / 3);
+    const gap = this.s(6);
+    const buttonW = Math.min(this.s(108), (bar.w - this.s(70)) / 4 - gap);
     const y = bar.y + (bar.h - TOUCH) / 2;
     const right = bar.x + bar.w - pad / 2;
-    const titleW = bar.w - 3 * buttonW - 2 * this.s(6) - pad * 1.5;
-    this.text(bar.x + pad, bar.y + this.s(8), 'IMPERIUM', 15, COLORS.gold, { fontFamily: FONTS.serif, letterSpacing: 2, fixedWidth: this.px(titleW) });
-    this.text(bar.x + pad, bar.y + this.s(30), `Planet: ${c.slotInfo.used} z ${c.slotInfo.unlocked}`, 10.5, COLORS.muted, { fixedWidth: this.px(titleW) });
-    this.addButton(right - buttonW, y, buttonW, TOUCH, 'Zamknij', 'secondary', () => this.close());
-    this.addButton(right - 2 * buttonW - this.s(6), y, buttonW, TOUCH, 'Dziennik', this.tab === 'journal' ? 'primary' : 'secondary', () =>
-      this.switchTab('journal'),
-    );
-    this.addButton(right - 3 * buttonW - 2 * this.s(6), y, buttonW, TOUCH, 'Planety', this.tab === 'planets' ? 'primary' : 'secondary', () =>
-      this.switchTab('planets'),
-    );
+    const titleW = bar.w - 4 * buttonW - 3 * gap - pad * 1.5;
+    // Na wąskim ekranie (telefon) tytuł ustępuje miejsca zakładkom.
+    if (titleW >= this.s(70)) {
+      this.text(bar.x + pad, bar.y + this.s(8), 'IMPERIUM', 15, COLORS.gold, { fontFamily: FONTS.serif, letterSpacing: 2, fixedWidth: this.px(titleW) });
+      this.text(bar.x + pad, bar.y + this.s(30), `Planet: ${c.slotInfo.used} z ${c.slotInfo.unlocked}`, 10.5, COLORS.muted, { fixedWidth: this.px(titleW) });
+    }
+    const tabs: [string, 'planets' | 'journal' | 'ai' | null][] = [
+      ['Planety', 'planets'],
+      ['Dziennik', 'journal'],
+      ['SI', 'ai'],
+      ['Zamknij', null],
+    ];
+    tabs.forEach(([label, tab], i) => {
+      const bx = right - (tabs.length - i) * buttonW - (tabs.length - 1 - i) * gap;
+      this.addButton(bx, y, buttonW, TOUCH, label, tab && tab === this.tab ? 'primary' : 'secondary', () => (tab ? this.switchTab(tab) : this.close()));
+    });
   }
 
-  private switchTab(tab: 'planets' | 'journal'): void {
+  private switchTab(tab: 'planets' | 'journal' | 'ai'): void {
     if (tab === this.tab) return;
     this.tab = tab;
     this.pan = { x: 0, y: 0 };
@@ -239,6 +248,62 @@ export class EmpireScene extends OverlayScene {
     return y - area.y + this.s(12);
   }
 
+  // ——— zakładka „SI” ———
+
+  private buildAi(): number {
+    const c = this.deps.controller;
+    const area = this.area;
+    const items: Phaser.GameObjects.GameObject[] = [];
+    const w = Math.min(area.w, this.s(640));
+    const x = area.x;
+    let y = area.y + this.s(4);
+    const line = (content: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}, after = 6) => {
+      const t = this.text(x + this.s(4), y, content, size, color, { wordWrap: { width: this.px(w - this.s(8)) }, lineSpacing: this.px(2), ...extra }, false);
+      items.push(t);
+      y += t.height / this.dpr + this.s(after);
+    };
+    this.shape = `ai|${c.aiUnlocked}|${c.aiAutoUnlocked}|${AI_RULES.map((r) => c.aiLevel(r.id)).join(',')}`;
+    line('SI Matka', 18, COLORS.gold, { fontFamily: FONTS.serif }, 4);
+    if (!c.aiUnlocked) {
+      line('SI Matka jeszcze śpi. Zbadaj „SI Matka” (Badania → ramię SI), a zacznie proponować działania.', 12.5, COLORS.muted, {}, 14);
+    } else {
+      line(
+        c.aiAutoUnlocked
+          ? 'SI obserwuje aktywną planetę. Dla każdej reguły wybierz, jak samodzielna ma być. „Działa samo” — wykonuje i zapisuje w dzienniku.'
+          : 'SI obserwuje aktywną planetę i pyta o zgodę. Działanie bez pytania odblokuje badanie „SI wykonawcze”.',
+        12,
+        COLORS.muted,
+        {},
+        14,
+      );
+    }
+    const levels: [AiLevel, string][] = [
+      ['propose', 'Podpowiada'],
+      ['ask', 'Pyta'],
+      ['auto', 'Działa samo'],
+    ];
+    const gap = this.s(8);
+    const bw = (w - 2 * gap) / 3;
+    for (const rule of AI_RULES) {
+      line(rule.name, 14, COLORS.text, { fontStyle: '600' }, 2);
+      line(rule.description, 11.5, COLORS.muted, {}, 8);
+      levels.forEach(([level, label], i) => {
+        const current = c.aiLevel(rule.id) === level;
+        const locked = level === 'auto' && !c.aiAutoUnlocked;
+        items.push(
+          this.button(x + i * (bw + gap), y, bw, label, current ? 'primary' : locked ? 'disabled' : 'secondary', () => {
+            const result = c.setAiLevel(rule.id, level);
+            if (!result.ok) this.showToast(result.message, 'info', 3200);
+            this.relayout();
+          }),
+        );
+      });
+      y += TOUCH + this.s(16);
+    }
+    this.content!.add(items);
+    return y - area.y;
+  }
+
   // ——— przewijanie i odświeżanie ———
 
   protected applyTransform(): void {
@@ -254,6 +319,10 @@ export class EmpireScene extends OverlayScene {
 
   protected refresh(): void {
     const c = this.deps.controller;
+    if (this.tab === 'ai') {
+      if (`ai|${c.aiUnlocked}|${c.aiAutoUnlocked}|${AI_RULES.map((r) => c.aiLevel(r.id)).join(',')}` !== this.shape) this.relayout();
+      return;
+    }
     if (this.tab === 'journal') {
       const entries = c.journalEntries();
       if (`journal|${entries.length}|${entries[0]?.at ?? 0}` !== this.shape) this.relayout();
