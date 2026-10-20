@@ -23,8 +23,11 @@ export interface PanelState {
 }
 
 export interface Layout {
-  /** Poziomo: panele po bokach. Pionowo: panel planety u góry, produkcja na dole. */
-  mode: 'landscape' | 'portrait';
+  /**
+   * `sides`: panel planety po lewej, produkcja po prawej (komputer, tablet w obu orientacjach).
+   * `stacked`: panel planety u góry, produkcja na dole (telefon — za wąski na boki).
+   */
+  mode: 'sides' | 'stacked';
   /** Mnożnik wielkości UI (telefon ~0,8, tablet ~0,9, komputer do 1,1). */
   u: number;
   topBar: Rect;
@@ -79,10 +82,11 @@ export function computeLayout(
   const pad = Math.round(8 * u);
   const toggleAt = (r: Rect): Rect => ({ x: r.x + r.w - TOUCH, y: r.y, w: TOUCH, h: TOUCH });
 
-  // Boczne panele tylko na szerokich i dość wysokich ekranach (telefon poziomo → układ góra/dół).
-  if (width / height >= 1.15 && width >= 700 && height >= 500) {
-    // ——— poziomo: planeta pośrodku, panel planety po lewej, produkcja po prawej ———
-    const infoW = clamp(width * 0.24, 230, 320);
+  // Panele po bokach na komputerze i tablecie (poziomo i pionowo); telefon → góra/dół.
+  const wide = width / height >= 1.15;
+  if ((wide && width >= 700 && height >= 500) || (!wide && width >= 600 && height >= 700)) {
+    // ——— panele po bokach: planeta pośrodku, panel planety po lewej, produkcja po prawej ———
+    const infoW = clamp(width * (wide ? 0.24 : 0.29), 220, 320);
     const info: Rect = {
       x: left,
       y: contentTop,
@@ -98,7 +102,7 @@ export function computeLayout(
     const rows = Math.ceil(cardCount / cols);
     // Kilka kolumn musi zmieścić się obok panelu planety.
     const roomW = right - (left + infoW + gap) - 2 * pad - (cols - 1) * gap;
-    const cardW = Math.min(clamp(width * 0.25, 230, 300), roomW / cols);
+    const cardW = Math.min(clamp(width * (wide ? 0.25 : 0.29), 220, 300), roomW / cols);
     if (rows * cardH + (rows - 1) * gap > space) cardH = (space - (rows - 1) * gap) / rows;
     const production = productionPanel(
       state.productionOpen,
@@ -114,21 +118,33 @@ export function computeLayout(
       { x: right - 168 * u, y: contentTop },
     );
 
-    const x1 = state.infoOpen ? info.x + info.w + gap : left;
-    const x2 = state.productionOpen ? production.rect.x - gap : right;
-    const r = Math.max(60, Math.min((x2 - x1) / 2, avail / 2) * 0.92);
+    let planet: Layout['planet'];
+    if (wide) {
+      // Szeroki ekran: planeta mieści się między panelami i rośnie po ich zwinięciu.
+      const x1 = state.infoOpen ? info.x + info.w + gap : left;
+      const x2 = state.productionOpen ? production.rect.x - gap : right;
+      planet = { cx: (x1 + x2) / 2, cy: contentTop + avail / 2, r: Math.max(60, Math.min((x2 - x1) / 2, avail / 2) * 0.92) };
+    } else {
+      // Wąski ekran (tablet pionowo): planeta ma stały rozmiar (mieści się obok jednego panelu),
+      // a otwarty panel „odsuwa” scenę: prawy w lewo, lewy w prawo; oba — planeta pośrodku.
+      const productionW = cols * cardW + (cols - 1) * gap + 2 * pad;
+      const sideW = Math.max(info.w, productionW);
+      const r = Math.max(60, Math.min((innerW - sideW - gap) / 2, avail / 2) * 0.95);
+      const shift = ((state.infoOpen ? info.w + gap : 0) - (state.productionOpen ? productionW + gap : 0)) / 2;
+      planet = { cx: (left + right) / 2 + shift, cy: contentTop + avail / 2, r };
+    }
     return {
-      mode: 'landscape',
+      mode: 'sides',
       u,
       topBar,
       info: { rect: info, open: state.infoOpen, toggle: toggleAt(info) },
       production,
-      planet: { cx: (x1 + x2) / 2, cy: contentTop + avail / 2, r },
+      planet,
       toastY: bottom - 36 * u,
     };
   }
 
-  // ——— pionowo: panel planety u góry, planeta pośrodku, produkcja na dole ———
+  // ——— telefon: panel planety u góry, planeta pośrodku, produkcja na dole ———
   // Na wąskim ekranie (telefon) tekst w kolumnie zawija się częściej — panel jest wyższy.
   const infoOpenH = width < 520 ? 150 : 124;
   const info: Rect = { x: left, y: contentTop, w: innerW, h: Math.round((state.infoOpen ? infoOpenH : 62) * u) };
@@ -157,7 +173,7 @@ export function computeLayout(
   const y2 = production.rect.y - gap;
   const r = Math.max(60, Math.min(innerW / 2, (y2 - y1) / 2) * 0.94);
   return {
-    mode: 'portrait',
+    mode: 'stacked',
     u,
     topBar,
     info: { rect: info, open: state.infoOpen, toggle: toggleAt(info) },

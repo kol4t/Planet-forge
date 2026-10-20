@@ -447,7 +447,7 @@ export class PlanetScene extends Phaser.Scene {
     };
     const nameW = box.w - 2 * pad - TOUCH;
 
-    if (layout.mode === 'landscape') {
+    if (layout.mode === 'sides') {
       let y = box.y + pad - this.s(2);
       this.text(box.x + pad, y, 'PLANETA', 9.5, COLORS.muted, { fontStyle: '600' });
       y += this.s(13);
@@ -843,7 +843,7 @@ export class PlanetScene extends Phaser.Scene {
     const h = this.s(60);
     const top = layout.topBar.y + layout.topBar.h + this.s(12);
     const info = layout.info.rect;
-    const y = Math.max(layout.mode === 'portrait' ? info.y + info.h + this.s(12) : top, layout.planet.cy - layout.planet.r - h - this.s(8));
+    const y = Math.max(layout.mode === 'stacked' ? info.y + info.h + this.s(12) : top, layout.planet.cy - layout.planet.r - h - this.s(8));
     const rect: Rect = { x: layout.planet.cx - w / 2, y, w, h };
     this.panel(rect, true);
     const pad = this.s(10);

@@ -44,23 +44,38 @@ for (const [name, w, h] of SCREENS) {
   });
 }
 
-test('zwinięcie paneli powiększa planetę', () => {
-  for (const [w, h] of [[1080, 810], [810, 1080], [390, 844]] as const) {
+test('zwinięcie paneli powiększa planetę (poziomo, komputer, telefon)', () => {
+  for (const [w, h] of [[1080, 810], [1920, 1080], [390, 844]] as const) {
     const open = computeLayout(w, h, undefined, 5, { infoOpen: true, productionOpen: true });
     const closed = computeLayout(w, h, undefined, 5, { infoOpen: false, productionOpen: false });
-    assert.ok(closed.planet.r > open.planet.r, `${w}×${h}: ${open.planet.r} → ${closed.planet.r}`);
+    // Szeroki monitor: planetę ogranicza wysokość, więc może zostać tej samej wielkości.
+    const grows = w === 1920 ? closed.planet.r >= open.planet.r : closed.planet.r > open.planet.r;
+    assert.ok(grows, `${w}×${h}: ${open.planet.r} → ${closed.planet.r}`);
   }
 });
 
-test('pionowo: panel planety nad planetą, produkcja pod nią; poziomo: po bokach', () => {
-  const port = computeLayout(810, 1080);
-  assert.equal(port.mode, 'portrait');
-  assert.ok(port.info.rect.y + port.info.rect.h <= port.planet.cy - port.planet.r + 1);
-  assert.ok(port.production.rect.y >= port.planet.cy + port.planet.r - 1);
+test('tablet i komputer: panele po bokach planety (także iPad pionowo); telefon: góra/dół', () => {
+  for (const [w, h] of [[1080, 810], [810, 1080], [744, 1133], [1920, 1080]] as const) {
+    const l = computeLayout(w, h);
+    assert.equal(l.mode, 'sides', `${w}×${h}`);
+    assert.ok(l.info.rect.x < l.planet.cx && l.production.rect.x > l.planet.cx, `${w}×${h}`);
+  }
+  const phone = computeLayout(390, 844);
+  assert.equal(phone.mode, 'stacked');
+  assert.ok(phone.info.rect.y + phone.info.rect.h <= phone.planet.cy - phone.planet.r + 1);
+  assert.ok(phone.production.rect.y >= phone.planet.cy + phone.planet.r - 1);
   const land = computeLayout(1080, 810);
-  assert.equal(land.mode, 'landscape');
-  assert.ok(land.info.rect.x + land.info.rect.w <= land.planet.cx - land.planet.r + 1);
+  assert.ok(land.info.rect.x + land.info.rect.w <= land.planet.cx - land.planet.r + 1, 'poziomo planeta między panelami');
   assert.ok(land.production.rect.x >= land.planet.cx + land.planet.r - 1);
+});
+
+test('iPad pionowo: otwarty panel odsuwa scenę (prawy → planeta w lewo, lewy → w prawo)', () => {
+  const at = (infoOpen: boolean, productionOpen: boolean) => computeLayout(810, 1080, undefined, 5, { infoOpen, productionOpen }).planet;
+  const none = at(false, false);
+  assert.ok(at(false, true).cx < none.cx, 'produkcja otwarta → planeta w lewo');
+  assert.ok(at(true, false).cx > none.cx, 'panel planety otwarty → planeta w prawo');
+  assert.equal(at(true, true).r, none.r, 'rozmiar planety stały');
+  assert.ok(Math.abs(at(true, true).cx - none.cx) < 20, 'oba otwarte → mniej więcej pośrodku');
 });
 
 test('UI mniejsze niż w v0.8 i skalowane do ekranu', () => {
