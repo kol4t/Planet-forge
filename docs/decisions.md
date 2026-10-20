@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — v0.7: planeta 2D domyślnie, kilka planet, licznik płynności
+
+- **2D domyślnie (decyzja właściciela).** Pikselowa planeta 2D z obrotem palcem to główny wygląd gry; model 3D jest opcją w Ustawieniach → Grafika („Włącz 3D” / „Wróć do 2D”). Tryb zapisany w `bootGuard` (`'2d' | '3d'`, stare „auto” = 2D). Nieudany start w 3D przełącza na stałe na 2D. Budowle w 2D to kwadraty 2 × 2 piksele planety, wyrównane do jej siatki; plac budowy — złota ramka wypełniana od dołu wraz z postępem.
+- **Kilka planet (imperium).** Zapis `planet-forge.empire.v1` (`src/core/save/empire.ts`): lista miejsc (`kind: 'planet'` — miejsce na przyszłe księżyce, stacje itd.), aktywne miejsce, liczba odblokowanych miejsc i wspólny portfel antymaterii. Miejsca: `planetSlots.base` = 5 na start, `max` = 10 (odblokowanie przez przyszłe akcje/lokacje — interpretacja prośby właściciela, do potwierdzenia). Stary zapis jednej planety jest przenoszony automatycznie (stary klucz zostaje jako kopia).
+- **Nieaktywne planety dalej „żyją”:** przy przejściu na planetę nadrabia ona czas jak po nieobecności (maks. 8 h), także kończąc budowy. Przyrost pasywny antymaterii liczy się raz (na aktywnej planecie — nadrabianie używa balansu z `passivePerHour: 0`), a kolektory każdej planety dokładają do wspólnego portfela. Nowa planeta nie dostaje zapasu startowego antymaterii.
+- **„Nowa planeta”** już nie kasuje postępu: trafia na wolne miejsce w oknie „Twoje planety” (przycisk „Planety” w panelu planety). Usuwanie: tylko nieaktywnej planety, drugim dotknięciem („Na pewno?”).
+- **Eksport „PF2:”** obejmuje całe imperium; „PF1:” (jedna planeta) nadal się wczytuje i staje się imperium z jednym miejscem.
+- **Licznik płynności** (`src/app/fpsMeter.ts`): klatki na sekundę z ostatniej minuty (średnia i najsłabsza sekunda), przerwy w tle pomijane; w Ustawienia → Diagnostyka.
+
 ## 2026-10-20 — v0.6.1: awaria startu z ekranu początkowego (hotfix)
 
 - **Objaw (iPad, właściciel):** gra uruchomiona z ikony wczytuje się, po czym iPad się restartuje; raz biały ekran. W artefakcie (mniejsze okno wewnątrz claude.ai) gra działała.

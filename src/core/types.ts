@@ -165,6 +165,8 @@ export interface Balance {
   freeFinishMaxLevel: number;
   /** Pojemność magazynu (osobno metal i kryształy) = base × growth^(poziom − 1). */
   storage: { base: number; growth: number };
+  /** Miejsca na własne planety: `base` na start, do `max` po odblokowaniu (przyszłe akcje/lokacje). */
+  planetSlots: { base: number; max: number };
   antimatter: {
     /** Przyrost bez budynku (także offline). */
     passivePerHour: number;

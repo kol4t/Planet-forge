@@ -125,7 +125,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.lastDrawn = { yaw, pitch };
   }
 
-  /** Budowle jako świecące punkty po widocznej stronie planety. */
+  /**
+   * Budowle jako kwadratowe „piksele” wyrównane do siatki pikseli planety (styl pixel-art).
+   * Plac budowy: złota ramka, którą wypełnia postęp od dołu.
+   */
   private drawStructures(): void {
     if (!this.colony || !this.levels) return;
     const { cx, cy: centerY, r } = this.focus;
@@ -135,6 +138,13 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const cp = Math.cos(pitch);
     const sp = Math.sin(pitch);
     const ctx = this.ctx;
+    // Rozmiar jednego piksela planety na ekranie i przyciąganie do jego siatki.
+    const pixel = (2 * r) / BUFFER;
+    const left = cx - r;
+    const top = centerY - r;
+    const snapX = (x: number) => left + Math.floor((x - left) / pixel) * pixel;
+    const snapY = (y: number) => top + Math.floor((y - top) / pixel) * pixel;
+    const cell = pixel * 2; // budowla = 2 × 2 piksele planety
     const toScreen = ([px, py, pz]: readonly [number, number, number]) => {
       // Planeta → ekran (obrót, potem pochylenie).
       const sx = px * cy + pz * sy;
@@ -149,29 +159,25 @@ export class CanvasPlanetFallback implements PlanetDisplay {
         const p = toScreen(slots[i]!.dir);
         if (p.depth < 0.08) continue;
         ctx.globalAlpha = Math.min(1, p.depth * 2.5);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(1.5, r * 0.012), 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(snapX(p.x - pixel / 2), snapY(p.y - pixel / 2), cell, cell);
       }
     }
-    // Budowa: pulsujący pierścień, który domyka się wraz z postępem.
     const site = this.site;
     const siteSlots = site && this.colony.slots[site.building];
     if (site && siteSlots?.length) {
       const index = Math.max(0, Math.min(visibleStructures(site.targetLevel), siteSlots.length) - 1);
       const p = toScreen(siteSlots[index]!.dir);
       if (p.depth >= 0.08) {
-        const radius = Math.max(5, r * 0.03);
-        ctx.strokeStyle = '#e6c77a';
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.3;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-        ctx.stroke();
+        const size = pixel * 4;
+        const x = snapX(p.x - size / 2);
+        const y = snapY(p.y - size / 2);
+        const filled = Math.round(Math.max(0.05, site.progress) * 4) * pixel;
         ctx.globalAlpha = 0.65 + 0.35 * Math.sin(performance.now() / 250);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.05, site.progress));
-        ctx.stroke();
+        ctx.strokeStyle = '#e6c77a';
+        ctx.lineWidth = Math.max(1, pixel * 0.5);
+        ctx.strokeRect(x, y, size, size);
+        ctx.fillStyle = '#e6c77a';
+        ctx.fillRect(x, y + size - filled, size, filled);
       }
     }
     ctx.globalAlpha = 1;

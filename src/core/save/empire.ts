@@ -1,0 +1,105 @@
+// Zapis „imperium”: kilka miejsc (na razie planety; później księżyce, stacje…),
+// aktywne miejsce i wspólny portfel antymaterii. Czysty TypeScript.
+import { BALANCE } from '../../data/balance.ts';
+import type { EconomyState } from '../types.ts';
+import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
+
+export const EMPIRE_VERSION = 2;
+export const EMPIRE_KEY = 'planet-forge.empire.v1';
+
+export type PlanetRef = SaveData['planet'];
+
+/** Rodzaj miejsca. Na razie tylko planeta; nowe rodzaje dopisujemy tutaj. */
+export type SlotKind = 'planet';
+
+export interface SlotSave {
+  kind: SlotKind;
+  planet: PlanetRef;
+  /** Gospodarka miejsca. Antymateria NIE jest tu trzymana (portfel wspólny). */
+  economy: EconomyState;
+}
+
+export interface EmpireSave {
+  saveVersion: number;
+  /** Indeks aktywnego miejsca w `slots`. */
+  active: number;
+  /** Ile miejsc jest odblokowanych (base..max z balansu). */
+  unlockedSlots: number;
+  /** Wspólna antymateria całego imperium. */
+  antimatter: number;
+  slots: SlotSave[];
+}
+
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+export function serializeEmpire(empire: Omit<EmpireSave, 'saveVersion'>): string {
+  return JSON.stringify({ ...empire, saveVersion: EMPIRE_VERSION });
+}
+
+/** Odczyt z walidacją (null = uszkodzony lub obcy zapis). */
+export function deserializeEmpire(raw: string | null): EmpireSave | null {
+  if (!raw) return null;
+  let data: any;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!data || data.saveVersion !== EMPIRE_VERSION || !Array.isArray(data.slots)) return null;
+  const { base, max } = BALANCE.planetSlots;
+  const unlocked = isNum(data.unlockedSlots) && Number.isInteger(data.unlockedSlots) ? data.unlockedSlots : base;
+  if (unlocked < base || unlocked > max) return null;
+  if (data.slots.length === 0 || data.slots.length > unlocked) return null;
+  const slots: SlotSave[] = [];
+  for (const raw of data.slots) {
+    if (raw?.kind !== 'planet') return null;
+    const planet = parsePlanetRef(raw.planet);
+    const economy = parseEconomy(raw.economy);
+    if (!planet || !economy) return null;
+    slots.push({ kind: 'planet', planet, economy: { ...economy, antimatter: 0 } });
+  }
+  if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;
+  if (!isNum(data.antimatter) || data.antimatter < 0) return null;
+  return { saveVersion: EMPIRE_VERSION, active: data.active, unlockedSlots: unlocked, antimatter: data.antimatter, slots };
+}
+
+/** Zapis jednej planety (v0.1–0.6) → imperium z jednym miejscem; antymateria trafia do portfela. */
+export function empireFromLegacy(save: SaveData): EmpireSave {
+  return {
+    saveVersion: EMPIRE_VERSION,
+    active: 0,
+    unlockedSlots: BALANCE.planetSlots.base,
+    antimatter: save.economy.antimatter,
+    slots: [{ kind: 'planet', planet: save.planet, economy: { ...save.economy, antimatter: 0 } }],
+  };
+}
+
+/** Czy da się dodać kolejną planetę. */
+export function hasFreeSlot(used: number, unlocked: number): boolean {
+  return used < unlocked;
+}
+
+// Bezpieczny dostęp do localStorage (tryb prywatny Safari może rzucać wyjątki).
+
+export function loadEmpire(): EmpireSave | null {
+  try {
+    const storage = globalThis.localStorage;
+    if (!storage) return null;
+    const empire = deserializeEmpire(storage.getItem(EMPIRE_KEY));
+    if (empire) return empire;
+    // Przejście ze starego zapisu jednej planety (stary klucz zostaje jako kopia zapasowa).
+    const legacy = deserialize(storage.getItem(SAVE_KEY));
+    return legacy ? empireFromLegacy(legacy) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeEmpire(empire: Omit<EmpireSave, 'saveVersion'>): boolean {
+  try {
+    globalThis.localStorage?.setItem(EMPIRE_KEY, serializeEmpire(empire));
+    return true;
+  } catch {
+    return false;
+  }
+}

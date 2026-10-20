@@ -1,6 +1,6 @@
 # Planet Forge
 
-Przeglądarkowa gra strategiczna science-fiction: jedna planeta 3D generowana z seeda, kolonia rosnąca na jej powierzchni i pierwsza pętla ekonomii. Wersja **0.6**, projektowana pod **iPada i Safari**.
+Przeglądarkowa gra strategiczna science-fiction: jedna planeta 3D generowana z seeda, kolonia rosnąca na jej powierzchni i pierwsza pętla ekonomii. Wersja **0.7**, projektowana pod **iPada i Safari**.
 
 ## Jak zagrać
 
@@ -64,5 +64,14 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 30. Po wgraniu nowej wersji na hosting i ponownym otwarciu aplikacji: pasek „Dostępna aktualizacja” → „Odśwież” → gra przeładowuje się w nowej wersji, postęp zostaje.
 31. **Nowe w 0.6.1:** gra z ikony uruchamia się i działa ponad minutę bez restartu iPada.
 32. **Nowe w 0.6.1:** „Ustawienia” → „Grafika”: „Tryb 2D” przełącza na planetę 2D (gra się przeładowuje), „Włącz 3D” wraca. „Diagnostyka” kopiuje raport do schowka.
+
+### Od 0.7: planeta 2D, kilka planet
+
+33. Start: pikselowa planeta 2D z obrotem palcem; budowle to kolorowe kwadraciki, plac budowy — złota ramka wypełniająca się od dołu.
+34. „Ustawienia” → „Włącz 3D” → gra przeładowuje się z planetą 3D; „Wróć do 2D” wraca.
+35. „Planety” → lista z Twoją planetą („Tu jesteś”) i „Zajęte miejsca: 1 z 5”. „Nowa planeta” → nowa planeta, stara zostaje na liście.
+36. „Planety” → „Przejdź” przy starej planecie → wraca z całym postępem (+ to, co wyprodukowała w międzyczasie). Antymateria jest wspólna.
+37. „Usuń” przy nieaktywnej planecie → „Na pewno?” → drugie dotknięcie usuwa. Przy 5 planetach „Nowa planeta” jest wyszarzona.
+38. „Ustawienia” → „Diagnostyka” po minucie gry: wiersz „płynność (ostatnia minuta)”.
 
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

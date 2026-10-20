@@ -27,12 +27,12 @@ export interface SceneDeps {
 
 /** Tryb grafiki i diagnostyka startu (z app/bootGuard). */
 export interface GraphicsInfo {
-  /** Gra działa w widoku 2D z wyboru albo po awarii. */
+  /** Gra działa w widoku 2D (domyślnie, z wyboru albo po awarii 3D). */
   safeMode: boolean;
   crashedLastTime: boolean;
   active: 'webgl' | 'canvas2d';
   /** Zmiana trybu zapisuje grę i przeładowuje stronę. */
-  setMode(mode: 'auto' | '2d'): void;
+  setMode(mode: '2d' | '3d'): void;
   diagnostics(): string;
 }
 
@@ -146,7 +146,7 @@ export class PlanetScene extends Phaser.Scene {
 
     if (this.deps.graphics.crashedLastTime) {
       this.showToast(
-        'Poprzednie uruchomienie się nie powiodło — gra działa w trybie bezpiecznym (2D). Szczegóły: Ustawienia.',
+        'Poprzednie uruchomienie się nie powiodło — gra działa na planecie 2D. Szczegóły: Ustawienia → Diagnostyka.',
         'info',
         6000,
       );
@@ -403,9 +403,10 @@ export class PlanetScene extends Phaser.Scene {
         wordWrap: { width: this.px(box.w - 2 * pad) },
         lineSpacing: this.px(3),
       });
-      this.addButton(box.x + pad, box.y + box.h - pad - buttonH, box.w - 2 * pad, buttonH, 'Ustawienia', 'secondary', () =>
-        this.openSettings(),
-      );
+      const half = (box.w - 2 * pad - this.s(10)) / 2;
+      const by = box.y + box.h - pad - buttonH;
+      this.addButton(box.x + pad, by, half, buttonH, 'Planety', 'secondary', () => this.openPlanets());
+      this.addButton(box.x + pad + half + this.s(10), by, half, buttonH, 'Ustawienia', 'secondary', () => this.openSettings());
     } else {
       const colW = (box.w - 3 * pad) / 2;
       let y = box.y + this.s(12);
@@ -416,9 +417,12 @@ export class PlanetScene extends Phaser.Scene {
       this.text(box.x + pad, y, planet.category, 11, COLORS.faint, {
         wordWrap: { width: this.px(colW) },
       });
-      const btnW = Math.min(colW, this.s(150));
-      const btnH = Math.max(36, this.s(32));
-      this.addButton(box.x + pad, box.y + box.h - this.s(10) - btnH, btnW, btnH, 'Ustawienia', 'secondary', () => this.openSettings(), 13);
+      const btnGap = this.s(8);
+      const btnW = (Math.min(colW, this.s(300)) - btnGap) / 2;
+      const btnH = 44;
+      const by = box.y + box.h - this.s(10) - btnH;
+      this.addButton(box.x + pad, by, btnW, btnH, 'Planety', 'secondary', () => this.openPlanets(), 13);
+      this.addButton(box.x + pad + btnW + btnGap, by, btnW, btnH, 'Ustawienia', 'secondary', () => this.openSettings(), 13);
       const x2 = box.x + 2 * pad + colW;
       let y2 = box.y + this.s(12);
       this.text(x2, y2, g.environment.label, 14, COLORS.text, { fontStyle: '600' });
@@ -744,6 +748,124 @@ export class PlanetScene extends Phaser.Scene {
     });
   }
 
+  /** Dwa dotknięcia „Usuń” w ciągu 3 s: { indeks planety, do kiedy czekamy }. */
+  private removeArmed: { index: number; until: number } | null = null;
+
+  /** Okno „Twoje planety”: lista miejsc, przejście, usuwanie, nowa planeta. */
+  private openPlanets(): void {
+    this.closeOverlay();
+    const controller = this.deps.controller;
+    const viewport = this.deps.getViewport();
+    const W = this.px(viewport.width);
+    const H = this.px(viewport.height);
+    const shade = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0).setInteractive();
+    shade.on('pointerup', () => this.closeOverlay());
+    const w = this.px(Math.min(viewport.width - 32, this.s(480)));
+    const pad = this.px(this.s(18));
+    const gap = this.px(this.s(10));
+    const buttonH = this.px(44);
+    const text = (x: number, y: number, content: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}) =>
+      this.add.text(x, y, content, { fontFamily: FONTS.body, fontSize: `${this.px(this.s(size))}px`, color, ...extra });
+
+    const items: Phaser.GameObjects.GameObject[] = [];
+    let y = pad;
+    const title = text(pad, y, 'Twoje planety', 22, COLORS.gold, { fontFamily: FONTS.serif });
+    y += title.height + this.px(4);
+    const slots = controller.slotInfo;
+    const more = slots.unlocked < slots.max ? ` · do ${slots.max} po odblokowaniu (wkrótce)` : '';
+    const sub = text(pad, y, `Zajęte miejsca: ${slots.used} z ${slots.unlocked}${more}`, 12.5, COLORS.muted, {
+      wordWrap: { width: w - 2 * pad },
+    });
+    y += sub.height + gap;
+    items.push(title, sub);
+
+    const now = Date.now();
+    const goW = this.px(this.s(104));
+    const delW = this.px(this.s(76));
+    for (const p of controller.planets()) {
+      const rowH = this.px(this.s(64));
+      const row = this.add
+        .graphics()
+        .fillStyle(p.active ? COLORS.buttonIdle : COLORS.panel, 1)
+        .fillRoundedRect(pad, y, w - 2 * pad, rowH, this.px(10))
+        .lineStyle(this.px(1), p.active ? COLORS.goldHex : COLORS.panelBorder, p.active ? 0.8 : 1)
+        .strokeRoundedRect(pad, y, w - 2 * pad, rowH, this.px(10));
+      // Aktywna planeta nie ma przycisków — tekst może zająć więcej miejsca.
+      const textW = w - 2 * pad - (p.active ? this.px(this.s(90)) : goW + delW + gap) - 3 * gap;
+      const name = text(pad + gap, y + this.px(this.s(9)), p.name, 15, p.active ? COLORS.gold : COLORS.text, {
+        fontStyle: '600',
+        fixedWidth: textW,
+      });
+      const detail = `${p.category} · suma poziomów ${p.totalLevels}${p.building ? ` · buduje: ${p.building}` : ''}`;
+      const info = text(pad + gap, y + this.px(this.s(31)), detail, 11.5, COLORS.muted, {
+        wordWrap: { width: textW },
+        maxLines: 2,
+      });
+      items.push(row, name, info);
+      const by = y + (rowH - buttonH) / 2;
+      const goX = w - pad - gap - goW - delW - gap;
+      if (p.active) {
+        items.push(text(w - pad - gap, y + rowH / 2, 'Tu jesteś', 13, COLORS.gold, { fontStyle: '600' }).setOrigin(1, 0.5));
+      } else {
+        const go = new Button(this, goX, by, goW, buttonH, 'Przejdź', this.dpr, () => {
+          const result = controller.switchPlanet(p.index);
+          this.closeOverlay();
+          this.showToast(result.message, result.ok ? 'ok' : 'error');
+        }, this.s(14)).setStyle('primary');
+        const armed = this.removeArmed?.index === p.index && now <= this.removeArmed.until;
+        const del = new Button(this, w - pad - gap - delW, by, delW, buttonH, armed ? 'Na pewno?' : 'Usuń', this.dpr, () => {
+          if (!armed) {
+            // Pierwsze dotknięcie tylko pyta — postęp usuniętej planety przepada.
+            this.removeArmed = { index: p.index, until: Date.now() + 3000 };
+          } else {
+            this.removeArmed = null;
+            const result = controller.removePlanet(p.index);
+            this.showToast(result.message, result.ok ? 'info' : 'error');
+          }
+          this.openPlanets();
+        }, this.s(armed ? 12 : 14)).setStyle(armed ? 'danger' : 'secondary');
+        items.push(go, del);
+      }
+      y += rowH + gap;
+    }
+
+    y += this.px(4);
+    const free = slots.used < slots.unlocked;
+    const half = (w - 2 * pad - gap) / 2;
+    const add = new Button(this, pad, y, half, buttonH, 'Nowa planeta', this.dpr, () => {
+      const result = controller.addPlanet();
+      this.closeOverlay();
+      this.showToast(result.message, result.ok ? 'ok' : 'error', 3000);
+    }, this.s(15)).setStyle(free ? 'primary' : 'disabled');
+    const close = new Button(this, pad + half + gap, y, half, buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle(
+      'secondary',
+    );
+    y += buttonH + this.px(8);
+    const note = text(
+      pad,
+      y,
+      free
+        ? 'Nowa planeta trafia na wolne miejsce. Pozostałe dalej produkują (jak podczas nieobecności, do 8 h).'
+        : 'Wszystkie miejsca zajęte — usuń planetę, żeby odkryć nową.',
+      11.5,
+      COLORS.faint,
+      { wordWrap: { width: w - 2 * pad } },
+    );
+    y += note.height + pad;
+    items.push(add, close, note);
+
+    const h = y;
+    const box = this.add
+      .graphics()
+      .fillStyle(COLORS.panel, 0.98)
+      .fillRoundedRect(0, 0, w, h, this.px(16))
+      .lineStyle(this.px(1), COLORS.goldHex, 0.7)
+      .strokeRoundedRect(0, 0, w, h, this.px(16));
+    const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
+    const dialog = this.add.container((W - w) / 2, Math.max(this.px(8), (H - h) / 2), [box, blocker, ...items]);
+    this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+  }
+
   private closeOverlay(): void {
     this.overlay?.destroy(true);
     this.overlay = undefined;
@@ -781,7 +903,7 @@ export class PlanetScene extends Phaser.Scene {
     const saveHint = this.add.text(
       pad,
       y,
-      'Gra w Safari i gra z ekranu początkowego mają osobną pamięć. Skopiuj zapis w jednej i wczytaj w drugiej (albo zachowaj kopię w notatkach).',
+      'Zapis obejmuje wszystkie Twoje planety. Gra w Safari i gra z ekranu początkowego mają osobną pamięć — skopiuj zapis w jednej i wczytaj w drugiej (albo zachowaj kopię w notatkach).',
       font(13, COLORS.muted),
     );
     y += saveHint.height + gap;
@@ -790,13 +912,6 @@ export class PlanetScene extends Phaser.Scene {
       'secondary',
     );
     y += buttonH + gap * 1.5;
-    const expLabel = this.add.text(pad, y, 'EKSPEDYCJA', font(11, COLORS.muted, { fontStyle: '600' }));
-    y += expLabel.height + this.px(6);
-    const newPlanet = new Button(this, pad, y, w - 2 * pad, buttonH, 'Nowa planeta…', this.dpr, () => {
-      this.closeOverlay();
-      this.confirmNewPlanet();
-    }, this.s(15)).setStyle('secondary');
-    y += buttonH + gap * 1.5;
     const g = this.deps.graphics;
     const gfxLabel = this.add.text(pad, y, 'GRAFIKA', font(11, COLORS.muted, { fontStyle: '600' }));
     y += gfxLabel.height + this.px(4);
@@ -804,10 +919,10 @@ export class PlanetScene extends Phaser.Scene {
       pad,
       y,
       g.active === 'webgl'
-        ? 'Planeta 3D. Jeśli gra się zamyka albo iPad się restartuje, włącz tryb bezpieczny (2D).'
+        ? 'Planeta 3D (opcja dodatkowa). Jeśli gra działa wolno, zamyka się albo iPad się restartuje, wróć do 2D.'
         : g.crashedLastTime
-          ? 'Tryb bezpieczny (2D) — poprzednie uruchomienie się nie powiodło. Skopiuj diagnostykę i prześlij ją.'
-          : 'Tryb bezpieczny (2D): planeta bez efektów 3D, mniejsze zużycie grafiki.',
+          ? 'Planeta 2D — poprzednie uruchomienie się nie powiodło. Skopiuj diagnostykę i prześlij ją.'
+          : 'Planeta 2D (domyślnie): lekka, pikselowa, z obrotem palcem. Model 3D to opcja dodatkowa — na starszych iPadach może działać wolniej.',
       font(13, COLORS.muted),
     );
     y += gfxHint.height + gap;
@@ -817,9 +932,9 @@ export class PlanetScene extends Phaser.Scene {
       y,
       halfW,
       buttonH,
-      g.active === 'webgl' ? 'Tryb 2D' : 'Włącz 3D',
+      g.active === 'webgl' ? 'Wróć do 2D' : 'Włącz 3D',
       this.dpr,
-      () => g.setMode(g.active === 'webgl' ? '2d' : 'auto'),
+      () => g.setMode(g.active === 'webgl' ? '2d' : '3d'),
       this.s(15),
     ).setStyle('secondary');
     const diag = new Button(this, pad + halfW + gap, y, halfW, buttonH, 'Diagnostyka', this.dpr, () => this.copyDiagnostics(), this.s(15)).setStyle(
@@ -831,7 +946,7 @@ export class PlanetScene extends Phaser.Scene {
       'primary',
     );
     y += buttonH + pad;
-    items.push(title, saveLabel, saveHint, copy, load, expLabel, newPlanet, gfxLabel, gfxHint, toggle, diag, version, closeBtn);
+    items.push(title, saveLabel, saveHint, copy, load, gfxLabel, gfxHint, toggle, diag, version, closeBtn);
 
     const h = y;
     const x = (W - w) / 2;
@@ -885,7 +1000,7 @@ export class PlanetScene extends Phaser.Scene {
   private loadSave(): void {
     openTextPanel({
       title: 'Wczytaj zapis',
-      hint: 'Wklej tekst zapisu (zaczyna się od „PF1:”). Obecna planeta i postęp zostaną zastąpione.',
+      hint: 'Wklej tekst zapisu (zaczyna się od „PF2:” albo starszego „PF1:”). Wszystkie obecne planety i postęp zostaną zastąpione.',
       confirmLabel: 'Wczytaj',
       onConfirm: (text) => {
         const result = this.deps.controller.importSave(text);
@@ -895,67 +1010,5 @@ export class PlanetScene extends Phaser.Scene {
         return null;
       },
     });
-  }
-
-  private confirmNewPlanet(): void {
-    if (this.overlay) return;
-    const viewport = this.deps.getViewport();
-    const W = this.px(viewport.width);
-    const H = this.px(viewport.height);
-    const shade = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0).setInteractive();
-    const w = this.px(Math.min(viewport.width - 32, this.s(420)));
-    const h = this.px(this.s(220));
-    const x = (W - w) / 2;
-    const y = (H - h) / 2;
-    const box = this.add
-      .graphics()
-      .fillStyle(COLORS.panel, 0.98)
-      .fillRoundedRect(x, y, w, h, this.px(16))
-      .lineStyle(this.px(1), COLORS.goldHex, 0.7)
-      .strokeRoundedRect(x, y, w, h, this.px(16));
-    const pad = this.px(this.s(20));
-    const title = this.add.text(x + pad, y + pad, 'Nowa ekspedycja?', {
-      fontFamily: FONTS.serif,
-      fontSize: `${this.px(this.s(22))}px`,
-      color: COLORS.gold,
-    });
-    const body = this.add.text(
-      x + pad,
-      y + pad + this.px(this.s(38)),
-      'Zostanie wygenerowana nowa planeta z losowego seeda — także jej typ.\nObecny postęp i zasoby zostaną utracone.',
-      {
-        fontFamily: FONTS.body,
-        fontSize: `${this.px(this.s(13.5))}px`,
-        color: COLORS.muted,
-        wordWrap: { width: w - 2 * pad },
-        lineSpacing: this.px(4),
-      },
-    );
-    const buttonH = this.px(Math.max(44, this.s(44)));
-    const buttonW = (w - 3 * pad) / 2;
-    const close = () => {
-      this.overlay?.destroy(true);
-      this.overlay = undefined;
-    };
-    const cancel = new Button(this, x + pad, y + h - pad - buttonH, buttonW, buttonH, 'Anuluj', this.dpr, close, this.s(15)).setStyle(
-      'secondary',
-    );
-    const confirm = new Button(
-      this,
-      x + 2 * pad + buttonW,
-      y + h - pad - buttonH,
-      buttonW,
-      buttonH,
-      'Generuj',
-      this.dpr,
-      () => {
-        close();
-        this.deps.controller.startNewPlanet();
-        const planet = this.deps.controller.planet;
-        this.showToast(`Nowa planeta: ${planet.displayName} (${planet.category})`, 'ok');
-      },
-      this.s(15),
-    ).setStyle('primary');
-    this.overlay = this.add.container(0, 0, [shade, box, title, body, cancel, confirm]).setDepth(100);
   }
 }

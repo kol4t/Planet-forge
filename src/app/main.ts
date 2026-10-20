@@ -4,6 +4,7 @@ import { CanvasPlanetFallback } from '../planet-renderer/CanvasPlanetFallback.ts
 import type { PlanetDisplay } from '../planet-renderer/PlanetDisplay.ts';
 import { hasWebGL, PlanetView } from '../planet-renderer/PlanetView.ts';
 import { BootGuard } from './bootGuard.ts';
+import { FpsMeter } from './fpsMeter.ts';
 import { GameController } from './GameController.ts';
 import { registerServiceWorker } from './pwa.ts';
 
@@ -85,6 +86,13 @@ function start(boot: BootGuard): void {
   boot.step('planeta gotowa');
 
   const viewport = getViewport();
+  // Licznik płynności: osobna, bardzo lekka pętla klatek (tylko liczy).
+  const fps = new FpsMeter();
+  const countFrame = (time: number) => {
+    fps.frame(time);
+    requestAnimationFrame(countFrame);
+  };
+  requestAnimationFrame(countFrame);
   const scene = new PlanetScene({
     controller,
     display,
@@ -94,7 +102,7 @@ function start(boot: BootGuard): void {
       safeMode,
       crashedLastTime: boot.crashedLastTime,
       active: display.kind,
-      setMode: (mode) => {
+      setMode: (mode: '2d' | '3d') => {
         boot.setGraphics(mode);
         controller.save();
         location.reload();
@@ -107,6 +115,8 @@ function start(boot: BootGuard): void {
           okno: `${viewport.width}×${viewport.height}`,
           'z ekranu początkowego': isStandalone() ? 'tak' : 'nie',
           'grafika teraz': display.kind,
+          'płynność (ostatnia minuta)': fps.describe(),
+          planety: `${controller.slotInfo.used} z ${controller.slotInfo.unlocked}`,
         }),
     },
   });

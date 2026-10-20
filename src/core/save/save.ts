@@ -2,6 +2,7 @@ import { BALANCE } from '../../data/balance.ts';
 import type { BuildingId, BuildingLevels, Construction, EconomyState } from '../types.ts';
 
 export const SAVE_VERSION = 1;
+/** Klucz zapisu jednej planety z wersji 0.1–0.6 — od 0.7 tylko odczytywany przy przejściu na imperium (`empire.ts`). */
 export const SAVE_KEY = 'planet-forge.save.v1';
 
 export interface SaveData {
@@ -26,19 +27,23 @@ export function deserialize(raw: string | null): SaveData | null {
     return null;
   }
   if (!data || data.saveVersion !== SAVE_VERSION) return null;
-  const planet = data.planet;
-  const economy = data.economy;
-  if (
-    !planet ||
-    typeof planet.definitionId !== 'string' ||
-    typeof planet.seed !== 'string' ||
-    !isNum(planet.generatorVersion) ||
-    !economy ||
-    !economy.stock ||
-    !isNum(economy.stock.metal) ||
-    !isNum(economy.stock.crystal) ||
-    !isNum(economy.lastUpdate)
-  ) {
+  const planet = parsePlanetRef(data.planet);
+  const economy = parseEconomy(data.economy);
+  if (!planet || !economy) return null;
+  return { saveVersion: SAVE_VERSION, planet, economy };
+}
+
+/** Odnośnik do planety (definicja + seed + wersja generatora) albo null. */
+export function parsePlanetRef(raw: any): SaveData['planet'] | null {
+  if (!raw || typeof raw.definitionId !== 'string' || typeof raw.seed !== 'string' || !isNum(raw.generatorVersion)) {
+    return null;
+  }
+  return { definitionId: raw.definitionId, seed: raw.seed, generatorVersion: raw.generatorVersion };
+}
+
+/** Stan gospodarki z walidacją (brakujące nowsze pola → wartości startowe) albo null. */
+export function parseEconomy(economy: any): EconomyState | null {
+  if (!economy || !economy.stock || !isNum(economy.stock.metal) || !isNum(economy.stock.crystal) || !isNum(economy.lastUpdate)) {
     return null;
   }
   const levels = {} as BuildingLevels;
@@ -55,16 +60,12 @@ export function deserialize(raw: string | null): SaveData | null {
     if (!construction) return null;
   }
   return {
-    saveVersion: SAVE_VERSION,
-    planet: { definitionId: planet.definitionId, seed: planet.seed, generatorVersion: planet.generatorVersion },
-    economy: {
-      stock: { metal: Math.max(0, economy.stock.metal), crystal: Math.max(0, economy.stock.crystal) },
-      levels,
-      lastUpdate: economy.lastUpdate,
-      construction,
-      // Zapisy sprzed antymaterii dostają zapas startowy.
-      antimatter: isNum(economy.antimatter) ? Math.max(0, economy.antimatter) : BALANCE.antimatter.startingStock,
-    },
+    stock: { metal: Math.max(0, economy.stock.metal), crystal: Math.max(0, economy.stock.crystal) },
+    levels,
+    lastUpdate: economy.lastUpdate,
+    construction,
+    // Zapisy sprzed antymaterii dostają zapas startowy.
+    antimatter: isNum(economy.antimatter) ? Math.max(0, economy.antimatter) : BALANCE.antimatter.startingStock,
   };
 }
 
@@ -92,31 +93,4 @@ function parseConstruction(raw: any, levels: BuildingLevels): Construction | nul
     finishesAt: raw.finishesAt,
     cost: { metal: raw.cost.metal, crystal: raw.cost.crystal },
   };
-}
-
-// Bezpieczny dostęp do localStorage (tryb prywatny Safari może rzucać wyjątki).
-
-export function loadSave(): SaveData | null {
-  try {
-    return deserialize(globalThis.localStorage?.getItem(SAVE_KEY) ?? null);
-  } catch {
-    return null;
-  }
-}
-
-export function writeSave(data: Omit<SaveData, 'saveVersion'>): boolean {
-  try {
-    globalThis.localStorage?.setItem(SAVE_KEY, serialize(data));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function clearSave(): void {
-  try {
-    globalThis.localStorage?.removeItem(SAVE_KEY);
-  } catch {
-    // brak dostępu do pamięci — nic do usunięcia
-  }
 }

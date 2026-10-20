@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createEconomy } from '../src/core/economy/economy.ts';
-import { deserialize, loadSave, serialize, writeSave } from '../src/core/save/save.ts';
+import { loadEmpire, writeEmpire, empireFromLegacy } from '../src/core/save/empire.ts';
+import { deserialize, serialize } from '../src/core/save/save.ts';
 
 const data = {
   planet: { definitionId: 'ice', seed: 'PF-SAVE-TEST', generatorVersion: 1 },
@@ -88,8 +89,8 @@ test('brak localStorage (tryb prywatny) nie wywraca gry', () => {
     },
   });
   try {
-    assert.equal(writeSave(data), false);
-    assert.equal(loadSave(), null);
+    assert.equal(writeEmpire(empireFromLegacy({ saveVersion: 1, ...data })), false);
+    assert.equal(loadEmpire(), null);
   } finally {
     if (original) Object.defineProperty(globalThis, 'localStorage', original);
     else delete (globalThis as { localStorage?: unknown }).localStorage;
