@@ -4,6 +4,7 @@ Przeglądarkowa gra strategiczna science-fiction: jedna planeta 3D generowana z 
 
 ## Jak zagrać
 
+- **Gra online: https://kol4t.github.io/Planet-forge/** (publikowana automatycznie z gałęzi `main`).
 - Gra to folder `dist/` — wrzuć go w całości na hosting https (np. GitHub Pages, Cloudflare Pages). Na iPadzie otwórz adres w Safari → „Udostępnij” → „Do ekranu początkowego”: gra otwiera się z ikony na pełnym ekranie i działa offline.
 - Sam plik `dist/index.html` też da się otworzyć w przeglądarce (bez trybu offline i ikony).
 - Safari i aplikacja z ekranu początkowego mają osobną pamięć. Postęp przenosisz w „Ustawienia” → „Kopiuj zapis” / „Wczytaj zapis”.

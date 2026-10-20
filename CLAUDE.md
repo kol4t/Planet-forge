@@ -87,6 +87,7 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 ## Git
 
 - Małe, logiczne commity z opisem po polsku. Przed większą zmianą `git status`.
+- **`main` = gra opublikowana** (każde wypchnięcie do `main` publikuje grę na GitHub Pages). Pracuj na gałęzi `claude/…`; do `main` scalaj dopiero po akceptacji właściciela.
 - Nie twórz ani nie podpinaj zdalnego repozytorium GitHub bez potwierdzenia adresu przez właściciela.
 - Istotne decyzje architektoniczne dopisuj do `docs/decisions.md`.
 
@@ -97,6 +98,6 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 3. ~~Magazyny~~ (v0.4), ~~antymateria~~ (v0.5). Zakup antymaterii za pieniądze — dopiero z backendem.
 4. **Typy planet z Lore Bible** — podmiana roboczych danych w `src/data/planets.ts` na kanon (mechanizm już działa dla 5 typów).
 5. **Wizualia** — pinch-zoom planety, pierścienie/księżyc jako opcja w danych, lepsze shadery (po pomiarze FPS na iPadzie).
-6. ~~PWA~~ (v0.6) → **hosting https** (decyzja właściciela: GitHub Pages lub Cloudflare Pages).
+6. ~~PWA~~ (v0.6), ~~hosting~~: GitHub Pages `https://kol4t.github.io/Planet-forge/`, automatycznie z `main` (`.github/workflows/pages.yml`).
 
 Dopiero po stabilnym MVP: badania, anomalie, dawne cywilizacje, a na końcu backend/konta/multiplayer.
