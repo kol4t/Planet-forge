@@ -14,6 +14,8 @@ export const COLORS = {
   goldHex: 0xd8b463,
   stone: '#b3a58b',
   stoneHex: 0xb3a58b,
+  antimatter: '#b9a8f0',
+  antimatterHex: 0xb9a8f0,
   danger: '#e08a6d',
   dangerHex: 0xe08a6d,
   buttonIdle: 0x1a2b2d,

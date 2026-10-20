@@ -14,7 +14,7 @@ import {
 import { facingAngles } from '../src/planet-renderer/PlanetDisplay.ts';
 import { createSurfaceSampler } from '../src/planet-renderer/surface.ts';
 
-const IDS: BuildingId[] = ['metalMine', 'crystalMine', 'powerPlant', 'storage'];
+const IDS: BuildingId[] = ['metalMine', 'crystalMine', 'powerPlant', 'storage', 'antimatterCollector'];
 
 test('kolejny poziom = kolejna budowla, potem budowle rosną', () => {
   assert.equal(visibleStructures(0), 0);

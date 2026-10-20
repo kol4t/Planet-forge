@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { GameController } from '../../app/GameController.ts';
-import { buildSeconds, capacityAtLevel, fitsInStorage, scaled } from '../../core/economy/economy.ts';
+import { antimatterAmount, buildSeconds, capacityAtLevel, fitsInStorage, scaled } from '../../core/economy/economy.ts';
 import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
@@ -49,6 +49,10 @@ interface ResourceTexts {
   crystalRate: Phaser.GameObjects.Text;
   energy: Phaser.GameObjects.Text;
   energyNote: Phaser.GameObjects.Text;
+  antimatter: Phaser.GameObjects.Text;
+  antimatterNote: Phaser.GameObjects.Text;
+  /** Czy notatki (np. „+23/min”) mieszczą się obok wartości. */
+  notes: boolean;
 }
 
 type ToastKind = 'ok' | 'error' | 'info';
@@ -154,7 +158,7 @@ export class PlanetScene extends Phaser.Scene {
   relayout(): void {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
-    const layout = computeLayout(viewport.width, viewport.height, viewport.safe);
+    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length);
     this.layoutState = layout;
     this.deps.display.resize(viewport.width, viewport.height);
     this.deps.display.setFocus(layout.planet.cx, layout.planet.cy, layout.planet.r);
@@ -214,7 +218,7 @@ export class PlanetScene extends Phaser.Scene {
     this.ui!.add([g, blocker]);
   }
 
-  private icon(kind: YieldId | 'storage', x: number, y: number, size: number): void {
+  private icon(kind: YieldId | 'storage' | 'antimatter', x: number, y: number, size: number): void {
     const g = this.add.graphics();
     const r = this.px(this.s(size));
     const cx = this.px(x);
@@ -227,6 +231,10 @@ export class PlanetScene extends Phaser.Scene {
         (_, i) => new V(cx + r * Math.cos((i * Math.PI) / 3 + Math.PI / 6), cy + r * Math.sin((i * Math.PI) / 3 + Math.PI / 6)),
       );
       g.fillPoints(hex, true);
+    } else if (kind === 'antimatter') {
+      // Pierścień z jądrem.
+      g.lineStyle(Math.max(1.5, r * 0.28), COLORS.antimatterHex, 1).strokeCircle(cx, cy, r * 0.95);
+      g.fillStyle(COLORS.antimatterHex, 1).fillCircle(cx, cy, r * 0.38);
     } else if (kind === 'storage') {
       // Skrzynia: kwadrat z poprzeczką.
       g.fillStyle(COLORS.stoneHex, 1).fillRect(cx - r, cy - r * 0.85, r * 2, r * 1.7);
@@ -280,9 +288,10 @@ export class PlanetScene extends Phaser.Scene {
         letterSpacing: 3,
       }).setOrigin(0, 0.5);
     }
-    const colW = (bar.w - titleW - this.s(8)) / 3;
+    const colW = (bar.w - titleW - this.s(8)) / 4;
+    const notes = colW >= 130;
     const valueSize = bar.w < 420 ? 15 : 19;
-    const column = (index: number, kind: YieldId, label: string) => {
+    const column = (index: number, kind: YieldId | 'antimatter', label: string) => {
       const x = bar.x + titleW + this.s(8) + index * colW;
       if (index > 0 || showTitle) {
         const divider = this.add
@@ -299,9 +308,12 @@ export class PlanetScene extends Phaser.Scene {
       const fillBar = { x: tx, y: bar.y + bar.h - this.s(9), w: Math.max(20, colW - this.s(36) - this.s(14)) };
       return { value, note, fillBar };
     };
+    // Wąskie kolumny (telefon) dostają skrócone etykiety.
+    const short = colW < 112;
     const metal = column(0, 'metal', 'METAL');
-    const crystal = column(1, 'crystal', 'KRYSZTAŁY');
+    const crystal = column(1, 'crystal', short ? 'KRYSZT.' : 'KRYSZTAŁY');
     const energy = column(2, 'energy', 'ENERGIA');
+    const antimatter = column(3, 'antimatter', short ? 'ANTYM.' : 'ANTYMATERIA');
     const fill = this.add.graphics();
     this.ui!.add(fill);
     this.res = {
@@ -313,6 +325,9 @@ export class PlanetScene extends Phaser.Scene {
       crystalRate: crystal.note,
       energy: energy.value,
       energyNote: energy.note,
+      antimatter: antimatter.value,
+      antimatterNote: antimatter.note,
+      notes,
     };
   }
 
@@ -405,17 +420,8 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   private buildBuildings(layout: Layout): void {
-    const area = layout.buildings;
-    const gap = this.s(10);
-    const count = BALANCE.buildings.length;
-    const cols = layout.cardColumns;
-    const rows = Math.ceil(count / cols);
-    const cardW = (area.w - gap * (cols - 1)) / cols;
-    const cardH = (area.h - gap * (rows - 1)) / rows;
     BALANCE.buildings.forEach((def, index) => {
-      const col = index % cols;
-      const row = Math.floor(index / cols);
-      const card: Rect = { x: area.x + col * (cardW + gap), y: area.y + row * (cardH + gap), w: cardW, h: cardH };
+      const card = layout.cards[index]!;
       this.panel(card);
       const narrow = card.w < 150;
       const pad = this.s(narrow ? 10 : 14);
@@ -481,9 +487,9 @@ export class PlanetScene extends Phaser.Scene {
 
   private onFinish(): void {
     this.cancelArmedUntil = 0;
-    // Sukces ogłasza onBuildComplete (komunikat + pokazanie budowli).
+    // onBuildComplete pokazuje budowlę; tu komunikat z ceną (np. „… gotowy (−1 antymateria)”).
     const result = this.deps.controller.finishNow();
-    if (!result.ok) this.showToast(result.message, 'error');
+    this.showToast(result.message, result.ok ? 'ok' : 'error', result.ok ? 3000 : 2200);
     this.refreshValues();
   }
 
@@ -513,9 +519,10 @@ export class PlanetScene extends Phaser.Scene {
     );
 
     if (this.res) {
+      const showNotes = this.res.notes;
       const pair = (value: Phaser.GameObjects.Text, note: Phaser.GameObjects.Text, v: string, n: string) => {
         value.setText(v);
-        note.setText(n);
+        note.setText(showNotes ? n : '');
         note.setX(value.x + value.width + this.px(this.s(6)));
         note.setY(value.y + value.height - note.height - this.px(this.s(2)));
       };
@@ -538,6 +545,8 @@ export class PlanetScene extends Phaser.Scene {
       );
       this.res.energy.setColor(balance >= 0 ? COLORS.text : COLORS.danger);
       this.res.energyNote.setColor(rates.efficiency < 1 ? COLORS.danger : COLORS.muted);
+      pair(this.res.antimatter, this.res.antimatterNote, formatInt(controller.economy.antimatter), `+${formatRate(rates.antimatterPerHour)}/h`);
+      this.res.antimatterNote.setColor(COLORS.antimatter);
     }
 
     const growth = BALANCE.levelGrowth;
@@ -545,7 +554,11 @@ export class PlanetScene extends Phaser.Scene {
       const def = BALANCE.buildings.find((b) => b.id === card.id)!;
       const level = controller.economy.levels[card.id];
       card.level.setText(`poz. ${level}`);
-      if (def.produces === 'storage') {
+      if (def.produces === 'antimatter') {
+        const gain = scaled(def.baseOutput, level + 1, growth) - scaled(def.baseOutput, level, growth);
+        const energyCost = scaled(def.baseEnergyUse, level + 1, growth) - scaled(def.baseEnergyUse, level, growth);
+        card.effect.setText(`Na poz. ${level + 1}: +${formatRate(gain)} antymaterii/h · −${formatRate(energyCost)} energii`);
+      } else if (def.produces === 'storage') {
         const next = capacityAtLevel(level + 1);
         card.effect.setText(`Na poz. ${level + 1}: pojemność ${formatInt(next)} (+${formatInt(next - capacityAtLevel(level))})`);
       } else {
@@ -563,26 +576,39 @@ export class PlanetScene extends Phaser.Scene {
       const { x: bx, w: bw, gap: bgap } = card.buttons;
       const building = construction?.building === card.id;
       if (building) {
-        // Ten budynek się buduje: odliczanie, pasek postępu, „Ukończ teraz” (do poz. 5) i anulowanie.
+        // Ten budynek się buduje: odliczanie, pasek, „Ukończ teraz” (do poz. 5 za darmo,
+        // wyżej za antymaterię) i anulowanie.
         const target = construction!.targetLevel;
-        const free = target <= BALANCE.freeFinishMaxLevel;
+        const price = controller.finishPrice(now);
+        const have = Math.floor(controller.economy.antimatter);
         card.effect.setText(`Budowa poz. ${target} · zostało ${formatDuration(controller.buildSecondsLeft(now))}`);
         card.effect.setColor(COLORS.gold);
-        card.cost.setText(free ? 'Ukończ teraz — za darmo do poz. 5.' : 'Anulowanie zwraca pełny koszt.');
+        card.cost.setText(
+          price === 0
+            ? `Ukończ teraz — za darmo do poz. ${BALANCE.freeFinishMaxLevel}.`
+            : `Ukończ teraz: ${antimatterAmount(price)} (masz ${have}).`,
+        );
+        card.cost.setColor(price > have ? COLORS.danger : price > 0 ? COLORS.antimatter : COLORS.muted);
         card.cost.setY(card.effect.y + card.effect.height + this.px(this.s(4)));
         this.drawProgress(card, progress);
         const armed = now <= this.cancelArmedUntil;
         const half = (bw - bgap) / 2;
         const wide = half / this.dpr >= 104;
-        card.finish.setShown(free).setSpan(bx, half).setText(wide ? 'Ukończ teraz' : 'Ukończ');
+        const finishLabel = price === 0 ? (wide ? 'Ukończ teraz' : 'Ukończ') : `Ukończ (${price})`;
+        card.finish
+          .setShown(true)
+          .setSpan(bx, half)
+          .setText(finishLabel)
+          .setStyle(price > have ? 'disabled' : 'primary');
         card.button
-          .setSpan(free ? bx + half + bgap : bx, free ? half : bw)
-          .setText(armed ? (free ? 'Na pewno?' : 'Na pewno anulować?') : free ? 'Anuluj' : 'Anuluj budowę')
+          .setSpan(bx + half + bgap, half)
+          .setText(armed ? 'Na pewno?' : 'Anuluj')
           .setStyle(armed ? 'danger' : 'secondary');
         continue;
       }
       card.finish.setShown(false);
       card.button.setSpan(bx, bw);
+      card.cost.setColor(COLORS.muted);
       card.effect.setColor(COLORS.teal);
       const cost = controller.costOf(card.id);
       const time = formatDuration(buildSeconds(level + 1));

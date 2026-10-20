@@ -4,6 +4,7 @@ import {
   constructionProgress,
   createEconomy,
   finishConstructionNow,
+  finishCost,
   storageCapacity,
   productionRates,
   secondsUntilAffordable,
@@ -106,11 +107,11 @@ export class GameController {
     return result;
   }
 
-  /** Natychmiastowe ukończenie (za darmo do poziomu z balansu). Zgłasza `onBuildComplete`. */
+  /** Natychmiastowe ukończenie (do poz. 5 za darmo, wyżej za antymaterię). Zgłasza `onBuildComplete`. */
   finishNow(now = Date.now()): FinishResult {
     this.tick(now);
     const before = this.economy;
-    const result = finishConstructionNow(before);
+    const result = finishConstructionNow(before, now);
     this.economy = result.state;
     if (result.ok) {
       this.save();
@@ -119,6 +120,11 @@ export class GameController {
     }
     this.emit();
     return result;
+  }
+
+  /** Cena „Ukończ teraz” w antymaterii (0 = za darmo). */
+  finishPrice(now = Date.now()): number {
+    return finishCost(this.economy, now);
   }
 
   get capacity(): number {

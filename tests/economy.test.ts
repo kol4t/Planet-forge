@@ -7,7 +7,9 @@ import {
   constructionProgress,
   capacityAtLevel,
   createEconomy,
+  antimatterAmount,
   finishConstructionNow,
+  finishCost,
   fitsInStorage,
   storageCapacity,
   productionRates,
@@ -36,7 +38,7 @@ test('koszt rośnie wykładniczo i jest całkowity', () => {
 
 test('brak energii obniża wydajność kopalń', () => {
   const e = createEconomy(0);
-  const low = productionRates({ ...e, levels: { metalMine: 6, crystalMine: 6, powerPlant: 1, storage: 1 } }, planet);
+  const low = productionRates({ ...e, levels: { metalMine: 6, crystalMine: 6, powerPlant: 1, storage: 1, antimatterCollector: 0 } }, planet);
   assert.ok(low.efficiency < 1);
   const ok = productionRates(e, planet);
   assert.ok(ok.metal > BALANCE.passiveIncome.metal);
@@ -141,7 +143,7 @@ test('maksymalny poziom blokuje ulepszenie', () => {
 
 test('czas oczekiwania na zasoby', () => {
   const e = { ...createEconomy(0), stock: { metal: 0, crystal: 100 } };
-  const rates = { metal: 30, crystal: 10, energyProduced: 0, energyUsed: 0, efficiency: 1 };
+  const rates = { metal: 30, crystal: 10, energyProduced: 0, energyUsed: 0, efficiency: 1, antimatterPerHour: 1 };
   assert.equal(secondsUntilAffordable(e, { metal: 60, crystal: 50 }, rates), 120);
   assert.equal(secondsUntilAffordable(e, { metal: 0, crystal: 50 }, rates), 0);
   assert.equal(secondsUntilAffordable(e, { metal: 10, crystal: 0 }, { ...rates, metal: 0 }), Infinity);
@@ -185,23 +187,74 @@ test('koszt większy niż magazyn = czytelny błąd i „nigdy” w czasie oczek
   assert.equal(secondsUntilAffordable(e, cost, rates), Infinity);
 });
 
-test('„Ukończ teraz” za darmo do poziomu 5, wyżej odmowa', () => {
+test('„Ukończ teraz” za darmo do poziomu 5', () => {
   const start = upgradeBuilding(createEconomy(0), 'powerPlant', 0);
   assert.ok(start.ok);
-  const done = finishConstructionNow(start.state);
+  assert.equal(finishCost(start.state, 0), 0);
+  const done = finishConstructionNow(start.state, 0);
   assert.ok(done.ok);
   assert.equal(done.state.levels.powerPlant, 2);
   assert.equal(done.state.construction, null);
   assert.deepEqual(done.state.stock, start.state.stock, 'nic nie kosztuje');
+  assert.equal(done.state.antimatter, start.state.antimatter);
+  assert.equal(!finishConstructionNow(createEconomy(0), 0).ok, true);
+});
 
-  const high = {
+/** Budowa poziomu 6 elektrowni (3 minuty) z podanym zapasem antymaterii. */
+function level6Build(antimatter: number) {
+  const e = {
     ...createEconomy(0),
+    antimatter,
     stock: { metal: 99_999, crystal: 99_999 },
     levels: { ...BALANCE.startingLevels, storage: 20, powerPlant: BALANCE.freeFinishMaxLevel },
   };
-  const big = upgradeBuilding(high, 'powerPlant', 0);
-  assert.ok(big.ok);
-  const refused = finishConstructionNow(big.state);
-  assert.equal(!refused.ok && refused.reason, 'not-free');
-  assert.equal(!finishConstructionNow(createEconomy(0)).ok, true);
+  const r = upgradeBuilding(e, 'powerPlant', 0);
+  assert.ok(r.ok);
+  return r.state;
+}
+
+test('powyżej poz. 5: 1 antymateria za każde rozpoczęte 15 minut', () => {
+  const s = level6Build(10);
+  assert.equal(buildSeconds(6), 180);
+  assert.equal(finishCost(s, 0), 1, '3 min → 1');
+  const long = { ...s, construction: { ...s.construction!, finishesAt: 40 * 60_000 } };
+  assert.equal(finishCost(long, 0), 3, '40 min → 3');
+  assert.equal(finishCost(long, 25 * 60_000), 1, 'zostało 15 min → 1');
+  assert.equal(finishCost(long, 24 * 60_000), 2, 'zostało 16 min → 2');
+});
+
+test('płatne ukończenie odejmuje antymaterię, brak = czytelny błąd', () => {
+  const paid = finishConstructionNow(level6Build(4), 0);
+  assert.ok(paid.ok);
+  assert.equal(paid.state.levels.powerPlant, 6);
+  assert.equal(paid.state.antimatter, 3);
+  assert.match(paid.message, /−1 antymateria/);
+  const poor = finishConstructionNow(level6Build(0.9), 0);
+  assert.equal(!poor.ok && poor.reason, 'not-enough-antimatter');
+  assert.match(poor.message, /potrzeba 1, masz 0/);
+});
+
+test('antymateria: 1/h bez budynku (także offline), kolektor dodaje, brak energii go osłabia', () => {
+  const e = createEconomy(0);
+  assert.equal(e.antimatter, BALANCE.antimatter.startingStock);
+  const hour = advance(e, planet, 3600_000);
+  assert.ok(Math.abs(hour.antimatter - e.antimatter - 1) < 1e-9);
+  const week = advance(e, planet, 7 * 24 * 3600_000);
+  assert.ok(Math.abs(week.antimatter - e.antimatter - 8) < 1e-9, 'limit offline 8 h');
+
+  const withCollector = { ...e, levels: { ...e.levels, antimatterCollector: 1, powerPlant: 3 } };
+  const rates = productionRates(withCollector, planet);
+  assert.equal(rates.efficiency, 1);
+  assert.ok(Math.abs(rates.antimatterPerHour - (1 + 0.6 * 1.1)) < 1e-9);
+  const starved = productionRates({ ...withCollector, levels: { ...withCollector.levels, powerPlant: 1 } }, planet);
+  assert.ok(starved.efficiency < 1);
+  assert.ok(starved.antimatterPerHour < rates.antimatterPerHour && starved.antimatterPerHour > 1);
+});
+
+test('odmiana: antymateria / antymaterie / antymaterii', () => {
+  assert.equal(antimatterAmount(1), '1 antymateria');
+  assert.equal(antimatterAmount(3), '3 antymaterie');
+  assert.equal(antimatterAmount(5), '5 antymaterii');
+  assert.equal(antimatterAmount(12), '12 antymaterii');
+  assert.equal(antimatterAmount(22), '22 antymaterie');
 });

@@ -2,7 +2,7 @@
 
 export type ResourceId = 'metal' | 'crystal';
 export type YieldId = ResourceId | 'energy';
-export type BuildingId = 'metalMine' | 'crystalMine' | 'powerPlant' | 'storage';
+export type BuildingId = 'metalMine' | 'crystalMine' | 'powerPlant' | 'storage' | 'antimatterCollector';
 
 export type Range = readonly [min: number, max: number];
 export type Resources = Record<ResourceId, number>;
@@ -136,6 +136,8 @@ export interface EconomyState {
   /** Znacznik czasu (ms) ostatniego naliczenia produkcji. */
   lastUpdate: number;
   construction: Construction | null;
+  /** Waluta premium zdobywana w grze (ułamki się kumulują, wyświetlamy całość). */
+  antimatter: number;
 }
 
 export interface BuildingDef {
@@ -144,8 +146,8 @@ export interface BuildingDef {
   description: string;
   baseCost: Resources;
   costGrowth: number;
-  /** Co daje budynek: wydobycie/energię albo pojemność magazynu. */
-  produces: YieldId | 'storage';
+  /** Co daje budynek: wydobycie/energię, pojemność magazynu albo antymaterię (na godzinę). */
+  produces: YieldId | 'storage' | 'antimatter';
   baseOutput: number;
   baseEnergyUse: number;
 }
@@ -163,5 +165,13 @@ export interface Balance {
   freeFinishMaxLevel: number;
   /** Pojemność magazynu (osobno metal i kryształy) = base × growth^(poziom − 1). */
   storage: { base: number; growth: number };
+  antimatter: {
+    /** Przyrost bez budynku (także offline). */
+    passivePerHour: number;
+    /** Zapas na start (także dla zapisów sprzed antymaterii). */
+    startingStock: number;
+    /** „Ukończ teraz” powyżej darmowego progu: 1 antymateria za każde rozpoczęte N sekund. */
+    finishSecondsPerUnit: number;
+  };
   buildings: readonly BuildingDef[];
 }

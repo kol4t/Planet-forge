@@ -9,11 +9,13 @@ export interface Rates {
   energyUsed: number;
   /** Wydajność kopalń 0..1 (spada, gdy brakuje energii). */
   efficiency: number;
+  /** Antymateria na GODZINĘ (przyrost pasywny + kolektor). */
+  antimatterPerHour: number;
 }
 
 export type UpgradeFailure = 'unknown-building' | 'max-level' | 'not-enough-resources' | 'storage-too-small' | 'busy';
 export type CancelFailure = 'nothing-to-cancel';
-export type FinishFailure = 'nothing-to-finish' | 'not-free';
+export type FinishFailure = 'nothing-to-finish' | 'not-enough-antimatter';
 
 export type ActionResult<F extends string> =
   | { ok: true; state: EconomyState; message: string }
@@ -29,6 +31,7 @@ export function createEconomy(now: number, balance: Balance = BALANCE): EconomyS
     levels: { ...balance.startingLevels },
     lastUpdate: now,
     construction: null,
+    antimatter: balance.antimatter.startingStock,
   };
 }
 
@@ -59,6 +62,7 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
   let energyUsed = 0;
   let metal = 0;
   let crystal = 0;
+  let collector = 0;
   for (const def of balance.buildings) {
     const level = state.levels[def.id] ?? 0;
     const output = scaled(def.baseOutput, level, growth);
@@ -66,6 +70,7 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
     if (def.produces === 'energy') energyProduced += output * rich.energy * (env.energy ?? 1);
     if (def.produces === 'metal') metal += output * rich.metal * (env.metal ?? 1);
     if (def.produces === 'crystal') crystal += output * rich.crystal * (env.crystal ?? 1);
+    if (def.produces === 'antimatter') collector += output;
   }
   const efficiency = energyUsed <= 0 ? 1 : Math.min(1, energyProduced / energyUsed);
   return {
@@ -74,6 +79,8 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
     energyProduced,
     energyUsed,
     efficiency,
+    // Kolektor, jak kopalnie, słabnie przy braku energii; przyrost pasywny — nie.
+    antimatterPerHour: balance.antimatter.passivePerHour + collector * efficiency,
   };
 }
 
@@ -120,6 +127,7 @@ export function advance(state: EconomyState, planet: Planet, now: number, balanc
     return {
       ...s,
       stock: { metal: fill(s.stock.metal, rates.metal), crystal: fill(s.stock.crystal, rates.crystal) },
+      antimatter: s.antimatter + (rates.antimatterPerHour * seconds) / 3600,
       lastUpdate: until,
     };
   };
@@ -210,24 +218,51 @@ export function cancelConstruction(state: EconomyState, balance: Balance = BALAN
   };
 }
 
-/** Natychmiastowe ukończenie budowy — za darmo do `freeFinishMaxLevel`. Wywołuj po `advance` do „teraz”. */
-export function finishConstructionNow(state: EconomyState, balance: Balance = BALANCE): FinishResult {
+/**
+ * Cena natychmiastowego ukończenia w antymaterii: 0 do `freeFinishMaxLevel`,
+ * wyżej 1 za każde rozpoczęte `finishSecondsPerUnit` pozostałej budowy.
+ */
+export function finishCost(state: EconomyState, now: number, balance: Balance = BALANCE): number {
+  const c = state.construction;
+  if (!c || c.targetLevel <= balance.freeFinishMaxLevel) return 0;
+  const remaining = Math.max(0, (c.finishesAt - now) / 1000);
+  return Math.max(1, Math.ceil(remaining / balance.antimatter.finishSecondsPerUnit));
+}
+
+/** Natychmiastowe ukończenie budowy. Wywołuj po `advance` do `now`. */
+export function finishConstructionNow(state: EconomyState, now: number, balance: Balance = BALANCE): FinishResult {
   const c = state.construction;
   if (!c) return { ok: false, state, reason: 'nothing-to-finish', message: 'Nic się teraz nie buduje.' };
   const def = getBuilding(c.building, balance);
-  if (c.targetLevel > balance.freeFinishMaxLevel) {
+  const price = finishCost(state, now, balance);
+  const have = Math.floor(state.antimatter);
+  if (price > have) {
     return {
       ok: false,
       state,
-      reason: 'not-free',
-      message: `Natychmiastowe ukończenie za darmo działa do poziomu ${balance.freeFinishMaxLevel}.`,
+      reason: 'not-enough-antimatter',
+      message: `Brakuje antymaterii: potrzeba ${price}, masz ${have}.`,
     };
   }
   return {
     ok: true,
-    state: { ...state, levels: { ...state.levels, [c.building]: c.targetLevel }, construction: null },
-    message: `${def?.name ?? 'Budynek'} — poziom ${c.targetLevel} gotowy.`,
+    state: {
+      ...state,
+      levels: { ...state.levels, [c.building]: c.targetLevel },
+      construction: null,
+      antimatter: state.antimatter - price,
+    },
+    message: `${def?.name ?? 'Budynek'} — poziom ${c.targetLevel} gotowy${price > 0 ? ` (−${antimatterAmount(price)})` : ''}.`,
   };
+}
+
+/** „1 antymateria”, „3 antymaterie”, „5 antymaterii”. */
+export function antimatterAmount(n: number): string {
+  const last = n % 10;
+  const lastTwo = n % 100;
+  const word =
+    n === 1 ? 'antymateria' : last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? 'antymaterie' : 'antymaterii';
+  return `${n} ${word}`;
 }
 
 /** Czy koszt w ogóle mieści się w magazynie. */

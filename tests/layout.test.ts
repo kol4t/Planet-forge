@@ -16,16 +16,30 @@ const SCREENS: [string, number, number][] = [
 for (const [name, w, h] of SCREENS) {
   test(`układ mieści się na ekranie: ${name}`, () => {
     const l = computeLayout(w, h, { top: 20, right: 0, bottom: 20, left: 0 });
-    for (const r of [l.topBar, l.info, l.buildings]) assert.ok(inside(r, w, h), JSON.stringify(r));
-    assert.ok(!overlap(l.topBar, l.info) && !overlap(l.info, l.buildings) && !overlap(l.topBar, l.buildings));
+    const panels = [l.topBar, l.info, ...l.cards];
+    assert.equal(l.cards.length, 5);
+    for (const r of panels) assert.ok(inside(r, w, h), JSON.stringify(r));
+    for (let i = 0; i < panels.length; i++) {
+      for (let j = i + 1; j < panels.length; j++) assert.ok(!overlap(panels[i]!, panels[j]!), `${i} nachodzi na ${j}`);
+    }
+    for (const card of l.cards) {
+      assert.ok(card.w >= 100, `karta za wąska: ${card.w}`);
+      assert.ok(card.h >= 120, `karta za niska: ${card.h}`);
+    }
     const p = l.planet;
     const planetBox = { x: p.cx - p.r, y: p.cy - p.r, w: 2 * p.r, h: 2 * p.r };
     assert.ok(p.r >= 60);
-    if (l.mode === 'portrait') {
-      assert.ok(!overlap(planetBox, l.info) && !overlap(planetBox, l.buildings), 'planeta między panelami');
-    }
+    for (const r of [l.info, ...l.cards]) assert.ok(!overlap(planetBox, r), 'planeta nie wchodzi pod panele');
   });
 }
+
+test('iPad poziomo: piąta karta trafia pod panel planety; pionowo siatka 3 + 2', () => {
+  const land = computeLayout(1180, 820);
+  assert.equal(land.cards.filter((c) => c.x < land.info.x + land.info.w).length, 1);
+  const port = computeLayout(820, 1180);
+  assert.deepEqual([...new Set(port.cards.map((c) => c.y))].length, 2);
+  assert.equal(port.cards.filter((c) => c.y === port.cards[0]!.y).length, 3);
+});
 
 test('tryb zależy od orientacji', () => {
   assert.equal(computeLayout(1180, 820).mode, 'landscape');

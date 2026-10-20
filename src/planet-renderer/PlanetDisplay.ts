@@ -34,6 +34,7 @@ export const STRUCTURE_COLORS: Record<BuildingId, { body: string; light: string 
   crystalMine: { body: '#5e8f88', light: '#8ff5e2' },
   powerPlant: { body: '#c9b27a', light: '#ffcc55' },
   storage: { body: '#8f9c98', light: '#f2e2b0' },
+  antimatterCollector: { body: '#6f7d84', light: '#c9b8ff' },
 };
 
 /**

@@ -5,12 +5,13 @@ export const BALANCE: Balance = {
   levelGrowth: 1.1,
   passiveIncome: { metal: 6, crystal: 3 },
   startingStock: { metal: 250, crystal: 120 },
-  startingLevels: { metalMine: 1, crystalMine: 1, powerPlant: 1, storage: 1 },
+  startingLevels: { metalMine: 1, crystalMine: 1, powerPlant: 1, storage: 1, antimatterCollector: 0 },
   maxLevel: 40,
   maxOfflineSeconds: 8 * 60 * 60,
   buildSecondsPerLevel: 30,
   freeFinishMaxLevel: 5,
   storage: { base: 1000, growth: 1.6 },
+  antimatter: { passivePerHour: 1, startingStock: 5, finishSecondsPerUnit: 15 * 60 },
   buildings: [
     {
       id: 'metalMine',
@@ -51,6 +52,17 @@ export const BALANCE: Balance = {
       produces: 'storage',
       baseOutput: 0,
       baseEnergyUse: 0,
+    },
+    {
+      id: 'antimatterCollector',
+      name: 'Kolektor antymaterii',
+      description: 'Wychwytuje antymaterię z wiatru gwiazdowego. Zużywa dużo energii.',
+      baseCost: { metal: 400, crystal: 260 },
+      costGrowth: 1.7,
+      produces: 'antimatter',
+      // Na godzinę (nie na minutę jak kopalnie).
+      baseOutput: 0.6,
+      baseEnergyUse: 18,
     },
   ],
 };

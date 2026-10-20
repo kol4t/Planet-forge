@@ -62,6 +62,8 @@ export function deserialize(raw: string | null): SaveData | null {
       levels,
       lastUpdate: economy.lastUpdate,
       construction,
+      // Zapisy sprzed antymaterii dostają zapas startowy.
+      antimatter: isNum(economy.antimatter) ? Math.max(0, economy.antimatter) : BALANCE.antimatter.startingStock,
     },
   };
 }

@@ -62,6 +62,17 @@ test('zapis sprzed magazynu wczytuje się z Magazynem na poz. 1', () => {
   assert.equal(deserialize(JSON.stringify(old))?.economy.levels.storage, 1);
 });
 
+test('zapis sprzed antymaterii: zapas startowy i kolektor na poz. 0', () => {
+  const old = JSON.parse(serialize(data));
+  delete old.economy.antimatter;
+  delete old.economy.levels.antimatterCollector;
+  const back = deserialize(JSON.stringify(old));
+  assert.equal(back?.economy.antimatter, 5);
+  assert.equal(back?.economy.levels.antimatterCollector, 0);
+  const kept = deserialize(serialize({ ...data, economy: { ...data.economy, antimatter: 2.5 } }));
+  assert.equal(kept?.economy.antimatter, 2.5);
+});
+
 test('ujemne zasoby są przycinane do zera', () => {
   const raw = JSON.parse(serialize(data));
   raw.economy.stock.metal = -50;
