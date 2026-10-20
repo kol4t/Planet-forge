@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { GameController } from '../../app/GameController.ts';
-import { buildSeconds, scaled } from '../../core/economy/economy.ts';
+import { buildSeconds, capacityAtLevel, fitsInStorage, scaled } from '../../core/economy/economy.ts';
 import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
@@ -27,6 +27,10 @@ interface BuildingCard {
   effect: Phaser.GameObjects.Text;
   cost: Phaser.GameObjects.Text;
   button: Button;
+  /** „Ukończ teraz” — widoczny obok „Anuluj” podczas budowy (za darmo do poz. z balansu). */
+  finish: Button;
+  /** Miejsce na przyciski: x, pełna szerokość, odstęp między połówkami (w px urządzenia). */
+  buttons: { x: number; w: number; gap: number };
   /** Pasek postępu budowy (rysowany nad przyciskiem). */
   progress: Phaser.GameObjects.Graphics;
   bar: { x: number; y: number; w: number };
@@ -36,6 +40,9 @@ interface BuildingCard {
 const CANCEL_CONFIRM_MS = 3000;
 
 interface ResourceTexts {
+  /** Paski zapełnienia magazynu pod metalem i kryształami. */
+  fill: Phaser.GameObjects.Graphics;
+  fillBars: { metal: { x: number; y: number; w: number }; crystal: { x: number; y: number; w: number } };
   metal: Phaser.GameObjects.Text;
   metalRate: Phaser.GameObjects.Text;
   crystal: Phaser.GameObjects.Text;
@@ -207,7 +214,7 @@ export class PlanetScene extends Phaser.Scene {
     this.ui!.add([g, blocker]);
   }
 
-  private icon(kind: YieldId, x: number, y: number, size: number): void {
+  private icon(kind: YieldId | 'storage', x: number, y: number, size: number): void {
     const g = this.add.graphics();
     const r = this.px(this.s(size));
     const cx = this.px(x);
@@ -220,6 +227,10 @@ export class PlanetScene extends Phaser.Scene {
         (_, i) => new V(cx + r * Math.cos((i * Math.PI) / 3 + Math.PI / 6), cy + r * Math.sin((i * Math.PI) / 3 + Math.PI / 6)),
       );
       g.fillPoints(hex, true);
+    } else if (kind === 'storage') {
+      // Skrzynia: kwadrat z poprzeczką.
+      g.fillStyle(COLORS.stoneHex, 1).fillRect(cx - r, cy - r * 0.85, r * 2, r * 1.7);
+      g.fillStyle(COLORS.panel, 1).fillRect(cx - r, cy - r * 0.12, r * 2, Math.max(1, r * 0.24));
     } else if (kind === 'crystal') {
       g.fillStyle(COLORS.tealHex, 1);
       g.fillPoints([new V(cx, cy - r * 1.15), new V(cx + r * 0.75, cy), new V(cx, cy + r * 1.15), new V(cx - r * 0.75, cy)], true);
@@ -285,12 +296,17 @@ export class PlanetScene extends Phaser.Scene {
       this.text(tx, bar.y + this.s(9), label, 10.5, COLORS.muted, { fontStyle: '600' });
       const value = this.text(tx, bar.y + this.s(22), '0', valueSize, COLORS.text, { fontStyle: '600' });
       const note = this.text(tx, bar.y + this.s(22), '', 11, COLORS.teal);
-      return { value, note };
+      const fillBar = { x: tx, y: bar.y + bar.h - this.s(9), w: Math.max(20, colW - this.s(36) - this.s(14)) };
+      return { value, note, fillBar };
     };
     const metal = column(0, 'metal', 'METAL');
     const crystal = column(1, 'crystal', 'KRYSZTAŁY');
     const energy = column(2, 'energy', 'ENERGIA');
+    const fill = this.add.graphics();
+    this.ui!.add(fill);
     this.res = {
+      fill,
+      fillBars: { metal: metal.fillBar, crystal: crystal.fillBar },
       metal: metal.value,
       metalRate: metal.note,
       crystal: crystal.value,
@@ -392,13 +408,14 @@ export class PlanetScene extends Phaser.Scene {
     const area = layout.buildings;
     const gap = this.s(10);
     const count = BALANCE.buildings.length;
-    const row = layout.cardsDirection === 'row';
-    const cardW = row ? (area.w - gap * (count - 1)) / count : area.w;
-    const cardH = row ? area.h : (area.h - gap * (count - 1)) / count;
+    const cols = layout.cardColumns;
+    const rows = Math.ceil(count / cols);
+    const cardW = (area.w - gap * (cols - 1)) / cols;
+    const cardH = (area.h - gap * (rows - 1)) / rows;
     BALANCE.buildings.forEach((def, index) => {
-      const card: Rect = row
-        ? { x: area.x + index * (cardW + gap), y: area.y, w: cardW, h: cardH }
-        : { x: area.x, y: area.y + index * (cardH + gap), w: cardW, h: cardH };
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const card: Rect = { x: area.x + col * (cardW + gap), y: area.y + row * (cardH + gap), w: cardW, h: cardH };
       this.panel(card);
       const narrow = card.w < 150;
       const pad = this.s(narrow ? 10 : 14);
@@ -431,8 +448,19 @@ export class PlanetScene extends Phaser.Scene {
         () => this.onUpgrade(def.id),
         narrow ? 13 : 14,
       );
+      const finish = this.addButton(
+        card.x + pad,
+        card.y + card.h - pad - buttonH,
+        (card.w - 2 * pad) / 2,
+        buttonH,
+        'Ukończ',
+        'primary',
+        () => this.onFinish(),
+        narrow ? 13 : 14,
+      ).setShown(false);
       if (narrow) level.setVisible(false);
-      this.cards.push({ id: def.id, level, effect, cost, button, progress, bar });
+      const buttons = { x: this.px(card.x + pad), w: this.px(card.w - 2 * pad), gap: this.px(this.s(8)) };
+      this.cards.push({ id: def.id, level, effect, cost, button, finish, buttons, progress, bar });
     });
   }
 
@@ -449,6 +477,14 @@ export class PlanetScene extends Phaser.Scene {
     this.showToast(result.message, result.ok ? 'ok' : 'error');
     this.refreshValues();
     if (result.ok) this.deps.display.showBuilding(id);
+  }
+
+  private onFinish(): void {
+    this.cancelArmedUntil = 0;
+    // Sukces ogłasza onBuildComplete (komunikat + pokazanie budowli).
+    const result = this.deps.controller.finishNow();
+    if (!result.ok) this.showToast(result.message, 'error');
+    this.refreshValues();
   }
 
   private onCancel(): void {
@@ -483,8 +519,14 @@ export class PlanetScene extends Phaser.Scene {
         note.setX(value.x + value.width + this.px(this.s(6)));
         note.setY(value.y + value.height - note.height - this.px(this.s(2)));
       };
-      pair(this.res.metal, this.res.metalRate, formatInt(controller.economy.stock.metal), `+${formatRate(rates.metal)}/min`);
-      pair(this.res.crystal, this.res.crystalRate, formatInt(controller.economy.stock.crystal), `+${formatRate(rates.crystal)}/min`);
+      const capacity = controller.capacity;
+      const stock = controller.economy.stock;
+      const rateNote = (have: number, perMinute: number) => (have >= capacity ? 'magazyn pełny' : `+${formatRate(perMinute)}/min`);
+      pair(this.res.metal, this.res.metalRate, formatInt(stock.metal), rateNote(stock.metal, rates.metal));
+      pair(this.res.crystal, this.res.crystalRate, formatInt(stock.crystal), rateNote(stock.crystal, rates.crystal));
+      this.res.metalRate.setColor(stock.metal >= capacity ? COLORS.danger : COLORS.teal);
+      this.res.crystalRate.setColor(stock.crystal >= capacity ? COLORS.danger : COLORS.teal);
+      this.drawStorageFill(stock.metal / capacity, stock.crystal / capacity);
       const balance = rates.energyProduced - rates.energyUsed;
       pair(
         this.res.energy,
@@ -503,28 +545,44 @@ export class PlanetScene extends Phaser.Scene {
       const def = BALANCE.buildings.find((b) => b.id === card.id)!;
       const level = controller.economy.levels[card.id];
       card.level.setText(`poz. ${level}`);
-      const richness = controller.planet.gameplay.richness[def.produces];
-      const env = controller.planet.gameplay.environment.effects[def.produces] ?? 1;
-      const gain = (scaled(def.baseOutput, level + 1, growth) - scaled(def.baseOutput, level, growth)) * richness * env;
-      const unit = def.produces === 'energy' ? 'energii' : def.produces === 'metal' ? 'metalu/min' : 'kryształów/min';
-      const energyCost =
-        def.baseEnergyUse > 0
-          ? ` · −${formatRate(scaled(def.baseEnergyUse, level + 1, growth) - scaled(def.baseEnergyUse, level, growth))} energii`
-          : '';
-      card.effect.setText(`Na poz. ${level + 1}: +${formatRate(gain)} ${unit}${energyCost}`);
+      if (def.produces === 'storage') {
+        const next = capacityAtLevel(level + 1);
+        card.effect.setText(`Na poz. ${level + 1}: pojemność ${formatInt(next)} (+${formatInt(next - capacityAtLevel(level))})`);
+      } else {
+        const richness = controller.planet.gameplay.richness[def.produces];
+        const env = controller.planet.gameplay.environment.effects[def.produces] ?? 1;
+        const gain = (scaled(def.baseOutput, level + 1, growth) - scaled(def.baseOutput, level, growth)) * richness * env;
+        const unit = def.produces === 'energy' ? 'energii' : def.produces === 'metal' ? 'metalu/min' : 'kryształów/min';
+        const energyCost =
+          def.baseEnergyUse > 0
+            ? ` · −${formatRate(scaled(def.baseEnergyUse, level + 1, growth) - scaled(def.baseEnergyUse, level, growth))} energii`
+            : '';
+        card.effect.setText(`Na poz. ${level + 1}: +${formatRate(gain)} ${unit}${energyCost}`);
+      }
       card.progress.clear();
+      const { x: bx, w: bw, gap: bgap } = card.buttons;
       const building = construction?.building === card.id;
       if (building) {
-        // Ten budynek się buduje: odliczanie, pasek postępu, anulowanie.
-        card.effect.setText(`Budowa poz. ${construction!.targetLevel} · zostało ${formatDuration(controller.buildSecondsLeft(now))}`);
+        // Ten budynek się buduje: odliczanie, pasek postępu, „Ukończ teraz” (do poz. 5) i anulowanie.
+        const target = construction!.targetLevel;
+        const free = target <= BALANCE.freeFinishMaxLevel;
+        card.effect.setText(`Budowa poz. ${target} · zostało ${formatDuration(controller.buildSecondsLeft(now))}`);
         card.effect.setColor(COLORS.gold);
-        card.cost.setText('Anulowanie zwraca pełny koszt.');
+        card.cost.setText(free ? 'Ukończ teraz — za darmo do poz. 5.' : 'Anulowanie zwraca pełny koszt.');
         card.cost.setY(card.effect.y + card.effect.height + this.px(this.s(4)));
         this.drawProgress(card, progress);
         const armed = now <= this.cancelArmedUntil;
-        card.button.setText(armed ? 'Na pewno anulować?' : 'Anuluj budowę').setStyle(armed ? 'danger' : 'secondary');
+        const half = (bw - bgap) / 2;
+        const wide = half / this.dpr >= 104;
+        card.finish.setShown(free).setSpan(bx, half).setText(wide ? 'Ukończ teraz' : 'Ukończ');
+        card.button
+          .setSpan(free ? bx + half + bgap : bx, free ? half : bw)
+          .setText(armed ? (free ? 'Na pewno?' : 'Na pewno anulować?') : free ? 'Anuluj' : 'Anuluj budowę')
+          .setStyle(armed ? 'danger' : 'secondary');
         continue;
       }
+      card.finish.setShown(false);
+      card.button.setSpan(bx, bw);
       card.effect.setColor(COLORS.teal);
       const cost = controller.costOf(card.id);
       const time = formatDuration(buildSeconds(level + 1));
@@ -538,9 +596,27 @@ export class PlanetScene extends Phaser.Scene {
         card.button.setText('Trwa inna budowa').setStyle('disabled');
         continue;
       }
+      if (!fitsInStorage(controller.economy, controller.costOf(card.id))) {
+        card.button.setText('Za mały magazyn').setStyle('disabled');
+        continue;
+      }
       const wait = controller.waitSecondsFor(card.id);
       if (wait <= 0) card.button.setText(`Ulepsz do ${level + 1}`).setStyle('primary');
       else card.button.setText(Number.isFinite(wait) ? `Dostępne za ${formatDuration(wait)}` : 'Brak produkcji').setStyle('disabled');
+    }
+  }
+
+  private drawStorageFill(metal: number, crystal: number): void {
+    if (!this.res) return;
+    const g = this.res.fill.clear();
+    const h = this.s(3);
+    for (const [bar, value, color] of [
+      [this.res.fillBars.metal, metal, COLORS.stoneHex],
+      [this.res.fillBars.crystal, crystal, COLORS.tealHex],
+    ] as const) {
+      const v = Math.min(1, Math.max(0, value));
+      g.fillStyle(COLORS.divider, 1).fillRect(this.px(bar.x), this.px(bar.y), this.px(bar.w), this.px(h));
+      g.fillStyle(v >= 1 ? COLORS.dangerHex : color, 0.9).fillRect(this.px(bar.x), this.px(bar.y), this.px(bar.w * v), this.px(h));
     }
   }
 

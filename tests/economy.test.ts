@@ -5,7 +5,11 @@ import {
   buildSeconds,
   cancelConstruction,
   constructionProgress,
+  capacityAtLevel,
   createEconomy,
+  finishConstructionNow,
+  fitsInStorage,
+  storageCapacity,
   productionRates,
   secondsUntilAffordable,
   upgradeBuilding,
@@ -32,14 +36,15 @@ test('koszt rośnie wykładniczo i jest całkowity', () => {
 
 test('brak energii obniża wydajność kopalń', () => {
   const e = createEconomy(0);
-  const low = productionRates({ ...e, levels: { metalMine: 6, crystalMine: 6, powerPlant: 1 } }, planet);
+  const low = productionRates({ ...e, levels: { metalMine: 6, crystalMine: 6, powerPlant: 1, storage: 1 } }, planet);
   assert.ok(low.efficiency < 1);
   const ok = productionRates(e, planet);
   assert.ok(ok.metal > BALANCE.passiveIncome.metal);
 });
 
 test('produkcja naliczana w czasie, z limitem offline', () => {
-  const e = createEconomy(0);
+  // Duży magazyn, żeby limit pojemności nie mieszał się z limitem czasu.
+  const e = { ...createEconomy(0), levels: { ...BALANCE.startingLevels, storage: 20 } };
   const rates = productionRates(e, planet);
   const minute = advance(e, planet, 60_000);
   assert.ok(Math.abs(minute.stock.metal - (e.stock.metal + rates.metal)) < 1e-9);
@@ -140,4 +145,63 @@ test('czas oczekiwania na zasoby', () => {
   assert.equal(secondsUntilAffordable(e, { metal: 60, crystal: 50 }, rates), 120);
   assert.equal(secondsUntilAffordable(e, { metal: 0, crystal: 50 }, rates), 0);
   assert.equal(secondsUntilAffordable(e, { metal: 10, crystal: 0 }, { ...rates, metal: 0 }), Infinity);
+});
+
+test('magazyn: pojemność rośnie z poziomem', () => {
+  assert.equal(capacityAtLevel(1), 1000);
+  assert.equal(capacityAtLevel(2), 1600);
+  assert.equal(storageCapacity(createEconomy(0)), 1000);
+});
+
+test('pełny magazyn zatrzymuje wydobycie, ale nie zabiera nadwyżki', () => {
+  const e = createEconomy(0);
+  const day = advance(e, planet, 24 * 3600_000);
+  assert.equal(day.stock.metal, 1000);
+  assert.equal(day.stock.crystal, 1000);
+  const over = { ...e, stock: { metal: 1500, crystal: 10 } };
+  const later = advance(over, planet, 3600_000);
+  assert.equal(later.stock.metal, 1500, 'nadwyżka zostaje, nie rośnie');
+  assert.ok(later.stock.crystal > 10);
+});
+
+test('ukończony magazyn podnosi limit od chwili ukończenia', () => {
+  const rich = { ...createEconomy(0), stock: { metal: 900, crystal: 900 } };
+  const start = upgradeBuilding(rich, 'storage', 0);
+  assert.ok(start.ok);
+  const done = advance(start.state, planet, 24 * 3600_000);
+  assert.equal(done.levels.storage, 2);
+  assert.equal(done.stock.metal, 1600);
+});
+
+test('koszt większy niż magazyn = czytelny błąd i „nigdy” w czasie oczekiwania', () => {
+  const e = { ...createEconomy(0), levels: { ...BALANCE.startingLevels, metalMine: 12 } };
+  const cost = upgradeCost('metalMine', 12);
+  assert.ok(cost.metal > 1000);
+  assert.equal(fitsInStorage(e, cost), false);
+  const r = upgradeBuilding(e, 'metalMine', 0);
+  assert.equal(!r.ok && r.reason, 'storage-too-small');
+  assert.match(r.message, /Za mały magazyn \(1000\)/);
+  const rates = productionRates(e, planet);
+  assert.equal(secondsUntilAffordable(e, cost, rates), Infinity);
+});
+
+test('„Ukończ teraz” za darmo do poziomu 5, wyżej odmowa', () => {
+  const start = upgradeBuilding(createEconomy(0), 'powerPlant', 0);
+  assert.ok(start.ok);
+  const done = finishConstructionNow(start.state);
+  assert.ok(done.ok);
+  assert.equal(done.state.levels.powerPlant, 2);
+  assert.equal(done.state.construction, null);
+  assert.deepEqual(done.state.stock, start.state.stock, 'nic nie kosztuje');
+
+  const high = {
+    ...createEconomy(0),
+    stock: { metal: 99_999, crystal: 99_999 },
+    levels: { ...BALANCE.startingLevels, storage: 20, powerPlant: BALANCE.freeFinishMaxLevel },
+  };
+  const big = upgradeBuilding(high, 'powerPlant', 0);
+  assert.ok(big.ok);
+  const refused = finishConstructionNow(big.state);
+  assert.equal(!refused.ok && refused.reason, 'not-free');
+  assert.equal(!finishConstructionNow(createEconomy(0)).ok, true);
 });

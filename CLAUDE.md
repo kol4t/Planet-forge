@@ -14,19 +14,21 @@ Jest głównym briefem technicznym. Pełna wizja: `docs/technical-brief.md`. Dec
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku.
 
-## Stan obecny (v0.3 — działa)
+## Stan obecny (v0.4 — działa)
 
 - Planeta 3D (Three.js) generowana deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **5 typów planet** (dane robocze): umiarkowana (Kepler-186 f, planeta startowa), pustynna, lodowa, oceaniczna, wulkaniczna (świecąca lawa). Typ nowej planety wynika z seeda (`pickDefinition`).
 - **Kolonia na powierzchni**: każdy poziom budynku = kolejna budowla na planecie (do 10 na typ, potem budowle rosną). Po ulepszeniu planeta obraca się, by pokazać nową budowlę, która „wyrasta” z animacją.
 - Atmosfera: poświata zanikająca płynnie poza krawędzią + mgiełka na tarczy, słabsza po nocnej stronie (naprawiona „aureola” z v0.1).
 - Awaryjny widok 2D (Canvas), gdy WebGL jest niedostępny — ta sama planeta z tego samego seeda, budowle jako świecące punkty.
-- HUD w Phaser: pasek zasobów (metal, kryształy, bilans energii), panel planety (klasa, promień, złoża, środowisko), 3 budynki z ulepszaniem, komunikaty, okno „Nowa planeta”.
+- HUD w Phaser: pasek zasobów (metal, kryształy z paskami zapełnienia magazynu, bilans energii), panel planety (klasa, promień, złoża, środowisko), 4 budynki z ulepszaniem, komunikaty, okno „Nowa planeta”.
+- **Magazyn** (4. budynek): pojemność metalu i kryształów osobno = 1000 × 1,6^(poz − 1). Pełny magazyn zatrzymuje przyrost (nadwyżka nie przepada). Koszt ponad pojemność → „Za mały magazyn”.
+- **„Ukończ teraz”**: natychmiastowe ukończenie budowy za darmo do poziomu `freeFinishMaxLevel` (5). Powyżej — przycisk ukryty; waluta premium („antymateria”) czeka na decyzję właściciela, skąd się bierze.
 - Ekonomia w czasie rzeczywistym (na minutę), energia ogranicza wydajność kopalń.
 - **Czas budowy**: ulepszenie trwa `buildSecondsPerLevel` (30 s) × docelowy poziom; naraz jedna budowa; koszt pobierany na starcie, anulowanie (drugim dotknięciem) zwraca go w całości. Budowa kończy się także offline (`advance` dzieli czas w chwili ukończenia). Na karcie pasek postępu i odliczanie, na planecie złote rusztowanie rosnące z postępem.
 - Zapis w `localStorage` (co 10 s, przy schowaniu karty, po akcji, po ukończeniu budowy) + naliczanie produkcji offline (maks. 8 h). Trwająca budowa jest częścią zapisu (pole opcjonalne). Format zapisu i `GENERATOR_VERSION` bez zmian względem v0.1 — stare zapisy działają.
 - Układ responsywny: iPad poziomo (kolumny), pionowo i telefon (wiersz kart); safe-area; brak przewijania/zoomu strony.
-- 56 testów: seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline), zapis, kontroler, gest obrotu, układ ekranu, rozmieszczenie kolonii.
+- 63 testy: seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, zapis, kontroler, gest obrotu, układ ekranu, rozmieszczenie kolonii.
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -84,9 +86,9 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 
 ## Najbliższe etapy (proponowana kolejność — każdy to osobna sesja)
 
-1. ~~Test na iPadzie~~ (v0.1 i v0.2 zaakceptowane) → **test v0.3 na iPadzie**: lista kontrolna z `README.md` (budowa, anulowanie, ukończenie offline).
+1. ~~Test na iPadzie~~ (v0.1–v0.3 zaakceptowane) → **test v0.4 na iPadzie**: lista kontrolna z `README.md` (magazyn, „Ukończ teraz”).
 2. ~~Czas budowy~~ (v0.3).
-3. **Magazyny** — limit pojemności zasobów + budynek magazynu.
+3. ~~Magazyny~~ (v0.4) → **antymateria**: sposób zdobywania i wydawania (decyzja właściciela).
 4. **Typy planet z Lore Bible** — podmiana roboczych danych w `src/data/planets.ts` na kanon (mechanizm już działa dla 5 typów).
 5. **Wizualia** — pinch-zoom planety, pierścienie/księżyc jako opcja w danych, lepsze shadery (po pomiarze FPS na iPadzie).
 6. **PWA** — „Dodaj do ekranu początkowego” jako pełnoekranowa aplikacja, praca offline.

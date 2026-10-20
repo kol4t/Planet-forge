@@ -5,12 +5,13 @@ export type ButtonStyle = 'primary' | 'secondary' | 'danger' | 'disabled';
 
 /** Przycisk dotykowy: akcja przy puszczeniu palca na przycisku (nie zależy od hovera). */
 export class Button extends Phaser.GameObjects.Container {
-  private readonly bw: number;
+  private bw: number;
   private readonly bh: number;
   private readonly dpr: number;
   private readonly onTap: () => void;
   private readonly bg: Phaser.GameObjects.Graphics;
   private readonly label: Phaser.GameObjects.Text;
+  private readonly hit: Phaser.GameObjects.Zone;
   private style: ButtonStyle = 'primary';
   private pressed = false;
 
@@ -44,6 +45,7 @@ export class Button extends Phaser.GameObjects.Container {
     this.setSize(width, height);
 
     const hit = scene.add.zone(0, 0, width, height).setOrigin(0).setInteractive({ useHandCursor: true });
+    this.hit = hit;
     this.add(hit);
     hit.on('pointerdown', () => {
       this.pressed = true;
@@ -73,6 +75,28 @@ export class Button extends Phaser.GameObjects.Container {
       this.style = style;
       this.draw();
     }
+    return this;
+  }
+
+  /** Zmiana położenia (x) i szerokości — np. dwa przyciski obok siebie zamiast jednego. */
+  setSpan(x: number, width: number): this {
+    if (x === this.x && width === this.bw) return this;
+    this.x = x;
+    this.bw = width;
+    this.label.setX(width / 2);
+    this.hit.setSize(width, this.bh);
+    this.setSize(width, this.bh);
+    this.draw();
+    return this;
+  }
+
+  /** Pokazanie/ukrycie razem z wyłączeniem dotyku (ukryty przycisk nie może przechwycić palca). */
+  setShown(shown: boolean): this {
+    if (shown === this.visible) return this;
+    this.setVisible(shown);
+    if (shown) this.hit.setInteractive({ useHandCursor: true });
+    else this.hit.disableInteractive();
+    this.pressed = false;
     return this;
   }
 

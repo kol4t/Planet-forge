@@ -2,7 +2,7 @@
 
 export type ResourceId = 'metal' | 'crystal';
 export type YieldId = ResourceId | 'energy';
-export type BuildingId = 'metalMine' | 'crystalMine' | 'powerPlant';
+export type BuildingId = 'metalMine' | 'crystalMine' | 'powerPlant' | 'storage';
 
 export type Range = readonly [min: number, max: number];
 export type Resources = Record<ResourceId, number>;
@@ -144,7 +144,8 @@ export interface BuildingDef {
   description: string;
   baseCost: Resources;
   costGrowth: number;
-  produces: YieldId;
+  /** Co daje budynek: wydobycie/energię albo pojemność magazynu. */
+  produces: YieldId | 'storage';
   baseOutput: number;
   baseEnergyUse: number;
 }
@@ -158,5 +159,9 @@ export interface Balance {
   maxOfflineSeconds: number;
   /** Czas budowy = ta liczba sekund × docelowy poziom. */
   buildSecondsPerLevel: number;
+  /** Do tego poziomu włącznie budowę można ukończyć natychmiast za darmo. */
+  freeFinishMaxLevel: number;
+  /** Pojemność magazynu (osobno metal i kryształy) = base × growth^(poziom − 1). */
+  storage: { base: number; growth: number };
   buildings: readonly BuildingDef[];
 }

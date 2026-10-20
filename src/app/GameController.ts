@@ -3,11 +3,14 @@ import {
   cancelConstruction,
   constructionProgress,
   createEconomy,
+  finishConstructionNow,
+  storageCapacity,
   productionRates,
   secondsUntilAffordable,
   upgradeBuilding,
   upgradeCost,
   type CancelResult,
+  type FinishResult,
   type Rates,
   type UpgradeResult,
 } from '../core/economy/economy.ts';
@@ -101,6 +104,25 @@ export class GameController {
     if (result.ok) this.save();
     this.emit();
     return result;
+  }
+
+  /** Natychmiastowe ukończenie (za darmo do poziomu z balansu). Zgłasza `onBuildComplete`. */
+  finishNow(now = Date.now()): FinishResult {
+    this.tick(now);
+    const before = this.economy;
+    const result = finishConstructionNow(before);
+    this.economy = result.state;
+    if (result.ok) {
+      this.save();
+      const done = finishedBuild(before, this.economy);
+      if (done) for (const listener of this.completeListeners) listener(done);
+    }
+    this.emit();
+    return result;
+  }
+
+  get capacity(): number {
+    return storageCapacity(this.economy);
   }
 
   /** Postęp budowy 0..1. */

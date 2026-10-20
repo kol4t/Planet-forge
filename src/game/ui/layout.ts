@@ -21,7 +21,8 @@ export interface Layout {
   topBar: Rect;
   info: Rect;
   buildings: Rect;
-  cardsDirection: 'column' | 'row';
+  /** Liczba kolumn kart budynków (1 = jedna pod drugą). */
+  cardColumns: number;
   planet: { cx: number; cy: number; r: number };
   toastY: number;
 }
@@ -29,7 +30,12 @@ export interface Layout {
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
 
-export function computeLayout(width: number, height: number, safe: Insets = NO_INSETS): Layout {
+/** Wysokość jednej karty budynku (w jednostkach `u`). */
+const CARD_H_COLUMN = 150;
+const CARD_H_ROW = 208;
+const CARD_H_GRID = 228;
+
+export function computeLayout(width: number, height: number, safe: Insets = NO_INSETS, cardCount = 4): Layout {
   const u = clamp(Math.min(width, height) / 760, 0.82, 1.2);
   const gap = Math.round(12 * u);
   const left = safe.left + gap;
@@ -49,7 +55,7 @@ export function computeLayout(width: number, height: number, safe: Insets = NO_I
       x: right - sideW,
       y: contentTop,
       w: sideW,
-      h: Math.min(avail, Math.round(450 * u + 2 * gap)),
+      h: Math.min(avail, Math.round(cardCount * CARD_H_COLUMN * u + (cardCount - 1) * gap)),
     };
     const pLeft = info.x + info.w + gap;
     const pRight = buildings.x - gap;
@@ -60,15 +66,19 @@ export function computeLayout(width: number, height: number, safe: Insets = NO_I
       topBar,
       info,
       buildings,
-      cardsDirection: 'column',
+      cardColumns: 1,
       planet: { cx: (pLeft + pRight) / 2, cy: (contentTop + bottom) / 2, r },
       toastY: bottom - 40 * u,
     };
   }
 
-  // Pionowo / telefon: panel planety u góry, karty budynków w wierszu na dole.
+  // Pionowo: panel planety u góry, karty budynków na dole — w wierszu (iPad)
+  // albo w siatce po 2 (telefon, gdzie 4 karty w wierszu byłyby za wąskie).
   const info: Rect = { x: left, y: contentTop, w: innerW, h: Math.round(134 * u) };
-  const cardsH = Math.round((width < 520 ? 206 : 168) * u);
+  const cardColumns = width >= 600 ? cardCount : 2;
+  const rows = Math.ceil(cardCount / cardColumns);
+  const cardH = (cardColumns === cardCount ? CARD_H_ROW : CARD_H_GRID) * u;
+  const cardsH = Math.round(rows * cardH + (rows - 1) * gap);
   const buildings: Rect = { x: left, y: bottom - cardsH, w: innerW, h: cardsH };
   const pTop = info.y + info.h + gap;
   const pBottom = buildings.y - gap;
@@ -79,7 +89,7 @@ export function computeLayout(width: number, height: number, safe: Insets = NO_I
     topBar,
     info,
     buildings,
-    cardsDirection: 'row',
+    cardColumns,
     planet: { cx: (left + right) / 2, cy: (pTop + pBottom) / 2, r },
     toastY: buildings.y - 34 * u,
   };

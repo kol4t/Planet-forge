@@ -63,6 +63,17 @@ function createShapes(): Record<BuildingId, Shape> {
       ]),
       light: prepare([at(new THREE.TorusGeometry(0.25, 0.045, 6, 14).rotateX(Math.PI / 2), 0, 0.8, 0)]),
     },
+    // Magazyn: dwa silosy z kopułami + niska hala.
+    storage: {
+      body: prepare([
+        at(new THREE.CylinderGeometry(0.2, 0.2, 0.5, 10), -0.18, 0.25, 0),
+        at(new THREE.SphereGeometry(0.2, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), -0.18, 0.5, 0),
+        at(new THREE.CylinderGeometry(0.16, 0.16, 0.38, 10), 0.2, 0.19, 0.08),
+        at(new THREE.SphereGeometry(0.16, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0.2, 0.38, 0.08),
+        at(new THREE.BoxGeometry(0.5, 0.16, 0.24), 0, 0.08, -0.22),
+      ]),
+      light: prepare([at(new THREE.BoxGeometry(0.06, 0.06, 0.06), -0.18, 0.72, 0)]),
+    },
   };
 }
 

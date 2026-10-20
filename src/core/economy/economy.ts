@@ -11,8 +11,9 @@ export interface Rates {
   efficiency: number;
 }
 
-export type UpgradeFailure = 'unknown-building' | 'max-level' | 'not-enough-resources' | 'busy';
+export type UpgradeFailure = 'unknown-building' | 'max-level' | 'not-enough-resources' | 'storage-too-small' | 'busy';
 export type CancelFailure = 'nothing-to-cancel';
+export type FinishFailure = 'nothing-to-finish' | 'not-free';
 
 export type ActionResult<F extends string> =
   | { ok: true; state: EconomyState; message: string }
@@ -20,6 +21,7 @@ export type ActionResult<F extends string> =
 
 export type UpgradeResult = ActionResult<UpgradeFailure>;
 export type CancelResult = ActionResult<CancelFailure>;
+export type FinishResult = ActionResult<FinishFailure>;
 
 export function createEconomy(now: number, balance: Balance = BALANCE): EconomyState {
   return {
@@ -75,6 +77,17 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
   };
 }
 
+/** Pojemność magazynu (dla metalu i kryształów osobno). */
+export function storageCapacity(state: EconomyState, balance: Balance = BALANCE): number {
+  const level = Math.max(1, state.levels.storage ?? 1);
+  return Math.floor(balance.storage.base * balance.storage.growth ** (level - 1));
+}
+
+/** Pojemność na danym poziomie magazynu (do podglądu „na poz. N”). */
+export function capacityAtLevel(level: number, balance: Balance = BALANCE): number {
+  return Math.floor(balance.storage.base * balance.storage.growth ** (Math.max(1, level) - 1));
+}
+
 /** Czas budowy (s) poziomu `targetLevel`. */
 export function buildSeconds(targetLevel: number, balance: Balance = BALANCE): number {
   return balance.buildSecondsPerLevel * targetLevel;
@@ -101,9 +114,12 @@ export function advance(state: EconomyState, planet: Planet, now: number, balanc
     budget -= seconds;
     const rates = productionRates(s, planet, balance);
     const minutes = seconds / 60;
+    const cap = storageCapacity(s, balance);
+    // Pełny magazyn zatrzymuje przyrost; nadwyżki ponad pojemność (np. zwrot kosztu) nie przepadają.
+    const fill = (have: number, perMinute: number) => (have >= cap ? have : Math.min(cap, have + perMinute * minutes));
     return {
       ...s,
-      stock: { metal: s.stock.metal + rates.metal * minutes, crystal: s.stock.crystal + rates.crystal * minutes },
+      stock: { metal: fill(s.stock.metal, rates.metal), crystal: fill(s.stock.crystal, rates.crystal) },
       lastUpdate: until,
     };
   };
@@ -145,6 +161,14 @@ export function upgradeBuilding(
     return { ok: false, state, reason: 'max-level', message: `${def.name}: osiągnięto maksymalny poziom.` };
   }
   const cost = upgradeCost(id, level, balance);
+  if (!fitsInStorage(state, cost, balance)) {
+    return {
+      ok: false,
+      state,
+      reason: 'storage-too-small',
+      message: `Za mały magazyn (${storageCapacity(state, balance)}). Najpierw rozbuduj Magazyn.`,
+    };
+  }
   if (!canAfford(state, cost)) {
     const missing: string[] = [];
     if (state.stock.metal < cost.metal) missing.push(`${Math.ceil(cost.metal - state.stock.metal)} metalu`);
@@ -186,8 +210,38 @@ export function cancelConstruction(state: EconomyState, balance: Balance = BALAN
   };
 }
 
-/** Sekundy do uzbierania `cost` przy obecnej produkcji (0 = już stać, Infinity = nigdy). */
-export function secondsUntilAffordable(state: EconomyState, cost: Resources, rates: Rates): number {
+/** Natychmiastowe ukończenie budowy — za darmo do `freeFinishMaxLevel`. Wywołuj po `advance` do „teraz”. */
+export function finishConstructionNow(state: EconomyState, balance: Balance = BALANCE): FinishResult {
+  const c = state.construction;
+  if (!c) return { ok: false, state, reason: 'nothing-to-finish', message: 'Nic się teraz nie buduje.' };
+  const def = getBuilding(c.building, balance);
+  if (c.targetLevel > balance.freeFinishMaxLevel) {
+    return {
+      ok: false,
+      state,
+      reason: 'not-free',
+      message: `Natychmiastowe ukończenie za darmo działa do poziomu ${balance.freeFinishMaxLevel}.`,
+    };
+  }
+  return {
+    ok: true,
+    state: { ...state, levels: { ...state.levels, [c.building]: c.targetLevel }, construction: null },
+    message: `${def?.name ?? 'Budynek'} — poziom ${c.targetLevel} gotowy.`,
+  };
+}
+
+/** Czy koszt w ogóle mieści się w magazynie. */
+export function fitsInStorage(state: EconomyState, cost: Resources, balance: Balance = BALANCE): boolean {
+  const cap = storageCapacity(state, balance);
+  return cost.metal <= Math.max(cap, state.stock.metal) && cost.crystal <= Math.max(cap, state.stock.crystal);
+}
+
+/**
+ * Sekundy do uzbierania `cost` przy obecnej produkcji
+ * (0 = już stać, Infinity = nigdy — brak produkcji albo za mały magazyn).
+ */
+export function secondsUntilAffordable(state: EconomyState, cost: Resources, rates: Rates, balance: Balance = BALANCE): number {
+  if (!fitsInStorage(state, cost, balance)) return Infinity;
   const wait = (have: number, need: number, perMinute: number) =>
     have >= need ? 0 : perMinute <= 0 ? Infinity : ((need - have) / perMinute) * 60;
   return Math.max(wait(state.stock.metal, cost.metal, rates.metal), wait(state.stock.crystal, cost.crystal, rates.crystal));

@@ -43,7 +43,8 @@ export function deserialize(raw: string | null): SaveData | null {
   }
   const levels = {} as BuildingLevels;
   for (const def of BALANCE.buildings) {
-    const level = economy.levels?.[def.id];
+    // Budynek dodany w nowszej wersji (np. Magazyn) → poziom startowy.
+    const level = economy.levels?.[def.id] ?? BALANCE.startingLevels[def.id];
     if (!isNum(level) || level < 0 || level > BALANCE.maxLevel || !Number.isInteger(level)) return null;
     levels[def.id] = level;
   }

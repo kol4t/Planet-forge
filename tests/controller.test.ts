@@ -61,3 +61,15 @@ test('budowa ukończona podczas nieobecności jest zgłaszana po powrocie', () =
     assert.ok(back.offlineGain);
   });
 });
+
+test('„Ukończ teraz” w kontrolerze zgłasza ukończenie od razu', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    const done: CompletedBuild[] = [];
+    game.onBuildComplete((d) => done.push(d));
+    game.upgrade('storage', 0);
+    assert.ok(game.finishNow(1000).ok);
+    assert.deepEqual(done, [{ building: 'storage', level: 2 }]);
+    assert.equal(game.capacity, 1600);
+  });
+});

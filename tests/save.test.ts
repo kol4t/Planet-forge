@@ -56,6 +56,12 @@ test('trwająca budowa przetrwa zapis; stary zapis bez budowy też działa', () 
   assert.equal(deserialize(JSON.stringify(unknown)), null);
 });
 
+test('zapis sprzed magazynu wczytuje się z Magazynem na poz. 1', () => {
+  const old = JSON.parse(serialize(data));
+  delete old.economy.levels.storage;
+  assert.equal(deserialize(JSON.stringify(old))?.economy.levels.storage, 1);
+});
+
 test('ujemne zasoby są przycinane do zera', () => {
   const raw = JSON.parse(serialize(data));
   raw.economy.stock.metal = -50;
