@@ -153,7 +153,13 @@ function start(boot: BootGuard): void {
     if (document.visibilityState === 'hidden') controller.save();
     else controller.tick();
   });
-  window.addEventListener('pagehide', () => controller.save());
+  window.addEventListener('pagehide', () => {
+    controller.save();
+    boot.markClosed();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') boot.markClosed();
+  });
   setInterval(() => controller.save(), 10_000);
 
   game.events.once('ready', () => {

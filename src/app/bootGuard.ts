@@ -80,6 +80,17 @@ export class BootGuard {
     this.write();
   }
 
+  /**
+   * Gracz zamknął, schował albo odświeżył grę — to nie awaria, nawet przed upływem 8 s.
+   * (Przy awarii grafiki iOS zamyka grę bez tych zdarzeń.)
+   */
+  markClosed(): void {
+    if (this.record.ok) return;
+    this.record.run?.steps.push('zamknięta przez gracza');
+    this.record.ok = true;
+    this.write();
+  }
+
   setGraphics(mode: GraphicsMode): void {
     this.record.graphics = mode;
     // Zmiana trybu to świadome przeładowanie, nie awaria.

@@ -30,6 +30,17 @@ test('start w 3D, który nie dotrwał do stabilnej pracy → powrót do 2D na st
   assert.equal(new BootGuard(storage, 3000).state.graphics, '2d', 'także przy kolejnych startach');
 });
 
+test('odświeżenie albo zamknięcie przed upływem 8 s to nie awaria', () => {
+  const storage = memory();
+  new BootGuard(storage, 0).setGraphics('3d');
+  const first = new BootGuard(storage, 1000);
+  first.markClosed();
+  const second = new BootGuard(storage, 2000);
+  assert.equal(second.crashedLastTime, false);
+  assert.equal(second.state.graphics, '3d');
+  assert.match(second.diagnostics({}), /ostatnia awaria: brak/);
+});
+
 test('stabilny start w 3D zostawia 3D', () => {
   const storage = memory();
   new BootGuard(storage, 0).setGraphics('3d');

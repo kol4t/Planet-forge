@@ -9,6 +9,7 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
 - **Nieaktywne planety dalej „żyją”:** przy przejściu na planetę nadrabia ona czas jak po nieobecności (maks. 8 h), także kończąc budowy. Przyrost pasywny antymaterii liczy się raz (na aktywnej planecie — nadrabianie używa balansu z `passivePerHour: 0`), a kolektory każdej planety dokładają do wspólnego portfela. Nowa planeta nie dostaje zapasu startowego antymaterii.
 - **„Nowa planeta”** już nie kasuje postępu: trafia na wolne miejsce w oknie „Twoje planety” (przycisk „Planety” w panelu planety). Usuwanie: tylko nieaktywnej planety, drugim dotknięciem („Na pewno?”).
 - **Eksport „PF2:”** obejmuje całe imperium; „PF1:” (jedna planeta) nadal się wczytuje i staje się imperium z jednym miejscem.
+- **Poprawka bezpiecznika:** odświeżenie, schowanie albo zamknięcie gry przed upływem 8 s liczyło się jako awaria (u właściciela przełączyło to grę w „tryb bezpieczny 2D”). Teraz `pagehide` i schowanie karty oznaczają start jako zamknięty przez gracza; awarią jest tylko zniknięcie gry bez tych zdarzeń.
 - **Licznik płynności** (`src/app/fpsMeter.ts`): klatki na sekundę z ostatniej minuty (średnia i najsłabsza sekunda), przerwy w tle pomijane; w Ustawienia → Diagnostyka.
 
 ## 2026-10-20 — v0.6.1: awaria startu z ekranu początkowego (hotfix)
