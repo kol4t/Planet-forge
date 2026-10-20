@@ -2,6 +2,10 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — strojenie balansu na koniec
+
+- Ceny, czasy i koszty (budynki, badania, antymateria) właściciel ustawi pod koniec prac, przed MVP. Do tego czasu wszystkie liczby w `src/data` są robocze i nie są osobnym etapem.
+
 ## 2026-10-20 — v0.10: badania (etap 1 — silnik i galaktyka)
 
 - **Gwiazdy mistrzowskie (decyzja właściciela: b).** Na krawędzi każdego ramienia jedna gwiazda mistrzowska; zbadać będzie można wszystkie, ale aktywne naraz maks. 2 (specjalizacje imperium). W tym etapie widoczne jako „wkrótce”.

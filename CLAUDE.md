@@ -87,6 +87,8 @@ npm run check        # wszystko powyżej
 
 Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacja między urządzeniami, walka/flota/dyplomacja, zadania/osiągnięcia/powiadomienia, sklep i płatności, analityka. Nie dodawaj też nowych frameworków (React, Vite itp.) ani płatnych usług, jeśli bieżący etap tego nie wymaga — najpierw zapytaj.
 
+**Balans (decyzja właściciela):** ceny, czasy i koszty (budynki, badania, antymateria) stroimy **na końcu, przed MVP** — do tego czasu wartości w `src/data` są robocze; nie proponuj strojenia liczb jako osobnego kroku.
+
 **Lore:** nazwy modyfikatorów, klas i wartości w `src/data` są **robocze** (`status: 'robocza'`). Nie wymyślaj nowych typów planet, biomów, anomalii ani cywilizacji jako kanonu — poproś o aktualną Planet Forge Lore Bible.
 
 ## Git
