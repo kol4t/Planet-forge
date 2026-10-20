@@ -1,0 +1,147 @@
+// Wspólne typy gry. Czysty TypeScript — bez importów z phaser/three/DOM.
+
+export type ResourceId = 'metal' | 'crystal';
+export type YieldId = ResourceId | 'energy';
+export type BuildingId = 'metalMine' | 'crystalMine' | 'powerPlant';
+
+export type Range = readonly [min: number, max: number];
+export type Resources = Record<ResourceId, number>;
+export type BuildingLevels = Record<BuildingId, number>;
+
+/** Status danych: wartości robocze czekają na zatwierdzenie w Lore Bible. */
+export type DataStatus = 'robocza' | 'kanon';
+
+export interface SizeClassDef {
+  id: string;
+  label: string;
+  radiusKm: Range;
+  weight: number;
+}
+
+export interface EnvironmentModifierDef {
+  id: string;
+  label: string;
+  description: string;
+  weight: number;
+  /** Mnożniki wydajności, np. { metal: 1.15 }. Brak klucza = 1. */
+  effects: Partial<Record<YieldId, number>>;
+}
+
+export interface PlanetPalette {
+  deepWater: string;
+  shallowWater: string;
+  shore: string;
+  lowland: string;
+  highland: string;
+  peak: string;
+}
+
+export interface OceanLook {
+  opacity: number;
+  roughness: number;
+  /** Kolor świecenia (np. lawa). Brak = ocean nie świeci. */
+  emissive?: string;
+  emissiveIntensity?: number;
+}
+
+export interface CloudLook {
+  /** Próg szumu, powyżej którego są chmury: wyżej = mniej chmur. */
+  threshold: Range;
+  /** Maksymalne krycie chmur 0..1. */
+  opacity: number;
+  color: string;
+}
+
+export interface PlanetDefinition {
+  id: string;
+  /** Stała nazwa planety. Gdy brak — nazwa powstaje z seeda i `catalogs`. */
+  displayName?: string;
+  /** Prefiksy katalogowe do nazw generowanych z seeda. */
+  catalogs?: readonly string[];
+  /** Typ planety pokazywany w panelu. */
+  category: string;
+  status: DataStatus;
+  /** Szansa wylosowania przy „Nowa planeta”. */
+  weight: number;
+  visual: {
+    palette: PlanetPalette;
+    seaLevel: Range;
+    terrainAmplitude: Range;
+    terrainScale: Range;
+    roughness: number;
+    atmosphereColor: string;
+    atmosphereIntensity: number;
+    ocean?: OceanLook;
+    clouds?: CloudLook;
+    /** Szerokość (|y| 0..1), od której zaczyna się czapa lodowa. */
+    polarCap?: number;
+  };
+  generation: {
+    sizeClasses: readonly SizeClassDef[];
+    resourceRange: Record<YieldId, Range>;
+    environmentModifiers: readonly EnvironmentModifierDef[];
+  };
+}
+
+export interface PlanetVisual {
+  noiseSeed: number;
+  seaLevel: number;
+  terrainAmplitude: number;
+  terrainScale: number;
+  axialTiltDeg: number;
+  palette: PlanetPalette;
+  roughness: number;
+  atmosphereColor: string;
+  atmosphereIntensity: number;
+  ocean: OceanLook;
+  clouds: { threshold: number; opacity: number; color: string };
+  polarCap: number;
+}
+
+export interface Planet {
+  definitionId: string;
+  displayName: string;
+  category: string;
+  seed: string;
+  generatorVersion: number;
+  gameplay: {
+    sizeClass: { id: string; label: string };
+    radiusKm: number;
+    richness: Record<YieldId, number>;
+    environment: {
+      id: string;
+      label: string;
+      description: string;
+      effects: Partial<Record<YieldId, number>>;
+    };
+  };
+  visual: PlanetVisual;
+}
+
+export interface EconomyState {
+  stock: Resources;
+  levels: BuildingLevels;
+  /** Znacznik czasu (ms) ostatniego naliczenia produkcji. */
+  lastUpdate: number;
+}
+
+export interface BuildingDef {
+  id: BuildingId;
+  name: string;
+  description: string;
+  baseCost: Resources;
+  costGrowth: number;
+  produces: YieldId;
+  baseOutput: number;
+  baseEnergyUse: number;
+}
+
+export interface Balance {
+  levelGrowth: number;
+  passiveIncome: Resources;
+  startingStock: Resources;
+  startingLevels: BuildingLevels;
+  maxLevel: number;
+  maxOfflineSeconds: number;
+  buildings: readonly BuildingDef[];
+}

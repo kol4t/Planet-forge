@@ -1,0 +1,27 @@
+{
+  "name": "planet-forge",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Planet Forge — przeglądarkowa strategia sci-fi z jedną planetą 3D (iPad / Safari).",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "test": "node --test \"tests/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "phaser": "3.90.0",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/three": "0.185.4",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}
