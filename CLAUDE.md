@@ -101,7 +101,10 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 2. ~~Czas budowy~~ (v0.3).
 3. ~~Magazyny~~ (v0.4), ~~antymateria~~ (v0.5). Zakup antymaterii za pieniądze — dopiero z backendem.
 4. **Typy planet z Lore Bible** — podmiana roboczych danych w `src/data/planets.ts` na kanon (mechanizm już działa dla 5 typów).
-5. **Wizualia** — ~~pinch-zoom~~ (v0.8); dalej: pierścienie/księżyc jako opcja w danych (zapas płynności: 60/53 kl./s na iPadzie właściciela).
+5. **Wizualia** — ~~pinch-zoom~~ (v0.8); dalej: pierścienie jako opcja w danych (zapas płynności: 60/53 kl./s na iPadzie właściciela).
+7. **Następny etap (na prośbę właściciela): poprawki UI** — interfejs „trochę za duży”; konkretne poprawki właściciel podeśle po v0.8.
+
+**Do zrobienia później (decyzja właściciela — odłożone, nie zapominać):** lokacje wokół planety — księżyc jako pierwsza (mała pikselowa kulka na orbicie w 2D, opcja w danych planety), potem stacje kosmiczne, ekspedycje, szlaki handlowe; odblokowują miejsca 6–10 w „Twoje planety” (`planetSlots.max`, `SlotSave.kind`).
 6. ~~PWA~~ (v0.6), ~~hosting~~: GitHub Pages `https://kol4t.github.io/Planet-forge/`, automatycznie z `main` (`.github/workflows/pages.yml`).
 
 Dopiero po stabilnym MVP: badania, anomalie, dawne cywilizacje, a na końcu backend/konta/multiplayer.
