@@ -28,6 +28,34 @@ test('uszkodzony lub obcy zapis = null', () => {
   assert.equal(deserialize(JSON.stringify(nan)), null);
 });
 
+test('trwająca budowa przetrwa zapis; stary zapis bez budowy też działa', () => {
+  const building = {
+    ...data,
+    economy: {
+      ...data.economy,
+      construction: {
+        building: 'metalMine' as const,
+        targetLevel: 2,
+        startedAt: 100,
+        finishesAt: 60_100,
+        cost: { metal: 60, crystal: 15 },
+      },
+    },
+  };
+  assert.deepEqual(deserialize(serialize(building))?.economy.construction, building.economy.construction);
+
+  const old = JSON.parse(serialize(data));
+  delete old.economy.construction;
+  assert.equal(deserialize(JSON.stringify(old))?.economy.construction, null);
+
+  const wrongLevel = JSON.parse(serialize(building));
+  wrongLevel.economy.construction.targetLevel = 5;
+  assert.equal(deserialize(JSON.stringify(wrongLevel)), null);
+  const unknown = JSON.parse(serialize(building));
+  unknown.economy.construction.building = 'stocznia';
+  assert.equal(deserialize(JSON.stringify(unknown)), null);
+});
+
 test('ujemne zasoby są przycinane do zera', () => {
   const raw = JSON.parse(serialize(data));
   raw.economy.stock.metal = -50;

@@ -4,8 +4,11 @@ import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 export interface PlanetDisplay {
   readonly kind: 'webgl' | 'canvas2d';
   setPlanet(planet: Planet): void;
-  /** Poziomy budynków → widoczna zabudowa kolonii. Wywołuj śmiało często (porównuje zmiany). */
-  setStructures(levels: BuildingLevels): void;
+  /**
+   * Poziomy budynków → widoczna zabudowa kolonii, plus rusztowanie trwającej budowy.
+   * Wywołuj śmiało co klatkę/odświeżenie (porównuje zmiany).
+   */
+  setStructures(levels: BuildingLevels, site?: BuildSite | null): void;
   /** Obróć planetę tak, by pokazać budowle danego typu (np. po ulepszeniu). */
   showBuilding(id: BuildingId): void;
   beginDrag(): void;
@@ -15,6 +18,14 @@ export interface PlanetDisplay {
   setFocus(cx: number, cy: number, r: number): void;
   resize(width: number, height: number): void;
   dispose(): void;
+}
+
+/** Trwająca budowa widziana przez renderer. */
+export interface BuildSite {
+  building: BuildingId;
+  targetLevel: number;
+  /** Postęp 0..1. */
+  progress: number;
 }
 
 /** Kolory budowli (wspólne dla 3D i 2D). */

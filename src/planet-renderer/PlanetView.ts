@@ -7,7 +7,7 @@ import { createAtmosphere } from './atmosphere.ts';
 import { layoutColony } from './colony.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
-import { facingAngles, type PlanetDisplay } from './PlanetDisplay.ts';
+import { facingAngles, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { createSurfaceSampler, type SurfaceSampler } from './surface.ts';
 
 /** Szczegółowość siatki lądu (IcosahedronGeometry detail). Pilnuj na iPadzie! */
@@ -93,8 +93,9 @@ export class PlanetView implements PlanetDisplay {
     this.colony.setLayout(layoutColony(planet, sampler, BUILDING_IDS));
   }
 
-  setStructures(levels: BuildingLevels): void {
+  setStructures(levels: BuildingLevels, site: BuildSite | null = null): void {
     this.colony.setLevels(levels);
+    this.colony.setConstruction(site);
   }
 
   showBuilding(id: BuildingId): void {

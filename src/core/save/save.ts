@@ -1,5 +1,5 @@
 import { BALANCE } from '../../data/balance.ts';
-import type { BuildingLevels, EconomyState } from '../types.ts';
+import type { BuildingId, BuildingLevels, Construction, EconomyState } from '../types.ts';
 
 export const SAVE_VERSION = 1;
 export const SAVE_KEY = 'planet-forge.save.v1';
@@ -47,6 +47,12 @@ export function deserialize(raw: string | null): SaveData | null {
     if (!isNum(level) || level < 0 || level > BALANCE.maxLevel || !Number.isInteger(level)) return null;
     levels[def.id] = level;
   }
+  // Budowa jest opcjonalna (zapisy z v0.1–0.2 jej nie mają). Błędna = cały zapis odrzucony.
+  let construction: Construction | null = null;
+  if (economy.construction != null) {
+    construction = parseConstruction(economy.construction, levels);
+    if (!construction) return null;
+  }
   return {
     saveVersion: SAVE_VERSION,
     planet: { definitionId: planet.definitionId, seed: planet.seed, generatorVersion: planet.generatorVersion },
@@ -54,7 +60,34 @@ export function deserialize(raw: string | null): SaveData | null {
       stock: { metal: Math.max(0, economy.stock.metal), crystal: Math.max(0, economy.stock.crystal) },
       levels,
       lastUpdate: economy.lastUpdate,
+      construction,
     },
+  };
+}
+
+function parseConstruction(raw: any, levels: BuildingLevels): Construction | null {
+  const def = BALANCE.buildings.find((b) => b.id === raw?.building);
+  if (!def) return null;
+  const id = def.id as BuildingId;
+  if (
+    raw.targetLevel !== levels[id] + 1 ||
+    raw.targetLevel > BALANCE.maxLevel ||
+    !isNum(raw.startedAt) ||
+    !isNum(raw.finishesAt) ||
+    raw.finishesAt < raw.startedAt ||
+    !isNum(raw.cost?.metal) ||
+    !isNum(raw.cost?.crystal) ||
+    raw.cost.metal < 0 ||
+    raw.cost.crystal < 0
+  ) {
+    return null;
+  }
+  return {
+    building: id,
+    targetLevel: raw.targetLevel,
+    startedAt: raw.startedAt,
+    finishesAt: raw.finishesAt,
+    cost: { metal: raw.cost.metal, crystal: raw.cost.crystal },
   };
 }
 

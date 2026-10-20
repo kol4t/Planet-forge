@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   advance,
+  buildSeconds,
+  cancelConstruction,
+  constructionProgress,
   createEconomy,
   productionRates,
   secondsUntilAffordable,
@@ -46,18 +49,79 @@ test('produkcja naliczana w czasie, z limitem offline', () => {
   assert.equal(advance(e, planet, 0), e, 'brak upływu czasu = ten sam stan');
 });
 
-test('ulepszenie: odejmuje koszt i podnosi poziom', () => {
+test('ulepszenie: pobiera koszt i rozpoczyna budowę, poziom rośnie dopiero po czasie', () => {
   const e = createEconomy(0);
-  const r = upgradeBuilding(e, 'powerPlant');
+  const r = upgradeBuilding(e, 'powerPlant', 1000);
   assert.ok(r.ok);
-  assert.equal(r.state.levels.powerPlant, 2);
+  assert.equal(r.state.levels.powerPlant, 1, 'poziom jeszcze bez zmian');
   assert.equal(r.state.stock.metal, e.stock.metal - upgradeCost('powerPlant', 1).metal);
+  assert.deepEqual(r.state.construction, {
+    building: 'powerPlant',
+    targetLevel: 2,
+    startedAt: 1000,
+    finishesAt: 1000 + buildSeconds(2) * 1000,
+    cost: upgradeCost('powerPlant', 1),
+  });
+  assert.equal(buildSeconds(2), 60, '30 s × poziom');
   assert.equal(e.levels.powerPlant, 1, 'stan wejściowy niezmieniony');
+  assert.equal(e.construction, null);
+});
+
+test('naraz tylko jedna budowa', () => {
+  const first = upgradeBuilding(createEconomy(0), 'powerPlant', 0);
+  assert.ok(first.ok);
+  const second = upgradeBuilding(first.state, 'metalMine', 10);
+  assert.equal(!second.ok && second.reason, 'busy');
+  assert.match(second.message, /Najpierw dokończ budowę: Elektrownia \(poz\. 2\)/);
+  assert.equal(second.state, first.state);
+});
+
+test('ukończenie budowy w advance, produkcja z nowym poziomem od chwili ukończenia', () => {
+  const start = upgradeBuilding(createEconomy(0), 'metalMine', 0);
+  assert.ok(start.ok);
+  const finishAt = start.state.construction!.finishesAt;
+  const before = advance(start.state, planet, finishAt - 1);
+  assert.equal(before.levels.metalMine, 1);
+  assert.notEqual(before.construction, null);
+  assert.ok(constructionProgress(before, finishAt - 1) > 0.99);
+
+  const later = finishAt + 120_000;
+  const done = advance(start.state, planet, later);
+  assert.equal(done.levels.metalMine, 2);
+  assert.equal(done.construction, null);
+  // Ręcznie: produkcja do ukończenia (poziom 1) + 2 minuty na poziomie 2.
+  const r1 = productionRates(start.state, planet);
+  const r2 = productionRates({ ...start.state, levels: { ...start.state.levels, metalMine: 2 } }, planet);
+  const expected = start.state.stock.metal + (r1.metal * finishAt) / 60_000 + r2.metal * 2;
+  assert.ok(Math.abs(done.stock.metal - expected) < 1e-6);
+});
+
+test('budowa kończy się także podczas długiej nieobecności (limit offline nadal działa)', () => {
+  const start = upgradeBuilding(createEconomy(0), 'crystalMine', 0);
+  assert.ok(start.ok);
+  const week = advance(start.state, planet, 7 * 24 * 3600_000);
+  assert.equal(week.levels.crystalMine, 2);
+  const cap = advance(start.state, planet, BALANCE.maxOfflineSeconds * 1000);
+  assert.ok(Math.abs(week.stock.crystal - cap.stock.crystal) < 1e-6);
+});
+
+test('anulowanie zwraca pełny koszt i nie zmienia poziomu', () => {
+  const e = createEconomy(0);
+  const start = upgradeBuilding(e, 'metalMine', 0);
+  assert.ok(start.ok);
+  const cancel = cancelConstruction(start.state);
+  assert.ok(cancel.ok);
+  assert.deepEqual(cancel.state.stock, e.stock);
+  assert.equal(cancel.state.levels.metalMine, 1);
+  assert.equal(cancel.state.construction, null);
+  assert.match(cancel.message, /anulowano, zwrócono 90 metalu i 22 kryształów/);
+  const again = cancelConstruction(cancel.state);
+  assert.equal(!again.ok && again.reason, 'nothing-to-cancel');
 });
 
 test('ulepszenie bez zasobów zwraca czytelny błąd', () => {
   const e = { ...createEconomy(0), stock: { metal: 0, crystal: 0 } };
-  const r = upgradeBuilding(e, 'metalMine');
+  const r = upgradeBuilding(e, 'metalMine', 0);
   assert.equal(r.ok, false);
   assert.equal(!r.ok && r.reason, 'not-enough-resources');
   assert.match(r.message, /Brakuje: 90 metalu, 22 kryształów/);
@@ -66,7 +130,7 @@ test('ulepszenie bez zasobów zwraca czytelny błąd', () => {
 
 test('maksymalny poziom blokuje ulepszenie', () => {
   const e = { ...createEconomy(0), levels: { ...BALANCE.startingLevels, metalMine: BALANCE.maxLevel } };
-  const r = upgradeBuilding(e, 'metalMine');
+  const r = upgradeBuilding(e, 'metalMine', 0);
   assert.equal(!r.ok && r.reason, 'max-level');
 });
 

@@ -2,7 +2,7 @@ import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { layoutColony, visibleStructures, type ColonyLayout } from './colony.ts';
 import { DragRotator } from './input/dragRotator.ts';
-import { facingAngles, STRUCTURE_COLORS, type PlanetDisplay } from './PlanetDisplay.ts';
+import { facingAngles, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { createSurfaceSampler, hexToRgb, type RGB, type SurfaceSampler } from './surface.ts';
 
 // Awaryjny widok 2D (gdy brak WebGL): ta sama planeta z tego samego seeda,
@@ -22,6 +22,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private sampler: SurfaceSampler | undefined;
   private colony: ColonyLayout | undefined;
   private levels: BuildingLevels | undefined;
+  private site: BuildSite | null = null;
   private sea = 0.5;
   private atmosphere: RGB = [0.5, 0.8, 0.8];
   private w = 1;
@@ -49,14 +50,16 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.lastDrawn = { yaw: NaN, pitch: NaN };
   }
 
-  setStructures(levels: BuildingLevels): void {
+  setStructures(levels: BuildingLevels, site: BuildSite | null = null): void {
     this.levels = { ...levels };
+    this.site = site;
   }
 
   showBuilding(id: BuildingId): void {
     const slots = this.colony?.slots[id];
     if (!slots?.length) return;
-    const index = Math.max(0, Math.min(visibleStructures(this.levels?.[id] ?? 1), slots.length) - 1);
+    const level = this.site?.building === id ? this.site.targetLevel : (this.levels?.[id] ?? 1);
+    const index = Math.max(0, Math.min(visibleStructures(level), slots.length) - 1);
     const { yaw, pitch } = facingAngles(slots[index]!.dir, 0);
     this.rotator.turnTo(yaw, pitch, performance.now());
   }
@@ -132,22 +135,43 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const cp = Math.cos(pitch);
     const sp = Math.sin(pitch);
     const ctx = this.ctx;
+    const toScreen = ([px, py, pz]: readonly [number, number, number]) => {
+      // Planeta → ekran (obrót, potem pochylenie).
+      const sx = px * cy + pz * sy;
+      const hz = -px * sy + pz * cy;
+      return { x: cx + sx * r, y: centerY - (py * cp - hz * sp) * r, depth: py * sp + hz * cp };
+    };
     for (const id of BUILDING_IDS) {
       const slots = this.colony.slots[id] ?? [];
       const count = Math.min(visibleStructures(this.levels[id] ?? 0), slots.length);
       ctx.fillStyle = STRUCTURE_COLORS[id].light;
       for (let i = 0; i < count; i++) {
-        const [px, py, pz] = slots[i]!.dir;
-        // Planeta → ekran (obrót, potem pochylenie).
-        const sx = px * cy + pz * sy;
-        const hz = -px * sy + pz * cy;
-        const syy = py * cp - hz * sp;
-        const sz = py * sp + hz * cp;
-        if (sz < 0.08) continue;
-        ctx.globalAlpha = Math.min(1, sz * 2.5);
+        const p = toScreen(slots[i]!.dir);
+        if (p.depth < 0.08) continue;
+        ctx.globalAlpha = Math.min(1, p.depth * 2.5);
         ctx.beginPath();
-        ctx.arc(cx + sx * r, centerY - syy * r, Math.max(1.5, r * 0.012), 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, Math.max(1.5, r * 0.012), 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+    // Budowa: pulsujący pierścień, który domyka się wraz z postępem.
+    const site = this.site;
+    const siteSlots = site && this.colony.slots[site.building];
+    if (site && siteSlots?.length) {
+      const index = Math.max(0, Math.min(visibleStructures(site.targetLevel), siteSlots.length) - 1);
+      const p = toScreen(siteSlots[index]!.dir);
+      if (p.depth >= 0.08) {
+        const radius = Math.max(5, r * 0.03);
+        ctx.strokeStyle = '#e6c77a';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.65 + 0.35 * Math.sin(performance.now() / 250);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.05, site.progress));
+        ctx.stroke();
       }
     }
     ctx.globalAlpha = 1;

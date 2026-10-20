@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { GameController } from '../../app/GameController.ts';
-import { scaled } from '../../core/economy/economy.ts';
+import { buildSeconds, scaled } from '../../core/economy/economy.ts';
 import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
@@ -27,7 +27,13 @@ interface BuildingCard {
   effect: Phaser.GameObjects.Text;
   cost: Phaser.GameObjects.Text;
   button: Button;
+  /** Pasek postępu budowy (rysowany nad przyciskiem). */
+  progress: Phaser.GameObjects.Graphics;
+  bar: { x: number; y: number; w: number };
 }
+
+/** Jak długo drugie dotknięcie „Anuluj” potwierdza anulowanie (ms). */
+const CANCEL_CONFIRM_MS = 3000;
 
 interface ResourceTexts {
   metal: Phaser.GameObjects.Text;
@@ -61,6 +67,7 @@ export class PlanetScene extends Phaser.Scene {
   private dragPointer: number | null = null;
   private lastPointer = { x: 0, y: 0 };
   private refreshTimer = 0;
+  private cancelArmedUntil = 0;
 
   constructor(deps: SceneDeps) {
     super({ key: 'planet' });
@@ -102,14 +109,30 @@ export class PlanetScene extends Phaser.Scene {
       this.relayout();
     });
 
-    if (controller.offlineGain) {
+    controller.onBuildComplete((done) => {
+      const name = BALANCE.buildings.find((b) => b.id === done.building)?.name ?? 'Budynek';
+      this.showToast(`${name} — poziom ${done.level} gotowy.`, 'ok', 3000);
+      this.refreshValues();
+      display.showBuilding(done.building);
+    });
+
+    if (controller.offlineGain || controller.completedWhileAway) {
+      const lines: string[] = [];
       const gain = controller.offlineGain;
-      this.showToast(
-        `Podczas nieobecności (${formatDuration(gain.seconds)}): +${formatInt(gain.metal)} metalu, +${formatInt(gain.crystal)} kryształów`,
-        'info',
-        5000,
-      );
+      if (gain) {
+        lines.push(
+          `Podczas nieobecności (${formatDuration(gain.seconds)}): +${formatInt(gain.metal)} metalu, +${formatInt(gain.crystal)} kryształów`,
+        );
+      }
+      const done = controller.completedWhileAway;
+      if (done) {
+        const name = BALANCE.buildings.find((b) => b.id === done.building)?.name ?? 'Budynek';
+        lines.push(`Ukończono: ${name}, poziom ${done.level}.`);
+        display.showBuilding(done.building);
+      }
+      this.showToast(lines.join('\n'), 'info', 5000);
       controller.offlineGain = null;
+      controller.completedWhileAway = null;
     }
   }
 
@@ -395,6 +418,9 @@ export class PlanetScene extends Phaser.Scene {
         wordWrap: { width: this.px(card.w - 2 * pad) },
       });
       const buttonH = Math.max(44, this.s(40));
+      const bar = { x: card.x + pad, y: card.y + card.h - pad - buttonH - this.s(9), w: card.w - 2 * pad };
+      const progress = this.add.graphics();
+      this.ui!.add(progress);
       const button = this.addButton(
         card.x + pad,
         card.y + card.h - pad - buttonH,
@@ -406,26 +432,49 @@ export class PlanetScene extends Phaser.Scene {
         narrow ? 13 : 14,
       );
       if (narrow) level.setVisible(false);
-      this.cards.push({ id: def.id, level, effect, cost, button });
+      this.cards.push({ id: def.id, level, effect, cost, button, progress, bar });
     });
   }
 
   // ——— akcje i odświeżanie ———
 
+  /** Przycisk karty: ulepsz, a gdy ten budynek się buduje — anuluj (z potwierdzeniem). */
   private onUpgrade(id: BuildingId): void {
-    const result = this.deps.controller.upgrade(id);
-    this.showToast(result.message, result.ok ? 'ok' : 'error');
-    if (result.ok) {
-      this.deps.display.setStructures(this.deps.controller.economy.levels);
-      this.deps.display.showBuilding(id);
+    const controller = this.deps.controller;
+    if (controller.economy.construction?.building === id) {
+      this.onCancel();
+      return;
     }
+    const result = controller.upgrade(id);
+    this.showToast(result.message, result.ok ? 'ok' : 'error');
+    this.refreshValues();
+    if (result.ok) this.deps.display.showBuilding(id);
+  }
+
+  private onCancel(): void {
+    const now = Date.now();
+    if (now > this.cancelArmedUntil) {
+      // Pierwsze dotknięcie tylko pyta — przypadkowy dotyk nie przerwie budowy.
+      this.cancelArmedUntil = now + CANCEL_CONFIRM_MS;
+      this.refreshValues();
+      return;
+    }
+    this.cancelArmedUntil = 0;
+    const result = this.deps.controller.cancelUpgrade(now);
+    this.showToast(result.message, result.ok ? 'info' : 'error');
     this.refreshValues();
   }
 
   private refreshValues(): void {
     const controller = this.deps.controller;
     const rates = controller.rates;
-    this.deps.display.setStructures(controller.economy.levels);
+    const now = Date.now();
+    const construction = controller.economy.construction;
+    const progress = controller.buildProgress(now);
+    this.deps.display.setStructures(
+      controller.economy.levels,
+      construction ? { building: construction.building, targetLevel: construction.targetLevel, progress } : null,
+    );
 
     if (this.res) {
       const pair = (value: Phaser.GameObjects.Text, note: Phaser.GameObjects.Text, v: string, n: string) => {
@@ -463,17 +512,46 @@ export class PlanetScene extends Phaser.Scene {
           ? ` · −${formatRate(scaled(def.baseEnergyUse, level + 1, growth) - scaled(def.baseEnergyUse, level, growth))} energii`
           : '';
       card.effect.setText(`Na poz. ${level + 1}: +${formatRate(gain)} ${unit}${energyCost}`);
+      card.progress.clear();
+      const building = construction?.building === card.id;
+      if (building) {
+        // Ten budynek się buduje: odliczanie, pasek postępu, anulowanie.
+        card.effect.setText(`Budowa poz. ${construction!.targetLevel} · zostało ${formatDuration(controller.buildSecondsLeft(now))}`);
+        card.effect.setColor(COLORS.gold);
+        card.cost.setText('Anulowanie zwraca pełny koszt.');
+        card.cost.setY(card.effect.y + card.effect.height + this.px(this.s(4)));
+        this.drawProgress(card, progress);
+        const armed = now <= this.cancelArmedUntil;
+        card.button.setText(armed ? 'Na pewno anulować?' : 'Anuluj budowę').setStyle(armed ? 'danger' : 'secondary');
+        continue;
+      }
+      card.effect.setColor(COLORS.teal);
       const cost = controller.costOf(card.id);
-      card.cost.setText(`Koszt: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów`);
+      const time = formatDuration(buildSeconds(level + 1));
+      card.cost.setText(`Koszt: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów · ${time}`);
       card.cost.setY(card.effect.y + card.effect.height + this.px(this.s(4)));
       if (level >= BALANCE.maxLevel) {
         card.button.setText('Maksymalny poziom').setStyle('disabled');
+        continue;
+      }
+      if (construction) {
+        card.button.setText('Trwa inna budowa').setStyle('disabled');
         continue;
       }
       const wait = controller.waitSecondsFor(card.id);
       if (wait <= 0) card.button.setText(`Ulepsz do ${level + 1}`).setStyle('primary');
       else card.button.setText(Number.isFinite(wait) ? `Dostępne za ${formatDuration(wait)}` : 'Brak produkcji').setStyle('disabled');
     }
+  }
+
+  private drawProgress(card: BuildingCard, value: number): void {
+    const { x, y, w } = card.bar;
+    const h = this.s(4);
+    card.progress
+      .fillStyle(COLORS.divider, 1)
+      .fillRoundedRect(this.px(x), this.px(y), this.px(w), this.px(h), this.px(2))
+      .fillStyle(COLORS.goldHex, 1)
+      .fillRoundedRect(this.px(x), this.px(y), this.px(Math.max(h, w * value)), this.px(h), this.px(2));
   }
 
   private showToast(message: string, kind: ToastKind, duration = 2200): void {

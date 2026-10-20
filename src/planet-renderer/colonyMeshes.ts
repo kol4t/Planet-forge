@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingId, BuildingLevels } from '../core/types.ts';
+import type { BuildSite } from './PlanetDisplay.ts';
 import { MAX_STRUCTURES, structureScale, visibleStructures, type ColonyLayout } from './colony.ts';
 import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
 
@@ -79,6 +80,11 @@ export class ColonyMeshes {
   private layout: ColonyLayout | null = null;
   private levels: BuildingLevels | null = null;
   private animating = false;
+  private readonly shapes = createShapes();
+  /** Rusztowanie trwającej budowy: zarys budynku rosnący wraz z postępem. */
+  private readonly scaffold: THREE.Mesh;
+  private site: BuildSite | null = null;
+  private time = 0;
   private readonly tmp = {
     m: new THREE.Matrix4(),
     q: new THREE.Quaternion(),
@@ -91,7 +97,14 @@ export class ColonyMeshes {
 
   constructor(ids: readonly BuildingId[]) {
     this.object.name = 'colony';
-    const shapes = createShapes();
+    const shapes = this.shapes;
+    this.scaffold = new THREE.Mesh(
+      shapes.metalMine.body,
+      new THREE.MeshBasicMaterial({ color: '#e6c77a', wireframe: true, transparent: true, depthWrite: false, toneMapped: false }),
+    );
+    this.scaffold.visible = false;
+    this.scaffold.frustumCulled = false;
+    this.object.add(this.scaffold);
     for (const id of ids) {
       const colors = STRUCTURE_COLORS[id];
       const body = new THREE.InstancedMesh(
@@ -152,16 +165,24 @@ export class ColonyMeshes {
     this.update(0);
   }
 
-  /** Środek budowli danego typu (do obrotu kamery), w układzie planety. */
+  /** Trwająca budowa (null = brak). Wołane często — tanie. */
+  setConstruction(site: BuildSite | null): void {
+    this.site = site;
+    if (site) this.scaffold.geometry = this.shapes[site.building].body;
+  }
+
+  /** Miejsce budowli danego typu (do obrotu kamery), w układzie planety. */
   focusDir(id: BuildingId): [number, number, number] | null {
     const slots = this.layout?.slots[id];
     if (!slots?.length) return this.layout?.center ?? null;
-    const level = this.levels?.[id] ?? 1;
-    const index = Math.max(0, Math.min(visibleStructures(level), slots.length) - 1);
-    return slots[index]!.dir;
+    // Trwa budowa tego typu → pokaż rusztowanie; inaczej najnowszą budowlę.
+    const level = this.site?.building === id ? this.site.targetLevel : (this.levels?.[id] ?? 1);
+    return slots[slotIndex(level, slots.length)]!.dir;
   }
 
   update(dt: number): void {
+    this.time += dt;
+    this.updateScaffold();
     if (!this.animating || !this.layout) return;
     const { m, q, spin, p, s, n, up } = this.tmp;
     let stillMoving = false;
@@ -205,7 +226,32 @@ export class ColonyMeshes {
     this.animating = stillMoving;
   }
 
+  private updateScaffold(): void {
+    const site = this.site;
+    const slots = site && this.layout?.slots[site.building];
+    if (!site || !slots?.length) {
+      this.scaffold.visible = false;
+      return;
+    }
+    const slot = slots[slotIndex(site.targetLevel, slots.length)]!;
+    const { q, spin, p, s, n, up } = this.tmp;
+    const size = STRUCTURE_SIZE * slot.size * structureScale(site.targetLevel) * 1.08;
+    n.set(slot.dir[0], slot.dir[1], slot.dir[2]);
+    q.setFromUnitVectors(up, n);
+    spin.setFromAxisAngle(up, slot.spin);
+    q.multiply(spin);
+    p.copy(n).multiplyScalar(slot.surface - STRUCTURE_SIZE * 0.08);
+    // Zarys „rośnie” od fundamentów do pełnej wysokości wraz z postępem budowy.
+    s.set(size, size * (0.2 + 0.8 * site.progress), size);
+    this.scaffold.position.copy(p);
+    this.scaffold.quaternion.copy(q);
+    this.scaffold.scale.copy(s);
+    (this.scaffold.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.3 * Math.sin(this.time * 4);
+    this.scaffold.visible = true;
+  }
+
   dispose(): void {
+    (this.scaffold.material as THREE.Material).dispose();
     for (const group of this.groups.values()) {
       for (const mesh of [group.body, group.light]) {
         mesh.geometry.dispose();
@@ -214,4 +260,9 @@ export class ColonyMeshes {
       }
     }
   }
+}
+
+/** Indeks miejsca dla budowli danego poziomu (powyżej limitu: ostatnie miejsce). */
+function slotIndex(level: number, slotCount: number): number {
+  return Math.max(0, Math.min(visibleStructures(level), slotCount) - 1);
 }

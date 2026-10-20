@@ -1,10 +1,13 @@
 import {
   advance,
+  cancelConstruction,
+  constructionProgress,
   createEconomy,
   productionRates,
   secondsUntilAffordable,
   upgradeBuilding,
   upgradeCost,
+  type CancelResult,
   type Rates,
   type UpgradeResult,
 } from '../core/economy/economy.ts';
@@ -20,12 +23,20 @@ export interface OfflineGain {
   seconds: number;
 }
 
+export interface CompletedBuild {
+  building: BuildingId;
+  level: number;
+}
+
 /** Spina reguły (core), zapis i UI. UI zmienia stan WYŁĄCZNIE przez te metody. */
 export class GameController {
   planet: Planet;
   economy: EconomyState;
   offlineGain: OfflineGain | null = null;
+  /** Budowa ukończona podczas nieobecności (do jednorazowego komunikatu). */
+  completedWhileAway: CompletedBuild | null = null;
   private readonly listeners = new Set<() => void>();
+  private readonly completeListeners = new Set<(done: CompletedBuild) => void>();
   private readonly planetListeners = new Set<() => void>();
 
   constructor(now = Date.now()) {
@@ -35,6 +46,7 @@ export class GameController {
       this.planet = generatePlanet(definition, saved.planet.seed);
       const before = saved.economy;
       this.economy = advance(before, this.planet, now);
+      this.completedWhileAway = finishedBuild(before, this.economy);
       const seconds = Math.min((now - before.lastUpdate) / 1000, BALANCE.maxOfflineSeconds);
       if (seconds > 60) {
         this.offlineGain = {
@@ -62,17 +74,44 @@ export class GameController {
   }
 
   tick(now = Date.now()): void {
-    this.economy = advance(this.economy, this.planet, now);
+    const before = this.economy;
+    this.economy = advance(before, this.planet, now);
+    const done = finishedBuild(before, this.economy);
+    if (done) {
+      this.save();
+      for (const listener of this.completeListeners) listener(done);
+    }
     this.emit();
   }
 
+  /** Rozpoczyna ulepszenie (budowę). Ukończenie przychodzi przez `onBuildComplete`. */
   upgrade(id: BuildingId, now = Date.now()): UpgradeResult {
-    this.economy = advance(this.economy, this.planet, now);
-    const result = upgradeBuilding(this.economy, id);
+    this.tick(now);
+    const result = upgradeBuilding(this.economy, id, now);
     this.economy = result.state;
     if (result.ok) this.save();
     this.emit();
     return result;
+  }
+
+  cancelUpgrade(now = Date.now()): CancelResult {
+    this.tick(now);
+    const result = cancelConstruction(this.economy);
+    this.economy = result.state;
+    if (result.ok) this.save();
+    this.emit();
+    return result;
+  }
+
+  /** Postęp budowy 0..1. */
+  buildProgress(now = Date.now()): number {
+    return constructionProgress(this.economy, now);
+  }
+
+  /** Sekundy do końca budowy (0, gdy nic się nie buduje). */
+  buildSecondsLeft(now = Date.now()): number {
+    const c = this.economy.construction;
+    return c ? Math.max(0, (c.finishesAt - now) / 1000) : 0;
   }
 
   /** Nowa planeta: typ wynika z seeda (losowanie ważone po definicjach). */
@@ -80,6 +119,7 @@ export class GameController {
     this.planet = generatePlanet(pickDefinition(seed, PLANET_DEFINITIONS), seed);
     this.economy = createEconomy(now);
     this.offlineGain = null;
+    this.completedWhileAway = null;
     clearSave();
     this.save();
     for (const listener of this.planetListeners) listener();
@@ -102,6 +142,11 @@ export class GameController {
     return () => this.listeners.delete(listener);
   }
 
+  onBuildComplete(listener: (done: CompletedBuild) => void): () => void {
+    this.completeListeners.add(listener);
+    return () => this.completeListeners.delete(listener);
+  }
+
   onPlanetChange(listener: () => void): () => void {
     this.planetListeners.add(listener);
     return () => this.planetListeners.delete(listener);
@@ -110,6 +155,12 @@ export class GameController {
   private emit(): void {
     for (const listener of this.listeners) listener();
   }
+}
+
+function finishedBuild(before: EconomyState, after: EconomyState): CompletedBuild | null {
+  const c = before.construction;
+  if (!c || after.construction) return null;
+  return after.levels[c.building] === c.targetLevel ? { building: c.building, level: c.targetLevel } : null;
 }
 
 /** Losowy seed gracza, np. „PF-A2TQ-7QWR” (bez mylących znaków 0/O, 1/I). */

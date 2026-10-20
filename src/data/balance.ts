@@ -8,6 +8,7 @@ export const BALANCE: Balance = {
   startingLevels: { metalMine: 1, crystalMine: 1, powerPlant: 1 },
   maxLevel: 40,
   maxOfflineSeconds: 8 * 60 * 60,
+  buildSecondsPerLevel: 30,
   buildings: [
     {
       id: 'metalMine',

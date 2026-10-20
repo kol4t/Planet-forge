@@ -118,11 +118,24 @@ export interface Planet {
   visual: PlanetVisual;
 }
 
+/** Trwająca budowa (naraz tylko jedna). */
+export interface Construction {
+  building: BuildingId;
+  /** Poziom, który budynek osiągnie po ukończeniu. */
+  targetLevel: number;
+  /** Znaczniki czasu (ms). */
+  startedAt: number;
+  finishesAt: number;
+  /** Pobrany koszt — zwracany w całości przy anulowaniu. */
+  cost: Resources;
+}
+
 export interface EconomyState {
   stock: Resources;
   levels: BuildingLevels;
   /** Znacznik czasu (ms) ostatniego naliczenia produkcji. */
   lastUpdate: number;
+  construction: Construction | null;
 }
 
 export interface BuildingDef {
@@ -143,5 +156,7 @@ export interface Balance {
   startingLevels: BuildingLevels;
   maxLevel: number;
   maxOfflineSeconds: number;
+  /** Czas budowy = ta liczba sekund × docelowy poziom. */
+  buildSecondsPerLevel: number;
   buildings: readonly BuildingDef[];
 }
