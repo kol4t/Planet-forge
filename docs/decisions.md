@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — plan: badania jako galaktyka (ustalenia przed v0.10)
+
+- **Drzewko badań w kształcie galaktyki:** jądro w centrum, 6 spiralnych ramion (kategorii), im dalej od centrum, tym droższe badania; mosty między ramionami. Badania globalne dla całego imperium, własna kolejka (niezależna od budów), koszt w metalu i kryształach, dalsze pierścienie także w antymaterii. Nazwy i liczby robocze.
+- **Ramiona (decyzja właściciela):** Produktywność (wydobycie, energetyka, inżynieria, logistyka **i antymateria**), Planetologia, Eksploracja (dawne Astronautyka + Archeologia; treść o cywilizacjach dopiero z Lore Bible), Stacja i handel (stacja od modułu orbitalnego do sztucznej planety, rynek kupców sterowanych przez grę, szlaki handlowe), SI (SI Matka proponuje, SI wykonawcze wykonują; 3 poziomy samodzielności: proponuje / pyta / działa samo), Flota.
+- **Flota:** najpierw cywilna (transport, ekspedycje), walka w kolejnym etapie — świadome rozszerzenie zakresu MVP przez właściciela.
+- **Laboratorium:** nowy budynek; jego poziom ogranicza, jak daleko od centrum galaktyki można badać.
+- **Kolejność etapów:** (1) silnik badań + ekran galaktyki (aktywne Produktywność i Planetologia), (2) SI, (3) Stacja i handel, (4) Eksploracja, (5) Flota.
+- Otwarte: czy „gwiazdy mistrzowskie” na krawędzi ramion mają limit aktywnych naraz.
+
 ## 2026-10-20 — v0.9: zwijane panele, mniejsze UI, skalowanie komputer/tablet/telefon
 
 - **Poprawki właściciela (zrzuty z zaznaczeniami):** UI „trochę za duże”; planeta ma dominować; panel planety z minimalizacją (żółte), budynki w zwijanym panelu „Produkcja” z przyciskiem w prawym górnym rogu (czerwone). Pionowo: panel planety **nad** planetą, „Produkcja” **pod** nią; poziomo: po bokach. Start z rozwiniętymi panelami, stan zapamiętany na urządzeniu (`game/ui/uiPrefs.ts`, `planet-forge.ui.v1`). Zwijanie wyłącznie przyciskami (gest na planecie nic nie zamyka).

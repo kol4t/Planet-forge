@@ -103,8 +103,9 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 4. **Typy planet z Lore Bible** — podmiana roboczych danych w `src/data/planets.ts` na kanon (mechanizm już działa dla 5 typów).
 5. **Wizualia** — ~~pinch-zoom~~ (v0.8); dalej: pierścienie jako opcja w danych (zapas płynności: 60/53 kl./s na iPadzie właściciela).
 7. ~~Poprawki UI~~ (v0.9: zwijane panele, mniejsze UI, skalowanie).
+8. **Badania — galaktyka** (plan zatwierdzony, szczegóły w `docs/decisions.md`): 6 ramion (Produktywność z antymaterią, Planetologia, Eksploracja, Stacja i handel, SI, Flota cywilna), budynek Laboratorium ogranicza głębokość. Etapy: silnik badań + ekran galaktyki → SI (Matka + wykonawcze) → Stacja i handel → Eksploracja → Flota (walka później).
 
 **Do zrobienia później (decyzja właściciela — odłożone, nie zapominać):** lokacje wokół planety — księżyc jako pierwsza (mała pikselowa kulka na orbicie w 2D, opcja w danych planety), potem stacje kosmiczne, ekspedycje, szlaki handlowe; odblokowują miejsca 6–10 w „Twoje planety” (`planetSlots.max`, `SlotSave.kind`).
 6. ~~PWA~~ (v0.6), ~~hosting~~: GitHub Pages `https://kol4t.github.io/Planet-forge/`, automatycznie z `main` (`.github/workflows/pages.yml`).
 
-Dopiero po stabilnym MVP: badania, anomalie, dawne cywilizacje, a na końcu backend/konta/multiplayer.
+Dopiero po stabilnym MVP: anomalie, dawne cywilizacje (z Lore Bible), a na końcu backend/konta/multiplayer.
