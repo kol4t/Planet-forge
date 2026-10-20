@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { MapOccupant } from '../../app/GameController.ts';
-import { findStar, SPIRAL, spiralPoint, type GasGiantLook, type StarSystem, type SystemPlanet, type SystemSummary } from '../../core/galaxy/galaxy.ts';
+import { findStar, parseAddress, SPIRAL, spiralPoint, type GasGiantLook, type StarSystem, type SystemPlanet, type SystemSummary } from '../../core/galaxy/galaxy.ts';
 import { createRng } from '../../core/random/rng.ts';
 import { generatePlanet } from '../../core/generation/generatePlanet.ts';
 import { GALAXY_RULES, ZONE_LABELS } from '../../data/galaxy.ts';
@@ -8,7 +8,7 @@ import { findDefinition, STARTER } from '../../data/planets.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import type { ButtonStyle } from '../ui/Button.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
-import { COLORS, FONTS, formatInt } from '../ui/theme.ts';
+import { COLORS, FONTS, formatDuration, formatInt } from '../ui/theme.ts';
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
 /** Z czym otworzyć mapę: cała galaktyka albo od razu układ. */
@@ -51,6 +51,8 @@ export class MapScene extends OverlayScene {
   private planetSpots: { position: number; x: number; y: number }[] = [];
   /** Pas asteroid w widoku układu (promień i pół szerokości, px urządzenia). */
   private beltRing: { r: number; half: number } | null = null;
+  /** Odliczanie lotu statku w szczegółach planety. */
+  private countdown: { text: Phaser.GameObjects.Text; target: string } | null = null;
   /** Komety przelatujące przez galaktykę (tylko wygląd; jednostki mapy na sekundę). */
   private comets: Phaser.GameObjects.Graphics | undefined;
   private cometList: { x: number; y: number; vx: number; vy: number; age: number; life: number }[] = [];
@@ -270,6 +272,19 @@ export class MapScene extends OverlayScene {
         g.lineStyle(Math.max(1.5, this.dpr * 1.3), OCCUPANT_COLOR[occupant], occupant === 'you' ? 1 : 0.75).strokeCircle(x, y, ring);
       }
       if (p.address === controller.address) g.fillStyle(COLORS.goldHex, 1).fillCircle(x + ring * 0.75, y - ring * 0.75, this.px(3));
+      if (controller.missionTo(p.address)) {
+        // Statek w drodze: przerywany złoty pierścień i mały trójkąt.
+        for (let k = 0; k < 12; k += 2) {
+          g.lineStyle(Math.max(1.5, this.dpr), COLORS.goldHex, 0.9);
+          g.beginPath();
+          g.arc(x, y, ring * 1.15, (k * Math.PI) / 6, ((k + 1) * Math.PI) / 6, false);
+          g.strokePath();
+        }
+        const sx = x - ring * 1.1;
+        const sy = y - ring * 1.1;
+        const t = this.px(4);
+        g.fillStyle(COLORS.goldHex, 1).fillTriangle(sx + t, sy, sx - t, sy - t * 0.7, sx - t, sy + t * 0.7);
+      }
       if (p.position === this.selected) g.lineStyle(Math.max(1.5, this.dpr * 1.2), 0xffffff, 0.9).strokeCircle(x, y, ring * 1.3);
     }
     if (this.selected === BELT && this.beltRing) {
@@ -316,6 +331,26 @@ export class MapScene extends OverlayScene {
       }
       g.fillStyle(0xffffff, fade).fillCircle(c.x * U, c.y * U, width * 1.8);
     }
+    // Statki kolonizacyjne: złota przerywana trasa i statek w miejscu zgodnym z postępem lotu.
+    const systems = this.deps.controller.galaxy.systems;
+    for (const m of this.deps.controller.missionsView()) {
+      const a = systems[(parseAddress(m.from)?.system ?? 1) - 1];
+      const b = systems[(parseAddress(m.target)?.system ?? 1) - 1];
+      if (!a || !b) continue;
+      const steps = 14;
+      for (let i = 0; i < steps; i += 2) {
+        const t0 = i / steps;
+        const t1 = (i + 1) / steps;
+        g.lineStyle(width * 1.4, COLORS.goldHex, 0.7).lineBetween(
+          (a.x + (b.x - a.x) * t0) * U,
+          (a.y + (b.y - a.y) * t0) * U,
+          (a.x + (b.x - a.x) * t1) * U,
+          (a.y + (b.y - a.y) * t1) * U,
+        );
+      }
+      const pulse = 0.75 + 0.25 * Math.sin(this.time.now / 250);
+      g.fillStyle(COLORS.goldHex, pulse).fillCircle((a.x + (b.x - a.x) * m.progress) * U, (a.y + (b.y - a.y) * m.progress) * U, width * 3);
+    }
   }
 
   // ——— wspólne ———
@@ -345,6 +380,23 @@ export class MapScene extends OverlayScene {
   protected refresh(): void {
     this.drawGalaxyMarks();
     this.drawSystemMarks();
+    const live = this.countdown;
+    if (live) {
+      const mission = this.deps.controller.missionsView().find((m) => m.target === live.target);
+      if (mission) live.text.setText(`Statek w drodze — przylot za ${formatDuration(mission.secondsLeft)}`);
+      else {
+        // Statek dotarł: kolonia gotowa — szczegóły od nowa.
+        this.countdown = null;
+        this.buildDetails();
+      }
+    }
+  }
+
+  /** Po wysłaniu / zawróceniu statku: komunikat i odświeżone szczegóły. */
+  private afterShip(result: { ok: boolean; message: string }): void {
+    this.showToast(result.message, result.ok ? 'ok' : 'error', 3200);
+    this.buildDetails();
+    this.refresh();
   }
 
   protected onTap(px: number, py: number): void {
@@ -429,6 +481,7 @@ export class MapScene extends OverlayScene {
   }
 
   private buildDetails(): void {
+    this.countdown = null;
     this.details?.destroy(true);
     this.details = this.add.container(0, 0).setDepth(11);
     const items: Phaser.GameObjects.GameObject[] = [];
@@ -472,6 +525,8 @@ export class MapScene extends OverlayScene {
           11.5,
           COLORS.text,
         );
+        const ships = controller.missionsView().filter((m) => parseAddress(m.target)?.system === s.index);
+        if (ships.length) line(`Statek kolonizacyjny w drodze: ${ships.map((m) => `${m.targetName} (${formatDuration(m.secondsLeft)})`).join(', ')}`, 11, COLORS.gold);
         buttons(['Pokaż układ', 'primary', () => this.openSystem(s.index)], ['Odznacz', 'secondary', () => this.onTap(-1e6, -1e6)]);
       }
       this.details.add(items);
@@ -539,7 +594,23 @@ export class MapScene extends OverlayScene {
     } else if (occupant === 'free' && this.systemIndex === controller.homeSystem) {
       action = ['Skolonizuj', 'primary', () => this.finish(controller.colonize(p.address))];
     } else if (occupant === 'free') {
-      action = ['Wymaga statku', 'disabled', () => this.showToast(controller.colonize(p.address).message, 'info', 3200)];
+      // Inny układ: statek kolonizacyjny (po badaniu „Napęd międzygwiezdny”).
+      const mission = controller.missionTo(p.address);
+      const cost = controller.colonyShipCost;
+      if (mission) {
+        this.countdown = { text: line('', 11.5, COLORS.gold, { fontStyle: '600' }), target: p.address };
+        action = ['Zawróć statek', 'secondary', () => this.afterShip(controller.cancelMission(p.address))];
+      } else if (controller.colonyShipUnlocked) {
+        line(
+          `Statek kolonizacyjny: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów (z ${controller.planet.displayName}) · lot ${formatDuration(controller.flightSeconds(this.systemIndex))}`,
+          11,
+          COLORS.text,
+        );
+        action = ['Wyślij statek', 'primary', () => this.afterShip(controller.sendColonyShip(p.address))];
+      } else {
+        line('Do innych układów poleci statek kolonizacyjny — najpierw badanie „Napęd międzygwiezdny” (Eksploracja).', 11, COLORS.faint);
+        action = ['Wymaga badania', 'disabled', () => this.showToast(controller.colonize(p.address).message, 'info', 3600)];
+      }
     } else {
       action = [occupant === 'alien' ? 'Forma obca' : 'Inny gracz', 'disabled', () => this.showToast(controller.colonize(p.address).message, 'info', 3200)];
     }

@@ -40,7 +40,7 @@ export const RESEARCH_ARMS: readonly ResearchArmDef[] = [
     description: 'Sondy, księżyce, ekspedycje, a dalej anomalie i dawne cywilizacje.',
     angleDeg: 40,
     color: 0xb3a58b,
-    active: false,
+    active: true,
     status: 'robocza',
   },
   {
@@ -173,9 +173,18 @@ export const RESEARCH_NODES: readonly ResearchNodeDef[] = [
   master('planetology', 'planet-master', 'Architekt światów', 'Gwiazda mistrzowska Planetologii.', ['planet-5']),
 
   // ——— ramiona „wkrótce” ———
-  soon('exploration', 1, 'explore-1', 'Sondy dalekiego zasięgu', 'Pierwszy krok poza orbitę planety.'),
-  soon('exploration', 2, 'explore-2', 'Księżyce', 'Księżyc jako nowe miejsce imperium.', ['explore-1']),
-  soon('exploration', 3, 'explore-3', 'Ekspedycje', 'Wyprawy w nieznane rejony galaktyki.', ['explore-2']),
+  {
+    id: 'explore-1',
+    arm: 'exploration',
+    ring: 1,
+    lane: 0,
+    name: 'Napęd międzygwiezdny',
+    description: 'Statek kolonizacyjny doleci do innych układów galaktyki.',
+    requires: [],
+    effects: [{ kind: 'unlock', feature: 'colony-ship' }],
+  },
+  { ...soon('exploration', 2, 'explore-2', 'Księżyce', 'Księżyc jako nowe miejsce imperium.', ['explore-1']), soon: true },
+  { ...soon('exploration', 3, 'explore-3', 'Ekspedycje', 'Wyprawy w nieznane rejony galaktyki.', ['explore-2']), soon: true },
   master('exploration', 'explore-master', 'Pionier', 'Gwiazda mistrzowska Eksploracji.', ['explore-3']),
   soon('station', 1, 'station-1', 'Moduł orbitalny', 'Pierwszy moduł stacji kosmicznej.'),
   soon('station', 2, 'station-2', 'Dok handlowy', 'Stacja przyjmuje statki kupców.', ['station-1']),

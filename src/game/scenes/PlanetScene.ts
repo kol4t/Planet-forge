@@ -6,7 +6,6 @@ import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import { findResearch } from '../../data/research.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
-import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
 import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
 import { openTextPanel } from '../ui/textPanel.ts';
@@ -163,6 +162,11 @@ export class PlanetScene extends Phaser.Scene {
       if (message) this.showToast(message, 'ok', 3000);
     });
 
+    controller.onColonyArrived((name) => {
+      this.showToast(`Statek dotarł — skolonizowano ${name}. Znajdziesz ją w „Imperium”.`, 'ok', 4000);
+      this.refreshValues();
+    });
+
     controller.onBuildComplete((done) => {
       const name = BALANCE.buildings.find((b) => b.id === done.building)?.name ?? 'Budynek';
       this.showToast(`${name} — poziom ${done.level} gotowy.`, 'ok', 3000);
@@ -176,7 +180,12 @@ export class PlanetScene extends Phaser.Scene {
         'info',
         6000,
       );
-    } else if (controller.offlineGain || controller.completedWhileAway || controller.researchedWhileAway.length > 0) {
+    } else if (
+      controller.offlineGain ||
+      controller.completedWhileAway ||
+      controller.researchedWhileAway.length > 0 ||
+      controller.arrivedWhileAway.length > 0
+    ) {
       const lines: string[] = [];
       const gain = controller.offlineGain;
       if (gain) {
@@ -191,10 +200,12 @@ export class PlanetScene extends Phaser.Scene {
         display.showBuilding(done.building);
       }
       for (const id of controller.researchedWhileAway) lines.push(`Zbadano: ${findResearch(id)?.name ?? id}.`);
+      for (const name of controller.arrivedWhileAway) lines.push(`Statek dotarł — nowa kolonia: ${name}.`);
       this.showToast(lines.join('\n'), 'info', 5000);
       controller.offlineGain = null;
       controller.completedWhileAway = null;
       controller.researchedWhileAway = [];
+      controller.arrivedWhileAway = [];
     }
   }
 
@@ -208,7 +219,7 @@ export class PlanetScene extends Phaser.Scene {
     this.openScreen('map', system ? { system } : {});
   }
 
-  private openScreen(key: 'research' | 'map', data: object = {}): void {
+  private openScreen(key: 'research' | 'map' | 'empire', data: object = {}): void {
     if (this.screenOpen) return;
     this.closeOverlay();
     this.screenOpen = true;
@@ -492,7 +503,7 @@ export class PlanetScene extends Phaser.Scene {
     const buttonH = TOUCH;
     const buttons = (x: number, y: number, w: number, fontSize = 13.5) => {
       const half = (w - this.s(8)) / 2;
-      this.addButton(x, y, half, buttonH, 'Planety', 'secondary', () => this.openPlanets(), fontSize);
+      this.addButton(x, y, half, buttonH, 'Imperium', 'secondary', () => this.openScreen('empire'), fontSize);
       this.addButton(x + half + this.s(8), y, half, buttonH, 'Ustawienia', 'secondary', () => this.openSettings(), fontSize);
     };
     const nameW = box.w - 2 * pad - TOUCH;
@@ -932,161 +943,9 @@ export class PlanetScene extends Phaser.Scene {
     });
   }
 
-  /** Animowane miniatury w otwartym oknie „Twoje planety” (sprzątane przy zamknięciu). */
-  private thumbnails: { textureKey: string; thumb: PlanetThumbnail; yaw: number }[] = [];
-  private thumbnailTimer: Phaser.Time.TimerEvent | undefined;
-
-  /** Dwa dotknięcia „Usuń” w ciągu 3 s: { indeks planety, do kiedy czekamy }. */
-  private removeArmed: { index: number; until: number } | null = null;
-
-  /** Okno „Twoje planety”: lista miejsc, przejście, usuwanie, nowa planeta. */
-  private openPlanets(): void {
-    this.closeOverlay();
-    const controller = this.deps.controller;
-    const viewport = this.deps.getViewport();
-    const W = this.px(viewport.width);
-    const H = this.px(viewport.height);
-    const shade = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0).setInteractive();
-    shade.on('pointerup', () => this.closeOverlay());
-    const w = this.px(Math.min(viewport.width - 32, this.s(480)));
-    const pad = this.px(this.s(18));
-    const gap = this.px(this.s(10));
-    const buttonH = this.px(44);
-    const text = (x: number, y: number, content: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}) =>
-      this.add.text(x, y, content, { fontFamily: FONTS.body, fontSize: `${this.px(this.s(size))}px`, color, ...extra });
-
-    const items: Phaser.GameObjects.GameObject[] = [];
-    let y = pad;
-    const title = text(pad, y, 'Twoje planety', 22, COLORS.gold, { fontFamily: FONTS.serif });
-    y += title.height + this.px(4);
-    const slots = controller.slotInfo;
-    const more = slots.unlocked < slots.max ? ` · do ${slots.max} po odblokowaniu (wkrótce)` : '';
-    const sub = text(pad, y, `Zajęte miejsca: ${slots.used} z ${slots.unlocked}${more}`, 12.5, COLORS.muted, {
-      wordWrap: { width: w - 2 * pad },
-    });
-    y += sub.height + gap;
-    items.push(title, sub);
-
-    const now = Date.now();
-    const thumbD = this.px(this.s(48));
-    const goW = this.px(this.s(104));
-    const delW = this.px(this.s(76));
-    for (const p of controller.planets()) {
-      const rowH = this.px(this.s(64));
-      const row = this.add
-        .graphics()
-        .fillStyle(p.active ? COLORS.buttonIdle : COLORS.panel, 1)
-        .fillRoundedRect(pad, y, w - 2 * pad, rowH, this.px(10))
-        .lineStyle(this.px(1), p.active ? COLORS.goldHex : COLORS.panelBorder, p.active ? 0.8 : 1)
-        .strokeRoundedRect(pad, y, w - 2 * pad, rowH, this.px(10));
-      // Miniatura: mała, obracająca się pikselowa planeta.
-      const textureKey = `thumb-${p.index}-${now}`;
-      const texture = this.textures.createCanvas(textureKey, THUMBNAIL_SIZE, THUMBNAIL_SIZE)!;
-      texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
-      const thumb = new PlanetThumbnail(p.planet);
-      const yaw = p.index * 1.7;
-      thumb.draw(texture.context, yaw);
-      texture.refresh();
-      this.thumbnails.push({ textureKey, thumb, yaw });
-      const image = this.add.image(pad + gap + thumbD / 2, y + rowH / 2, textureKey).setDisplaySize(thumbD, thumbD);
-      const textX = pad + 2 * gap + thumbD;
-      // Aktywna planeta nie ma przycisków — tekst może zająć więcej miejsca.
-      const textW = w - textX - pad - (p.active ? this.px(this.s(90)) : goW + delW + gap) - 2 * gap;
-      const name = text(textX, y + this.px(this.s(9)), p.name, 15, p.active ? COLORS.gold : COLORS.text, {
-        fontStyle: '600',
-        fixedWidth: textW,
-      });
-      const detail = `${p.address} · ${p.category} · suma poziomów ${p.totalLevels}${p.building ? ` · buduje: ${p.building}` : ''}`;
-      const info = text(textX, y + this.px(this.s(31)), detail, 11.5, COLORS.muted, {
-        wordWrap: { width: textW },
-        maxLines: 2,
-      });
-      // Kolejność = kolejność rysowania: tło wiersza pod miniaturą i tekstem.
-      items.push(row, image, name, info);
-      const by = y + (rowH - buttonH) / 2;
-      const goX = w - pad - gap - goW - delW - gap;
-      if (p.active) {
-        items.push(text(w - pad - gap, y + rowH / 2, 'Tu jesteś', 13, COLORS.gold, { fontStyle: '600' }).setOrigin(1, 0.5));
-      } else {
-        const go = new Button(this, goX, by, goW, buttonH, 'Przejdź', this.dpr, () => {
-          const result = controller.switchPlanet(p.index);
-          this.closeOverlay();
-          this.showToast(result.message, result.ok ? 'ok' : 'error');
-        }, this.s(14)).setStyle('primary');
-        const armed = this.removeArmed?.index === p.index && now <= this.removeArmed.until;
-        const del = new Button(this, w - pad - gap - delW, by, delW, buttonH, armed ? 'Na pewno?' : 'Usuń', this.dpr, () => {
-          if (!armed) {
-            // Pierwsze dotknięcie tylko pyta — postęp usuniętej planety przepada.
-            this.removeArmed = { index: p.index, until: Date.now() + 3000 };
-          } else {
-            this.removeArmed = null;
-            const result = controller.removePlanet(p.index);
-            this.showToast(result.message, result.ok ? 'info' : 'error');
-          }
-          this.openPlanets();
-        }, this.s(armed ? 12 : 14)).setStyle(armed ? 'danger' : 'secondary');
-        items.push(go, del);
-      }
-      y += rowH + gap;
-    }
-
-    y += this.px(4);
-    const free = slots.used < slots.unlocked;
-    const half = (w - 2 * pad - gap) / 2;
-    // Nowe planety kolonizuje się z mapy (wolne planety Twojego układu).
-    const add = new Button(this, pad, y, half, buttonH, 'Mapa układu', this.dpr, () => {
-      this.closeOverlay();
-      this.openMap(controller.homeSystem);
-    }, this.s(15)).setStyle('primary');
-    const close = new Button(this, pad + half + gap, y, half, buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle(
-      'secondary',
-    );
-    y += buttonH + this.px(8);
-    const note = text(
-      pad,
-      y,
-      free
-        ? 'Nowe planety kolonizujesz z mapy: wolne planety Twojego układu. Pozostałe dalej produkują (jak podczas nieobecności, do 8 h).'
-        : 'Wszystkie miejsca zajęte — usuń planetę, żeby skolonizować nową.',
-      11.5,
-      COLORS.faint,
-      { wordWrap: { width: w - 2 * pad } },
-    );
-    y += note.height + pad;
-    items.push(add, close, note);
-
-    const h = y;
-    const box = this.add
-      .graphics()
-      .fillStyle(COLORS.panel, 0.98)
-      .fillRoundedRect(0, 0, w, h, this.px(16))
-      .lineStyle(this.px(1), COLORS.goldHex, 0.7)
-      .strokeRoundedRect(0, 0, w, h, this.px(16));
-    const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
-    const dialog = this.add.container((W - w) / 2, Math.max(this.px(8), (H - h) / 2), [box, blocker, ...items]);
-    this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
-    // Obrót miniatur ~12 klatek/s — płynnie, a tanio (mała tarcza).
-    this.thumbnailTimer = this.time.addEvent({
-      delay: 80,
-      loop: true,
-      callback: () => {
-        for (const t of this.thumbnails) {
-          t.yaw += 0.07;
-          const texture = this.textures.get(t.textureKey) as Phaser.Textures.CanvasTexture;
-          t.thumb.draw(texture.context, t.yaw);
-          texture.refresh();
-        }
-      },
-    });
-  }
-
   private closeOverlay(): void {
-    this.thumbnailTimer?.remove();
-    this.thumbnailTimer = undefined;
     this.overlay?.destroy(true);
     this.overlay = undefined;
-    for (const t of this.thumbnails) this.textures.remove(t.textureKey);
-    this.thumbnails = [];
   }
 
   /** Okno ustawień: przenoszenie zapisu, nowa planeta, wersja gry. */

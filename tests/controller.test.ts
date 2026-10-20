@@ -244,3 +244,60 @@ test('mapa: stary zapis kilku planet dostaje adresy w układzie startowym (wygl�
     assert.equal(game.planet.definitionId, 'ice');
   });
 });
+
+test('statek kolonizacyjny: wymaga badania, kosztuje, leci, zakłada kolonię (także podczas nieobecności); dziennik', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    const other = game.galaxy.systems.map((s) => game.system(s.index)!).find((s) => s.index !== game.homeSystem && s.planets.some(isColonizable))!;
+    const target = other.planets.find(isColonizable)!.address;
+    assert.match(game.sendColonyShip(target, 0).message, /Napęd międzygwiezdny/);
+    game.research = { done: ['explore-1'], current: null };
+    assert.ok(game.colonyShipUnlocked);
+    assert.match(game.sendColonyShip(target, 0).message, /magazyn|brakuje/i);
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, storage: 6 }, stock: { metal: 9000, crystal: 9000 } };
+    const sent = game.sendColonyShip(target, 0);
+    assert.ok(sent.ok, sent.message);
+    assert.equal(game.economy.stock.metal, 9000 - game.colonyShipCost.metal);
+    assert.match(game.sendColonyShip(target, 0).message, /już leci/);
+    const [mission] = game.missionsView(0);
+    assert.ok(mission && mission.secondsLeft > 60, 'lot trwa');
+    // Zawrócenie zwraca koszt; ponowne wysłanie.
+    assert.ok(game.cancelMission(target, 1000).ok);
+    assert.equal(game.missionsView(1000).length, 0);
+    assert.ok(game.sendColonyShip(target, 1000).ok);
+    const arrivesAt = game.missionsView(1000)[0]!.arrivesAt;
+    game.save();
+    // Przylot podczas nieobecności: kolonia jest, gracz zostaje na swojej planecie.
+    const later = new GameController(arrivesAt + 1000);
+    assert.equal(later.slotInfo.used, 2);
+    assert.equal(later.slotAt(target), 1);
+    assert.equal(later.address, game.address);
+    assert.equal(later.arrivedWhileAway.length, 1);
+    const texts = later.journalEntries().map((e) => e.text);
+    assert.ok(texts.some((t) => t.startsWith('Statek dotarł')), texts.join(' | '));
+    assert.ok(texts.some((t) => t.startsWith('Statek kolonizacyjny wyruszył')));
+    // Na żywo: zdarzenie przylotu.
+    const arrivals: string[] = [];
+    game.onColonyArrived((name) => arrivals.push(name));
+    game.tick(arrivesAt);
+    assert.equal(arrivals.length, 1);
+  });
+});
+
+test('imperium: zestawienie planet liczy nieaktywne „na teraz”, dziennik zapisuje budowy i kolonie', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.upgrade('metalMine', 0);
+    game.colonize(freeAddresses(game)[0]!, 0);
+    const view = game.overview(10 * 60_000);
+    assert.equal(view.length, 2);
+    const first = view[0]!;
+    assert.equal(first.active, false);
+    assert.ok(first.stock.metal > 0 && first.rates.metal > 0);
+    assert.equal(first.construction, null, 'budowa skończona w czasie nieobecności');
+    game.switchPlanet(0, 10 * 60_000);
+    const texts = game.journalEntries().map((e) => e.text);
+    assert.ok(texts.some((t) => t.includes('Kopalnia metalu — poziom 2 gotowy')), texts.join(' | '));
+    assert.ok(texts.some((t) => t.startsWith('Skolonizowano')));
+  });
+});

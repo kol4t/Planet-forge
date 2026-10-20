@@ -182,6 +182,8 @@ export interface Balance {
   environmentPenalty: number;
   /** Mnożnik czasu badań (badania „przyspieszające badania” go zmniejszają). */
   researchTimeFactor: number;
+  /** Statek kolonizacyjny (kolonizacja innych układów): koszt i czas lotu = base + odległość × perUnit. */
+  colonyShip: { cost: Resources; baseSeconds: number; secondsPerUnit: number };
   buildings: readonly BuildingDef[];
 }
 
@@ -202,7 +204,9 @@ export type ResearchEffect =
   | { kind: 'freeFinish'; levels: number }
   | { kind: 'researchTime'; percent: number }
   | { kind: 'environment'; percent: number }
-  | { kind: 'planetSlots'; add: number };
+  | { kind: 'planetSlots'; add: number }
+  /** Odblokowanie funkcji gry (np. statek kolonizacyjny). */
+  | { kind: 'unlock'; feature: 'colony-ship' };
 
 export interface ResearchArmDef {
   id: ResearchArmId;
@@ -229,6 +233,8 @@ export interface ResearchNodeDef {
   effects: readonly ResearchEffect[];
   /** Gwiazda mistrzowska na krawędzi ramienia (naraz aktywne maks. 2 — w kolejnym etapie). */
   master?: boolean;
+  /** Badanie widoczne, ale jeszcze niedostępne (kolejny etap), także w aktywnym ramieniu. */
+  soon?: boolean;
 }
 
 export interface ResearchRules {
@@ -313,4 +319,26 @@ export interface GalaxyAddress {
   galaxy: number;
   system: number;
   position: number;
+}
+
+// ——— misje i dziennik ———
+
+/** Statek kolonizacyjny w drodze do planety w innym układzie. */
+export interface ColonyMission {
+  /** Adres planety docelowej. */
+  target: string;
+  /** Adres planety, z której wyruszył (i która zapłaciła). */
+  from: string;
+  departedAt: number;
+  arrivesAt: number;
+  cost: Resources;
+}
+
+export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire';
+
+/** Wpis w dzienniku ekspedycji. */
+export interface JournalEntry {
+  at: number;
+  kind: JournalKind;
+  text: string;
 }

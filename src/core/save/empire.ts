@@ -2,7 +2,7 @@
 // aktywne miejsce i wspólny portfel antymaterii. Czysty TypeScript.
 import { BALANCE } from '../../data/balance.ts';
 import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
-import type { EconomyState, ResearchState } from '../types.ts';
+import type { ColonyMission, EconomyState, JournalEntry, JournalKind, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 
 export const EMPIRE_VERSION = 2;
@@ -33,6 +33,45 @@ export interface EmpireSave {
   research: ResearchState;
   /** Miejsce startowe gracza w galaktyce (np. „1:42:3”). Brak w zapisach sprzed v0.11. */
   home?: string;
+  /** Statki kolonizacyjne w drodze (od v0.13; brak = żadnych). */
+  missions?: ColonyMission[];
+  /** Dziennik ekspedycji (od v0.13; najnowsze na końcu). */
+  journal?: JournalEntry[];
+}
+
+const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
+const JOURNAL_KINDS: readonly JournalKind[] = ['build', 'research', 'colony', 'ship', 'away', 'empire'];
+/** Ile wpisów dziennika trzymamy (starsze wypadają). */
+export const JOURNAL_LIMIT = 80;
+
+/** Statki z zapisu — błędne pomijane (nie psują reszty zapisu). */
+export function parseMissions(raw: unknown): ColonyMission[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((m: any) =>
+    m &&
+    typeof m.target === 'string' &&
+    ADDRESS.test(m.target) &&
+    typeof m.from === 'string' &&
+    isNum(m.departedAt) &&
+    isNum(m.arrivesAt) &&
+    m.arrivesAt >= m.departedAt &&
+    isNum(m.cost?.metal) &&
+    isNum(m.cost?.crystal)
+      ? [{ target: m.target, from: m.from, departedAt: m.departedAt, arrivesAt: m.arrivesAt, cost: { metal: m.cost.metal, crystal: m.cost.crystal } }]
+      : [],
+  );
+}
+
+/** Dziennik z zapisu — błędne wpisy pomijane. */
+export function parseJournal(raw: unknown): JournalEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .flatMap((e: any) =>
+      e && isNum(e.at) && JOURNAL_KINDS.includes(e.kind) && typeof e.text === 'string'
+        ? [{ at: e.at, kind: e.kind as JournalKind, text: e.text.slice(0, 300) }]
+        : [],
+    )
+    .slice(-JOURNAL_LIMIT);
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -72,7 +111,9 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     antimatter: data.antimatter,
     slots,
     research: parseResearch(data.research),
-    ...(typeof data.home === 'string' && /^\d{1,3}:\d{1,4}:\d{1,2}$/.test(data.home) ? { home: data.home } : {}),
+    ...(typeof data.home === 'string' && ADDRESS.test(data.home) ? { home: data.home } : {}),
+    missions: parseMissions(data.missions),
+    journal: parseJournal(data.journal),
   };
 }
 

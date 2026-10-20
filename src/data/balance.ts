@@ -15,6 +15,7 @@ export const BALANCE: Balance = {
   antimatter: { passivePerHour: 1, startingStock: 5, finishSecondsPerUnit: 15 * 60 },
   environmentPenalty: 1,
   researchTimeFactor: 1,
+  colonyShip: { cost: { metal: 2500, crystal: 1800 }, baseSeconds: 120, secondsPerUnit: 6 },
   buildings: [
     {
       id: 'metalMine',

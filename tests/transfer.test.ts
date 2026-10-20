@@ -29,7 +29,7 @@ test('eksport → import daje to samo imperium (także polskie znaki w seedzie)'
   assert.match(text, /^PF2:[A-Za-z0-9+/=]+$/, 'jedna linijka bez spacji');
   const result = load(text);
   assert.ok(result.ok);
-  assert.deepEqual(result.ok && { ...result.data, saveVersion: undefined }, { ...empire, saveVersion: undefined });
+  assert.deepEqual(result.ok && { ...result.data, saveVersion: undefined }, { ...empire, missions: [], journal: [], saveVersion: undefined });
 });
 
 test('import toleruje spacje i zawinięcia linii (np. z notatek)', () => {

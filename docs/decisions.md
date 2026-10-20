@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — v0.13: statek kolonizacyjny, ekran „Imperium”, dziennik ekspedycji
+
+- **Kolonizacja innych układów** (decyzja właściciela: po badaniu i ze statkiem). Ramię Eksploracja jest aktywne; pierwsze badanie „Napęd międzygwiezdny” (efekt `unlock: colony-ship`) odblokowuje statek. Kolejne badania ramienia to `soon` (widoczne, niedostępne). Statek budowany i wysyłany jednym dotknięciem z mapy (koszt z aktywnej planety, `Balance.colonyShip` — robocze); czas lotu = podstawa + odległość między układami na mapie × współczynnik. Bez osobnego budynku Stoczni — wróci razem z flotą. Statki w drodze rezerwują miejsce w imperium, można je zawrócić (pełny zwrot). Przylot (też offline) zakłada nieaktywną kolonię. Zapis: `EmpireSave.missions` (opcjonalne).
+- **Dziennik ekspedycji:** ostatnie 80 wpisów w zapisie (`EmpireSave.journal`, opcjonalne); wpisy z nadrabiania czasu dostają czas zdarzenia (np. chwila ukończenia budowy).
+- **Ekran „Imperium”** (`game/scenes/EmpireScene.ts`) zastępuje okno „Twoje planety”: karty planet ze stanem liczonym „na teraz” (nieaktywne — jak przy przejściu, bez zmiany zapisu), statki w drodze, zakładka „Dziennik”; lista przewijana palcem.
+
 ## 2026-10-20 — v0.12: gazowe olbrzymy, pasy asteroid, komety, galaktyka spiralna
 
 - **Gazowe olbrzymy** (prośba właściciela): część planet skalistych zamienia się w olbrzymy — rzadko blisko gwiazdy (6–10%), często daleko (40–50%); nigdy miejsca startowe. Osobny strumień RNG (`…|bodies`), więc planety skaliste, miejsca startowe i formy obce się nie zmieniają; `GALAXY_VERSION` bez zmian. Olbrzymów nie da się skolonizować (później: stacje wydobycia gazu). Wygląd: pikselowe pasy z palety ciepłej/zimnej, ~45% z pierścieniem — rysowane w widoku układu, bez zmian w rendererze planet. Twoja planeta pod adresem, który stał się olbrzymem (kolonia z v0.11), zostaje Twoja i wygląda jak dotąd.

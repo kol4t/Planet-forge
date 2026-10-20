@@ -41,10 +41,10 @@ test('dane badań: unikalne id, wymagania istnieją i leżą bliżej jądra', ()
       assert.ok(findResearch(r), `${n.id} → ${r}`);
       assert.ok(findResearch(r)!.ring < n.ring, `${n.id} → ${r}`);
     }
-    if (!n.master && findArm(n.arm)!.active) assert.ok(n.effects.length > 0, `${n.id}: brak efektu`);
+    if (!n.master && !n.soon && findArm(n.arm)!.active) assert.ok(n.effects.length > 0, `${n.id}: brak efektu`);
   }
   assert.equal(RESEARCH_ARMS.length, 6);
-  assert.deepEqual(RESEARCH_ARMS.filter((a) => a.active).map((a) => a.id), ['productivity', 'planetology']);
+  assert.deepEqual(RESEARCH_ARMS.filter((a) => a.active).map((a) => a.id), ['productivity', 'planetology', 'exploration']);
 });
 
 test('Laboratorium ogranicza pierścień: brak = nic, poz. 1 = pierścień 1, poz. 8 = 5', () => {
@@ -56,7 +56,8 @@ test('Laboratorium ogranicza pierścień: brak = nic, poz. 1 = pierścień 1, po
   assert.equal(researchStatus(node('prod-core'), EMPTY_RESEARCH, 1), 'available');
   assert.equal(researchStatus(node('mining-1'), EMPTY_RESEARCH, 5), 'needs-research');
   assert.equal(researchStatus(node('mining-1'), { done: ['prod-core'], current: null }, 1), 'needs-lab');
-  assert.equal(researchStatus(node('explore-1'), EMPTY_RESEARCH, 10), 'soon');
+  assert.equal(researchStatus(node('explore-2'), { done: ['explore-1'], current: null }, 10), 'soon');
+  assert.equal(researchStatus(node('explore-1'), EMPTY_RESEARCH, 1), 'available');
   assert.equal(researchStatus(node('prod-master'), EMPTY_RESEARCH, 10), 'soon');
 });
 

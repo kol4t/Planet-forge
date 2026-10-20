@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { PlanetScene, type Viewport } from '../game/scenes/PlanetScene.ts';
+import { EmpireScene } from '../game/scenes/EmpireScene.ts';
 import { MapScene } from '../game/scenes/MapScene.ts';
 import { ResearchScene } from '../game/scenes/ResearchScene.ts';
 import { CanvasPlanetFallback } from '../planet-renderer/CanvasPlanetFallback.ts';
@@ -124,6 +125,7 @@ function start(boot: BootGuard): void {
   });
   const research = new ResearchScene({ controller, getViewport });
   const map = new MapScene({ controller, getViewport });
+  const empire = new EmpireScene({ controller, getViewport });
   const game = new Phaser.Game({
     // Panele rysowane w Canvas 2D: jedyny kontekst WebGL ma planeta (mniej pamięci grafiki).
     type: Phaser.CANVAS,
@@ -134,7 +136,7 @@ function start(boot: BootGuard): void {
     scale: { mode: Phaser.Scale.NONE, zoom: 1 / viewport.dpr },
     input: { activePointers: 3 },
     banner: false,
-    scene: [scene, research, map],
+    scene: [scene, research, map, empire],
   });
 
   let pending = 0;
@@ -148,6 +150,7 @@ function start(boot: BootGuard): void {
       if (scene.sys?.isActive()) scene.relayout();
       if (research.sys?.isActive()) research.relayout();
       if (map.sys?.isActive()) map.relayout();
+      if (empire.sys?.isActive()) empire.relayout();
     });
   };
   window.addEventListener('resize', onResize);

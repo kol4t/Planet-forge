@@ -1,6 +1,7 @@
 import {
   advance,
   buildSeconds,
+  fitsInStorage,
   cancelConstruction,
   constructionProgress,
   createEconomy,
@@ -42,9 +43,9 @@ import {
   type SystemPlanet,
 } from '../core/galaxy/galaxy.ts';
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
-import { hasFreeSlot, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
+import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { Balance, BuildingId, EconomyState, Planet, ResearchState, Resources } from '../core/types.ts';
+import type { Balance, BuildingId, ColonyMission, EconomyState, JournalEntry, JournalKind, Planet, ResearchState, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -92,6 +93,22 @@ export interface PlanetSummary {
 
 export type ActionMessage = { ok: boolean; message: string };
 
+/** Planeta w zestawieniu „Imperium” (stan policzony na teraz, także dla nieaktywnych). */
+export interface PlanetOverview extends PlanetSummary {
+  stock: Resources;
+  capacity: number;
+  rates: Rates;
+  construction: { name: string; level: number; secondsLeft: number; progress: number } | null;
+}
+
+/** Statek kolonizacyjny w drodze (do mapy i zestawienia). */
+export interface MissionView extends ColonyMission {
+  targetName: string;
+  fromName: string;
+  secondsLeft: number;
+  progress: number;
+}
+
 /**
  * Nieaktywne planety „doganiają” czas bez przyrostu pasywnego antymaterii —
  * ten liczy się raz, na aktywnej planecie (portfel jest wspólny).
@@ -111,6 +128,13 @@ export class GameController {
   researchedWhileAway: string[] = [];
   /** Badania imperium (wspólne dla wszystkich planet). */
   research: ResearchState = EMPTY_RESEARCH;
+  /** Kolonie założone przez statki podczas nieobecności (nazwy, do jednorazowego komunikatu). */
+  arrivedWhileAway: string[] = [];
+  /** Statki kolonizacyjne w drodze. */
+  private missions: ColonyMission[] = [];
+  /** Dziennik ekspedycji (najnowsze na końcu). */
+  private journal: JournalEntry[] = [];
+  private readonly colonyListeners = new Set<(name: string) => void>();
   private balanceCache: { done: readonly string[]; balance: Balance } | null = null;
   private slots: Slot[];
   private active = 0;
@@ -130,17 +154,25 @@ export class GameController {
       this.unlockedSlots = saved.unlockedSlots;
       this.research = saved.research;
       this.home = saved.home ?? '';
+      this.missions = saved.missions ?? [];
+      this.journal = saved.journal ?? [];
       this.active = Math.min(saved.active, slots.length - 1);
       this.placeOnMap();
       const before = { ...this.slots[this.active]!.economy, antimatter: saved.antimatter };
       this.economy = before;
       this.researchedWhileAway = this.advanceActive(now);
       this.reportAway(before, now);
+      this.arrivedWhileAway = this.processMissions(now);
+      if (this.offlineGain) {
+        const g = this.offlineGain;
+        this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
+      }
     } else {
       this.slots = [
         { planet: generatePlanet(STARTER.definition, STARTER.seed), economy: createEconomy(now), address: '' },
       ];
       this.placeOnMap();
+      this.log('empire', `Początek ekspedycji: ${this.planet.displayName} (${this.address}).`, now);
     }
   }
 
@@ -185,9 +217,12 @@ export class GameController {
     const before = this.economy;
     const researched = this.advanceActive(now);
     const done = finishedBuild(before, this.economy);
-    if (done || researched.length > 0) this.save();
+    if (done) this.logBuild(done, before.construction!.finishesAt);
+    const arrived = this.processMissions(now);
+    if (done || researched.length > 0 || arrived.length > 0) this.save();
     if (done) for (const listener of this.completeListeners) listener(done);
     for (const id of researched) for (const listener of this.researchListeners) listener(id);
+    for (const name of arrived) for (const listener of this.colonyListeners) listener(name);
     this.emit();
   }
 
@@ -206,6 +241,7 @@ export class GameController {
     if (result.completed) {
       this.research = result.research;
       completed.push(result.completed);
+      this.log('research', `Zbadano: ${findResearch(result.completed)?.name ?? result.completed}.`, c!.finishesAt);
     }
     this.economy = advance(this.economy, this.planet, now, this.balance);
     return completed;
@@ -237,8 +273,9 @@ export class GameController {
     const result = finishConstructionNow(before, now, this.balance);
     this.economy = result.state;
     if (result.ok) {
-      this.save();
       const done = finishedBuild(before, this.economy);
+      if (done) this.logBuild(done, now);
+      this.save();
       if (done) for (const listener of this.completeListeners) listener(done);
     }
     this.emit();
@@ -291,6 +328,177 @@ export class GameController {
 
   get slotInfo(): { used: number; unlocked: number; max: number } {
     return { used: this.slots.length, unlocked: this.openSlots, max: BALANCE.planetSlots.max };
+  }
+
+  /**
+   * Zestawienie „Imperium”: każda planeta ze stanem na teraz. Nieaktywne liczone „na niby”
+   * (jak przy przejściu na nie) — zapis i stan gry się nie zmieniają.
+   */
+  overview(now = Date.now()): PlanetOverview[] {
+    const balance = this.balance;
+    return this.planets().map((summary) => {
+      const slot = this.slots[summary.index]!;
+      const economy = summary.active ? this.economy : advance(slot.economy, slot.planet, now, catchUpBalance(balance));
+      const c = economy.construction;
+      return {
+        ...summary,
+        stock: economy.stock,
+        capacity: storageCapacity(economy, balance),
+        rates: productionRates(economy, slot.planet, balance),
+        construction: c
+          ? {
+              name: BALANCE.buildings.find((b) => b.id === c.building)?.name ?? '',
+              level: c.targetLevel,
+              secondsLeft: Math.max(0, (c.finishesAt - now) / 1000),
+              progress: constructionProgress(economy, now),
+            }
+          : null,
+      };
+    });
+  }
+
+  // ——— dziennik ekspedycji ———
+
+  /** Wpisy dziennika, najnowsze pierwsze. */
+  journalEntries(): JournalEntry[] {
+    return [...this.journal].reverse();
+  }
+
+  private log(kind: JournalKind, text: string, at: number): void {
+    this.journal.push({ at, kind, text });
+    // Wpisy z nadrabiania czasu mogą przyjść „z przeszłości” — trzymamy kolejność chronologiczną.
+    this.journal.sort((a, b) => a.at - b.at);
+    if (this.journal.length > JOURNAL_LIMIT) this.journal.splice(0, this.journal.length - JOURNAL_LIMIT);
+  }
+
+  private logBuild(done: CompletedBuild, at: number): void {
+    const name = BALANCE.buildings.find((b) => b.id === done.building)?.name ?? 'Budynek';
+    this.log('build', `${this.planet.displayName}: ${name} — poziom ${done.level} gotowy.`, at);
+  }
+
+  // ——— statki kolonizacyjne (inne układy) ———
+
+  /** Czy badania odblokowały statek kolonizacyjny. */
+  get colonyShipUnlocked(): boolean {
+    return this.research.done.some((id) => findResearch(id)?.effects.some((e) => e.kind === 'unlock' && e.feature === 'colony-ship'));
+  }
+
+  /** Czas lotu (s) z aktywnej planety do układu `system`. */
+  flightSeconds(system: number): number {
+    const from = this.galaxy.systems[(parseAddress(this.address)?.system ?? 1) - 1]!;
+    const to = this.galaxy.systems[system - 1];
+    if (!to) return 0;
+    const ship = this.balance.colonyShip;
+    return Math.round(ship.baseSeconds + Math.hypot(to.x - from.x, to.y - from.y) * ship.secondsPerUnit);
+  }
+
+  get colonyShipCost(): Resources {
+    return this.balance.colonyShip.cost;
+  }
+
+  /** Statki w drodze (z nazwami i postępem lotu). */
+  missionsView(now = Date.now()): MissionView[] {
+    return this.missions.map((m) => {
+      const target = parseAddress(m.target);
+      const total = m.arrivesAt - m.departedAt;
+      return {
+        ...m,
+        targetName: (target && planetAt(this.galaxy, target)?.name) || m.target,
+        fromName: this.slots.find((s) => s.address === m.from)?.planet.displayName ?? m.from,
+        secondsLeft: Math.max(0, (m.arrivesAt - now) / 1000),
+        progress: total <= 0 ? 1 : Math.min(1, Math.max(0, (now - m.departedAt) / total)),
+      };
+    });
+  }
+
+  missionTo(address: string): ColonyMission | null {
+    return this.missions.find((m) => m.target === address) ?? null;
+  }
+
+  /** Budowa i wysłanie statku kolonizacyjnego do wolnej planety innego układu (koszt płaci aktywna planeta). */
+  sendColonyShip(address: string, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const where = parseAddress(address);
+    const target = where ? planetAt(this.galaxy, where) : null;
+    if (!where || !target) return { ok: false, message: 'Nie ma takiej planety.' };
+    if (where.system === this.homeSystem) return { ok: false, message: 'Planety Twojego układu kolonizujesz od razu — bez statku.' };
+    if (!this.colonyShipUnlocked) {
+      return { ok: false, message: 'Najpierw zbadaj „Napęd międzygwiezdny” (Badania → Eksploracja).' };
+    }
+    if (this.missionTo(address)) return { ok: false, message: 'Statek już leci do tej planety.' };
+    const blocked = this.colonizeBlocker(target);
+    if (blocked) return { ok: false, message: blocked };
+    const cost = this.colonyShipCost;
+    if (!fitsInStorage(this.economy, cost, this.balance)) {
+      return { ok: false, message: `Za mały magazyn (${this.capacity}). Najpierw rozbuduj Magazyn.` };
+    }
+    const stock = this.economy.stock;
+    if (stock.metal < cost.metal || stock.crystal < cost.crystal) {
+      const missing: string[] = [];
+      if (stock.metal < cost.metal) missing.push(`${Math.ceil(cost.metal - stock.metal)} metalu`);
+      if (stock.crystal < cost.crystal) missing.push(`${Math.ceil(cost.crystal - stock.crystal)} kryształów`);
+      return { ok: false, message: `Statek kolonizacyjny — brakuje: ${missing.join(', ')}.` };
+    }
+    const seconds = this.flightSeconds(where.system);
+    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
+    this.missions.push({ target: address, from: this.address, departedAt: now, arrivesAt: now + seconds * 1000, cost: { ...cost } });
+    this.log('ship', `Statek kolonizacyjny wyruszył z ${this.planet.displayName} do ${target.name}.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Statek kolonizacyjny leci do ${target.name}.` };
+  }
+
+  /** Zawrócenie statku: pełny zwrot kosztu planecie, z której wyruszył. */
+  cancelMission(address: string, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const mission = this.missionTo(address);
+    if (!mission) return { ok: false, message: 'Żaden statek nie leci do tej planety.' };
+    const name = this.missionsView(now).find((m) => m.target === address)?.targetName ?? address;
+    this.missions = this.missions.filter((m) => m !== mission);
+    const payer = this.slots.find((s) => s.address === mission.from) ?? this.slots[this.active]!;
+    payer.economy = {
+      ...payer.economy,
+      stock: { metal: payer.economy.stock.metal + mission.cost.metal, crystal: payer.economy.stock.crystal + mission.cost.crystal },
+    };
+    this.log('ship', `Statek do ${name} zawrócił — koszt zwrócony.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Statek zawrócił. Zwrócono ${mission.cost.metal} metalu i ${mission.cost.crystal} kryształów.` };
+  }
+
+  onColonyArrived(listener: (name: string) => void): () => void {
+    this.colonyListeners.add(listener);
+    return () => this.colonyListeners.delete(listener);
+  }
+
+  /** Przyloty statków do `now`: każdy zakłada kolonię (nieaktywną — gracz przechodzi na nią sam). */
+  private processMissions(now: number): string[] {
+    const arrived: string[] = [];
+    for (const mission of [...this.missions].sort((a, b) => a.arrivesAt - b.arrivesAt)) {
+      if (mission.arrivesAt > now) continue;
+      this.missions = this.missions.filter((m) => m !== mission);
+      const where = parseAddress(mission.target);
+      const target = where ? planetAt(this.galaxy, where) : null;
+      if (!target || this.slotAt(mission.target) >= 0) continue;
+      const planet = galaxyPlanet(target);
+      this.slots.push({ planet, economy: { ...createEconomy(mission.arrivesAt), antimatter: 0 }, address: mission.target });
+      this.log('colony', `Statek dotarł — skolonizowano ${planet.displayName} (${mission.target}).`, mission.arrivesAt);
+      arrived.push(planet.displayName);
+    }
+    return arrived;
+  }
+
+  /** Powód, dla którego nie da się zająć planety (albo null). Wspólne dla kolonizacji i statków. */
+  private colonizeBlocker(target: SystemPlanet): string | null {
+    const occupant = this.occupantAt(target);
+    if (occupant === 'you') return `${target.name} już należy do Ciebie.`;
+    if (occupant === 'bot') return 'Tu jest miejsce startowe innego gracza.';
+    if (target.body === 'gas-giant') return 'Gazowego olbrzyma nie da się skolonizować — stacje wydobycia gazu będą wkrótce.';
+    if (occupant === 'alien') return 'Na tej planecie żyje forma obca — jej przejęcie będzie możliwe wkrótce.';
+    if (!hasFreeSlot(this.slots.length + this.missions.length, this.openSlots)) {
+      return `Wszystkie miejsca (${this.openSlots}) są zajęte${this.missions.length ? ' (licząc statki w drodze)' : ''} — usuń planetę, żeby skolonizować nową.`;
+    }
+    return null;
   }
 
   // ——— badania ———
@@ -381,6 +589,7 @@ export class GameController {
     // Antymateria wyprodukowana przez kolektor tej planety trafia do wspólnego portfela.
     this.economy = { ...caughtUp, antimatter: wallet + caughtUp.antimatter };
     this.reportAway(before, now);
+    if (this.completedWhileAway) this.logBuild(this.completedWhileAway, before.construction?.finishesAt ?? now);
     this.save();
     for (const listener of this.planetListeners) listener();
     this.emit();
@@ -433,22 +642,22 @@ export class GameController {
     const where = parseAddress(address);
     const target = where ? planetAt(this.galaxy, where) : null;
     if (!where || !target) return { ok: false, message: 'Nie ma takiej planety.' };
-    const occupant = this.occupantAt(target);
-    if (occupant === 'you') return { ok: false, message: `${target.name} już należy do Ciebie.` };
-    if (occupant === 'bot') return { ok: false, message: 'Tu jest miejsce startowe innego gracza.' };
-    if (target.body === 'gas-giant') {
-      return { ok: false, message: 'Gazowego olbrzyma nie da się skolonizować — stacje wydobycia gazu będą wkrótce.' };
-    }
-    if (occupant === 'alien') return { ok: false, message: 'Na tej planecie żyje forma obca — jej przejęcie będzie możliwe wkrótce.' };
     if (where.system !== this.homeSystem) {
-      return { ok: false, message: 'Kolonizacja innych układów wymaga badania i statku kolonizacyjnego — wkrótce.' };
+      const blocked = this.occupantAt(target) === 'free' && target.body === 'rocky' ? null : this.colonizeBlocker(target);
+      if (blocked) return { ok: false, message: blocked };
+      return {
+        ok: false,
+        message: this.colonyShipUnlocked
+          ? 'Do innego układu trzeba wysłać statek kolonizacyjny — „Wyślij statek”.'
+          : 'Kolonizacja innych układów wymaga badania „Napęd międzygwiezdny” (Eksploracja) i statku kolonizacyjnego.',
+      };
     }
-    if (!hasFreeSlot(this.slots.length, this.openSlots)) {
-      return { ok: false, message: `Wszystkie miejsca (${this.openSlots}) są zajęte — usuń planetę, żeby skolonizować nową.` };
-    }
+    const blocked = this.colonizeBlocker(target);
+    if (blocked) return { ok: false, message: blocked };
     const planet = galaxyPlanet(target);
     // Zapas startowy antymaterii dostaje tylko pierwsza planeta (portfel jest wspólny).
     this.slots.push({ planet, economy: { ...createEconomy(now), antimatter: 0 }, address });
+    this.log('colony', `Skolonizowano: ${planet.displayName} (${address}).`, now);
     const result = this.switchPlanet(this.slots.length - 1, now);
     this.offlineGain = null;
     this.completedWhileAway = null;
@@ -494,6 +703,7 @@ export class GameController {
     if (index === this.active) return { ok: false, message: 'Nie można usunąć planety, na której jesteś — najpierw przejdź na inną.' };
     this.slots.splice(index, 1);
     if (index < this.active) this.active--;
+    this.log('empire', `Opuszczono planetę ${slot.planet.displayName} (${slot.address}).`, Date.now());
     this.save();
     this.emit();
     return { ok: true, message: `Usunięto planetę ${slot.planet.displayName}.` };
@@ -521,12 +731,16 @@ export class GameController {
     this.unlockedSlots = result.data.unlockedSlots;
     this.research = result.data.research;
     this.home = result.data.home ?? '';
+    this.missions = result.data.missions ?? [];
+    this.journal = result.data.journal ?? [];
     this.active = result.data.active;
     this.placeOnMap();
     this.economy = { ...this.economy, antimatter: result.data.antimatter };
     this.advanceActive(now);
+    this.processMissions(now);
     this.offlineGain = null;
     this.completedWhileAway = null;
+    this.log('empire', 'Wczytano zapis gry.', now);
     this.save();
     for (const listener of this.planetListeners) listener();
     this.emit();
@@ -541,6 +755,8 @@ export class GameController {
       unlockedSlots: this.openSlots,
       research: this.research,
       home: this.home,
+      missions: this.missions,
+      journal: this.journal,
       antimatter: this.economy.antimatter,
       slots: this.slots.map((slot) => ({
         kind: 'planet',

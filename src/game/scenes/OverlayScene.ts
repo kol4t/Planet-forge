@@ -139,7 +139,7 @@ export abstract class OverlayScene extends Phaser.Scene {
    * Ramka ekranu: pasek u góry, panel szczegółów (szeroki ekran — po prawej, wąski — na dole)
    * i obszar mapy. Czyści poprzedni widok i rysuje tło.
    */
-  protected frame(narrowPanelH: number, phonePanelH: number): OverlayFrame {
+  protected frame(narrowPanelH: number, phonePanelH: number, withPanel = true): OverlayFrame {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
     const { width, height, safe } = viewport;
@@ -152,7 +152,11 @@ export abstract class OverlayScene extends Phaser.Scene {
     const bar: Rect = { x: left, y: top, w: right - left, h: Math.round(54 * this.u) };
     const contentTop = bar.y + bar.h + gap;
     const wide = width / height >= 1.15 && width >= 700;
-    if (wide) {
+    if (!withPanel) {
+      // Bez panelu szczegółów (np. lista): cały obszar pod paskiem.
+      this.panelRect = { x: left, y: bottom, w: right - left, h: 0 };
+      this.area = { x: left, y: contentTop, w: right - left, h: bottom - contentTop };
+    } else if (wide) {
       const w = Math.min(340 * this.u, (right - left) * 0.36);
       this.panelRect = { x: right - w, y: contentTop, w, h: bottom - contentTop };
       this.area = { x: left, y: contentTop, w: right - left - w - gap, h: bottom - contentTop };

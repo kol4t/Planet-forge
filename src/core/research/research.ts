@@ -78,7 +78,7 @@ export function researchSeconds(
 export function researchStatus(node: ResearchNodeDef, state: ResearchState, labLevel: number, rules: ResearchRules = RESEARCH_RULES): ResearchStatus {
   if (state.done.includes(node.id)) return 'done';
   if (state.current?.id === node.id) return 'running';
-  if (node.master || !findArm(node.arm)?.active) return 'soon';
+  if (node.master || node.soon || !findArm(node.arm)?.active) return 'soon';
   if (!node.requires.every((id) => state.done.includes(id))) return 'needs-research';
   if (labLevel < labLevelFor(node.ring, rules)) return 'needs-lab';
   return 'available';
@@ -108,7 +108,12 @@ export function startResearch(
   const status = researchStatus(node, state, labLevel, rules);
   if (status === 'done') return { ok: false, reason: 'done', message: `${node.name}: już zbadane.` };
   if (status === 'soon') {
-    return { ok: false, reason: 'soon', message: node.master ? 'Gwiazdy mistrzowskie — wkrótce.' : 'To ramię galaktyki będzie dostępne wkrótce.' };
+    const message = node.master
+      ? 'Gwiazdy mistrzowskie — wkrótce.'
+      : node.soon
+        ? 'To badanie będzie dostępne w kolejnym etapie.'
+        : 'To ramię galaktyki będzie dostępne wkrótce.';
+    return { ok: false, reason: 'soon', message };
   }
   if (state.current) {
     const busy = findResearch(state.current.id);
@@ -187,6 +192,7 @@ export function applyResearch(base: Balance, done: readonly string[]): Balance {
       else if (e.kind === 'antimatterPassive') add(e.kind, e.perHour);
       else if (e.kind === 'freeFinish') add(e.kind, e.levels);
       else if (e.kind === 'planetSlots') add(e.kind, e.add);
+      else if (e.kind === 'unlock') continue;
       else add(e.kind, e.percent);
     }
   }
@@ -251,6 +257,8 @@ export function describeEffects(node: ResearchNodeDef): string {
         return `kary środowiska ${pct(e.percent)}`;
       case 'planetSlots':
         return `+${e.add} miejsce na planetę`;
+      case 'unlock':
+        return 'statek kolonizacyjny — kolonizacja innych układów';
     }
   });
   return parts.join(' · ');
@@ -295,5 +303,5 @@ export function parseResearch(raw: any): ResearchState {
 
 /** Liczba badań możliwych w tym etapie (aktywne ramiona, bez gwiazd mistrzowskich). */
 export function researchableCount(): number {
-  return RESEARCH_NODES.filter((n) => !n.master && findArm(n.arm)?.active).length;
+  return RESEARCH_NODES.filter((n) => !n.master && !n.soon && findArm(n.arm)?.active).length;
 }

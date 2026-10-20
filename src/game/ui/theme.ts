@@ -46,3 +46,14 @@ export function formatDuration(seconds: number): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
+
+/** Godzina wpisu: „dziś 14:05”, „wczoraj 09:12” albo „12.10 18:40”. */
+export function formatClock(at: number, now = Date.now()): string {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const day = (t: number) => new Date(t).toDateString();
+  if (day(at) === day(now)) return `dziś ${time}`;
+  if (day(at) === day(now - 86_400_000)) return `wczoraj ${time}`;
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${time}`;
+}

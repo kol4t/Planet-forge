@@ -114,4 +114,12 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 62. W układach: gazowe olbrzymy (większe tarcze w pasy, część z pierścieniem) — dotknięcie: „Gazowy olbrzym”, nie da się skolonizować.
 63. W części układów pas asteroid za 3. albo 4. planetą — dotknij pasa → „Pas asteroid”, wydobycie wkrótce.
 
+### Od 0.13: statek kolonizacyjny, Imperium, dziennik
+
+64. Panel planety: „Planety” zmieniło się w „Imperium” → ekran z kartą każdej planety (miniatura, adres, metal i kryształy z przyrostem, trwająca budowa z paskiem), „Przejdź”, „Usuń” (dwa dotknięcia). Na górze suma produkcji całego imperium.
+65. „Imperium” → „Dziennik”: wpisy z godziną — ukończone budowy, badania, kolonie, statki, podsumowanie nieobecności. Lista przewija się palcem.
+66. „Badania” → ramię Eksploracja świeci; „Napęd międzygwiezdny” (pierścień 1) można zbadać.
+67. Po zbadaniu: „Mapa” → inny układ → wolna planeta → widać koszt i czas lotu → „Wyślij statek”. Na mapie galaktyki złota przerywana trasa i statek; przy planecie przerywany pierścień i odliczanie. „Zawróć statek” zwraca koszt.
+68. Po przylocie (także przy zamkniętej grze): komunikat „Statek dotarł — skolonizowano …”, nowa planeta w „Imperium” (gra nie przełącza się sama).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -199,7 +199,8 @@ export class ResearchScene extends OverlayScene {
       const status = this.statusOf(node);
       const froms = node.requires.length > 0 ? node.requires.map((id) => POSITIONS.get(id)!) : [{ x: 0, y: 0 }];
       // Gwiazdy mistrzowskie ramion „wkrótce” stoją daleko od ostatniej gwiazdy — bez długich linii przez mapę.
-      if (node.master && status === 'soon' && !arm.active) continue;
+      // Gwiazdy „wkrótce” daleko od poprzedniej (np. mistrzowskie) — bez długich linii przez mapę.
+      if (status === 'soon' && node.requires.some((id) => (findResearch(id)?.ring ?? 0) < node.ring - 1)) continue;
       for (const from of froms) {
         const lit = status === 'done' || status === 'running' || status === 'available' || status === 'needs-lab';
         g.lineStyle(line * (lit ? 1.6 : 1), status === 'soon' ? COLORS.divider : arm.color, status === 'done' ? 0.75 : lit ? 0.45 : 0.22);
@@ -338,7 +339,11 @@ export class ResearchScene extends OverlayScene {
     if (node.master) {
       line('Bardzo mocne badanie na krawędzi ramienia. Zbadasz wszystkie, ale aktywne będą maks. 2 naraz — to specjalizacje imperium. Wkrótce.', 11.5, COLORS.text);
     } else if (status === 'soon') {
-      line(`Ramię „${arm.name}” będzie dostępne w kolejnym etapie. ${arm.description}`, 11.5, COLORS.text);
+      line(
+        arm.active ? 'To badanie będzie dostępne w kolejnym etapie.' : `Ramię „${arm.name}” będzie dostępne w kolejnym etapie. ${arm.description}`,
+        11.5,
+        COLORS.text,
+      );
     } else {
       line(`Efekt (całe imperium): ${describeEffects(node)}`, 12, COLORS.teal, { fontStyle: '600' });
       if (status !== 'done') {
