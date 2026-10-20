@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-20 — v0.12: gazowe olbrzymy, pasy asteroid, komety, galaktyka spiralna
+
+- **Gazowe olbrzymy** (prośba właściciela): część planet skalistych zamienia się w olbrzymy — rzadko blisko gwiazdy (6–10%), często daleko (40–50%); nigdy miejsca startowe. Osobny strumień RNG (`…|bodies`), więc planety skaliste, miejsca startowe i formy obce się nie zmieniają; `GALAXY_VERSION` bez zmian. Olbrzymów nie da się skolonizować (później: stacje wydobycia gazu). Wygląd: pikselowe pasy z palety ciepłej/zimnej, ~45% z pierścieniem — rysowane w widoku układu, bez zmian w rendererze planet. Twoja planeta pod adresem, który stał się olbrzymem (kolonia z v0.11), zostaje Twoja i wygląda jak dotąd.
+- **Pas asteroid** za 3. albo 4. planetą (decyzja właściciela), ~60% układów, które mają planetę za pasem. Bez adresu; wydobycie — później.
+- **Komety:** w widoku galaktyki maks. 3 naraz, przelot 12–20 s z warkoczem; tylko wygląd.
+- **Galaktyka spiralna zamiast „shurikena”:** układy w zgrubieniu centralnym (~14%) i wzdłuż dwóch ramion spirali logarytmicznej (`SPIRAL`, `spiralPoint` w `core/galaxy`); tło rysowane raz do tekstury 1024 px (jądro, ~11 tys. gwiazd ramion, obłoki wodoru, pasy pyłu). Zmieniły się tylko położenia układów na mapie — numery, nazwy, gwiazdy i planety zostały. Nowe gry mogą startować w innym układzie niż w v0.11; zapisany układ startowy gracza się nie zmienia.
+
 ## 2026-10-20 — v0.11: mapa galaktyki, układy gwiezdne, adresy planet
 
 - **Galaktyka = przyszły serwer.** Cała galaktyka powstaje deterministycznie z numeru (`core/galaxy/galaxy.ts`, `GALAXY_VERSION = 1`, dane `data/galaxy.ts` — robocze): 100 układów w spiralnym dysku z odstępami (miejsce na przyszłe stacje, porty handlowe, planety gildii). Na razie jedna galaktyka, gra bez serwera.

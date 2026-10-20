@@ -2,7 +2,7 @@
 // Ta sama galaktyka zawsze wygląda tak samo (w przyszłości: jeden serwer = jedna galaktyka).
 // Czysty TypeScript — bez DOM/phaser/three.
 import { GALAXY_NAMES, GALAXY_RULES, STAR_KINDS, SYSTEM_CATALOGS } from '../../data/galaxy.ts';
-import { createRng } from '../random/rng.ts';
+import { createRng, type Rng } from '../random/rng.ts';
 import type { GalaxyAddress, GalaxyRules, OrbitZone, StarKind, StarKindDef } from '../types.ts';
 
 /**
@@ -32,8 +32,20 @@ export type PlanetOccupant =
   /** Wolna — do przejęcia. */
   | 'free';
 
+/** Rodzaj ciała na orbicie: planeta skalista (do kolonizacji) albo gazowy olbrzym. */
+export type BodyKind = 'rocky' | 'gas-giant';
+
+export interface GasGiantLook {
+  /** Kolory pasów od góry do dołu (pikselowe pasy w widoku układu). */
+  bands: string[];
+  rings: boolean;
+}
+
 export interface SystemPlanet {
   position: number;
+  body: BodyKind;
+  /** Wygląd gazowego olbrzyma (tylko dla `gas-giant`). */
+  gas?: GasGiantLook;
   address: string;
   name: string;
   /** Odległość od gwiazdy (jednostki astronomiczne). */
@@ -49,6 +61,8 @@ export interface SystemPlanet {
 
 export interface StarSystem extends SystemSummary {
   planets: SystemPlanet[];
+  /** Pas asteroid między orbitą `after` a następną (albo brak). */
+  belt: { after: number } | null;
 }
 
 export interface Galaxy {
@@ -85,6 +99,27 @@ export function zoneFor(temperature: number, rules: GalaxyRules = GALAXY_RULES):
   return rules.zones[rules.zones.length - 1]![0];
 }
 
+/** Kształt spirali (wspólny dla rozmieszczenia układów i rysowania tła galaktyki). */
+export const SPIRAL = {
+  arms: 2,
+  /** Kąt nachylenia ramion spirali logarytmicznej (rad) — mniejszy = ciaśniej nawinięte. */
+  pitch: 0.36,
+  /** Promień, od którego zaczynają się ramiona (ułamek promienia galaktyki). */
+  start: 0.12,
+} as const;
+
+/** Punkt na osi ramienia `arm` w odległości `r` od środka (spirala logarytmiczna). */
+export function spiralPoint(arm: number, r: number, radius: number): { x: number; y: number } {
+  const a = (arm / SPIRAL.arms) * Math.PI * 2 + Math.log(Math.max(r, radius * SPIRAL.start) / (radius * SPIRAL.start)) / Math.tan(SPIRAL.pitch);
+  return { x: Math.cos(a) * r, y: Math.sin(a) * r };
+}
+
+/** Rozkład normalny (Box–Muller) z deterministycznego RNG. */
+function gauss(rng: Rng): number {
+  const u = Math.max(1e-9, rng.next());
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng.next());
+}
+
 const galaxyCache = new Map<number, Galaxy>();
 
 /** Galaktyka z numeru: położenia, gwiazdy i liczby planet wszystkich układów. */
@@ -96,17 +131,26 @@ export function generateGalaxy(id = 1, rules: GalaxyRules = GALAXY_RULES): Galax
   const names = rng.fork('names');
   const used = new Set<string>();
   const systems: SystemSummary[] = [];
-  const arms = 3;
   for (let index = 1; index <= rules.systemCount; index++) {
-    // Spiralny dysk: punkty wzdłuż ramion z rozrzutem; zachowany odstęp między układami.
+    // Jak prawdziwa galaktyka spiralna: część układów w zgrubieniu centralnym, reszta wzdłuż
+    // dwóch ramion spirali logarytmicznej z rozrzutem; zachowany odstęp między układami.
+    // (Położenia to tylko wygląd mapy — adresy i planety układów od nich nie zależą.)
     let x = 0;
     let y = 0;
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const r = rules.radius * (0.12 + 0.88 * Math.sqrt(place.next()));
-      const arm = place.int(0, arms - 1);
-      const angle = (arm / arms) * Math.PI * 2 + (r / rules.radius) * 2.6 + place.range(-0.45, 0.45);
-      x = Math.cos(angle) * r;
-      y = Math.sin(angle) * r;
+    for (let attempt = 0; attempt < 60; attempt++) {
+      if (place.next() < 0.14) {
+        const r = rules.radius * 0.22 * Math.abs(gauss(place));
+        const a = place.range(0, Math.PI * 2);
+        x = Math.cos(a) * r;
+        y = Math.sin(a) * r * 0.85;
+      } else {
+        const r = rules.radius * (0.18 + 0.8 * place.next() ** 0.85);
+        const p = spiralPoint(place.int(0, SPIRAL.arms - 1), r, rules.radius);
+        const spread = r * 0.16;
+        x = p.x + gauss(place) * spread;
+        y = p.y + gauss(place) * spread;
+      }
+      if (Math.hypot(x, y) > rules.radius) continue;
       if (systems.every((s) => Math.hypot(s.x - x, s.y - y) >= rules.minSpacing)) break;
     }
     const detail = createRng(`galaxy|${id}|v${GALAXY_VERSION}|system-${index}`);
@@ -157,9 +201,31 @@ export function generateSystem(galaxy: Galaxy, index: number, rules: GalaxyRules
       definitionId,
       occupant: home ? 'home' : alien ? 'alien' : 'free',
       angle,
+      body: 'rocky',
     });
   }
-  return { ...summary, planets };
+  // Osobny strumień: gazowe olbrzymy i pasy asteroid nie zmieniają planet skalistych ani miejsc startowych.
+  const extra = createRng(`galaxy|${galaxy.id}|v${GALAXY_VERSION}|system-${index}|bodies`);
+  for (const planet of planets) {
+    const chance = rules.gasGiantChance[planet.zone];
+    if (planet.occupant === 'home' || extra.next() >= chance) continue;
+    const warm = planet.zone === 'hot' || planet.zone === 'warm' || planet.zone === 'temperate';
+    const palettes = warm ? rules.gasPalettes.warm : rules.gasPalettes.cold;
+    const palette = palettes[extra.int(0, palettes.length - 1)]!;
+    planet.body = 'gas-giant';
+    planet.occupant = 'free';
+    planet.gas = { bands: [...palette], rings: extra.next() < rules.gasRingsChance };
+  }
+  // Pas asteroid za 3. albo 4. planetą (decyzja właściciela), gdy układ jest na tyle duży.
+  let belt: StarSystem['belt'] = null;
+  const after = extra.int(3, 4);
+  if (n > after && extra.next() < rules.beltChance) belt = { after };
+  return { ...summary, planets, belt };
+}
+
+/** Czy planetę można skolonizować (skalista i wolna — bez sprawdzania gracza). */
+export function isColonizable(planet: SystemPlanet): boolean {
+  return planet.body === 'rocky' && planet.occupant === 'free';
 }
 
 /** Planeta pod adresem (albo null, gdy adres poza galaktyką). */
@@ -176,7 +242,7 @@ export function starterSystem(galaxy: Galaxy, minFree: number, from = 1): { syst
   const count = galaxy.systems.length;
   for (let i = 0; i < count; i++) {
     const system = generateSystem(galaxy, ((from - 1 + i) % count) + 1)!;
-    const free = system.planets.filter((p) => p.occupant === 'free').length;
+    const free = system.planets.filter(isColonizable).length;
     // Planeta startowa jest umiarkowana — szukamy miejsca startowego w strefie umiarkowanej.
     const home = system.planets.find((p) => p.occupant === 'home' && p.zone === 'temperate');
     if (home && free >= minFree) return { system, home };

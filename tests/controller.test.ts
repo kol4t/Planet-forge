@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { GameController, type CompletedBuild } from '../src/app/GameController.ts';
+import { isColonizable } from '../src/core/galaxy/galaxy.ts';
 import { EMPIRE_KEY } from '../src/core/save/empire.ts';
 
 /** Prosta pamięć zamiast localStorage przeglądarki. */
@@ -25,7 +26,7 @@ function withMemoryStorage(run: () => void): void {
 
 /** Wolne planety układu startowego (do kolonizacji w testach). */
 function freeAddresses(game: GameController): string[] {
-  return game.system(game.homeSystem)!.planets.filter((p) => game.occupantAt(p) === 'free').map((p) => p.address);
+  return game.system(game.homeSystem)!.planets.filter((p) => p.body === 'rocky' && game.occupantAt(p) === 'free').map((p) => p.address);
 }
 
 test('budowa: start → ukończenie zgłoszone raz, z zapisem', () => {
@@ -210,7 +211,7 @@ test('mapa: planeta startowa ma adres w układzie startowym, kolonizacja tylko w
     assert.ok(game.planet.displayName.startsWith(system.name), game.planet.displayName);
     assert.equal(game.occupantAt(system.planets.find((p) => p.address === target)!), 'you');
     // Inny układ: wymaga badania i statku.
-    const elsewhere = game.system(game.homeSystem === 1 ? 2 : 1)!.planets.find((p) => p.occupant === 'free');
+    const elsewhere = game.system(game.homeSystem === 1 ? 2 : 1)!.planets.find(isColonizable);
     if (elsewhere) assert.match(game.colonize(elsewhere.address, 0).message, /statku kolonizacyjnego/);
     // Po wczytaniu nazwa i adres zostają.
     const again = new GameController(1000);

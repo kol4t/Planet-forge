@@ -33,6 +33,7 @@ import {
   formatAddress,
   generateGalaxy,
   generateSystem,
+  isColonizable,
   parseAddress,
   planetAt,
   starterSystem,
@@ -435,6 +436,9 @@ export class GameController {
     const occupant = this.occupantAt(target);
     if (occupant === 'you') return { ok: false, message: `${target.name} już należy do Ciebie.` };
     if (occupant === 'bot') return { ok: false, message: 'Tu jest miejsce startowe innego gracza.' };
+    if (target.body === 'gas-giant') {
+      return { ok: false, message: 'Gazowego olbrzyma nie da się skolonizować — stacje wydobycia gazu będą wkrótce.' };
+    }
     if (occupant === 'alien') return { ok: false, message: 'Na tej planecie żyje forma obca — jej przejęcie będzie możliwe wkrótce.' };
     if (where.system !== this.homeSystem) {
       return { ok: false, message: 'Kolonizacja innych układów wymaga badania i statku kolonizacyjnego — wkrótce.' };
@@ -466,7 +470,7 @@ export class GameController {
       if (slot.address) seen.add(slot.address);
     }
     const system = generateSystem(galaxy, this.homeSystem)!;
-    const open = [this.home, ...system.planets.filter((p) => p.occupant === 'free').map((p) => p.address)];
+    const open = [this.home, ...system.planets.filter(isColonizable).map((p) => p.address)];
     for (const slot of this.slots) {
       if (slot.address) continue;
       // Brak miejsca w układzie (nie powinno się zdarzyć) — kolejne układy po kolei.
@@ -477,7 +481,7 @@ export class GameController {
 
   private spareAddress(taken: Set<string>): string {
     for (const summary of this.galaxy.systems) {
-      const free = generateSystem(this.galaxy, summary.index)!.planets.find((p) => p.occupant === 'free' && !taken.has(p.address));
+      const free = generateSystem(this.galaxy, summary.index)!.planets.find((p) => isColonizable(p) && !taken.has(p.address));
       if (free) return free.address;
     }
     return formatAddress({ galaxy: GALAXY_ID, system: 1, position: 1 });

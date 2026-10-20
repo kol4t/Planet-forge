@@ -14,6 +14,7 @@ import {
   ringLimit,
   startResearch,
 } from '../src/core/research/research.ts';
+import { isColonizable } from '../src/core/galaxy/galaxy.ts';
 import { deserializeEmpire, EMPIRE_KEY, serializeEmpire } from '../src/core/save/empire.ts';
 import type { EconomyState } from '../src/core/types.ts';
 import { BALANCE } from '../src/data/balance.ts';
@@ -191,7 +192,7 @@ test('kontroler: Osadnictwo daje 6. miejsce na planetę, które przetrwa zapis',
     const game = new GameController(0);
     game.research = { done: ['planet-1', 'planet-2', 'planet-3'], current: null };
     assert.equal(game.slotInfo.unlocked, 6);
-    const free = game.system(game.homeSystem)!.planets.filter((p) => p.occupant === 'free').map((p) => p.address);
+    const free = game.system(game.homeSystem)!.planets.filter(isColonizable).map((p) => p.address);
     assert.ok(free.length >= 5, `wolnych planet w układzie startowym: ${free.length}`);
     for (let i = 0; i < 5; i++) assert.ok(game.colonize(free[i]!, 0).ok, `planeta ${i + 2}`);
     assert.equal(game.slotInfo.used, 6);

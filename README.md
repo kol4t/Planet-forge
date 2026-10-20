@@ -107,4 +107,11 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 58. Planeta w innym układzie → „Wymaga statku”; dotknięcie wyjaśnia, że potrzebne będą badanie i statek kolonizacyjny.
 59. „Planety” → przy każdej planecie adres; przycisk „Mapa układu” otwiera Twój układ.
 
+### Od 0.12: wygląd galaktyki, gazowe olbrzymy, pasy asteroid, komety
+
+60. „Mapa” → galaktyka wygląda jak prawdziwa galaktyka spiralna: jasne jądro, dwa ramiona z tysiącami drobnych gwiazd i ciemnymi pasami pyłu. Twój układ i postęp bez zmian.
+61. Co kilka sekund przez galaktykę przelatuje kometa z warkoczem (maks. 3 naraz).
+62. W układach: gazowe olbrzymy (większe tarcze w pasy, część z pierścieniem) — dotknięcie: „Gazowy olbrzym”, nie da się skolonizować.
+63. W części układów pas asteroid za 3. albo 4. planetą — dotknij pasa → „Pas asteroid”, wydobycie wkrótce.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

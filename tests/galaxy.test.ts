@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { formatAddress, generateGalaxy, generateSystem, homeCount, parseAddress, starterSystem, zoneFor } from '../src/core/galaxy/galaxy.ts';
+import { formatAddress, generateGalaxy, generateSystem, homeCount, isColonizable, parseAddress, starterSystem, zoneFor } from '../src/core/galaxy/galaxy.ts';
 import { GALAXY_RULES, STAR_KINDS } from '../src/data/galaxy.ts';
 import { findDefinition } from '../src/data/planets.ts';
 
@@ -66,5 +66,34 @@ test('układ startowy ma miejsce startowe i co najmniej 5 wolnych planet', () =>
   const { system, home } = starterSystem(galaxy, 5);
   assert.equal(home.occupant, 'home');
   assert.equal(home.zone, 'temperate');
-  assert.ok(system.planets.filter((p) => p.occupant === 'free').length >= 5);
+  assert.ok(system.planets.filter(isColonizable).length >= 5);
+});
+
+test('gazowe olbrzymy i pasy asteroid: częściej daleko od gwiazdy, pas za 3. albo 4. planetą', () => {
+  const systems = galaxy.systems.map((s) => generateSystem(galaxy, s.index)!);
+  const all = systems.flatMap((s) => s.planets);
+  const giants = all.filter((p) => p.body === 'gas-giant');
+  assert.ok(giants.length > 20, `olbrzymów: ${giants.length}`);
+  for (const g of giants) {
+    assert.notEqual(g.occupant, 'home', 'miejsce startowe zawsze skaliste');
+    assert.ok(g.gas && g.gas.bands.length >= 3);
+    assert.equal(isColonizable(g), false);
+  }
+  const cold = (p: { zone: string }) => p.zone === 'cold' || p.zone === 'frozen';
+  const coldShare = giants.filter(cold).length / giants.length;
+  assert.ok(coldShare > 0.6, `zimne olbrzymy: ${coldShare}`);
+  const belts = systems.filter((s) => s.belt);
+  assert.ok(belts.length > 20, `pasów: ${belts.length}`);
+  for (const s of belts) {
+    assert.ok(s.belt!.after === 3 || s.belt!.after === 4);
+    assert.ok(s.planets.length > s.belt!.after, 'za pasem jest jeszcze planeta');
+  }
+});
+
+test('galaktyka spiralna: gęste centrum i układy w całym dysku', () => {
+  const r = galaxy.systems.map((s) => Math.hypot(s.x, s.y));
+  const inner = r.filter((v) => v < GALAXY_RULES.radius * 0.3).length;
+  const outer = r.filter((v) => v > GALAXY_RULES.radius * 0.6).length;
+  assert.ok(inner >= 8, `w centrum: ${inner}`);
+  assert.ok(outer >= 25, `na obrzeżach: ${outer}`);
 });

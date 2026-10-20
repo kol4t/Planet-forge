@@ -73,6 +73,20 @@ export const GALAXY_RULES: GalaxyRules = {
     ['cold', 0.45],
     ['frozen', 0],
   ],
+  gasGiantChance: { hot: 0.06, warm: 0.08, temperate: 0.1, cold: 0.4, frozen: 0.5 },
+  gasRingsChance: 0.45,
+  gasPalettes: {
+    warm: [
+      ['#e8c79a', '#c99a6a', '#f0dcb8', '#b07a52', '#dcb488'],
+      ['#e0a77a', '#f2c9a0', '#b9724e', '#e8b48c', '#c98860'],
+    ],
+    cold: [
+      ['#9cc4d8', '#7aa6c2', '#c2e0ea', '#6b92b0', '#a8d0e0'],
+      ['#a8b8e8', '#8494c8', '#c8d4f4', '#7280b8', '#b4c2ec'],
+      ['#b8e0d4', '#8cc4b4', '#d4eee6', '#78ac9c', '#a4d4c4'],
+    ],
+  },
+  beltChance: 0.6,
   zoneTypes: {
     hot: { volcanic: 6, arid: 4 },
     warm: { arid: 5, 'kepler-186f': 3, ocean: 2, volcanic: 1 },

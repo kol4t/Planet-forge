@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { MapOccupant } from '../../app/GameController.ts';
-import { findStar, type StarSystem, type SystemPlanet, type SystemSummary } from '../../core/galaxy/galaxy.ts';
+import { findStar, SPIRAL, spiralPoint, type GasGiantLook, type StarSystem, type SystemPlanet, type SystemSummary } from '../../core/galaxy/galaxy.ts';
+import { createRng } from '../../core/random/rng.ts';
 import { generatePlanet } from '../../core/generation/generatePlanet.ts';
 import { GALAXY_RULES, ZONE_LABELS } from '../../data/galaxy.ts';
 import { findDefinition, STARTER } from '../../data/planets.ts';
@@ -48,6 +49,13 @@ export class MapScene extends OverlayScene {
   private system: StarSystem | null = null;
   /** Położenia planet w widoku układu (px urządzenia). */
   private planetSpots: { position: number; x: number; y: number }[] = [];
+  /** Pas asteroid w widoku układu (promień i pół szerokości, px urządzenia). */
+  private beltRing: { r: number; half: number } | null = null;
+  /** Komety przelatujące przez galaktykę (tylko wygląd; jednostki mapy na sekundę). */
+  private comets: Phaser.GameObjects.Graphics | undefined;
+  private cometList: { x: number; y: number; vx: number; vy: number; age: number; life: number }[] = [];
+  private nextComet = 0;
+  private readonly cometRng = createRng(`komety-${Date.now()}`);
 
   constructor(deps: OverlaySceneDeps) {
     super('map', deps, { min: 0.8, max: 4 });
@@ -58,6 +66,11 @@ export class MapScene extends OverlayScene {
     this.mode = index ? 'system' : 'galaxy';
     this.systemIndex = index ?? this.deps.controller.homeSystem;
     this.selected = this.mode === 'galaxy' ? this.systemIndex : null;
+  }
+
+  update(time: number, delta: number): void {
+    super.update(time, delta);
+    if (this.mode === 'galaxy') this.animateComets(delta / 1000);
   }
 
   create(): void {
@@ -97,18 +110,18 @@ export class MapScene extends OverlayScene {
       unit: this.px(Math.min(this.area.w, this.area.h) / 2 / radius),
     };
     const U = this.view.unit;
+    // Tło: jasne zgrubienie centralne, dwa ramiona spiralne z tysiącami gwiazd i pasami pyłu.
+    const art = this.add.image(0, 0, galaxyArt(this)).setDisplaySize(2 * radius * U, 2 * radius * U);
     const g = this.add.graphics();
-    // Delikatny pył dysku galaktyki pod układami.
-    g.fillStyle(COLORS.tealHex, 0.04).fillCircle(0, 0, (GALAXY_RULES.radius + 4) * U);
-    g.fillStyle(COLORS.goldHex, 0.06).fillCircle(0, 0, GALAXY_RULES.radius * 0.25 * U);
     for (const s of galaxy.systems) {
       const color = hex(findStar(s.star).color);
-      const r = Math.max(1.6 * this.dpr, (0.9 + s.planetCount * 0.08) * U);
-      g.fillStyle(color, 0.18).fillCircle(s.x * U, s.y * U, r * 2.4);
+      const r = Math.max(1.4 * this.dpr, (0.55 + s.planetCount * 0.04) * U);
+      g.fillStyle(color, 0.16).fillCircle(s.x * U, s.y * U, r * 2);
       g.fillStyle(color, 1).fillCircle(s.x * U, s.y * U, r);
     }
     this.marks = this.add.graphics();
-    this.world!.add([g, this.marks]);
+    this.comets = this.add.graphics();
+    this.world!.add([art, g, this.comets, this.marks]);
     const home = this.deps.controller.homeSystem;
     for (const s of galaxy.systems) {
       const own = s.index === home;
@@ -155,20 +168,36 @@ export class MapScene extends OverlayScene {
     this.planetSpots = [];
     const thumbD = this.px(this.s(n > 7 ? 26 : 30));
     const items: Phaser.GameObjects.GameObject[] = [g];
+    // Orbity w równych odstępach (czytelniej niż w prawdziwej skali); kolejność jak od gwiazdy.
+    const orbit = (i: number) => (n === 1 ? minR : minR + ((maxR - minR) * i) / (n - 1));
+    this.beltRing = null;
+    if (system.belt) {
+      const inner = orbit(system.belt.after - 1);
+      const outer = orbit(system.belt.after);
+      this.beltRing = { r: (inner + outer) / 2, half: (outer - inner) * 0.3 };
+      drawBelt(g, this.beltRing.r, this.beltRing.half, `${system.index}`, this.dpr);
+    }
     system.planets.forEach((p, i) => {
-      // Orbity w równych odstępach (czytelniej niż w prawdziwej skali); kolejność jak od gwiazdy.
-      const r = n === 1 ? minR : minR + ((maxR - minR) * i) / (n - 1);
+      const r = orbit(i);
       g.lineStyle(Math.max(1, this.dpr * 0.7), COLORS.panelBorder, 0.9).strokeCircle(0, 0, r);
       const x = Math.cos(p.angle) * r;
       const y = Math.sin(p.angle) * r;
       this.planetSpots.push({ position: p.position, x: cx + x, y: cy + y });
-      const key = `map-thumb-${p.address}-${Date.now()}`;
-      const texture = this.textures.createCanvas(key, THUMBNAIL_SIZE, THUMBNAIL_SIZE)!;
-      texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
-      new PlanetThumbnail(this.planetFor(p)).draw(texture.context, p.position * 1.3);
-      texture.refresh();
-      this.thumbs.push(key);
-      items.push(this.add.image(x, y, key).setDisplaySize(thumbD, thumbD));
+      const own = controller.slotAt(p.address) >= 0;
+      if (p.body === 'gas-giant' && p.gas && !own) {
+        // Gazowy olbrzym: większa tarcza w pikselowe pasy, czasem z pierścieniem.
+        const giant = this.add.graphics();
+        drawGasGiant(giant, x, y, thumbD * 0.8, p.gas, this.dpr);
+        items.push(giant);
+      } else {
+        const key = `map-thumb-${p.address}-${Date.now()}`;
+        const texture = this.textures.createCanvas(key, THUMBNAIL_SIZE, THUMBNAIL_SIZE)!;
+        texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+        new PlanetThumbnail(this.planetFor(p)).draw(texture.context, p.position * 1.3);
+        texture.refresh();
+        this.thumbs.push(key);
+        items.push(this.add.image(x, y, key).setDisplaySize(thumbD, thumbD));
+      }
       const text = this.add
         .text(0, 0, `${String.fromCharCode(97 + p.position)}`, {
           fontFamily: FONTS.body,
@@ -177,7 +206,7 @@ export class MapScene extends OverlayScene {
           color: COLORS.muted,
         })
         .setOrigin(0.5, 0);
-      this.labels.push({ text, x: x / this.view.unit, y: y / this.view.unit + thumbD * 0.62, always: true });
+      this.labels.push({ text, x: x / this.view.unit, y: y / this.view.unit + thumbD * (p.body === 'gas-giant' ? 0.85 : 0.62), always: true });
     });
     this.marks = this.add.graphics();
     items.push(this.marks);
@@ -243,6 +272,50 @@ export class MapScene extends OverlayScene {
       if (p.address === controller.address) g.fillStyle(COLORS.goldHex, 1).fillCircle(x + ring * 0.75, y - ring * 0.75, this.px(3));
       if (p.position === this.selected) g.lineStyle(Math.max(1.5, this.dpr * 1.2), 0xffffff, 0.9).strokeCircle(x, y, ring * 1.3);
     }
+    if (this.selected === BELT && this.beltRing) {
+      g.lineStyle(Math.max(1, this.dpr), 0xffffff, 0.5);
+      g.strokeCircle(0, 0, this.beltRing.r - this.beltRing.half);
+      g.strokeCircle(0, 0, this.beltRing.r + this.beltRing.half);
+    }
+  }
+
+  /** Komety: kilka naraz, przelatują przez galaktykę po prostej, z warkoczem. */
+  private animateComets(dt: number): void {
+    const g = this.comets;
+    if (!g) return;
+    const R = GALAXY_RULES.radius;
+    const rng = this.cometRng;
+    this.nextComet -= dt;
+    if (this.nextComet <= 0 && this.cometList.length < 3) {
+      this.nextComet = rng.range(3, 8);
+      // Start za krawędzią galaktyki, lot mniej więcej przez nią (12–20 s).
+      const from = rng.range(0, Math.PI * 2);
+      const to = from + Math.PI + rng.range(-0.7, 0.7);
+      const start = { x: Math.cos(from) * (R + 12), y: Math.sin(from) * (R + 12) };
+      const end = { x: Math.cos(to) * (R + 12), y: Math.sin(to) * (R + 12) };
+      const life = rng.range(12, 20);
+      this.cometList.push({ ...start, vx: (end.x - start.x) / life, vy: (end.y - start.y) / life, age: 0, life });
+    }
+    g.clear();
+    const U = this.view.unit;
+    const width = Math.max(1, this.dpr) / this.zoom;
+    this.cometList = this.cometList.filter((c) => (c.age += dt) < c.life);
+    for (const c of this.cometList) {
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+      // Pojawia się i znika płynnie na krańcach lotu.
+      const fade = Math.min(1, c.age / 1.5, (c.life - c.age) / 1.5);
+      const speed = Math.hypot(c.vx, c.vy) || 1;
+      const tail = 9;
+      for (let i = 0; i < 6; i++) {
+        const a = (c.x - (c.vx / speed) * tail * (i / 6)) * U;
+        const b = (c.y - (c.vy / speed) * tail * (i / 6)) * U;
+        const a2 = (c.x - (c.vx / speed) * tail * ((i + 1) / 6)) * U;
+        const b2 = (c.y - (c.vy / speed) * tail * ((i + 1) / 6)) * U;
+        g.lineStyle(width * (2.2 - i * 0.3), 0xcfe8ff, fade * 0.55 * (1 - i / 6)).lineBetween(a, b, a2, b2);
+      }
+      g.fillStyle(0xffffff, fade).fillCircle(c.x * U, c.y * U, width * 1.8);
+    }
   }
 
   // ——— wspólne ———
@@ -301,6 +374,10 @@ export class MapScene extends OverlayScene {
           best = spot.position;
           bestD = d;
         }
+      }
+      if (best === null && this.beltRing) {
+        const d = Math.hypot(px - this.view.cx, py - this.view.cy);
+        if (Math.abs(d - this.beltRing.r) <= Math.max(this.beltRing.half, this.px(14))) best = BELT;
       }
       this.selected = best;
     }
@@ -389,7 +466,12 @@ export class MapScene extends OverlayScene {
         line(s.name, 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
         line(`Układ 1:${s.index}${own ? ' · Twój układ' : ''}`, 10.5, own ? COLORS.gold : COLORS.teal, { fontStyle: '600' });
         line(`${star.label} — ${star.description}`, 11.5, COLORS.muted);
-        line(`Planet: ${s.planetCount} · miejsca startowe graczy: ${homes} · formy obce: ${system.planets.filter((p) => p.occupant === 'alien').length}`, 11.5, COLORS.text);
+        const giants = system.planets.filter((p) => p.body === 'gas-giant').length;
+        line(
+          `Planet: ${s.planetCount} (gazowe olbrzymy: ${giants}) · miejsca startowe graczy: ${homes} · formy obce: ${system.planets.filter((p) => p.occupant === 'alien').length}${system.belt ? ' · pas asteroid' : ''}`,
+          11.5,
+          COLORS.text,
+        );
         buttons(['Pokaż układ', 'primary', () => this.openSystem(s.index)], ['Odznacz', 'secondary', () => this.onTap(-1e6, -1e6)]);
       }
       this.details.add(items);
@@ -397,7 +479,15 @@ export class MapScene extends OverlayScene {
     }
 
     const system = this.system;
-    const p = system && this.selected ? system.planets[this.selected - 1] : undefined;
+    if (system?.belt && this.selected === BELT) {
+      line('Pas asteroid', 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
+      line(`${system.name} · między orbitami ${letter(system.belt.after)} i ${letter(system.belt.after + 1)}`, 10.5, COLORS.stone, { fontStyle: '600' });
+      line('Tysiące skalnych odłamków na wspólnej orbicie. W przyszłości: wydobycie surowców z asteroid (wkrótce).', 11.5, COLORS.muted);
+      buttons(['Wydobycie wkrótce', 'disabled', () => undefined], ['Odznacz', 'secondary', () => this.onTap(-1e6, -1e6)]);
+      this.details.add(items);
+      return;
+    }
+    const p = system && this.selected && this.selected > 0 ? system.planets[this.selected - 1] : undefined;
     if (!system || !p) {
       const star = system ? findStar(system.star) : null;
       line(system?.name ?? '', 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
@@ -409,6 +499,23 @@ export class MapScene extends OverlayScene {
     }
     const occupant = controller.occupantAt(p);
     const slot = controller.slotAt(p.address);
+    if (p.body === 'gas-giant' && slot < 0) {
+      line(p.name, 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
+      line(`${p.address} · Gazowy olbrzym`, 10.5, COLORS.stone, { fontStyle: '600' });
+      line(
+        `Strefa ${ZONE_LABELS[p.zone]} (${String(p.orbit).replace('.', ',')} j.a.)${p.gas?.rings ? ' · z pierścieniami' : ''}. Bez stałej powierzchni — nie da się go skolonizować.`,
+        11.5,
+        COLORS.text,
+      );
+      line('W przyszłości: stacje wydobycia gazu na orbicie (wkrótce).', 11, COLORS.muted);
+      buttons(['Gazowy olbrzym', 'disabled', () => this.showToast(controller.colonize(p.address).message, 'info', 3200)], [
+        'Odznacz',
+        'secondary',
+        () => this.onTap(-1e6, -1e6),
+      ]);
+      this.details.add(items);
+      return;
+    }
     const planet = this.planetFor(p);
     const rich = planet.gameplay.richness;
     line(occupant === 'you' ? planet.displayName : p.name, 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
@@ -449,4 +556,108 @@ export class MapScene extends OverlayScene {
     }
     this.close(result.message);
   }
+}
+
+/** Zaznaczenie pasa asteroid (zamiast numeru orbity). */
+const BELT = -1;
+const letter = (position: number) => String.fromCharCode(97 + position);
+
+/** Pas asteroid: pierścień drobnych, nieregularnych okruchów (stałe położenie z adresu układu). */
+function drawBelt(g: Phaser.GameObjects.Graphics, r: number, half: number, seed: string, dpr: number): void {
+  const rng = createRng(`pas-${seed}`);
+  for (let i = 0; i < 480; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    const d = r + (rng.next() + rng.next() - 1) * half;
+    const size = rng.range(0.6, 1.8) * dpr;
+    g.fillStyle(rng.next() < 0.7 ? COLORS.stoneHex : 0x8a7f6c, rng.range(0.35, 0.8)).fillRect(Math.cos(a) * d, Math.sin(a) * d, size, size);
+  }
+}
+
+/** Gazowy olbrzym: tarcza z poziomych pikselowych pasów, cień po nocnej stronie, opcjonalnie pierścień. */
+function drawGasGiant(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, look: GasGiantLook, dpr: number): void {
+  const ring = (front: boolean) => {
+    const points: Phaser.Math.Vector2[] = [];
+    for (let i = 0; i <= 32; i++) {
+      const a = (front ? 0 : Math.PI) + (Math.PI * i) / 32;
+      points.push(new Phaser.Math.Vector2(x + Math.cos(a) * r * 1.75, y + Math.sin(a) * r * 0.5));
+    }
+    g.lineStyle(Math.max(1.5, r * 0.16), hex(look.bands[2] ?? look.bands[0]!), 0.75).strokePoints(points, false);
+  };
+  if (look.rings) ring(false);
+  const stripes = Math.max(9, Math.round((r * 2) / (2.2 * dpr)));
+  const h = (2 * r) / stripes;
+  for (let i = 0; i < stripes; i++) {
+    const cy = -r + (i + 0.5) * h;
+    const w = 2 * Math.sqrt(Math.max(0, r * r - cy * cy));
+    const band = look.bands[Math.floor((i / stripes) * look.bands.length * 2) % look.bands.length]!;
+    g.fillStyle(hex(band), 1).fillRect(Math.round(x - w / 2), Math.round(y + cy - h / 2), Math.round(w), Math.ceil(h));
+    // Nocna strona: ciemniejszy prawy brzeg.
+    g.fillStyle(0x000000, 0.35).fillRect(Math.round(x + w / 2 - w * 0.28), Math.round(y + cy - h / 2), Math.round(w * 0.28), Math.ceil(h));
+  }
+  if (look.rings) ring(true);
+}
+
+/**
+ * Tło galaktyki (rysowane raz, zapamiętane jako tekstura): jasne zgrubienie centralne,
+ * dwa ramiona spirali logarytmicznej z tysiącami gwiazd, obłoki wodoru i ciemne pasy pyłu.
+ */
+function galaxyArt(scene: Phaser.Scene): string {
+  const key = 'galaxy-art-v3';
+  if (scene.textures.exists(key)) return key;
+  const T = 1024;
+  const texture = scene.textures.createCanvas(key, T, T)!;
+  const ctx = texture.context;
+  const R = GALAXY_RULES.radius;
+  const k = T / 2 / (R + 6);
+  const c = T / 2;
+  const rng = createRng('galaktyka-tlo');
+  const gauss = () => (rng.next() + rng.next() + rng.next() - 1.5) * 1.15;
+  const dot = (x: number, y: number, size: number, color: string) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(c + x * k - size / 2, c + y * k - size / 2, size, size);
+  };
+  // Poświata dysku i jądra.
+  const glow = ctx.createRadialGradient(c, c, 0, c, c, R * k);
+  glow.addColorStop(0, 'rgba(255,236,204,0.55)');
+  glow.addColorStop(0.1, 'rgba(250,222,176,0.28)');
+  glow.addColorStop(0.35, 'rgba(150,176,210,0.08)');
+  glow.addColorStop(1, 'rgba(90,120,150,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, T, T);
+  ctx.globalCompositeOperation = 'lighter';
+  // Ramiona: gęsto przy osi, rzadziej na zewnątrz; wewnątrz ciepłe, na obrzeżach niebieskawe gwiazdy.
+  for (let i = 0; i < 11000; i++) {
+    const arm = rng.int(0, SPIRAL.arms - 1);
+    const r = R * (0.1 + 0.95 * rng.next() ** 0.9);
+    const p = spiralPoint(arm, r, R);
+    const spread = r * (0.06 + 0.12 * rng.next());
+    const t = r / R;
+    const warm = Math.max(0, 1 - t * 1.6);
+    const color = `rgba(${Math.round(175 + 80 * warm)},${Math.round(200 + 30 * warm)},${Math.round(255 - 55 * warm)},${(0.14 + 0.3 * rng.next()) * (1.1 - t * 0.5)})`;
+    dot(p.x + gauss() * spread, p.y + gauss() * spread, rng.range(0.8, 2.2), color);
+    if (rng.next() < 0.02) dot(p.x + gauss() * spread, p.y + gauss() * spread, rng.range(2.5, 4.5), 'rgba(255,140,175,0.22)');
+  }
+  // Zgrubienie centralne.
+  for (let i = 0; i < 3500; i++) {
+    const r = R * 0.13 * Math.abs(gauss());
+    const a = rng.range(0, Math.PI * 2);
+    dot(Math.cos(a) * r, Math.sin(a) * r * 0.85, rng.range(0.8, 2), `rgba(255,228,190,${0.12 + 0.2 * rng.next()})`);
+  }
+  // Rozproszone gwiazdy dysku między ramionami.
+  for (let i = 0; i < 2500; i++) {
+    const r = R * Math.sqrt(rng.next());
+    const a = rng.range(0, Math.PI * 2);
+    dot(Math.cos(a) * r, Math.sin(a) * r, rng.range(0.6, 1.4), `rgba(200,215,235,${0.06 + 0.1 * rng.next()})`);
+  }
+  // Ciemne pasy pyłu po wewnętrznej stronie ramion.
+  ctx.globalCompositeOperation = 'source-over';
+  for (let i = 0; i < 4000; i++) {
+    const arm = rng.int(0, SPIRAL.arms - 1);
+    const r = R * (0.14 + 0.7 * rng.next());
+    const p = spiralPoint(arm, r * 0.94, R);
+    const spread = r * 0.035;
+    dot(p.x + gauss() * spread, p.y + gauss() * spread, rng.range(1.5, 3), 'rgba(4,8,10,0.16)');
+  }
+  texture.refresh();
+  return key;
 }

@@ -299,6 +299,13 @@ export interface GalaxyRules {
   zones: readonly [zone: OrbitZone, minTemperature: number][];
   /** Wagi typów planet (id definicji) w każdej strefie. */
   zoneTypes: Record<OrbitZone, Readonly<Record<string, number>>>;
+  /** Szansa na gazowego olbrzyma (zamiast planety skalistej) w każdej strefie. */
+  gasGiantChance: Record<OrbitZone, number>;
+  gasRingsChance: number;
+  /** Pasy kolorów gazowych olbrzymów: ciepłe (bliżej gwiazdy) i zimne. */
+  gasPalettes: { warm: readonly (readonly string[])[]; cold: readonly (readonly string[])[] };
+  /** Szansa na pas asteroid (za 3. albo 4. planetą). */
+  beltChance: number;
 }
 
 /** Adres w galaktyce: galaktyka : układ : orbita (np. 1:42:7). */
