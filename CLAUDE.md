@@ -106,6 +106,8 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 
 ## Najbliższe etapy (proponowana kolejność — każdy to osobna sesja)
 
+**W toku: przebudowa generatora planet i UI** według `docs/specyfikacja-generatora-i-ui.md` — plan, kontrakty i lista plików w `docs/generator-plan.md` (etap 1 = audyt gotowy; następny: etap 2, wspólny model powierzchni).
+
 1. ~~Test na iPadzie~~ (v0.1–v0.3 zaakceptowane) → **test v0.4–v0.5 na iPadzie**: lista kontrolna z `README.md` (magazyn, „Ukończ teraz”, antymateria).
 2. ~~Czas budowy~~ (v0.3).
 3. ~~Magazyny~~ (v0.4), ~~antymateria~~ (v0.5). Zakup antymaterii za pieniądze — dopiero z backendem.

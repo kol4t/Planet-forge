@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-21 — przebudowa generatora planet i UI: etap 1 (audyt, kontrakty)
+
+- **Specyfikacja właściciela** zapisana w `docs/specyfikacja-generatora-i-ui.md`; audyt, kontrakty danych i plan 8 etapów (v0.18–v0.24) w `docs/generator-plan.md`. Kod gry bez zmian.
+- **Kompozycja zamiast drugiego rejestru:** `PlanetDefinition` zostaje jedynym rejestrem typów; dostaje odwołanie do profilu powierzchni (`data/profiles/`) i dozwolonych metod terenu (`core/surface/methods/`). Teren staje się danymi w `core` (`SurfaceModel`), renderery czytają go przez dotychczasowy `SurfaceSampler` (adapter).
+- **Wersje:** `GENERATOR_VERSION` = 1 na stałe dla strumienia `gameplay` (surowce i promień się nie zmienią); nowa `SURFACE_VERSION` dla wyglądu terenu. `restoreSlots` nie może już po cichu pomijać planet z inną wersją — poprawka w etapie 2.
+
 ## 2026-10-21 — v0.17: kosmos, który żyje (modernizacja wyglądu, etap 2)
 
 - **Plan modernizacji** (prompt właściciela „Visual Upgrade 2.0”): etap 2 kosmos i światło (v0.17) → etap 3 kolonia (światła instalacji, wybór budowli dotykiem z panelem danych) → etap 4 interfejs (kompaktowy pasek zasobów z animacją przyrostu, mały panel planety, dolna nawigacja z ikonami, budowa i badania w wysuwanych panelach). Każdy etap osobno, do akceptacji.
