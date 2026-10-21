@@ -1,8 +1,7 @@
 // Miniatura planety (np. w oknie „Twoje planety”): mała pikselowa tarcza rysowana tym samym
 // kodem co planeta 2D. UI podaje kontekst canvas i kąt obrotu, miniatura się w nim rysuje.
 import type { Planet } from '../core/types.ts';
-import { renderDisc, type DiscLook } from './discRenderer.ts';
-import { createSurfaceSampler, hexToRgb } from './surface.ts';
+import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
 
 /** Rozdzielczość miniatury (piksele planety na średnicę) — celowo mała, pikselowa. */
 export const THUMBNAIL_SIZE = 36;
@@ -13,11 +12,7 @@ export class PlanetThumbnail {
   private image: ImageData | null = null;
 
   constructor(planet: Planet) {
-    this.look = {
-      sampler: createSurfaceSampler(planet),
-      seaLevel: planet.visual.seaLevel,
-      atmosphere: hexToRgb(planet.visual.atmosphereColor),
-    };
+    this.look = discLook(planet);
   }
 
   /** Rysuje planetę obróconą o `yaw` w lewym górnym rogu `ctx` (THUMBNAIL_SIZE × THUMBNAIL_SIZE). */

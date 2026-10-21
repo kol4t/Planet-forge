@@ -29,7 +29,7 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: radial-gradient(ellipse at 50% 45%, #0e2226 0%, var(--bg-mid) 35%, var(--bg-deep) 80%);
+  background: radial-gradient(ellipse at 42% 40%, #0c1d2a 0%, #08121c 38%, var(--bg-deep) 85%);
   background-color: var(--bg-deep);
   color: var(--text);
   font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
@@ -50,6 +50,34 @@ html, body {
   touch-action: none;
 }
 #planet { display: block; z-index: 0; }
+
+/* Tło kosmosu (src/planet-renderer/spaceBackground.ts): warstwy rysowane raz, paralaksa przez transform. */
+#space { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+#space .space-layer { position: absolute; left: 0; top: 0; transform: translate3d(-28px, -28px, 0); will-change: transform; }
+#space .space-body { position: absolute; }
+#space .space-twinkle {
+  position: absolute;
+  border-radius: 50%;
+  box-shadow: 0 0 4px 1px currentColor;
+  opacity: 0.5;
+  animation: pf-twinkle 6s ease-in-out infinite;
+}
+@keyframes pf-twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.95; } }
+#space .space-meteor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 140px;
+  height: 1.5px;
+  border-radius: 1px;
+  transform-origin: 100% 50%;
+  background: linear-gradient(90deg, rgba(200, 235, 255, 0), rgba(220, 245, 255, 0.85));
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  #space .space-twinkle { animation: none; }
+  #space .space-meteor { display: none; }
+}
 #ui { z-index: 1; }
 #ui canvas { display: block; touch-action: none; }
 

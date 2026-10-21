@@ -16,6 +16,8 @@ export interface PlanetDisplay {
   endDrag(): void;
   /** Przybliżenie (1 = cała planeta, maks. ok. 3,5). Planeta rośnie wokół swojego środka. */
   setZoom(zoom: number): void;
+  /** Bieżący obrót planety (rad) — dla paralaksy tła kosmosu. */
+  orientation(): { yaw: number; pitch: number };
     /** Środek i promień planety w pikselach CSS. */
   setFocus(cx: number, cy: number, r: number): void;
   resize(width: number, height: number): void;

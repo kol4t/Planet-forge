@@ -6,6 +6,10 @@ import { ResearchScene } from '../game/scenes/ResearchScene.ts';
 import { CanvasPlanetFallback } from '../planet-renderer/CanvasPlanetFallback.ts';
 import type { PlanetDisplay } from '../planet-renderer/PlanetDisplay.ts';
 import { hasWebGL, PlanetView } from '../planet-renderer/PlanetView.ts';
+import { distantBodies } from '../planet-renderer/sky.ts';
+import { SpaceBackground, type SkyScene } from '../planet-renderer/spaceBackground.ts';
+import { findStar, generateSystem, parseAddress } from '../core/galaxy/galaxy.ts';
+import { PLANET_DEFINITIONS } from '../data/planets.ts';
 import { BootGuard } from './bootGuard.ts';
 import { FpsMeter } from './fpsMeter.ts';
 import { GameController } from './GameController.ts';
@@ -45,6 +49,50 @@ function getViewport(): Viewport {
   };
 }
 
+/** Niebo aktywnej planety: kolor gwiazdy i sąsiednie ciała jej układu (z mapy galaktyki). */
+function skyFor(controller: GameController): SkyScene {
+  const where = parseAddress(controller.address);
+  const system = where ? generateSystem(controller.galaxy, where.system) : null;
+  return {
+    seed: controller.planet.seed,
+    starColor: system ? findStar(system.star).color : '#f2d27a',
+    bodies: distantBodies(system, where?.position ?? 0, PLANET_DEFINITIONS),
+  };
+}
+
+/**
+ * Tło kosmosu podpięte pod planetę: dostaje te same rozmiary i położenie co renderer
+ * (PlanetScene dalej zna tylko interfejs PlanetDisplay).
+ */
+function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: GameController): PlanetDisplay {
+  return {
+    kind: display.kind,
+    setPlanet(planet) {
+      display.setPlanet(planet);
+      space.setScene(skyFor(controller));
+    },
+    setStructures: (levels, site) => display.setStructures(levels, site),
+    showBuilding: (id) => display.showBuilding(id),
+    beginDrag: () => display.beginDrag(),
+    drag: (dx, dy) => display.drag(dx, dy),
+    endDrag: () => display.endDrag(),
+    setZoom: (zoom) => display.setZoom(zoom),
+    orientation: () => display.orientation(),
+    setFocus(cx, cy, r) {
+      display.setFocus(cx, cy, r);
+      space.setFocus(cx, cy, r);
+    },
+    resize(width, height) {
+      display.resize(width, height);
+      space.resize(width, height);
+    },
+    dispose() {
+      display.dispose();
+      space.dispose();
+    },
+  };
+}
+
 function safeStorage(): Storage | null {
   try {
     return globalThis.localStorage ?? null;
@@ -68,20 +116,22 @@ function start(boot: BootGuard): void {
   boot.step('zapis wczytany');
 
   const { safeMode } = boot.state;
-  let display: PlanetDisplay;
+  let renderer: PlanetDisplay;
   if (!safeMode && hasWebGL()) {
     try {
-      display = new PlanetView(planetCanvas, () => {
+      renderer = new PlanetView(planetCanvas, () => {
         boot.step('utrata kontekstu 3D');
         showError('Utracono kontekst grafiki 3D. Zamknij i otwórz grę ponownie — uruchomi się w trybie bezpiecznym.');
       });
     } catch (error) {
       console.warn('WebGL nie zadziałał, używam widoku awaryjnego', error);
-      display = new CanvasPlanetFallback(planetCanvas);
+      renderer = new CanvasPlanetFallback(planetCanvas);
     }
   } else {
-    display = new CanvasPlanetFallback(planetCanvas);
+    renderer = new CanvasPlanetFallback(planetCanvas);
   }
+  const space = new SpaceBackground(document.body, () => renderer.orientation());
+  const display = withSpace(renderer, space, controller);
   boot.step(`grafika ${display.kind}`);
   display.setPlanet(controller.planet);
   display.setStructures(controller.economy.levels);

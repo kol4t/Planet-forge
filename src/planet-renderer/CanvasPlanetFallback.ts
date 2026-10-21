@@ -3,8 +3,8 @@ import { BALANCE } from '../data/balance.ts';
 import { layoutColony, visibleStructures, type ColonyLayout } from './colony.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { facingAngles, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
-import { renderDisc } from './discRenderer.ts';
-import { createSurfaceSampler, hexToRgb, type RGB, type SurfaceSampler } from './surface.ts';
+import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
+import type { RGB, SurfaceSampler } from './surface.ts';
 
 // Widok 2D (domyślny od v0.7): ta sama planeta z tego samego seeda, rysowana piksel
 // po pikselu do małego bufora i skalowana — pikselowy styl gry.
@@ -23,12 +23,12 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly buffer = document.createElement('canvas');
   private readonly bctx: CanvasRenderingContext2D;
-  private readonly rotator = new DragRotator();
+  private readonly rotator = new DragRotator(prefersReducedMotion() ? { idleSpin: 0 } : {});
   private sampler: SurfaceSampler | undefined;
   private colony: ColonyLayout | undefined;
   private levels: BuildingLevels | undefined;
   private site: BuildSite | null = null;
-  private sea = 0.5;
+  private look: DiscLook | undefined;
   private atmosphere: RGB = [0.5, 0.8, 0.8];
   private w = 1;
   private h = 1;
@@ -51,10 +51,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   }
 
   setPlanet(planet: Planet): void {
-    this.sampler = createSurfaceSampler(planet);
+    this.look = discLook(planet);
+    this.sampler = this.look.sampler;
     this.colony = layoutColony(planet, this.sampler, BUILDING_IDS);
-    this.sea = planet.visual.seaLevel;
-    this.atmosphere = hexToRgb(planet.visual.atmosphereColor);
+    this.atmosphere = this.look.atmosphere;
     this.lastDrawn = { yaw: NaN, pitch: NaN };
   }
 
@@ -91,6 +91,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     }
   }
 
+  orientation(): { yaw: number; pitch: number } {
+    return { yaw: this.rotator.yaw, pitch: this.rotator.pitch };
+  }
+
   endDrag(): void {
     this.rotator.end(performance.now());
   }
@@ -109,10 +113,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   }
 
   private renderDisc(): void {
-    if (!this.sampler) return;
+    if (!this.look) return;
     const image = this.bctx.createImageData(this.size, this.size);
     const { yaw, pitch } = this.rotator;
-    renderDisc(image.data, this.size, { sampler: this.sampler, seaLevel: this.sea, atmosphere: this.atmosphere }, yaw, pitch);
+    renderDisc(image.data, this.size, this.look, yaw, pitch);
     this.bctx.putImageData(image, 0, 0);
     this.lastDrawn = { yaw, pitch };
   }
@@ -193,15 +197,17 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const r = this.focus.r * this.zoom;
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.w, this.h);
-    // Miękka poświata zanikająca do zera (bez wyraźnego pierścienia).
+    // Cienka poświata atmosfery, przesunięta ku stronie dziennej (światło z lewej-góry).
     const [ar, ag, ab] = this.atmosphere.map((c) => Math.round(c * 255));
-    const glow = ctx.createRadialGradient(cx, cy, r * 0.98, cx, cy, r * 1.1);
-    glow.addColorStop(0, `rgba(${ar},${ag},${ab},0.28)`);
-    glow.addColorStop(0.4, `rgba(${ar},${ag},${ab},0.1)`);
+    const gx = cx - r * 0.035;
+    const gy = cy - r * 0.025;
+    const glow = ctx.createRadialGradient(gx, gy, r * 0.97, gx, gy, r * 1.07);
+    glow.addColorStop(0, `rgba(${ar},${ag},${ab},0.32)`);
+    glow.addColorStop(0.35, `rgba(${ar},${ag},${ab},0.12)`);
     glow.addColorStop(1, `rgba(${ar},${ag},${ab},0)`);
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(cx, cy, r * 1.1, 0, Math.PI * 2);
+    ctx.arc(gx, gy, r * 1.07, 0, Math.PI * 2);
     ctx.fill();
     ctx.save();
     ctx.beginPath();
@@ -217,5 +223,14 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+  }
+}
+
+/** „Ogranicz ruch” w ustawieniach systemu: planeta nie obraca się sama. */
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
   }
 }

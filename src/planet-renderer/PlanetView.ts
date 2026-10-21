@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { createRng } from '../core/random/rng.ts';
 import { createNoise3D, fbm } from '../core/random/noise.ts';
 import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
@@ -55,9 +54,6 @@ export class PlanetView implements PlanetDisplay {
   private planetObjects: THREE.Object3D[] = [];
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
-  private readonly stars = createStarfield();
-  /** Ograniczony ruch (ustawienia systemu): bez autoobrotu i paralaksy gwiazd. */
-  private readonly reducedMotion = prefersReducedMotion();
   private clouds: THREE.Object3D | undefined;
   private axialTilt = 0;
   private width = 1;
@@ -90,7 +86,6 @@ export class PlanetView implements PlanetDisplay {
     this.scene.add(this.tiltGroup);
     this.tiltGroup.add(this.spinGroup);
     this.spinGroup.add(this.colony.object);
-    this.scene.add(this.stars);
 
     // Światło gwiazdy z boku uwydatnia fasety; słabe światło otoczenia — noc ciemna, ale z detalem.
     this.sun.position.copy(LIGHT_POSITION);
@@ -149,6 +144,10 @@ export class PlanetView implements PlanetDisplay {
     this.updateCamera();
   }
 
+  orientation(): { yaw: number; pitch: number } {
+    return { yaw: this.rotator.yaw, pitch: this.rotator.pitch };
+  }
+
   endDrag(): void {
     this.rotator.end(performance.now());
   }
@@ -188,11 +187,6 @@ export class PlanetView implements PlanetDisplay {
     this.spinGroup.rotation.y = this.rotator.yaw;
     this.tiltGroup.rotation.x = this.rotator.pitch;
     if (this.clouds) this.clouds.rotation.y += dt * 0.012;
-    if (!this.reducedMotion) {
-      // Bardzo delikatna paralaksa tła — głębia bez odwracania uwagi.
-      this.stars.rotation.y = this.rotator.yaw * 0.02;
-      this.stars.rotation.x = this.rotator.pitch * 0.02;
-    }
     this.colony.update(dt);
     this.renderer.render(this.scene, this.camera);
   }
@@ -288,32 +282,6 @@ function createCloudTexture(noiseSeed: number, look: Planet['visual']['clouds'])
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   return texture;
-}
-
-/** Gwiazdy tła w dwóch warstwach: wiele drobnych i ciemnych, kilka jaśniejszych i większych. */
-function createStarfield(): THREE.Group {
-  const rng = createRng('planet-forge-starfield');
-  const tints = ['#ffffff', '#cfe6ff', '#ffe6bf', '#a8d8cf'].map((c) => new THREE.Color(c));
-  const layer = (count: number, size: number, dist: [number, number], bright: [number, number]) => {
-    const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      const y = rng.next() * 2 - 1;
-      const angle = rng.next() * Math.PI * 2;
-      const d = dist[0] + rng.next() * (dist[1] - dist[0]);
-      const r = Math.sqrt(1 - y * y);
-      positions.set([d * r * Math.cos(angle), d * y, d * r * Math.sin(angle) - 30], i * 3);
-      const c = tints[rng.int(0, tints.length - 1)]!.clone().multiplyScalar(bright[0] + rng.next() * (bright[1] - bright[0]));
-      colors.set([c.r, c.g, c.b], i * 3);
-    }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    return new THREE.Points(geometry, new THREE.PointsMaterial({ size, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9, toneMapped: false }));
-  };
-  const group = new THREE.Group();
-  group.add(layer(1100, 1.2, [70, 100], [0.2, 0.55]), layer(140, 2.2, [55, 70], [0.6, 1]));
-  return group;
 }
 
 function prefersReducedMotion(): boolean {

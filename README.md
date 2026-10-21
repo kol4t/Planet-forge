@@ -148,4 +148,13 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 82. Jeśli w iPadzie włączone jest Ustawienia → Dostępność → Ruch → „Ogranicz ruch”: planeta nie obraca się sama, gwiazdy stoją.
 83. Płynność: Ustawienia gry → „Diagnostyka” — licznik kl./s przy obracaniu (porównaj z v0.15: ok. 53–60). Gra nie może się wyłączać ani przełączać sama na 2D.
 
+### Od 0.17: kosmos, który żyje (etap 2 modernizacji wyglądu)
+
+84. Za planetą (2D i 3D) widać głębię: drobne dalekie gwiazdy, jaśniejsze bliższe (kilka z krzyżykiem blasku), delikatny pas galaktyki i słabe mgławice — inne dla każdej planety.
+85. Obróć planetę palcem: gwiazdy lekko się przesuwają (bliższe szybciej), po puszczeniu wracają na miejsce. Kilka gwiazd powoli migocze; co jakiś czas (rzadko) przelatuje spadająca gwiazda.
+86. Obok planety widać 1–2 sąsiednie planety Twojego układu (te same co na „Mapie” — skaliste albo gazowe olbrzymy). Na telefonie w pionie, gdy brak miejsca, chowają się.
+87. Planeta 2D: wyraźniejsza granica dnia i nocy, ciemniejsza noc (zarys lądu nadal widać), cieńsza poświata atmosfery. Lawa na planecie wulkanicznej świeci także po nocnej stronie.
+88. Ustawienia iPada → Dostępność → Ruch → „Ogranicz ruch”: tło stoi, gwiazdy nie migoczą, brak spadających gwiazd, planeta nie obraca się sama (także w 2D).
+89. Płynność: Ustawienia gry → „Diagnostyka” — licznik kl./s przy obracaniu, w 2D i w 3D (porównaj z poprzednią wersją).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

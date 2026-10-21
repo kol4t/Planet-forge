@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-21 — v0.17: kosmos, który żyje (modernizacja wyglądu, etap 2)
+
+- **Plan modernizacji** (prompt właściciela „Visual Upgrade 2.0”): etap 2 kosmos i światło (v0.17) → etap 3 kolonia (światła instalacji, wybór budowli dotykiem z panelem danych) → etap 4 interfejs (kompaktowy pasek zasobów z animacją przyrostu, mały panel planety, dolna nawigacja z ikonami, budowa i badania w wysuwanych panelach). Każdy etap osobno, do akceptacji.
+- **Tło kosmosu wspólne dla 2D i 3D** (`planet-renderer/spaceBackground.ts`, rozmieszczenie w czystym `sky.ts`): osobna warstwa DOM pod przezroczystym płótnem planety. Płótna Canvas 2D rysowane raz (przy zmianie rozmiaru/planety) w rozdzielczości 1:1 z pikselami CSS (mało pamięci na Retinie), paralaksa = `transform` CSS (praca kompozytora). Brak dodatkowego kontekstu WebGL; gwiazdy z Three.js usunięte (mniej rysowania w 3D).
+- **Paralaksa** zależy od prędkości obrotu (przesunięcie wraca do zera w ~1 s), nie od kąta — autoobrót nie „ucieka” z tłem. Odczyt przez `PlanetDisplay.orientation()`.
+- **Odległe ciała = prawdziwe dane**: 1–2 najbliższe orbitalnie planety z układu aktywnej planety (mapa galaktyki), skaliste rysowane tym samym generatorem co mapa (seed = adres), gazowe olbrzymy z ich pasów i pierścieni. Kolor gwiazdy układu barwi jedną mgławicę. Nic nie jest wymyślone ani interaktywne na pokaz.
+- **Światło 2D**: ostrzejszy terminator, noc 0,07 zamiast 0,18, cienka poświata przesunięta ku stronie dziennej; świecące morza (lawa, `ocean.emissive`) mają minimalną jasność także nocą (`discLook`).
+- **„Ogranicz ruch”** respektowany w obu widokach (bez autoobrotu, paralaksy, migotania i spadających gwiazd). Losowość spadających gwiazd tylko wizualna (poza logiką gry).
+
 ## 2026-10-21 — v0.16: planeta 3D w stylu low-poly
 
 - **Audyt (przyczyny „miękkiego” wyglądu):** kolory z interpolacji wierzchołków (rozmyte granice lądu i lodu), wygładzone normalne (brak czytelnej rzeźby), mocne światło otoczenia (jasna nocna strona), gruba atmosfera z mgiełką na całej tarczy (efekt „mleka”), lód morski chowany pod oceanem.

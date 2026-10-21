@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Pełna wizja: `docs/technical-brief.md`. Dec
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku.
 
-## Stan obecny (v0.16 — w testach; v0.15 opublikowana)
+## Stan obecny (v0.17 — w testach; v0.16 nieopublikowana; v0.15 opublikowana)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **Przybliżanie dwoma palcami** (1×–3,5×, `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
@@ -40,7 +40,8 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **SI Matka (v0.14)**: `core/ai/advisor.ts` — reguły energia/magazyn/badania/kopalnie, propozycje z powodem; badania „SI Matka” (propozycje) i „SI wykonawcze” (poziom „działa samo”); dymek nad planetą (Tak / Nie / Zawsze tak rób), zakładka „SI” w „Imperium”, wpisy w dzienniku; zapis `ai`.
 - **v0.15**: SI buduje najwyżej do poziomu Laboratorium planety (Laboratorium ulepsza gracz); badanie „Autonomia” — SI buduje przy zamkniętej grze, budowy o 50% dłuższe (`core/ai/offline.ts`).
 - **v0.16**: planeta 3D w stylu low-poly (`planet-renderer/lowPoly.ts`): fasety z jednym kolorem, tarasy, ciemne klify, tafle lodu na zamarzniętym morzu, ACES, ciemniejsza noc, cieńsza atmosfera, gwiazdy w 2 warstwach z paralaksą, płynny powrót autoobrotu, „Ogranicz ruch”; styl per typ w `visual.style` (`DEFAULT_SURFACE_STYLE`).
-- 136 testów (w tym badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
+- **v0.17**: tło kosmosu wspólne dla 2D/3D (`planet-renderer/spaceBackground.ts` + czysty `sky.ts`): gwiazdy w warstwach z paralaksą (`PlanetDisplay.orientation()`), pas galaktyki, mgławice, migotanie, rzadkie spadające gwiazdy, 1–2 prawdziwi sąsiedzi z układu; mocniejszy kontrast dnia/nocy w 2D, świecąca lawa (`discLook`). Dalej: etap 3 (kolonia), etap 4 (UI) — `docs/decisions.md`.
+- 139 testów (w tym badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -53,7 +54,7 @@ src/
     save/          save.ts (walidacja planety/gospodarki), empire.ts (zapis imperium + localStorage), transfer.ts (eksport/import „PF2:”)
     types.ts
   data/            planets.ts (definicje typów planet), balance.ts (wartości robocze)
-  planet-renderer/ Three.js: PlanetView.ts, atmosphere.ts, colonyMeshes.ts, CanvasPlanetFallback.ts
+  planet-renderer/ Three.js: PlanetView.ts, atmosphere.ts, colonyMeshes.ts, CanvasPlanetFallback.ts, spaceBackground.ts (tło, DOM)
                    PlanetThumbnail.ts (miniatury), discRenderer.ts (tarcza 2D piksel po pikselu)
                    czysta matematyka (bez three, testowalna): surface.ts, colony.ts, discRenderer.ts, input/dragRotator.ts
                    PlanetDisplay.ts = JEDYNY interfejs między Phaser a rendererem
