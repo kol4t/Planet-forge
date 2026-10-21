@@ -157,4 +157,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 88. Ustawienia iPada → Dostępność → Ruch → „Ogranicz ruch”: tło stoi, gwiazdy nie migoczą, brak spadających gwiazd, planeta nie obraca się sama (także w 2D).
 89. Płynność: Ustawienia gry → „Diagnostyka” — licznik kl./s przy obracaniu, w 2D i w 3D (porównaj z poprzednią wersją).
 
+### Od 0.18: nowy fundament terenu i planety jałowe (przebudowa generatora, etap 2)
+
+90. Twoje planety wyglądają **dokładnie tak samo** jak w 0.17 (teren liczy się teraz w nowym miejscu, ale tym samym algorytmem), surowce i rozmiary bez zmian, zapis wczytuje się normalnie.
+91. „Mapa” → układy blisko gorącej gwiazdy albo daleko od niej: pojawiają się planety **„jałowa, bez atmosfery”** — szarobrązowe skały i pył, bez wody, małe szronowe czapy na biegunach. Dotknij takiej planety: podgląd i opis jak u innych typów.
+92. Pozostałe planety na mapie mają te same typy co w 0.17 (zmieniły się tylko te, które stały się jałowe — nigdy miejsca startowe ani Twoje planety).
+93. Skolonizuj (albo wyślij statek na) planetę jałową: gra działa jak z innymi typami, w panelu planety typ „jałowa, bez atmosfery”.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -1,0 +1,102 @@
+// Model powierzchni na siatce: wysokość → ciecz → materiał (+ statystyki i walidacja).
+// Ciężkie kroki (hydrologia, lawa, erozja — kolejne etapy) liczone raz, przy generowaniu.
+import type { Planet } from '../types.ts';
+import { createSurfaceField } from './field.ts';
+import { sphereGrid } from './grid.ts';
+import { LIQUID, MATERIALS, type LiquidCode, type MaterialId, type SurfaceField, type SurfaceModel } from './types.ts';
+
+/** Siatka modelu dla widoku planety (= siatka lądu 3D, `SURFACE_DETAIL`). */
+export const MODEL_DETAIL = 40;
+
+const MATERIAL_CODE = Object.fromEntries(MATERIALS.map((id, i) => [id, i])) as Record<MaterialId, number>;
+
+/** Klasyfikacja punktu (wspólna dla siatki i próbkowania ciągłego). */
+export function classifyPoint(field: SurfaceField, h: number, x: number, y: number, z: number): { liquid: LiquidCode; material: MaterialId } {
+  const sea = field.seaLevel;
+  const icy = field.ice(h, x, y, z) > 0.5;
+  if (h < sea) {
+    if (icy) return { liquid: LIQUID.frozenSea, material: 'seaIce' };
+    return { liquid: LIQUID.ocean, material: h > sea - 0.07 ? 'shallowWater' : 'deepWater' };
+  }
+  if (icy) return { liquid: LIQUID.none, material: 'glacier' };
+  // Pasma jak w kolorach v0.17: brzeg → nizina → wyżyna → szczyt.
+  const t = (h - sea) / (1 - sea);
+  const material: MaterialId = t < 0.03 ? 'shore' : t < 0.3 ? 'lowland' : t < 0.6 ? 'highland' : 'peak';
+  return { liquid: LIQUID.none, material };
+}
+
+/** Model powierzchni planety na siatce o szczegółowości `detail`. */
+export function buildSurface(planet: Planet, detail = MODEL_DETAIL): SurfaceModel {
+  const started = performance.now();
+  const field = createSurfaceField(planet.visual);
+  const grid = sphereGrid(detail);
+  const { count, nodes } = grid;
+  const height = new Float32Array(count);
+  const liquid = new Uint8Array(count);
+  const material = new Uint8Array(count);
+  let land = 0;
+  let ocean = 0;
+  let frozenSea = 0;
+  let minHeight = Infinity;
+  let maxHeight = -Infinity;
+  for (let i = 0; i < count; i++) {
+    const x = nodes[i * 3]!;
+    const y = nodes[i * 3 + 1]!;
+    const z = nodes[i * 3 + 2]!;
+    const h = field.height(x, y, z);
+    const c = classifyPoint(field, h, x, y, z);
+    height[i] = h;
+    liquid[i] = c.liquid;
+    material[i] = MATERIAL_CODE[c.material];
+    if (c.liquid === LIQUID.ocean) ocean++;
+    else if (c.liquid === LIQUID.frozenSea) frozenSea++;
+    else land++;
+    if (h < minHeight) minHeight = h;
+    if (h > maxHeight) maxHeight = h;
+  }
+  return {
+    version: planet.visual.surfaceVersion,
+    method: field.method,
+    grid,
+    seaLevel: field.seaLevel,
+    height,
+    liquid,
+    material,
+    stats: {
+      land: land / count,
+      ocean: ocean / count,
+      frozenSea: frozenSea / count,
+      minHeight,
+      maxHeight,
+      buildMs: performance.now() - started,
+    },
+  };
+}
+
+/** Lista problemów modelu (pusta = poprawny): NaN/∞, zakresy, spójność cieczy z wysokością. */
+export function validateSurface(model: SurfaceModel): string[] {
+  const problems: string[] = [];
+  const { count } = model.grid;
+  if (!(model.seaLevel > 0 && model.seaLevel < 1)) problems.push(`poziom morza poza 0..1: ${model.seaLevel}`);
+  if (model.height.length !== count || model.liquid.length !== count || model.material.length !== count) {
+    problems.push('długości tablic różne od liczby węzłów');
+    return problems;
+  }
+  const report = (message: string) => {
+    if (problems.length < 20) problems.push(message);
+  };
+  const codes = new Set<number>(Object.values(LIQUID));
+  for (let i = 0; i < count; i++) {
+    const h = model.height[i]!;
+    const liquid = model.liquid[i]!;
+    const material = MATERIALS[model.material[i]!];
+    if (!Number.isFinite(h) || h < 0 || h > 1) report(`węzeł ${i}: wysokość ${h}`);
+    if (!codes.has(liquid)) report(`węzeł ${i}: nieznana ciecz ${liquid}`);
+    if (!material) report(`węzeł ${i}: nieznany materiał ${model.material[i]}`);
+    const below = h < model.seaLevel;
+    // Morze tylko poniżej poziomu morza, ląd tylko powyżej (spójne granice).
+    if (liquid !== LIQUID.none && !below) report(`węzeł ${i}: ciecz powyżej poziomu morza`);
+    if (liquid === LIQUID.none && below) report(`węzeł ${i}: suchy ląd poniżej poziomu morza`);
+  }
+  return problems;
+}

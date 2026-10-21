@@ -1,4 +1,5 @@
 // Wspólne typy gry. Czysty TypeScript — bez importów z phaser/three/DOM.
+import type { TerrainMethodId } from './surface/types.ts';
 
 export type ResourceId = 'metal' | 'crystal';
 export type YieldId = ResourceId | 'energy';
@@ -119,6 +120,10 @@ export interface PlanetVisual {
   clouds: { threshold: number; opacity: number; color: string };
   polarCap: number;
   style: SurfaceStyle;
+  /** Metoda terenu (`core/surface/field.ts`). */
+  terrainMethod: TerrainMethodId;
+  /** Wersja wyglądu terenu (`SURFACE_VERSION`) — niezależna od rozgrywki. */
+  surfaceVersion: number;
 }
 
 export interface Planet {
@@ -328,6 +333,12 @@ export interface GalaxyRules {
   zones: readonly [zone: OrbitZone, minTemperature: number][];
   /** Wagi typów planet (id definicji) w każdej strefie. */
   zoneTypes: Record<OrbitZone, Readonly<Record<string, number>>>;
+  /**
+   * Typy dodane po v0.11 (np. jałowa): osobny strumień losowania zamienia nimi część planet
+   * (poza miejscami startowymi) — reszta mapy pozostaje taka sama jak przed dodaniem typu.
+   * Kolejność wpisów jest częścią formatu (nowe typy dopisuj na końcu).
+   */
+  laterTypes: readonly { id: string; chance: Record<OrbitZone, number> }[];
   /** Szansa na gazowego olbrzyma (zamiast planety skalistej) w każdej strefie. */
   gasGiantChance: Record<OrbitZone, number>;
   gasRingsChance: number;

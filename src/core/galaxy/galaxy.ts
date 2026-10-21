@@ -204,6 +204,14 @@ export function generateSystem(galaxy: Galaxy, index: number, rules: GalaxyRules
       body: 'rocky',
     });
   }
+  // Typy dodane później: osobny strumień na każdy typ, więc dotychczasowe planety mapy się nie zmieniają.
+  for (const later of rules.laterTypes) {
+    const roll = createRng(`galaxy|${galaxy.id}|v${GALAXY_VERSION}|system-${index}|type-${later.id}`);
+    for (const planet of planets) {
+      const hit = roll.next() < later.chance[planet.zone];
+      if (hit && planet.occupant !== 'home') planet.definitionId = later.id;
+    }
+  }
   // Osobny strumień: gazowe olbrzymy i pasy asteroid nie zmieniają planet skalistych ani miejsc startowych.
   const extra = createRng(`galaxy|${galaxy.id}|v${GALAXY_VERSION}|system-${index}|bodies`);
   for (const planet of planets) {

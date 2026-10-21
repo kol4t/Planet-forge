@@ -319,7 +319,13 @@ Pomiary: czas generowania, wierzchołki, draw calle, FPS na iPadzie przed i po, 
 
 ---
 
-## 5. Decyzje do podjęcia przez właściciela
+## 5. Decyzje właściciela (2026-10-21)
+
+**Podjęte:** 1 → **A** (nowy wygląd dla wszystkich planet, rozgrywka bez zmian); 2 → **dodać roboczy typ „jałowa”** (zrobione w v0.18).
+
+**Stan etapów:** etap 1 ✔ · etap 2 ✔ (v0.18 — model na siatce z cieczą ocean/zamarznięte morze; jeziora, rzeki i lawa dochodzą w etapie 5, materiały profili w etapie 4).
+
+Pytania w pierwotnym brzmieniu:
 
 1. **Wygląd istniejących planet po przebudowie.** Rozgrywka (surowce, promień) zostaje bez zmian w każdym wariancie.
    - **A (rekomendacja):** wszystkie planety, także zapisane, dostają nowy wygląd. Zmieni się tylko teren i miejsce budowli, a liczby zostaną te same.

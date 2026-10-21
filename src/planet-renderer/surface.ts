@@ -1,6 +1,6 @@
-// Próbkowanie powierzchni planety (wysokość, promień, kolor). Czysta matematyka,
+// Próbkowanie powierzchni planety (wysokość i lód z `core/surface`, tu promień i kolor). Czysta matematyka,
 // wspólna dla widoku 3D, awaryjnego widoku 2D i rozmieszczenia budynków.
-import { createNoise3D, fbm } from '../core/random/noise.ts';
+import { createSurfaceField } from '../core/surface/field.ts';
 import type { Planet } from '../core/types.ts';
 
 export type RGB = [number, number, number];
@@ -35,8 +35,8 @@ const smoothstep = (edge0: number, edge1: number, x: number) => {
 
 export function createSurfaceSampler(planet: Planet): SurfaceSampler {
   const v = planet.visual;
-  const terrain = createNoise3D(v.noiseSeed);
-  const warp = createNoise3D(v.noiseSeed ^ 0x9e3779b9);
+  // Wysokość i lód to dane terenu z `core/surface`; tutaj zostaje tylko wygląd (kolor, promień).
+  const field = createSurfaceField(v);
   const p = {
     deep: hexToRgb(v.palette.deepWater),
     shallow: hexToRgb(v.palette.shallowWater),
@@ -45,25 +45,11 @@ export function createSurfaceSampler(planet: Planet): SurfaceSampler {
     high: hexToRgb(v.palette.highland),
     peak: hexToRgb(v.palette.peak),
   };
-  const scale = v.terrainScale;
-  const sea = v.seaLevel;
-  const cap = v.polarCap;
-
-  // Granica lodu: nieregularna (drobny szum) i wyraźna — bez rozmytych „zacieków”
-  // nad morzem i bez prostej linii czapy polarnej.
-  const iceAt = (h: number, x: number, y: number, z: number) => {
-    const edge = (warp(x * 7 + 31, y * 7, z * 7) - 0.5) * 0.16 + (warp(x * 19, y * 19 + 5, z * 19) - 0.5) * 0.06;
-    const iceLine = Math.abs(y) + Math.max(0, h - sea) * 0.25 + edge;
-    return smoothstep(cap, cap + 0.025, iceLine);
-  };
+  const sea = field.seaLevel;
 
   return {
-    ice: iceAt,
-    height(x, y, z) {
-      const wx = (warp(x * 1.5 + 7, y * 1.5, z * 1.5) - 0.5) * 0.6;
-      const wy = (warp(x * 1.5, y * 1.5 + 13, z * 1.5) - 0.5) * 0.6;
-      return fbm(terrain, (x + wx) * scale + 10, (y + wy) * scale + 10, z * scale + 10, 6);
-    },
+    ice: field.ice,
+    height: field.height,
     radius(h) {
       return 1 + Math.max(0, h - sea) * v.terrainAmplitude * 2.2;
     },
@@ -77,7 +63,7 @@ export function createSurfaceSampler(planet: Planet): SurfaceSampler {
         c = mix(c, p.high, smoothstep(0.18, 0.42, t));
         c = mix(c, p.peak, smoothstep(0.5, 0.7, t));
       }
-      const ice = iceAt(h, x, y, z);
+      const ice = field.ice(h, x, y, z);
       // Zamarznięte morze jest nieco ciemniejsze niż lód na lądzie.
       return mix(c, h < sea ? mix(p.shallow, p.peak, 0.82) : p.peak, ice * 0.9);
     },

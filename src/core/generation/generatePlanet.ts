@@ -2,10 +2,17 @@ import { createRng, hashString } from '../random/rng.ts';
 import type { Planet, PlanetDefinition, Range, SurfaceStyle, YieldId } from '../types.ts';
 
 /**
- * Wersja algorytmu generowania. Podbij, jeśli zmiana sprawi, że stare seedy
- * dadzą inne planety (rozgrywkowo). Dodanie nowej definicji jej nie wymaga.
+ * Wersja ROZGRYWKOWA generatora (strumień `gameplay`: wielkość, promień, bogactwo, modyfikator).
+ * Jest częścią klucza RNG i zapisu — zostaje 1 na stałe; podbicie zmieniłoby liczby planet graczy
+ * i unieważniło zapisy. Zmiany wyglądu terenu opisuje `SURFACE_VERSION`.
  */
 export const GENERATOR_VERSION = 1;
+
+/**
+ * Wersja WYGLĄDU terenu (`core/surface`). Nie jest zapisywana: po aktualizacji wszystkie planety,
+ * także zapisane, dostają nowy teren (decyzja właściciela, wariant A) — rozgrywka bez zmian.
+ */
+export const SURFACE_VERSION = 1;
 
 const YIELDS: readonly YieldId[] = ['metal', 'crystal', 'energy'];
 const NAME_LETTERS = 'bcdefg';
@@ -87,6 +94,8 @@ export function generatePlanet(definition: PlanetDefinition, seedInput: string):
       clouds: { threshold: cloudThreshold, opacity: clouds.opacity, color: clouds.color },
       polarCap: v.polarCap ?? DEFAULT_POLAR_CAP,
       style: { ...DEFAULT_SURFACE_STYLE, ...v.style },
+      terrainMethod: 'legacy',
+      surfaceVersion: SURFACE_VERSION,
     },
   };
 }

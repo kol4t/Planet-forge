@@ -46,8 +46,8 @@ test('typ planety zależy od gwiazdy i odległości: gorąco → wulkany/pustyni
     const inZone = all.filter((p) => p.zone === zone);
     return inZone.filter((p) => ids.includes(p.definitionId)).length / Math.max(1, inZone.length);
   };
-  assert.equal(share('hot', ['volcanic', 'arid']), 1);
-  assert.equal(share('frozen', ['ice']), 1);
+  assert.equal(share('hot', ['volcanic', 'arid', 'barren']), 1);
+  assert.equal(share('frozen', ['ice', 'barren']), 1);
   assert.equal(zoneFor(2), 'hot');
   assert.equal(zoneFor(1), 'temperate');
   assert.equal(zoneFor(0.1), 'frozen');
@@ -96,4 +96,28 @@ test('galaktyka spiralna: gęste centrum i układy w całym dysku', () => {
   const outer = r.filter((v) => v > GALAXY_RULES.radius * 0.6).length;
   assert.ok(inner >= 8, `w centrum: ${inner}`);
   assert.ok(outer >= 25, `na obrzeżach: ${outer}`);
+});
+
+test('planety jałowe (v0.18): w strefach gorącej i mroźnej, nie na miejscach startowych, reszta mapy bez zmian', () => {
+  const before = { ...GALAXY_RULES, laterTypes: [] };
+  let barren = 0;
+  let total = 0;
+  for (let i = 1; i <= galaxy.systems.length; i++) {
+    const now = generateSystem(galaxy, i)!;
+    const old = generateSystem(galaxy, i, before)!;
+    now.planets.forEach((p, k) => {
+      const prev = old.planets[k]!;
+      total++;
+      if (p.definitionId === 'barren') {
+        barren++;
+        assert.notEqual(p.occupant, 'home');
+      } else {
+        assert.deepEqual(p, prev, 'planeta niezamieniona na jałową jest taka jak przed v0.18');
+      }
+      assert.equal(p.body, prev.body, 'gazowe olbrzymy bez zmian');
+    });
+  }
+  assert.ok(barren > total * 0.05 && barren < total * 0.35, `jałowych: ${barren} z ${total}`);
+  const start = starterSystem(galaxy, 5);
+  assert.equal(start.home.definitionId, starterSystem(galaxy, 5).home.definitionId);
 });

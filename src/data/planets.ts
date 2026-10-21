@@ -263,12 +263,63 @@ export const VOLCANIC_WORLD: PlanetDefinition = {
   },
 };
 
+export const BARREN_WORLD: PlanetDefinition = {
+  id: 'barren',
+  catalogs: ['LHS', 'Ross', 'Lacaille'],
+  category: 'jałowa, bez atmosfery',
+  status: 'robocza',
+  weight: 1,
+  visual: {
+    // Skały i pył; prawie bez wody (płytkie, zamarznięte resztki tylko w najgłębszych kotlinach).
+    palette: {
+      deepWater: '#3a3f44',
+      shallowWater: '#6f767a',
+      shore: '#8a7a66',
+      lowland: '#7d6e60',
+      highland: '#6a5650',
+      peak: '#b0a596',
+    },
+    seaLevel: [0.12, 0.16],
+    terrainAmplitude: [0.045, 0.06],
+    terrainScale: [1.9, 2.9],
+    roughness: 0.97,
+    atmosphereColor: '#b9aa98',
+    atmosphereIntensity: 0.25,
+    ocean: { opacity: 0.9, roughness: 0.8 },
+    clouds: { threshold: [1.1, 1.15], opacity: 0, color: '#a09890' },
+    polarCap: 0.93,
+    style: { terraces: 4, relief: 1.8, cliffShade: 0.45, facetJitter: 0.06, atmosphereWidth: 0.015 },
+  },
+  generation: {
+    sizeClasses: SIZES_ROCKY,
+    resourceRange: { metal: [1.0, 1.45], crystal: [0.6, 1.05], energy: [0.75, 1.1] },
+    environmentModifiers: [
+      STABLE,
+      {
+        id: 'impacts',
+        label: 'Deszcz meteorytów',
+        description: 'Uderzenia odsłaniają rudy, ale niszczą linie przesyłowe.',
+        weight: 1,
+        effects: { metal: 1.15, energy: 0.92 },
+      },
+      {
+        id: 'no-atmosphere',
+        label: 'Brak atmosfery',
+        description: 'Pełne światło gwiazdy dla elektrowni, lecz kryształy pękają od mrozu nocy.',
+        weight: 1,
+        effects: { energy: 1.12, crystal: 0.92 },
+      },
+    ],
+  },
+};
+
 export const PLANET_DEFINITIONS: readonly PlanetDefinition[] = [
   KEPLER_186F,
   ARID_WORLD,
   ICE_WORLD,
   OCEAN_WORLD,
   VOLCANIC_WORLD,
+  BARREN_WORLD,
 ];
 
 /** Planeta startowa (pierwsze uruchomienie). */

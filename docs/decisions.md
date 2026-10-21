@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-21 — v0.18: wspólny model powierzchni i planety jałowe (przebudowa generatora, etap 2)
+
+- **Decyzje właściciela:** (1) wariant A — po przebudowie wszystkie planety, także zapisane, dostają nowy teren; rozgrywka (promień, surowce, modyfikator) bez zmian. (2) roboczy typ „jałowa” na mapie galaktyki.
+- **Teren w `core/surface`.** Siatka geodezyjna o tym samym podziale co `IcosahedronGeometry` (test sprawdza pokrycie wierzchołków), z sąsiadami i szybkim „najbliższym węzłem” (kubełki + zachłanny marsz po sąsiadach, test z pełnym przeszukaniem). Pole terenu jest ciągłe (2D, kolonia), a model na siatce (`buildSurface`) daje wysokość, ciecz (ocean / zamarznięte morze), materiał i statystyki; `validateSurface` sprawdza NaN, zakresy i spójność cieczy z poziomem morza. Algorytm v0.17 przeniesiony jako metoda `legacy` — test regresji porównuje wartości z v0.17 co do 12 cyfr, więc wygląd gry się nie zmienia.
+- **Renderery bez zmian** — `planet-renderer/surface.ts` jest adapterem (`SurfaceSampler`). Na bogatszy model (jeziora, lawa) przejdą w etapie 5. Model na siatce nie jest jeszcze używany w grze (budowany w testach); użyją go etapy 3–5.
+- **Wersje:** `GENERATOR_VERSION` = 1 na stałe (klucz strumienia rozgrywki i zapisu). `SURFACE_VERSION` (= 1) opisuje wygląd terenu; nie trafia do zapisu, bo zgodnie z wariantem A wygląd nie musi być zamrażany.
+- **Typ „jałowa” (`barren`, robocza):** bez atmosfery i chmur, skały i pył, woda tylko w nielicznych najgłębszych kotlinach, małe szronowe czapy; więcej metalu, mniej kryształów (wartości robocze). Na mapie przez `GALAXY_RULES.laterTypes`: osobny strumień RNG na typ zamienia część planet (gorąca 30%, ciepła 10%, umiarkowana 4%, chłodna 15%, mroźna 35%) — **pozostałe planety mapy są identyczne jak przed v0.18** (test), miejsca startowe nigdy nie są zamieniane. Planety już skolonizowane zachowują typ z zapisu (mapa pokazuje planetę gracza). Statek lecący do planety, która stała się jałowa, założy kolonię jałową.
+
 ## 2026-10-21 — przebudowa generatora planet i UI: etap 1 (audyt, kontrakty)
 
 - **Specyfikacja właściciela** zapisana w `docs/specyfikacja-generatora-i-ui.md`; audyt, kontrakty danych i plan 8 etapów (v0.18–v0.24) w `docs/generator-plan.md`. Kod gry bez zmian.

@@ -94,6 +94,8 @@ export const GALAXY_RULES: GalaxyRules = {
     cold: { ice: 5, ocean: 2, 'kepler-186f': 2 },
     frozen: { ice: 1 },
   },
+  // v0.18: planety jałowe (robocze) — bez atmosfery, najczęściej blisko gwiazdy i daleko od niej.
+  laterTypes: [{ id: 'barren', chance: { hot: 0.3, warm: 0.1, temperate: 0.04, cold: 0.15, frozen: 0.35 } }],
 };
 
 export const ZONE_LABELS = {

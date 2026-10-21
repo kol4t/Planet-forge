@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Pełna wizja: `docs/technical-brief.md`. Dec
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku.
 
-## Stan obecny (v0.17 — w testach; v0.16 nieopublikowana; v0.15 opublikowana)
+## Stan obecny (v0.18 — w testach; v0.16–v0.17 nieopublikowane; v0.15 opublikowana)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **Przybliżanie dwoma palcami** (1×–3,5×, `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
@@ -41,7 +41,8 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **v0.15**: SI buduje najwyżej do poziomu Laboratorium planety (Laboratorium ulepsza gracz); badanie „Autonomia” — SI buduje przy zamkniętej grze, budowy o 50% dłuższe (`core/ai/offline.ts`).
 - **v0.16**: planeta 3D w stylu low-poly (`planet-renderer/lowPoly.ts`): fasety z jednym kolorem, tarasy, ciemne klify, tafle lodu na zamarzniętym morzu, ACES, ciemniejsza noc, cieńsza atmosfera, gwiazdy w 2 warstwach z paralaksą, płynny powrót autoobrotu, „Ogranicz ruch”; styl per typ w `visual.style` (`DEFAULT_SURFACE_STYLE`).
 - **v0.17**: tło kosmosu wspólne dla 2D/3D (`planet-renderer/spaceBackground.ts` + czysty `sky.ts`): gwiazdy w warstwach z paralaksą (`PlanetDisplay.orientation()`), pas galaktyki, mgławice, migotanie, rzadkie spadające gwiazdy, 1–2 prawdziwi sąsiedzi z układu; mocniejszy kontrast dnia/nocy w 2D, świecąca lawa (`discLook`). Dalej: etap 3 (kolonia), etap 4 (UI) — `docs/decisions.md`.
-- 139 testów (w tym badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
+- **v0.18 (przebudowa generatora, etap 2)**: teren jako dane w `core/surface` — siatka geodezyjna (`grid.ts`, węzły = wierzchołki lądu 3D), pole terenu z rejestrem metod (`field.ts`, na razie `legacy` = algorytm v0.1–v0.17 bez zmian), model na siatce z cieczą, materiałem, statystykami i walidacją (`buildSurface.ts`). `planet-renderer/surface.ts` jest adapterem (wysokość/lód z core, kolor/promień w rendererze). `GENERATOR_VERSION` = 1 na stałe (rozgrywka), wygląd terenu = `SURFACE_VERSION` (niezapisywana — nowy teren dostają wszystkie planety, decyzja właściciela). Roboczy typ **jałowa** (`barren`) — na mapie przez `GALAXY_RULES.laterTypes` (osobny strumień, reszta mapy bez zmian). Plan dalszych etapów: `docs/generator-plan.md`.
+- 149 testów (w tym badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -49,7 +50,8 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 src/
   core/            czysty TypeScript — ZERO importów z phaser/three/DOM
     random/        rng.ts (jedyny PRNG; zakaz Math.random w logice), noise.ts
-    generation/    generatePlanet.ts (GENERATOR_VERSION!, pickDefinition, validateDefinition)
+    generation/    generatePlanet.ts (GENERATOR_VERSION = rozgrywka, na stałe 1; SURFACE_VERSION = wygląd terenu)
+    surface/       model powierzchni: grid.ts (siatka sfery), field.ts (metody terenu), buildSurface.ts (ciecz, materiał, walidacja)
     economy/       economy.ts — czyste funkcje: stan → nowy stan lub błąd
     save/          save.ts (walidacja planety/gospodarki), empire.ts (zapis imperium + localStorage), transfer.ts (eksport/import „PF2:”)
     types.ts
@@ -69,7 +71,7 @@ dist/              index.html (gra w jednym pliku), manifest.webmanifest, sw.js,
 1. **Phaser = UI** (HUD, panele, przyciski, gesty → przekazanie do renderera). **Three.js = tylko wygląd planety.** **core = reguły.** Nie mieszaj.
 2. UI **nigdy** nie ustawia zasobów bezpośrednio — tylko przez `GameController` → funkcje `core/economy`.
 3. Każda akcja ekonomiczna: sprawdza zasoby i warunki → odejmuje koszt → stosuje efekt → zwraca nowy stan albo czytelny błąd po polsku. Testowalna bez renderowania.
-4. Generowanie: seed + id definicji + `GENERATOR_VERSION`. Strumienie `gameplay` i `visual` są rozdzielone (`rng.fork`). Jeśli zmieniasz algorytm tak, że stare seedy dadzą inne planety — **podbij `GENERATOR_VERSION`**.
+4. Generowanie: seed + id definicji + `GENERATOR_VERSION`. Strumienie `gameplay` i `visual` są rozdzielone (`rng.fork`). **`GENERATOR_VERSION` nie podbijaj** (zmieniłby surowce planet i unieważnił zapisy). Zmiana wyglądu terenu (`core/surface`) = podbij `SURFACE_VERSION`. Nowe losowania dopisuj w nowych strumieniach albo na końcu istniejących.
 5. Nowy typ planety = nowy obiekt w `src/data/planets.ts` (dopisany do `PLANET_DEFINITIONS`) — testy automatycznie sprawdzą jego dane i kolonię. Renderer nie wymaga zmian: wygląd opisują pola `visual` (paleta, `ocean`, `clouds`, `polarCap`).
 6. Dotyk: gest obrotu startuje tylko poza panelami (każdy panel ma blokującą strefę). Cele dotykowe ≥ 44 pt. Nic nie może zależeć od hovera.
 7. Wydajność iPada: pilnuj liczby wierzchołków (`SURFACE_DETAIL`), draw calli, ciężkich shaderów i **pamięci grafiki** (jeden kontekst WebGL, budżet pikseli `renderPixelRatio`, bez MSAA na Retinie). Nowe efekty dodawaj po jednym.
@@ -106,7 +108,7 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 
 ## Najbliższe etapy (proponowana kolejność — każdy to osobna sesja)
 
-**W toku: przebudowa generatora planet i UI** według `docs/specyfikacja-generatora-i-ui.md` — plan, kontrakty i lista plików w `docs/generator-plan.md` (etap 1 = audyt gotowy; następny: etap 2, wspólny model powierzchni).
+**W toku: przebudowa generatora planet i UI** według `docs/specyfikacja-generatora-i-ui.md` — plan, kontrakty i lista plików w `docs/generator-plan.md` (etap 1 audyt ✔, etap 2 wspólny model powierzchni ✔ = v0.18; następny: etap 3, trzy metody terenu).
 
 1. ~~Test na iPadzie~~ (v0.1–v0.3 zaakceptowane) → **test v0.4–v0.5 na iPadzie**: lista kontrolna z `README.md` (magazyn, „Ukończ teraz”, antymateria).
 2. ~~Czas budowy~~ (v0.3).
