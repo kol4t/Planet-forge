@@ -13,6 +13,8 @@ export interface SurfaceSampler {
   /** Kolor terenu dla wysokości `h` w punkcie (x, y, z) sfery jednostkowej. */
   color(h: number, x: number, y: number, z: number): RGB;
   isLand(h: number): boolean;
+  /** Ile lodu (0..1) jest w punkcie — np. zamarznięte morze tworzy w 3D lodową taflę nad wodą. */
+  ice(h: number, x: number, y: number, z: number): number;
 }
 
 export function hexToRgb(hex: string): RGB {
@@ -47,7 +49,16 @@ export function createSurfaceSampler(planet: Planet): SurfaceSampler {
   const sea = v.seaLevel;
   const cap = v.polarCap;
 
+  // Granica lodu: nieregularna (drobny szum) i wyraźna — bez rozmytych „zacieków”
+  // nad morzem i bez prostej linii czapy polarnej.
+  const iceAt = (h: number, x: number, y: number, z: number) => {
+    const edge = (warp(x * 7 + 31, y * 7, z * 7) - 0.5) * 0.16 + (warp(x * 19, y * 19 + 5, z * 19) - 0.5) * 0.06;
+    const iceLine = Math.abs(y) + Math.max(0, h - sea) * 0.25 + edge;
+    return smoothstep(cap, cap + 0.025, iceLine);
+  };
+
   return {
+    ice: iceAt,
     height(x, y, z) {
       const wx = (warp(x * 1.5 + 7, y * 1.5, z * 1.5) - 0.5) * 0.6;
       const wy = (warp(x * 1.5, y * 1.5 + 13, z * 1.5) - 0.5) * 0.6;
@@ -66,11 +77,7 @@ export function createSurfaceSampler(planet: Planet): SurfaceSampler {
         c = mix(c, p.high, smoothstep(0.18, 0.42, t));
         c = mix(c, p.peak, smoothstep(0.5, 0.7, t));
       }
-      // Granica lodu: nieregularna (drobny szum) i wyraźna — bez rozmytych „zacieków”
-      // nad morzem i bez prostej linii czapy polarnej.
-      const edge = (warp(x * 7 + 31, y * 7, z * 7) - 0.5) * 0.16 + (warp(x * 19, y * 19 + 5, z * 19) - 0.5) * 0.06;
-      const iceLine = Math.abs(y) + Math.max(0, h - sea) * 0.25 + edge;
-      const ice = smoothstep(cap, cap + 0.025, iceLine);
+      const ice = iceAt(h, x, y, z);
       // Zamarznięte morze jest nieco ciemniejsze niż lód na lądzie.
       return mix(c, h < sea ? mix(p.shallow, p.peak, 0.82) : p.peak, ice * 0.9);
     },

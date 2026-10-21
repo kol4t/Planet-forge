@@ -37,9 +37,10 @@ const glowFragment = /* glsl */ `
     vec3 closest = ray * dot(vCenter, ray) - vCenter;
     float dist = length(closest);
     float h = clamp((dist - planetRadius) / (atmosphereRadius - planetRadius), 0.0, 1.0);
-    float glow = pow(1.0 - h, 2.4) * (1.0 - h);
+    // Cienka obwódka: jasność skupiona tuż przy krawędzi, szybko gaśnie.
+    float glow = pow(1.0 - h, 3.5);
     float lit = smoothstep(-0.45, 0.55, dot(closest / max(dist, 1e-4), lightDir));
-    float a = glow * intensity * 0.6 * (0.18 + 0.82 * lit);
+    float a = glow * intensity * 0.55 * (0.08 + 0.92 * lit);
     gl_FragColor = vec4(glowColor, a);
   }
 `;
@@ -56,12 +57,12 @@ const hazeFragment = /* glsl */ `
     // żeby razem z poświatą nie tworzyć jasnej, ostrej linii.
     float rim = pow(1.0 - facing, 2.2) * smoothstep(0.0, 0.12, facing);
     float lit = smoothstep(-0.25, 0.6, dot(vNormal, lightDir));
-    float a = rim * intensity * 0.42 * lit;
+    float a = rim * intensity * 0.16 * lit;
     gl_FragColor = vec4(glowColor, a);
   }
 `;
 
-export function createAtmosphere(color: string, intensity: number, lightDir: THREE.Vector3): THREE.Mesh[] {
+export function createAtmosphere(color: string, intensity: number, lightDir: THREE.Vector3, radius = ATMOSPHERE_RADIUS): THREE.Mesh[] {
   const common = {
     glowColor: { value: new THREE.Color(color) },
     intensity: { value: intensity },
@@ -69,12 +70,12 @@ export function createAtmosphere(color: string, intensity: number, lightDir: THR
   };
 
   const glow = new THREE.Mesh(
-    new THREE.SphereGeometry(ATMOSPHERE_RADIUS, 64, 48),
+    new THREE.SphereGeometry(radius, 64, 48),
     new THREE.ShaderMaterial({
       uniforms: {
         ...common,
         planetRadius: { value: 1 },
-        atmosphereRadius: { value: ATMOSPHERE_RADIUS },
+        atmosphereRadius: { value: radius },
       },
       vertexShader,
       fragmentShader: glowFragment,

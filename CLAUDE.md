@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Pełna wizja: `docs/technical-brief.md`. Dec
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku.
 
-## Stan obecny (v0.15 — w testach; v0.14 opublikowana)
+## Stan obecny (v0.16 — w testach; v0.15 opublikowana)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **Przybliżanie dwoma palcami** (1×–3,5×, `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
@@ -39,7 +39,8 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **v0.13**: statek kolonizacyjny do innych układów (badanie „Napęd międzygwiezdny” w aktywnym ramieniu Eksploracja; wysyłanie/zawracanie z mapy, trasa na mapie galaktyki, przylot też offline), ekran **„Imperium”** (`game/scenes/EmpireScene.ts`, zastępuje okno „Twoje planety”) z kartami planet i zakładką **„Dziennik”** ekspedycji (zapis `missions`, `journal`).
 - **SI Matka (v0.14)**: `core/ai/advisor.ts` — reguły energia/magazyn/badania/kopalnie, propozycje z powodem; badania „SI Matka” (propozycje) i „SI wykonawcze” (poziom „działa samo”); dymek nad planetą (Tak / Nie / Zawsze tak rób), zakładka „SI” w „Imperium”, wpisy w dzienniku; zapis `ai`.
 - **v0.15**: SI buduje najwyżej do poziomu Laboratorium planety (Laboratorium ulepsza gracz); badanie „Autonomia” — SI buduje przy zamkniętej grze, budowy o 50% dłuższe (`core/ai/offline.ts`).
-- 135 testów (w tym badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
+- **v0.16**: planeta 3D w stylu low-poly (`planet-renderer/lowPoly.ts`): fasety z jednym kolorem, tarasy, ciemne klify, tafle lodu na zamarzniętym morzu, ACES, ciemniejsza noc, cieńsza atmosfera, gwiazdy w 2 warstwach z paralaksą, płynny powrót autoobrotu, „Ogranicz ruch”; styl per typ w `visual.style` (`DEFAULT_SURFACE_STYLE`).
+- 136 testów (w tym badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz
 

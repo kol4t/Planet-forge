@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-21 — v0.16: planeta 3D w stylu low-poly
+
+- **Audyt (przyczyny „miękkiego” wyglądu):** kolory z interpolacji wierzchołków (rozmyte granice lądu i lodu), wygładzone normalne (brak czytelnej rzeźby), mocne światło otoczenia (jasna nocna strona), gruba atmosfera z mgiełką na całej tarczy (efekt „mleka”), lód morski chowany pod oceanem.
+- **Ląd low-poly** (`planet-renderer/lowPoly.ts`, czysta matematyka): icosfera bez indeksów (`SURFACE_DETAIL` 40 ≈ 34 tys. faset), jeden kolor na fasetę, tarasy wysokości, przyciemnione strome ściany, drobna losowość jasności faset, `flatShading`. Zamarznięte morze = płaska tafla lodu tuż nad wodą. Budowle kolonii stoją na tej samej (tarasowanej) wysokości.
+- **Światło:** tone mapping ACES, słabsze światło otoczenia (półkula), mocniejsze kierunkowe — ciemna noc z widocznym zarysem. Atmosfera: cieńsza, zanikająca na nocnej stronie, mniej mgiełki.
+- **Ruch i tło:** autoobrót wraca płynnie (2 s narastania), gwiazdy w 2 warstwach z lekką paralaksą; „Ogranicz ruch” w systemie wyłącza autoobrót i paralaksę.
+- **Styl w danych:** `visual.style` (tarasy, rzeźba, losowość faset, cień klifów, siła słońca i otoczenia, szerokość atmosfery) z domyślnymi `DEFAULT_SURFACE_STYLE`; planeta lodowa ma własne wartości. Pole tylko wizualne, nie losowane — seedy, `GENERATOR_VERSION` i zapis bez zmian.
+- Widok 2D bez zmian (domyślny); jeden kontekst WebGL jak dotąd.
+
 ## 2026-10-20 — v0.15: badania przypisane do planety, limit SI, SI podczas nieobecności
 
 - **Badania na planetę** (decyzja właściciela): każda planeta ma własne Laboratorium, kolejkę i listę zbadanych (`SlotSave.research`); efekty (`applyResearch`) działają tylko na niej — balans liczony osobno dla każdej planety. Trudniejsze badania dla całego imperium przyjdą ze **stacją badawczą** (etap „Stacja i handel”).

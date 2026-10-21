@@ -101,9 +101,13 @@ export class DragRotator {
     this.velPitch *= decay;
     this.yaw += this.velYaw * dt;
     this.pitch = clamp(this.pitch + this.velPitch * dt, -this.opts.maxTilt, this.opts.maxTilt);
-    if (now - this.releasedAt > this.opts.idleResumeMs) {
-      this.yaw += this.opts.idleSpin * dt;
-      this.pitch *= 0.995 ** (dt * 60);
+    const idle = now - this.releasedAt - this.opts.idleResumeMs;
+    if (idle > 0) {
+      // Autoobrót wraca łagodnie (rozpędza się przez ok. 2 s), bez szarpnięcia po puszczeniu palca.
+      const ramp = Math.min(1, idle / 2000);
+      const ease = ramp * ramp * (3 - 2 * ramp);
+      this.yaw += this.opts.idleSpin * ease * dt;
+      this.pitch *= 0.995 ** (dt * 60 * ease);
     }
   }
 }

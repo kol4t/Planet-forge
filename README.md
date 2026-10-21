@@ -137,4 +137,15 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 76. SI proponuje budynki najwyżej do poziomu Laboratorium tej planety (np. Laboratorium 5 → inne budynki do 5); samo Laboratorium ulepszasz sam.
 77. Badania → SI → „Autonomia” (pierścień 3): po zbadaniu reguły „Działa samo” budują także przy zamkniętej grze, każda budowa o 50% dłużej. Po powrocie: Imperium → Dziennik — wpisy „SI Matka (podczas nieobecności)”.
 
+### Od 0.16: planeta 3D w stylu low-poly
+
+Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje planetę 2D).
+
+78. Planeta 3D ma ostre fasety: kontynenty i lodowce z wyraźnymi krawędziami, płaskowyże i uskoki (tarasy), ciemniejsze strome zbocza.
+79. Nocna strona jest ciemna, ale nie czarna — widać zarys planety; atmosfera to cienka poświata przy krawędzi.
+80. Planeta lodowa: lód na biegunach i tafle zamarzniętego morza są widoczne nad wodą. Planeta wulkaniczna: lawa nadal świeci.
+81. Puść planetę po obrocie — po chwili sama zaczyna się powoli obracać, łagodnie (bez szarpnięcia). Gwiazdy w tle przesuwają się lekko przy obrocie (dwie warstwy).
+82. Jeśli w iPadzie włączone jest Ustawienia → Dostępność → Ruch → „Ogranicz ruch”: planeta nie obraca się sama, gwiazdy stoją.
+83. Płynność: Ustawienia gry → „Diagnostyka” — licznik kl./s przy obracaniu (porównaj z v0.15: ok. 53–60). Gra nie może się wyłączać ani przełączać sama na 2D.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

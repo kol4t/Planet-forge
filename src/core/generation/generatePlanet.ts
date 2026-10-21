@@ -1,5 +1,5 @@
 import { createRng, hashString } from '../random/rng.ts';
-import type { Planet, PlanetDefinition, Range, YieldId } from '../types.ts';
+import type { Planet, PlanetDefinition, Range, SurfaceStyle, YieldId } from '../types.ts';
 
 /**
  * Wersja algorytmu generowania. Podbij, jeśli zmiana sprawi, że stare seedy
@@ -15,6 +15,16 @@ const round = (value: number, digits: number) => Math.round(value * 10 ** digits
 const DEFAULT_OCEAN = { opacity: 0.55, roughness: 0.32 } as const;
 const DEFAULT_CLOUDS = { threshold: [0.52, 0.52] as Range, opacity: 200 / 255, color: '#f5f5f5' };
 const DEFAULT_POLAR_CAP = 0.78;
+/** Domyślny styl low-poly 3D (tylko wygląd — nie zmienia seeda ani rozgrywki). */
+export const DEFAULT_SURFACE_STYLE: SurfaceStyle = {
+  terraces: 5,
+  relief: 1.5,
+  facetJitter: 0.05,
+  cliffShade: 0.35,
+  sunIntensity: 2.4,
+  ambient: 0.12,
+  atmosphereWidth: 0.035,
+};
 
 /** Planeta z definicji i seeda. Ten sam seed + definicja + wersja = ta sama planeta. */
 export function generatePlanet(definition: PlanetDefinition, seedInput: string): Planet {
@@ -76,6 +86,7 @@ export function generatePlanet(definition: PlanetDefinition, seedInput: string):
       ocean: { ...DEFAULT_OCEAN, ...v.ocean },
       clouds: { threshold: cloudThreshold, opacity: clouds.opacity, color: clouds.color },
       polarCap: v.polarCap ?? DEFAULT_POLAR_CAP,
+      style: { ...DEFAULT_SURFACE_STYLE, ...v.style },
     },
   };
 }

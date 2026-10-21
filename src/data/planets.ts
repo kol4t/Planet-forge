@@ -142,6 +142,8 @@ export const ICE_WORLD: PlanetDefinition = {
     ocean: { opacity: 0.88, roughness: 0.55 },
     clouds: { threshold: [0.55, 0.6], opacity: 0.6, color: '#eef4ff' },
     polarCap: 0.42,
+    // Lód: wyraźne grzbiety i tarasy lodowców, ciemne szczeliny, jasne (ale nie wypalone) światło.
+    style: { terraces: 6, relief: 1.7, cliffShade: 0.45, facetJitter: 0.04, sunIntensity: 2.1 },
   },
   generation: {
     sizeClasses: SIZES_ROCKY,

@@ -8,10 +8,14 @@ import { layoutColony } from './colony.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { facingAngles, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
+import { buildLowPolyLand, shapedRadius } from './lowPoly.ts';
 import { createSurfaceSampler, type SurfaceSampler } from './surface.ts';
 
-/** Szczegółowość siatki lądu (IcosahedronGeometry detail). Pilnuj na iPadzie! */
-export const SURFACE_DETAIL = 56;
+/**
+ * Szczegółowość siatki lądu (IcosahedronGeometry detail): 20 × (n+1)² faset.
+ * 40 → ~34 tys. faset (low-poly, ale z czytelną rzeźbą). Pilnuj na iPadzie!
+ */
+export const SURFACE_DETAIL = 40;
 const FOV = 32;
 const LIGHT_POSITION = new THREE.Vector3(-4, 2.5, 3.5);
 const BUILDING_IDS: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
@@ -46,9 +50,14 @@ export class PlanetView implements PlanetDisplay {
   private readonly tiltGroup = new THREE.Group();
   /** Obrót planety wokół osi. */
   private readonly spinGroup = new THREE.Group();
-  private readonly rotator = new DragRotator();
+  private readonly rotator = new DragRotator(prefersReducedMotion() ? { idleSpin: 0 } : {});
   private readonly colony = new ColonyMeshes(BUILDING_IDS);
   private planetObjects: THREE.Object3D[] = [];
+  private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
+  private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
+  private readonly stars = createStarfield();
+  /** Ograniczony ruch (ustawienia systemu): bez autoobrotu i paralaksy gwiazd. */
+  private readonly reducedMotion = prefersReducedMotion();
   private clouds: THREE.Object3D | undefined;
   private axialTilt = 0;
   private width = 1;
@@ -69,6 +78,9 @@ export class PlanetView implements PlanetDisplay {
     });
     this.renderer.setPixelRatio(1);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Łagodne mapowanie tonów: jasny lód i śnieg nie wypalają się do czystej bieli.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
     this.renderer.setClearColor(0x000000, 0);
     canvas.addEventListener('webglcontextlost', (event) => {
       event.preventDefault();
@@ -78,12 +90,12 @@ export class PlanetView implements PlanetDisplay {
     this.scene.add(this.tiltGroup);
     this.tiltGroup.add(this.spinGroup);
     this.spinGroup.add(this.colony.object);
-    this.scene.add(createStarfield());
+    this.scene.add(this.stars);
 
-    const sun = new THREE.DirectionalLight(0xffeedc, 2.6);
-    sun.position.copy(LIGHT_POSITION);
-    this.scene.add(sun);
-    this.scene.add(new THREE.HemisphereLight(0x5d8f8a, 0x1a1410, 0.35));
+    // Światło gwiazdy z boku uwydatnia fasety; słabe światło otoczenia — noc ciemna, ale z detalem.
+    this.sun.position.copy(LIGHT_POSITION);
+    this.scene.add(this.sun);
+    this.scene.add(this.ambient);
 
     this.loop = this.loop.bind(this);
     this.frame = requestAnimationFrame(this.loop);
@@ -96,6 +108,8 @@ export class PlanetView implements PlanetDisplay {
     }
     const sampler = createSurfaceSampler(planet);
     this.planetObjects = buildPlanetObjects(planet, sampler);
+    this.sun.intensity = planet.visual.style.sunIntensity;
+    this.ambient.intensity = planet.visual.style.ambient;
     this.clouds = this.planetObjects.find((o) => o.name === 'clouds');
     for (const object of this.planetObjects) {
       // Atmosfera nie musi się obracać z planetą (jest symetryczna).
@@ -104,7 +118,9 @@ export class PlanetView implements PlanetDisplay {
     }
     this.axialTilt = THREE.MathUtils.degToRad(planet.visual.axialTiltDeg);
     this.tiltGroup.rotation.z = this.axialTilt;
-    this.colony.setLayout(layoutColony(planet, sampler, BUILDING_IDS));
+    // Budowle stoją na powierzchni 3D (tarasy i wyższe góry), nie na gładkiej wersji z 2D.
+    const shaped: SurfaceSampler = { ...sampler, radius: (h) => shapedRadius(planet, h) };
+    this.colony.setLayout(layoutColony(planet, shaped, BUILDING_IDS));
   }
 
   setStructures(levels: BuildingLevels, site: BuildSite | null = null): void {
@@ -172,6 +188,11 @@ export class PlanetView implements PlanetDisplay {
     this.spinGroup.rotation.y = this.rotator.yaw;
     this.tiltGroup.rotation.x = this.rotator.pitch;
     if (this.clouds) this.clouds.rotation.y += dt * 0.012;
+    if (!this.reducedMotion) {
+      // Bardzo delikatna paralaksa tła — głębia bez odwracania uwagi.
+      this.stars.rotation.y = this.rotator.yaw * 0.02;
+      this.stars.rotation.x = this.rotator.pitch * 0.02;
+    }
     this.colony.update(dt);
     this.renderer.render(this.scene, this.camera);
   }
@@ -188,48 +209,31 @@ export class PlanetView implements PlanetDisplay {
 function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Object3D[] {
   const v = planet.visual;
 
-  // Ląd: ikosfera z przesuniętymi wierzchołkami (wspólne wierzchołki → gładkie normalne).
+  // Ląd low-poly: fasety z własnym kolorem (ostre granice biomów), tarasy wysokości, ciemne klify.
   const ico = new THREE.IcosahedronGeometry(1, SURFACE_DETAIL);
-  const source = ico.getAttribute('position');
-  const indexByKey = new Map<string, number>();
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const indices: number[] = [];
-  const p = new THREE.Vector3();
-  for (let i = 0; i < source.count; i++) {
-    p.fromBufferAttribute(source, i).normalize();
-    const key = `${p.x.toFixed(5)},${p.y.toFixed(5)},${p.z.toFixed(5)}`;
-    let index = indexByKey.get(key);
-    if (index === undefined) {
-      const h = sampler.height(p.x, p.y, p.z);
-      const r = h >= v.seaLevel ? sampler.radius(h) : 1 - (v.seaLevel - h) * 0.25;
-      index = positions.length / 3;
-      indexByKey.set(key, index);
-      positions.push(p.x * r, p.y * r, p.z * r);
-      colors.push(...sampler.color(h, p.x, p.y, p.z));
-    }
-    indices.push(index);
-  }
+  const triangles = ico.getAttribute('position').array as Float32Array;
+  const built = buildLowPolyLand(planet, sampler, triangles);
   ico.dispose();
   const landGeometry = new THREE.BufferGeometry();
-  landGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  landGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  landGeometry.setIndex(indices);
+  landGeometry.setAttribute('position', new THREE.BufferAttribute(built.positions, 3));
+  landGeometry.setAttribute('color', new THREE.BufferAttribute(built.colors, 3));
   landGeometry.computeVertexNormals();
   const land = new THREE.Mesh(
     landGeometry,
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: v.roughness, metalness: 0 }),
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: Math.max(0.8, v.roughness), metalness: 0, flatShading: true }),
   );
   land.name = 'land';
 
+  // Woda: fasetowana tafla; dno pod nią ma własne kolory (głębina → płycizna), więc prześwit jest ostry.
   const ocean = new THREE.Mesh(
-    new THREE.SphereGeometry(1.001, 96, 64),
+    new THREE.IcosahedronGeometry(1.001, 18),
     new THREE.MeshStandardMaterial({
       color: new THREE.Color(v.palette.shallowWater),
-      roughness: v.ocean.roughness,
-      metalness: 0.05,
+      roughness: Math.max(0.45, v.ocean.roughness),
+      metalness: 0,
+      flatShading: true,
       transparent: true,
-      opacity: v.ocean.opacity,
+      opacity: Math.max(0.7, v.ocean.opacity),
       emissive: new THREE.Color(v.ocean.emissive ?? '#000000'),
       emissiveIntensity: v.ocean.emissive ? (v.ocean.emissiveIntensity ?? 1) : 0,
     }),
@@ -237,7 +241,7 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
   ocean.name = 'ocean';
 
   const clouds = new THREE.Mesh(
-    new THREE.SphereGeometry(1.035, 72, 48),
+    new THREE.SphereGeometry(1.03, 64, 40),
     new THREE.MeshStandardMaterial({
       map: createCloudTexture(v.noiseSeed, v.clouds),
       transparent: true,
@@ -247,7 +251,7 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
   );
   clouds.name = 'clouds';
 
-  const atmosphere = createAtmosphere(v.atmosphereColor, v.atmosphereIntensity, LIGHT_POSITION);
+  const atmosphere = createAtmosphere(v.atmosphereColor, v.atmosphereIntensity, LIGHT_POSITION, 1 + v.style.atmosphereWidth);
   return [land, ocean, clouds, ...atmosphere];
 }
 
@@ -270,7 +274,8 @@ function createCloudTexture(noiseSeed: number, look: Planet['visual']['clouds'])
       const y = Math.sin(lat);
       const z = Math.cos(lat) * Math.sin(lon);
       const n = fbm(noise, x * 2.2 + 3, y * 4 + 3, z * 2.2 + 3, 5);
-      const density = Math.max(0, Math.min(1, (n - look.threshold) * 3.2));
+      // Chmury stylizowane: wyraźny brzeg (krótkie przejście), lżejsze — nie zasłaniają lądu.
+      const density = Math.max(0, Math.min(1, (n - look.threshold) * 14)) * 0.75;
       const i = (row * width + col) * 4;
       image.data[i] = r;
       image.data[i + 1] = g;
@@ -285,28 +290,38 @@ function createCloudTexture(noiseSeed: number, look: Planet['visual']['clouds'])
   return texture;
 }
 
-function createStarfield(): THREE.Points {
+/** Gwiazdy tła w dwóch warstwach: wiele drobnych i ciemnych, kilka jaśniejszych i większych. */
+function createStarfield(): THREE.Group {
   const rng = createRng('planet-forge-starfield');
-  const count = 1400;
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
   const tints = ['#ffffff', '#cfe6ff', '#ffe6bf', '#a8d8cf'].map((c) => new THREE.Color(c));
-  for (let i = 0; i < count; i++) {
-    const y = rng.next() * 2 - 1;
-    const angle = rng.next() * Math.PI * 2;
-    const dist = 60 + rng.next() * 40;
-    const r = Math.sqrt(1 - y * y);
-    positions.set([dist * r * Math.cos(angle), dist * y, dist * r * Math.sin(angle) - 30], i * 3);
-    const c = tints[rng.int(0, tints.length - 1)]!.clone().multiplyScalar(0.35 + rng.next() * 0.65);
-    colors.set([c.r, c.g, c.b], i * 3);
+  const layer = (count: number, size: number, dist: [number, number], bright: [number, number]) => {
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const y = rng.next() * 2 - 1;
+      const angle = rng.next() * Math.PI * 2;
+      const d = dist[0] + rng.next() * (dist[1] - dist[0]);
+      const r = Math.sqrt(1 - y * y);
+      positions.set([d * r * Math.cos(angle), d * y, d * r * Math.sin(angle) - 30], i * 3);
+      const c = tints[rng.int(0, tints.length - 1)]!.clone().multiplyScalar(bright[0] + rng.next() * (bright[1] - bright[0]));
+      colors.set([c.r, c.g, c.b], i * 3);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    return new THREE.Points(geometry, new THREE.PointsMaterial({ size, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9, toneMapped: false }));
+  };
+  const group = new THREE.Group();
+  group.add(layer(1100, 1.2, [70, 100], [0.2, 0.55]), layer(140, 2.2, [55, 70], [0.6, 1]));
+  return group;
+}
+
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
   }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  return new THREE.Points(
-    geometry,
-    new THREE.PointsMaterial({ size: 1.6, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9 }),
-  );
 }
 
 function disposeObject(root: THREE.Object3D): void {

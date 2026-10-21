@@ -52,6 +52,26 @@ export interface CloudLook {
   color: string;
 }
 
+/**
+ * Styl low-poly planety 3D (bez wpływu na rozgrywkę i seed): rzeźba terenu, fasety, światło, atmosfera.
+ * Wartości domyślne w `generatePlanet` — definicja planety może nadpisać dowolną z nich.
+ */
+export interface SurfaceStyle {
+  /** Liczba „tarasów” wysokości lądu (płaskowyże i uskoki); 0 = gładko. */
+  terraces: number;
+  /** Mnożnik wysokości gór w 3D. */
+  relief: number;
+  /** Losowa różnica jasności między fasetami (0..0,15) — żywy, ale spokojny low-poly. */
+  facetJitter: number;
+  /** Przyciemnienie stromych ścian (szczeliny, klify) 0..1. */
+  cliffShade: number;
+  /** Jasność światła gwiazdy i otoczenia (strona nocna). */
+  sunIntensity: number;
+  ambient: number;
+  /** Szerokość atmosfery nad powierzchnią (promień 1 = planeta). */
+  atmosphereWidth: number;
+}
+
 export interface PlanetDefinition {
   id: string;
   /** Stała nazwa planety. Gdy brak — nazwa powstaje z seeda i `catalogs`. */
@@ -75,6 +95,8 @@ export interface PlanetDefinition {
     clouds?: CloudLook;
     /** Szerokość (|y| 0..1), od której zaczyna się czapa lodowa. */
     polarCap?: number;
+    /** Styl low-poly widoku 3D (opcjonalnie; brak = domyślny). */
+    style?: Partial<SurfaceStyle>;
   };
   generation: {
     sizeClasses: readonly SizeClassDef[];
@@ -96,6 +118,7 @@ export interface PlanetVisual {
   ocean: OceanLook;
   clouds: { threshold: number; opacity: number; color: string };
   polarCap: number;
+  style: SurfaceStyle;
 }
 
 export interface Planet {
