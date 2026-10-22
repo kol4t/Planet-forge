@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { GameController } from '../../app/GameController.ts';
+import type { GameController, PlanetOverview } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled } from '../../core/economy/economy.ts';
 import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
 import { ringLimit } from '../../core/research/research.ts';
@@ -7,12 +7,15 @@ import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import { findResearch } from '../../data/research.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
+import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
 import { GestureTracker, PICK_ZOOM, type GestureEvent } from '../ui/gestures.ts';
 import { openTextPanel } from '../ui/textPanel.ts';
 import {
   computeLayout,
-  DOCK_ORDER,
+  planetFooterRows,
+  PLANET_ROW_GAP,
+  PLANET_ROW_H,
   DOCK_PANELS,
   TOUCH,
   type DockItemId,
@@ -108,7 +111,7 @@ const DOCK_LABELS: Record<DockItemId, string> = {
   ai: 'SI',
 };
 
-const PANEL_TITLES: Record<PanelId, string> = { production: 'PRODUKCJA', planet: 'PLANETA', ai: 'SI MATKA' };
+const PANEL_TITLES: Record<PanelId, string> = { production: 'PRODUKCJA', planet: 'PLANETA', ai: 'SI MATKA', planets: 'PLANETY' };
 
 /** HUD gry. Współrzędne liczone w punktach CSS, rysowane w pikselach urządzenia (px()). */
 export class PlanetScene extends Phaser.Scene {
@@ -130,6 +133,9 @@ export class PlanetScene extends Phaser.Scene {
   private dockProgress: { progress: Phaser.GameObjects.Graphics; bar: { x: number; y: number; w: number } } | null = null;
   /** Budynek wybrany dotknięciem na planecie (okienko z „Ulepsz”). */
   private selected: BuildingId | null = null;
+  /** Panel „Planety”: teksty stanu w wierszach (odświeżane co sekundę). */
+  private planetStatus: { index: number; text: Phaser.GameObjects.Text }[] = [];
+  private planetStatusAt = 0;
   /** Otwarty panel SI: stan reguł przy ostatnim rysowaniu (zmiana = przebudowa). */
   private aiPanelShape = '';
   /** Dymek SI Matki z bieżącą propozycją (klucz = propozycja + poziom). */
@@ -278,13 +284,14 @@ export class PlanetScene extends Phaser.Scene {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
     this.gestures.tapSlop = 12 * viewport.dpr;
-    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels, this.deps.controller.aiUnlocked ? AI_RULES.length : 0);
+    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels, this.deps.controller.aiUnlocked ? AI_RULES.length : 0, this.deps.controller.overview().length);
     this.layoutState = layout;
     this.deps.display.resize(viewport.width, viewport.height);
     this.moveFocus(layout.planet, animate);
     this.ui?.destroy(true);
     this.ui = this.add.container(0, 0);
     this.cards = [];
+    this.planetStatus = [];
     this.dockProgress = null;
     this.aiPanelShape = '';
     this.buildTopBar(layout);
@@ -537,7 +544,13 @@ export class PlanetScene extends Phaser.Scene {
   private buildDock(layout: Layout): void {
     const { rect, menu, items } = layout.dock;
     this.panel(rect);
-    this.iconButton(menu, 'menu', () => this.openMenu());
+    this.iconButton(menu, 'menu', () => this.togglePanel('planets'));
+    if (this.panels.open === 'planets') {
+      // Otwarta lista planet: złota obwódka przycisku ☰.
+      const ring = this.add.graphics().lineStyle(this.px(2), COLORS.goldHex, 1);
+      ring.strokeRoundedRect(this.px(menu.x + 2), this.px(menu.y + 2), this.px(menu.w - 4), this.px(menu.h - 4), this.px(this.s(10)));
+      this.ui!.add(ring);
+    }
     const open = this.panels.open;
     for (const { id, rect: r } of items) {
       const active = open === id;
@@ -562,40 +575,81 @@ export class PlanetScene extends Phaser.Scene {
     this.iconButton(panel.close, 'close', () => this.togglePanel(panel.id));
     if (panel.id === 'production') this.buildProduction(layout.cards);
     else if (panel.id === 'planet') this.buildPlanetInfo(panel.body);
+    else if (panel.id === 'planets') this.buildPlanetsPanel(panel.body, layout);
     else this.buildAiPanel(panel.body);
   }
 
-  /** Menu (przycisk z trzema kreskami): wszystkie przyciski paska i ustawienia. */
-  private openMenu(): void {
-    if (this.overlay) return;
-    const layout = this.layoutState!;
-    const viewport = this.deps.getViewport();
-    const shade = this.add.rectangle(0, 0, this.px(viewport.width), this.px(viewport.height), 0x000000, 0.35).setOrigin(0).setInteractive();
-    shade.on('pointerup', () => this.closeOverlay());
-    const entries: [string, () => void][] = [
-      ...DOCK_ORDER.map((id): [string, () => void] => [DOCK_LABELS[id], () => (this.closeOverlay(), this.openDockItem(id))]),
-      ['Ustawienia', () => (this.closeOverlay(), this.openSettings())],
-    ];
-    const pad = this.s(10);
-    const gap = this.s(6);
-    const w = Math.min(this.s(240), viewport.width - 2 * this.s(10));
-    const h = 2 * pad + entries.length * TOUCH + (entries.length - 1) * gap;
-    const x = layout.dock.rect.x;
-    const y = Math.max(layout.topBar.y, layout.dock.rect.y - this.s(8) - h);
-    const box = this.add
-      .graphics()
-      .fillStyle(COLORS.panel, 0.98)
-      .fillRoundedRect(0, 0, this.px(w), this.px(h), this.px(this.s(14)))
-      .lineStyle(this.px(1), COLORS.goldHex, 0.6)
-      .strokeRoundedRect(0, 0, this.px(w), this.px(h), this.px(this.s(14)));
-    const blocker = this.add.zone(0, 0, this.px(w), this.px(h)).setOrigin(0).setInteractive();
-    const buttons = entries.map(([label, onTap], i) =>
-      new Button(this, this.px(pad), this.px(pad + i * (TOUCH + gap)), this.px(w - 2 * pad), this.px(TOUCH), label, this.dpr, onTap, this.s(14)).setStyle(
-        'secondary',
-      ),
+  /** Panel „Planety” (z przycisku ☰): lista planet imperium — dotknięcie przełącza; pod spodem Ustawienia. */
+  private buildPlanetsPanel(box: Rect, layout: Layout): void {
+    const c = this.deps.controller;
+    const planets = c.overview();
+    const gap = this.s(10);
+    const footer = [...layout.dock.hidden, 'settings' as const];
+    const footerRows = planetFooterRows(layout.dock.hidden.length);
+    const footerTop = box.y + box.h - footerRows * TOUCH - (footerRows - 1) * gap;
+    const rowH = this.s(PLANET_ROW_H);
+    const step = rowH + this.s(PLANET_ROW_GAP);
+    // Ile wierszy się mieści; reszta — w „Imperium”.
+    const fit = Math.max(1, Math.floor((footerTop - gap - box.y + this.s(PLANET_ROW_GAP)) / step));
+    const shown = planets.length > fit ? planets.slice(0, fit - 1) : planets;
+    shown.forEach((p, i) => this.planetRow(p, { x: box.x, y: box.y + i * step, w: box.w, h: rowH }));
+    if (shown.length < planets.length) {
+      this.text(box.x + this.s(6), box.y + shown.length * step + this.s(8), `…i jeszcze ${planets.length - shown.length} — wszystkie w „Imperium”.`, 12, COLORS.muted);
+    }
+    const half = (box.w - gap) / 2;
+    footer.forEach((id, i) => {
+      const x = box.x + (i % 2) * (half + gap);
+      const y = footerTop + Math.floor(i / 2) * (TOUCH + gap);
+      if (id === 'settings') this.addButton(x, y, half, TOUCH, 'Ustawienia', 'secondary', () => this.openSettings(), 13);
+      else this.addButton(x, y, half, TOUCH, DOCK_LABELS[id], 'secondary', () => this.openDockItem(id), 13);
+    });
+  }
+
+  /** Stan planety w wierszu listy: budowa z odliczaniem albo zapasy. */
+  private setPlanetStatus(text: Phaser.GameObjects.Text, p: PlanetOverview): void {
+    const status = p.construction
+      ? `Budowa: ${p.construction.name} ${p.construction.level} · ${formatDuration(p.construction.secondsLeft)}`
+      : `${formatInt(p.stock.metal)} metalu · ${formatInt(p.stock.crystal)} kryształów`;
+    text.setText(`${p.active ? 'Tu jesteś · ' : ''}${p.address} · ${status}`).setColor(p.construction ? COLORS.gold : COLORS.muted);
+  }
+
+  /** Wiersz planety: miniatura, nazwa, adres i stan (budowa albo zasoby); dotknięcie = przejdź. */
+  private planetRow(p: PlanetOverview, rect: Rect): void {
+    const g = this.add.graphics();
+    const radius = this.px(this.s(10));
+    g.fillStyle(COLORS.buttonIdle, p.active ? 0.9 : 0.45).fillRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), radius);
+    g.lineStyle(this.px(1), p.active ? COLORS.goldHex : COLORS.panelBorder, p.active ? 0.8 : 1).strokeRoundedRect(
+      this.px(rect.x),
+      this.px(rect.y),
+      this.px(rect.w),
+      this.px(rect.h),
+      radius,
     );
-    const dialog = this.add.container(this.px(x), this.px(y), [box, blocker, ...buttons]);
-    this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+    this.ui!.add(g);
+    // Miniatura (tekstura zapamiętana dla planety — nie rysujemy jej przy każdym odświeżeniu).
+    const key = `hud-thumb-${p.planet.definitionId}-${p.planet.seed}`;
+    if (!this.textures.exists(key)) {
+      const texture = this.textures.createCanvas(key, THUMBNAIL_SIZE, THUMBNAIL_SIZE)!;
+      texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      new PlanetThumbnail(p.planet).draw(texture.context, p.index * 1.7);
+      texture.refresh();
+    }
+    const pad = this.s(8);
+    const d = rect.h - 2 * pad;
+    this.ui!.add(this.add.image(this.px(rect.x + pad + d / 2), this.px(rect.y + rect.h / 2), key).setDisplaySize(this.px(d), this.px(d)));
+    const tx = rect.x + pad + d + this.s(10);
+    const tw = rect.x + rect.w - pad - tx;
+    this.text(tx, rect.y + this.s(8), p.name, 14, p.active ? COLORS.gold : COLORS.text, { fontStyle: '600', fixedWidth: this.px(tw) });
+    const status = this.text(tx, rect.y + this.s(27), '', 10.5, COLORS.muted, { fixedWidth: this.px(tw) });
+    this.planetStatus.push({ index: p.index, text: status });
+    this.setPlanetStatus(status, p);
+    if (p.active) return;
+    const zone = this.add.zone(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h)).setOrigin(0).setInteractive({ useHandCursor: true });
+    zone.on('pointerup', () => {
+      const result = this.deps.controller.switchPlanet(p.index);
+      this.showToast(result.message, result.ok ? 'ok' : 'error', 2600);
+    });
+    this.ui!.add(zone);
   }
 
   /** Panel „Planeta”: nazwa, typ, adres, złoża i środowisko. */
@@ -854,6 +908,14 @@ export class PlanetScene extends Phaser.Scene {
     if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
       this.relayout();
       return;
+    }
+    if (this.planetStatus.length > 0 && now - this.planetStatusAt >= 1000) {
+      this.planetStatusAt = now;
+      const overview = controller.overview();
+      for (const row of this.planetStatus) {
+        const p = overview.find((o) => o.index === row.index);
+        if (p) this.setPlanetStatus(row.text, p);
+      }
     }
     if (this.dockProgress) {
       // Zamknięta „Produkcja”: cienki złoty pasek postępu budowy na przycisku paska.

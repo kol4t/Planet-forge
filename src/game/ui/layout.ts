@@ -17,10 +17,10 @@ export interface Insets {
   left: number;
 }
 
-/** Panele wysuwane z dolnego paska. */
-export type PanelId = 'production' | 'planet' | 'ai';
+/** Panele wysuwane z dolnego paska („planets” — z okrągłego przycisku ☰). */
+export type PanelId = 'production' | 'planet' | 'ai' | 'planets';
 /** Przyciski dolnego paska: panel albo ekran pełnoekranowy. */
-export type DockItemId = PanelId | 'research' | 'map' | 'empire';
+export type DockItemId = Exclude<PanelId, 'planets'> | 'research' | 'map' | 'empire';
 
 /** Kolejność przycisków dolnego paska — gdy brakuje miejsca, ostatnie trafiają tylko do menu. */
 export const DOCK_ORDER: readonly DockItemId[] = ['production', 'research', 'map', 'empire', 'planet', 'ai'];
@@ -73,6 +73,11 @@ export const NO_PANEL: PanelState = { open: null };
 export const TOUCH = 44;
 /** Planeta (średnica) zajmuje najwyżej tyle dłuższego boku ekranu (decyzja właściciela: ≤ 30%). */
 export const PLANET_SCREEN_SHARE = 0.3;
+/** Wiersz planety w panelu „Planety” (pt, × u) i odstęp między wierszami. */
+export const PLANET_ROW_H = 58;
+export const PLANET_ROW_GAP = 6;
+/** Przyciski pod listą planet: Ustawienia + przyciski paska, które się nie zmieściły — po dwa w wierszu. */
+export const planetFooterRows = (hidden: number) => Math.ceil((hidden + 1) / 2);
 /** Nagłówek panelu. */
 const HEADER_H = 40;
 /** Wysokość karty budynku zależna od szerokości (węższa karta = więcej zawijania tekstu). */
@@ -86,6 +91,8 @@ export function computeLayout(
   state: PanelState = NO_PANEL,
   /** Liczba reguł w panelu SI (0 = SI jeszcze niezbadana — krótki panel). */
   aiRows = 4,
+  /** Liczba planet na liście w panelu „Planety”. */
+  planetRows = 1,
 ): Layout {
   const u = clamp(Math.min(width, height) / 880, 0.8, 1.1);
   const gap = Math.round(10 * u);
@@ -112,7 +119,9 @@ export function computeLayout(
     const want = (w: number) =>
       state.open === 'production'
         ? HEADER_H * u + pad + gridHeight(cardGrid({ x: 0, y: 0, w: w - 2 * pad, h: Infinity }, cardCount, gap, u))
-        : state.open === 'planet'
+        : state.open === 'planets'
+          ? HEADER_H * u + planetRows * (PLANET_ROW_H + PLANET_ROW_GAP) * u + planetFooterRows(dock.hidden.length) * (TOUCH + gap) + pad
+          : state.open === 'planet'
           ? 320 * u
           : HEADER_H * u + (aiRows > 0 ? 50 * u + aiRows * 78 * u + TOUCH + 2 * pad : 110 * u);
     let rect: Rect;

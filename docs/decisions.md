@@ -2,6 +2,11 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-22 — v0.21: wysuwana lista planet z przycisku ☰ (szkic właściciela)
+
+- **Okrągły przycisk ☰** (lewy dół) wysuwa panel „Planety” zamiast osobnego menu: lista planet imperium (miniatura, nazwa, adres, budowa z odliczaniem albo zapasy; aktywna — złota ramka, „Tu jesteś”). Dotknięcie innej planety przełącza na nią (panel zostaje otwarty). Gdy planet jest więcej, niż się mieści — „…i jeszcze N — wszystkie w „Imperium””.
+- Pod listą **Ustawienia** i przyciski paska, które nie zmieściły się na wąskim ekranie (telefon). Pełny ekran „Imperium” (karty, usuwanie, dziennik, SI) zostaje na pasku.
+
 ## 2026-10-22 — v0.20: ulepszanie budynków dotknięciem na planecie (etap 2 z 2)
 
 - **Dotknięcie budowli** (2D i 3D) otwiera okienko „Budynek” nad dolnym paskiem — ta sama karta co w „Produkcji” (poziom, efekt, koszt, „Ulepsz”; w trakcie budowy „Ukończ teraz” / „Anuluj”). Plac budowy też da się dotknąć. Dotknięcie obok budowli albo krzyżyk zamyka okienko.

@@ -4,7 +4,7 @@ import type { PanelId, PanelState } from './layout.ts';
 const KEY = 'planet-forge.ui.v2';
 /** Stan zwijanych paneli sprzed v0.19 — rozwinięta produkcja zostaje otwarta. */
 const OLD_KEY = 'planet-forge.ui.v1';
-const PANELS: readonly PanelId[] = ['production', 'planet', 'ai'];
+const PANELS: readonly PanelId[] = ['production', 'planet', 'ai', 'planets'];
 
 export function loadPanels(): PanelState {
   try {

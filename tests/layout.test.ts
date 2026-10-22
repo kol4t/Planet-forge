@@ -18,7 +18,7 @@ const SCREENS: [string, number, number][] = [
   ['iPhone pionowo', 390, 844],
   ['iPhone poziomo', 844, 390],
 ];
-const STATES: PanelState[] = [{ open: null }, { open: 'production' }, { open: 'planet' }, { open: 'ai' }];
+const STATES: PanelState[] = [{ open: null }, { open: 'production' }, { open: 'planet' }, { open: 'ai' }, { open: 'planets' }];
 
 for (const [name, w, h] of SCREENS) {
   test(`układ mieści się i nic nie nachodzi: ${name}`, () => {
@@ -93,4 +93,13 @@ test('UI skalowane do ekranu', () => {
   assert.ok(computeLayout(1080, 810).u < 0.95, 'iPad');
   assert.equal(computeLayout(390, 844).u, 0.8, 'telefon: minimum czytelności');
   assert.equal(computeLayout(2560, 1440).u, 1.1, 'duży monitor: maksimum');
+});
+
+test('panel „Planety” mieści listę planet i przyciski pod nią (do 5 planet na tablecie)', () => {
+  for (const [w, h] of [[1080, 810], [810, 1080], [1920, 1080]] as const) {
+    const one = computeLayout(w, h, undefined, 6, { open: 'planets' }, 4, 1);
+    const five = computeLayout(w, h, undefined, 6, { open: 'planets' }, 4, 5);
+    assert.ok(five.panel!.rect.h > one.panel!.rect.h, `${w}×${h}: więcej planet = wyższy panel`);
+    assert.ok(five.panel!.rect.h < five.dock.rect.y - five.topBar.y - five.topBar.h, `${w}×${h}: 5 planet bez przycinania`);
+  }
 });
