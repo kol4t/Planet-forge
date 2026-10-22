@@ -8,7 +8,7 @@ import { BALANCE } from '../../data/balance.ts';
 import { findResearch } from '../../data/research.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
-import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
+import { GestureTracker, PICK_ZOOM, type GestureEvent } from '../ui/gestures.ts';
 import { openTextPanel } from '../ui/textPanel.ts';
 import {
   computeLayout,
@@ -128,6 +128,8 @@ export class PlanetScene extends Phaser.Scene {
   private focusTween: Phaser.Tweens.Tween | undefined;
   /** Przycisk „Produkcja” na dolnym pasku: pasek postępu budowy (gdy panel jest zamknięty). */
   private dockProgress: { progress: Phaser.GameObjects.Graphics; bar: { x: number; y: number; w: number } } | null = null;
+  /** Budynek wybrany dotknięciem na planecie (okienko z „Ulepsz”). */
+  private selected: BuildingId | null = null;
   /** Otwarty panel SI: stan reguł przy ostatnim rysowaniu (zmiana = przebudowa). */
   private aiPanelShape = '';
   /** Dymek SI Matki z bieżącą propozycją (klucz = propozycja + poziom). */
@@ -155,7 +157,8 @@ export class PlanetScene extends Phaser.Scene {
         if (e.type === 'drag-start') display.beginDrag();
         else if (e.type === 'drag') display.drag(e.dx / this.dpr, e.dy / this.dpr);
         else if (e.type === 'drag-end') display.endDrag();
-        else display.setZoom(e.zoom);
+        else if (e.type === 'zoom') display.setZoom(e.zoom);
+        else this.onPlanetTap(e.x, e.y);
       }
     };
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
@@ -175,6 +178,7 @@ export class PlanetScene extends Phaser.Scene {
     controller.onPlanetChange(() => {
       display.setPlanet(controller.planet);
       display.setStructures(controller.economy.levels);
+      this.selected = null;
       this.relayout();
     });
 
@@ -273,6 +277,7 @@ export class PlanetScene extends Phaser.Scene {
   relayout(animate = false): void {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
+    this.gestures.tapSlop = 12 * viewport.dpr;
     const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels, this.deps.controller.aiUnlocked ? AI_RULES.length : 0);
     this.layoutState = layout;
     this.deps.display.resize(viewport.width, viewport.height);
@@ -284,6 +289,7 @@ export class PlanetScene extends Phaser.Scene {
     this.aiPanelShape = '';
     this.buildTopBar(layout);
     this.buildPanel(layout);
+    this.buildSelected(layout);
     this.buildDock(layout);
     this.buildUpdateBanner(layout);
     this.aiBubble = null;
@@ -706,51 +712,86 @@ export class PlanetScene extends Phaser.Scene {
 
   /** Karty budynków w panelu „Produkcja”. */
   private buildProduction(cards: Rect[]): void {
-    BALANCE.buildings.forEach((def, index) => {
-      const card = cards[index]!;
-      this.subPanel(card);
-      const narrow = card.w < 150;
-      const pad = this.s(narrow ? 8 : 10);
-      this.icon(def.produces, card.x + pad + this.s(5), card.y + pad + this.s(8), 5.5);
-      const level = this.text(card.x + card.w - pad, card.y + pad, 'poz. 00', 11, COLORS.gold, { fontStyle: '600' }).setOrigin(1, 0);
-      // Nazwa zawija się przed etykietą poziomu, zamiast na nią nachodzić.
-      const levelSpace = narrow ? 0 : level.width / this.dpr + this.s(6);
-      const title = this.text(card.x + pad + this.s(16), card.y + pad, def.name, narrow ? 12 : 13, COLORS.text, {
-        fontStyle: '600',
-        wordWrap: { width: this.px(card.w - 2 * pad - this.s(16) - levelSpace) },
-      });
-      const textTop = Math.max(this.s(narrow ? 34 : 21), title.height / this.dpr + this.s(4));
-      const effect = this.text(card.x + pad, card.y + pad + textTop, '', narrow ? 10.5 : 11, COLORS.teal, {
-        wordWrap: { width: this.px(card.w - 2 * pad) },
-      });
-      const cost = this.text(card.x + pad, card.y + pad + textTop + this.s(16), '', narrow ? 10.5 : 11, COLORS.muted, {
-        wordWrap: { width: this.px(card.w - 2 * pad) },
-      });
-      const buttonH = TOUCH;
-      const bar = { x: card.x + pad, y: card.y + card.h - pad - buttonH - this.s(7), w: card.w - 2 * pad };
-      const progress = this.add.graphics();
-      this.ui!.add(progress);
-      const button = this.addButton(card.x + pad, card.y + card.h - pad - buttonH, card.w - 2 * pad, buttonH, 'Ulepsz', 'primary', () =>
-        this.onUpgrade(def.id), narrow ? 12.5 : 13.5);
-      const finish = this.addButton(
-        card.x + pad,
-        card.y + card.h - pad - buttonH,
-        (card.w - 2 * pad) / 2,
-        buttonH,
-        'Ukończ',
-        'primary',
-        () => this.onFinish(),
-        narrow ? 12.5 : 13.5,
-      ).setShown(false);
-      const extra =
-        def.produces === 'research'
-          ? this.addButton(card.x + pad, card.y + card.h - pad - buttonH, (card.w - 2 * pad) / 2, buttonH, 'Badania', 'secondary', () =>
-              this.openResearch(), narrow ? 12.5 : 13.5)
-          : null;
-      if (narrow) level.setVisible(false);
-      const buttons = { x: this.px(card.x + pad), w: this.px(card.w - 2 * pad), gap: this.px(this.s(6)) };
-      this.cards.push({ id: def.id, level, effect, cost, button, finish, extra, buttons, progress, bar });
+    BALANCE.buildings.forEach((def, index) => this.addCard(def, cards[index]!));
+  }
+
+  /** Karta budynku: nazwa, poziom, efekt, koszt, „Ulepsz” (odświeżana w refreshValues). */
+  private addCard(def: (typeof BALANCE.buildings)[number], card: Rect): void {
+    this.subPanel(card);
+    const narrow = card.w < 150;
+    const pad = this.s(narrow ? 8 : 10);
+    this.icon(def.produces, card.x + pad + this.s(5), card.y + pad + this.s(8), 5.5);
+    const level = this.text(card.x + card.w - pad, card.y + pad, 'poz. 00', 11, COLORS.gold, { fontStyle: '600' }).setOrigin(1, 0);
+    // Nazwa zawija się przed etykietą poziomu, zamiast na nią nachodzić.
+    const levelSpace = narrow ? 0 : level.width / this.dpr + this.s(6);
+    const title = this.text(card.x + pad + this.s(16), card.y + pad, def.name, narrow ? 12 : 13, COLORS.text, {
+      fontStyle: '600',
+      wordWrap: { width: this.px(card.w - 2 * pad - this.s(16) - levelSpace) },
     });
+    const textTop = Math.max(this.s(narrow ? 34 : 21), title.height / this.dpr + this.s(4));
+    const effect = this.text(card.x + pad, card.y + pad + textTop, '', narrow ? 10.5 : 11, COLORS.teal, {
+      wordWrap: { width: this.px(card.w - 2 * pad) },
+    });
+    const cost = this.text(card.x + pad, card.y + pad + textTop + this.s(16), '', narrow ? 10.5 : 11, COLORS.muted, {
+      wordWrap: { width: this.px(card.w - 2 * pad) },
+    });
+    const buttonH = TOUCH;
+    const bar = { x: card.x + pad, y: card.y + card.h - pad - buttonH - this.s(7), w: card.w - 2 * pad };
+    const progress = this.add.graphics();
+    this.ui!.add(progress);
+    const button = this.addButton(card.x + pad, card.y + card.h - pad - buttonH, card.w - 2 * pad, buttonH, 'Ulepsz', 'primary', () =>
+      this.onUpgrade(def.id), narrow ? 12.5 : 13.5);
+    const finish = this.addButton(
+      card.x + pad,
+      card.y + card.h - pad - buttonH,
+      (card.w - 2 * pad) / 2,
+      buttonH,
+      'Ukończ',
+      'primary',
+      () => this.onFinish(),
+      narrow ? 12.5 : 13.5,
+    ).setShown(false);
+    const extra =
+      def.produces === 'research'
+        ? this.addButton(card.x + pad, card.y + card.h - pad - buttonH, (card.w - 2 * pad) / 2, buttonH, 'Badania', 'secondary', () =>
+            this.openResearch(), narrow ? 12.5 : 13.5)
+        : null;
+    if (narrow) level.setVisible(false);
+    const buttons = { x: this.px(card.x + pad), w: this.px(card.w - 2 * pad), gap: this.px(this.s(6)) };
+    this.cards.push({ id: def.id, level, effect, cost, button, finish, extra, buttons, progress, bar });
+  }
+
+  /** Dotknięcie planety: od przybliżenia PICK_ZOOM wybiera budowlę (okienko z „Ulepsz”). */
+  private onPlanetTap(x: number, y: number): void {
+    const id = this.deps.display.pickStructure(x / this.dpr, y / this.dpr);
+    if (this.gestures.zoom < PICK_ZOOM) {
+      if (id) this.showToast('Przybliż planetę dwoma palcami, żeby wybrać budynek.', 'info', 2600);
+      return;
+    }
+    if (id === this.selected) return;
+    // Dotknięcie obok budowli zamyka okienko.
+    this.selected = id;
+    this.relayout();
+  }
+
+  /** Okienko wybranego budynku nad dolnym paskiem (w wolnym miejscu obok panelu). */
+  private buildSelected(layout: Layout): void {
+    const def = this.selected && BALANCE.buildings.find((b) => b.id === this.selected);
+    if (!def) return;
+    const stage = layout.stage;
+    const gap = this.s(10);
+    const pad = this.s(8);
+    const w = Math.min(this.s(340), stage.w);
+    const cardH = this.s(w - 2 * pad >= this.s(230) ? 128 : 176);
+    const h = this.s(40) + cardH + pad;
+    const rect: Rect = { x: stage.x + (stage.w - w) / 2, y: stage.y + stage.h - h - gap / 2, w, h };
+    this.panel(rect, true);
+    this.text(rect.x + this.s(14), rect.y + this.s(13), 'BUDYNEK', 11, COLORS.gold, { fontStyle: '600', letterSpacing: 1.5 });
+    this.iconButton({ x: rect.x + rect.w - TOUCH, y: rect.y, w: TOUCH, h: TOUCH }, 'close', () => {
+      this.selected = null;
+      this.relayout();
+    });
+    this.addCard(def, { x: rect.x + pad, y: rect.y + this.s(40), w: rect.w - 2 * pad, h: cardH });
   }
 
   /** Karta wewnątrz panelu: jaśniejsza ramka, bez osobnej strefy (panel już blokuje gesty). */

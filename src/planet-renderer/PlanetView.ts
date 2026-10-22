@@ -3,9 +3,10 @@ import { createNoise3D, fbm } from '../core/random/noise.ts';
 import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { createAtmosphere } from './atmosphere.ts';
-import { layoutColony } from './colony.ts';
+import { layoutColony, type ColonyLayout } from './colony.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
+import { levelsWithSite, pickStructure } from './pick.ts';
 import { facingAngles, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { buildLowPolyLand, shapedRadius } from './lowPoly.ts';
 import { createSurfaceSampler, type SurfaceSampler } from './surface.ts';
@@ -55,6 +56,10 @@ export class PlanetView implements PlanetDisplay {
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
   private clouds: THREE.Object3D | undefined;
+  /** Rozmieszczenie i poziomy kolonii — do wyboru budowli dotknięciem. */
+  private layout: ColonyLayout | undefined;
+  private levels: BuildingLevels | undefined;
+  private site: BuildSite | null = null;
   private axialTilt = 0;
   private width = 1;
   private height = 1;
@@ -115,12 +120,29 @@ export class PlanetView implements PlanetDisplay {
     this.tiltGroup.rotation.z = this.axialTilt;
     // Budowle stoją na powierzchni 3D (tarasy i wyższe góry), nie na gładkiej wersji z 2D.
     const shaped: SurfaceSampler = { ...sampler, radius: (h) => shapedRadius(planet, h) };
-    this.colony.setLayout(layoutColony(planet, shaped, BUILDING_IDS));
+    this.layout = layoutColony(planet, shaped, BUILDING_IDS);
+    this.colony.setLayout(this.layout);
   }
 
   setStructures(levels: BuildingLevels, site: BuildSite | null = null): void {
+    this.levels = levels;
+    this.site = site;
     this.colony.setLevels(levels);
     this.colony.setConstruction(site);
+  }
+
+  pickStructure(x: number, y: number): BuildingId | null {
+    if (!this.layout || !this.levels) return null;
+    const f = this.height / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
+    const view = {
+      cx: this.focus.cx,
+      cy: this.focus.cy,
+      yaw: this.rotator.yaw,
+      pitch: this.rotator.pitch,
+      tilt: this.axialTilt,
+      projection: { kind: 'perspective' as const, f, d: this.camera.position.z },
+    };
+    return pickStructure(this.layout, levelsWithSite(this.levels, this.site), view, x, y, undefined, true);
   }
 
   showBuilding(id: BuildingId): void {

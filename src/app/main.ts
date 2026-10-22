@@ -72,6 +72,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
       space.setScene(skyFor(controller));
     },
     setStructures: (levels, site) => display.setStructures(levels, site),
+    pickStructure: (x, y) => display.pickStructure(x, y),
     showBuilding: (id) => display.showBuilding(id),
     beginDrag: () => display.beginDrag(),
     drag: (dx, dy) => display.drag(dx, dy),

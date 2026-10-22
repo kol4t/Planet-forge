@@ -9,7 +9,7 @@ import { createSurfaceSampler, hexToRgb } from '../src/planet-renderer/surface.t
 test('jeden palec: obrót (start → ruch → koniec)', () => {
   const g = new GestureTracker();
   assert.deepEqual(g.down(1, 100, 100), [{ type: 'drag-start' }]);
-  assert.deepEqual(g.move(1, 110, 95), [{ type: 'drag', dx: 10, dy: -5 }]);
+  assert.deepEqual(g.move(1, 130, 95), [{ type: 'drag', dx: 30, dy: -5 }]);
   assert.deepEqual(g.up(1), [{ type: 'drag-end' }]);
   assert.deepEqual(g.move(1, 120, 95), [], 'po podniesieniu palca nic');
 });
@@ -70,4 +70,29 @@ test('tarcza 2D/miniatura: deterministyczna, przezroczysta poza kołem, kryjąca
     const center = ((size / 2) * size + size / 2) * 4;
     assert.equal(a[center + 3], 255, 'środek kryjący');
   }
+});
+
+test('krótkie dotknięcie bez przesuwania = tap (wybór budowli)', () => {
+  const g = new GestureTracker();
+  g.down(1, 100, 100, 0);
+  g.move(1, 104, 103);
+  assert.deepEqual(g.up(1, 200), [{ type: 'drag-end' }, { type: 'tap', x: 100, y: 100 }]);
+  // Przesunięcie palca = obrót, nie tap.
+  g.down(1, 100, 100, 0);
+  g.move(1, 140, 100);
+  assert.deepEqual(g.up(1, 200), [{ type: 'drag-end' }]);
+  // Za długie przytrzymanie — nie tap.
+  g.down(1, 100, 100, 0);
+  assert.deepEqual(g.up(1, 2000), [{ type: 'drag-end' }]);
+  // Szczypanie — nie tap.
+  g.down(1, 100, 100, 0);
+  g.down(2, 200, 100, 10);
+  g.up(2, 50);
+  assert.deepEqual(g.up(1, 60), []);
+});
+
+test('wybór budowli od 80% drogi do maksymalnego przybliżenia', async () => {
+  const { PICK_ZOOM, MIN_ZOOM, MAX_ZOOM } = await import('../src/game/ui/gestures.ts');
+  assert.equal(PICK_ZOOM, 3);
+  assert.ok(PICK_ZOOM > MIN_ZOOM && PICK_ZOOM < MAX_ZOOM);
 });

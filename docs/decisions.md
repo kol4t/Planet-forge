@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-22 — v0.20: ulepszanie budynków dotknięciem na planecie (etap 2 z 2)
+
+- **Dotknięcie budowli** (2D i 3D) otwiera okienko „Budynek” nad dolnym paskiem — ta sama karta co w „Produkcji” (poziom, efekt, koszt, „Ulepsz”; w trakcie budowy „Ukończ teraz” / „Anuluj”). Plac budowy też da się dotknąć. Dotknięcie obok budowli albo krzyżyk zamyka okienko.
+- **Od przybliżenia 3×** (`PICK_ZOOM` = 80% drogi od 1× do 3,5×, decyzja właściciela). Przy mniejszym przybliżeniu dotknięcie budowli pokazuje podpowiedź „Przybliż planetę dwoma palcami…”.
+- **Tap w `GestureTracker`:** jeden palec, przesunięcie ≤ 12 pt, ≤ 450 ms; szczypanie nigdy nie jest tapem.
+- **Wybór w czystej matematyce** (`planet-renderer/pick.ts`): rzut budowli kolonii tym samym obrotem co renderery — 2D rzut prostokątny, 3D perspektywa kamery z nachyleniem osi i budowlami na tarasach. Promień trafienia 26 pt. `PlanetDisplay.pickStructure(x, y)` — nowa metoda interfejsu (Phaser dalej nie zna Three.js).
+- Panel „Produkcja” zostaje drugą drogą (m.in. budynki na poziomie 0, których nie ma jeszcze na planecie).
+
 ## 2026-10-22 — v0.19: nowy układ ekranu (szkice właściciela, etap 1 z 2)
 
 - **Układ ze szkiców:** pasek zasobów u góry, **dolny pasek** z przyciskami na całą szerokość, nad nim **wysuwany panel** (otwarty najwyżej jeden). Boczne panele (planeta po lewej, produkcja po prawej) usunięte.

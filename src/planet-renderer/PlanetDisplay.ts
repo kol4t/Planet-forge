@@ -9,6 +9,8 @@ export interface PlanetDisplay {
    * Wywołuj śmiało co klatkę/odświeżenie (porównuje zmiany).
    */
   setStructures(levels: BuildingLevels, site?: BuildSite | null): void;
+  /** Budowla pod punktem (x, y w pikselach CSS) albo null — wybór budynku dotknięciem. */
+  pickStructure(x: number, y: number): BuildingId | null;
   /** Obróć planetę tak, by pokazać budowle danego typu (np. po ulepszeniu). */
   showBuilding(id: BuildingId): void;
   beginDrag(): void;

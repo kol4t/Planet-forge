@@ -2,6 +2,7 @@ import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { layoutColony, visibleStructures, type ColonyLayout } from './colony.ts';
 import { DragRotator } from './input/dragRotator.ts';
+import { levelsWithSite, pickStructure } from './pick.ts';
 import { facingAngles, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
 import type { RGB, SurfaceSampler } from './surface.ts';
@@ -61,6 +62,13 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   setStructures(levels: BuildingLevels, site: BuildSite | null = null): void {
     this.levels = { ...levels };
     this.site = site;
+  }
+
+  pickStructure(x: number, y: number): BuildingId | null {
+    if (!this.colony || !this.levels) return null;
+    const { yaw, pitch } = this.rotator;
+    const view = { cx: this.focus.cx, cy: this.focus.cy, yaw, pitch, tilt: 0, projection: { kind: 'ortho' as const, r: this.focus.r * this.zoom } };
+    return pickStructure(this.colony, levelsWithSite(this.levels, this.site), view, x, y);
   }
 
   showBuilding(id: BuildingId): void {
