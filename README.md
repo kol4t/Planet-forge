@@ -184,4 +184,13 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 103. Dotknij innej planety na liście: gra przełącza się na nią. Pod listą są „Ustawienia” (i na telefonie przyciski, które nie zmieściły się na pasku).
 104. Przy wielu planetach pod listą pojawia się „…i jeszcze N — wszystkie w „Imperium””.
 
+### Od 0.22: trzy metody terenu (przebudowa generatora, etap 3)
+
+105. Twoje planety mają **nowy teren** (surowce, rozmiar i budynki bez zmian, zapis wczytuje się normalnie). Proporcja lądu i wody jest podobna jak wcześniej.
+106. Planeta umiarkowana, lodowa i oceaniczna: duże kontynenty o gładszych brzegach, a wzdłuż części wybrzeży pasma gór (jaśniejsze, ośnieżone grzbiety).
+107. Planeta pustynna: łagodniejsze wyżyny, rozgałęzione doliny schodzące do nizin i mórz.
+108. Planeta wulkaniczna i jałowa: wyraźne okrągłe kratery (misa z wałem, duże z płaskim dnem), proste uskoki i szczeliny.
+109. „Mapa” → otwórz kilka układów i „Imperium”: miniatury rysują się normalnie; pierwsze otwarcie układu może trwać chwilę dłużej (teren liczy się raz).
+110. Sprawdź w 2D i w 3D (Ustawienia → Grafika). Płynność: Ustawienia → „Diagnostyka” — porównaj z pomiarem z 0.21 (3D: 59 średnio / 48 najsłabsza sekunda; 2D: 58 / 50).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

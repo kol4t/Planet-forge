@@ -2,10 +2,11 @@
 // Wysokość, ciecz, materiał i cechy są danymi w `core`; renderery tylko je rysują.
 
 /**
- * Metoda generowania terenu. `legacy` = teren z v0.1–v0.17 (fBm z zawinięciem);
- * kolejne metody (tectonic, erosion, fractured) dochodzą w etapie 3.
+ * Metoda generowania terenu (`methods/`). `legacy` = teren z v0.1–v0.21 (fBm z zawinięciem) — punkt
+ * odniesienia; `tectonic` = płyty i pasma gór, `erosion` = doliny wyżłobione wodą, `fractured` =
+ * kratery, uskoki i płaskowyże.
  */
-export type TerrainMethodId = 'legacy';
+export type TerrainMethodId = 'legacy' | 'tectonic' | 'erosion' | 'fractured';
 
 /** Ciecz w węźle siatki. Kody są częścią formatu danych modelu — nie zmieniaj istniejących. */
 export const LIQUID = {

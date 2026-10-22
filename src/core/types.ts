@@ -98,6 +98,8 @@ export interface PlanetDefinition {
     polarCap?: number;
     /** Styl low-poly widoku 3D (opcjonalnie; brak = domyślny). */
     style?: Partial<SurfaceStyle>;
+    /** Metoda terenu (preferowana dla typu, `docs/generator-plan.md` § 3; brak = `tectonic`). */
+    terrainMethod?: TerrainMethodId;
   };
   generation: {
     sizeClasses: readonly SizeClassDef[];

@@ -68,7 +68,7 @@ test('siatka: najbliższy węzeł = wynik przeszukania wszystkich węzłów', ()
   }
 });
 
-test('regresja: teren z core/surface jest identyczny z v0.17 (wysokość, promień, lód, kolor)', () => {
+test('regresja: metoda legacy daje teren identyczny z v0.17 (wysokość, promień, lód, kolor)', () => {
   // Wartości zmierzone na v0.17 przed przeniesieniem algorytmu do core/surface (seed PF-SNAP).
   const expected: Record<string, number[][]> = {
     'kepler-186f': [
@@ -92,7 +92,8 @@ test('regresja: teren z core/surface jest identyczny z v0.17 (wysokość, promie
   };
   const points = [[0.6, 0.48, 0.64], [-0.3, -0.9, 0.3162278], [0, 1, 0], [0.8, 0, -0.6]] as const;
   for (const [id, rows] of Object.entries(expected)) {
-    const sampler = createSurfaceSampler(generatePlanet(findDefinition(id)!, 'PF-SNAP'));
+    const planet = generatePlanet(findDefinition(id)!, 'PF-SNAP');
+    const sampler = createSurfaceSampler({ ...planet, visual: { ...planet.visual, terrainMethod: 'legacy' } });
     points.forEach(([x, y, z], i) => {
       const h = sampler.height(x, y, z);
       const got = [h, sampler.radius(h), sampler.ice(h, x, y, z), ...sampler.color(h, x, y, z)].map((v) => +v.toPrecision(12));
@@ -107,7 +108,7 @@ test('model powierzchni: deterministyczny, poprawny i zgodny z polem dla każdeg
       const planet = generatePlanet(def, seed);
       const model = buildSurface(planet, 16);
       assert.equal(model.version, SURFACE_VERSION);
-      assert.equal(model.method, 'legacy');
+      assert.equal(model.method, def.visual.terrainMethod ?? 'tectonic');
       assert.deepEqual(validateSurface(model), [], `${def.id} ${seed}`);
       const again = buildSurface(planet, 16);
       assert.deepEqual(again.height, model.height);

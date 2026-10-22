@@ -253,7 +253,9 @@ Cel: nowy potok z metodą `legacy` (obecny fBm). **Gra wygląda praktycznie tak 
 
 Ryzyka: wydajność na iPadzie (dodatkowe kroki) → pomiar przed/po. Różnice wyglądu legacy → test porównawczy z dotychczasowym `height()`.
 
-### Etap 3 — trzy metody terenu (v0.22)
+### Etap 3 — trzy metody terenu (v0.22) ✔
+Zrobione: szczegóły i odstępstwa od tabeli (mapa sześcienna zamiast pełnej symulacji na siatce 40, kratery i płyty bez szumu Worleya, przeliczenie wysokości do rozkładu `legacy`) w `docs/decisions.md` (v0.22).
+
 | Plik | Zmiana |
 |---|---|
 | `src/core/random/noise.ts` | + szum grzbietowy (ridged), szum komórkowy (Worley) do płyt i kraterów |
@@ -325,7 +327,7 @@ Pomiary: czas generowania, wierzchołki, draw calle, FPS na iPadzie przed i po, 
 
 **Podjęte:** 1 → **A** (nowy wygląd dla wszystkich planet, rozgrywka bez zmian); 2 → **dodać roboczy typ „jałowa”** (zrobione w v0.18).
 
-**Stan etapów:** etap 1 ✔ · etap 2 ✔ (v0.18 — model na siatce z cieczą ocean/zamarznięte morze; jeziora, rzeki i lawa dochodzą w etapie 5, materiały profili w etapie 4).
+**Stan etapów:** etap 1 ✔ · etap 2 ✔ (v0.18 — model na siatce z cieczą ocean/zamarznięte morze; jeziora, rzeki i lawa dochodzą w etapie 5, materiały profili w etapie 4) · etap 3 ✔ (v0.22 — metody tectonic, erosion, fractured).
 
 Pytania w pierwotnym brzmieniu:
 

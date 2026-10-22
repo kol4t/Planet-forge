@@ -2,6 +2,17 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-22 — v0.22: trzy metody terenu (przebudowa generatora, etap 3)
+
+- **Punkt odniesienia płynności (v0.21, iPad właściciela, 1080×778 @2, z ekranu początkowego):** 3D średnio 59 kl./s, najsłabsza sekunda 48 (pomiar 38 s); 2D średnio 58, najsłabsza sekunda 50–57 (pomiary 2–17 s). Po v0.22 porównujemy z tymi liczbami.
+- **Metody** w `core/surface/methods/` z rejestrem `index.ts`: `tectonic` (płyty — ciągła wersja komórek Woronoja na sferze, zderzenia wypiętrzają pasma gór, rozejścia tworzą rowy), `erosion` (wyżyny z szumu + erozja hydrauliczna i termiczna na siatce detail 32, 20 iteracji, na końcu doliny wcinane wzdłuż sieci spływu), `fractured` (40–70 kraterów z wałem i płaskim dnem, uskoki i szczeliny wzdłuż wielkich kół, płaskowyże, ostre grzbiety). `legacy` zostaje (test regresji, odniesienie rozkładu wysokości, przyszłe „Laboratorium planet”).
+- **Metoda preferowana typu** w `visual.terrainMethod` definicji (tabela § 3 planu generatora): umiarkowana, lodowa, oceaniczna — `tectonic`; pustynna — `erosion`; wulkaniczna, jałowa — `fractured`. Profile i wybór spośród kilku metod — etap 4.
+- **„Pieczenie” zamiast liczenia w klatce:** kształt liczony raz na planetę do mapy sześciennej 6 × 48² (z ramką jednego teksela — bez szwów na krawędziach ścian), przy odczycie interpolacja + 3 oktawy detalu. Odczyt jest szybszy niż `legacy` (ważne dla widoku 2D, który liczy tarczę co klatkę). Pieczenie w Node: 20–150 ms; gotowe pola w pamięci podręcznej (24 ostatnie planety).
+- **Metoda zmienia kształt, nie bilans lądu i wody:** wysokości są przeliczane (kwantyle 1%, poziom morza, 99%) do rozkładu terenu `legacy` tej samej planety. Udział lądu, zakres gór, paleta, promień, lód i zakresy `seaLevel` w danych typów działają bez zmian. Rozgrywka (`GENERATOR_VERSION` = 1) nietknięta.
+- **`SURFACE_VERSION` = 2** — wszystkie planety, także zapisane, dostają nowy teren (wariant A).
+- **Determinizm:** w metodach tylko + − × ÷ sqrt i stała kolejność (sortowanie z rozstrzyganiem remisów indeksem); kierunki losowe bez funkcji trygonometrycznych.
+- **Metryki** (`core/surface/metrics.ts`: rozrzut, stromość, „chaos”, igły, udział płaskiego lądu) — testy pilnują, że metody się różnią i nie mają igieł; posłużą też `npm run atlas` w etapie 4.
+
 ## 2026-10-22 — v0.21: wysuwana lista planet z przycisku ☰ (szkic właściciela)
 
 - **Okrągły przycisk ☰** (lewy dół) wysuwa panel „Planety” zamiast osobnego menu: lista planet imperium (miniatura, nazwa, adres, budowa z odliczaniem albo zapasy; aktywna — złota ramka, „Tu jesteś”). Dotknięcie innej planety przełącza na nią (panel zostaje otwarty). Gdy planet jest więcej, niż się mieści — „…i jeszcze N — wszystkie w „Imperium””.

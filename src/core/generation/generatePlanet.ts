@@ -11,8 +11,12 @@ export const GENERATOR_VERSION = 1;
 /**
  * Wersja WYGLĄDU terenu (`core/surface`). Nie jest zapisywana: po aktualizacji wszystkie planety,
  * także zapisane, dostają nowy teren (decyzja właściciela, wariant A) — rozgrywka bez zmian.
+ * 1 = teren v0.1–v0.21 (`legacy`), 2 = trzy metody terenu (v0.22).
  */
-export const SURFACE_VERSION = 1;
+export const SURFACE_VERSION = 2;
+
+/** Metoda terenu typu planety bez własnej (`visual.terrainMethod`). */
+export const DEFAULT_TERRAIN_METHOD = 'tectonic' as const;
 
 const YIELDS: readonly YieldId[] = ['metal', 'crystal', 'energy'];
 const NAME_LETTERS = 'bcdefg';
@@ -94,7 +98,7 @@ export function generatePlanet(definition: PlanetDefinition, seedInput: string):
       clouds: { threshold: cloudThreshold, opacity: clouds.opacity, color: clouds.color },
       polarCap: v.polarCap ?? DEFAULT_POLAR_CAP,
       style: { ...DEFAULT_SURFACE_STYLE, ...v.style },
-      terrainMethod: 'legacy',
+      terrainMethod: v.terrainMethod ?? DEFAULT_TERRAIN_METHOD,
       surfaceVersion: SURFACE_VERSION,
     },
   };

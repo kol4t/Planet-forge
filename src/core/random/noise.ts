@@ -50,3 +50,27 @@ export function fbm(noise: Noise3D, x: number, y: number, z: number, octaves = 5
   }
   return sum / norm;
 }
+
+/**
+ * Szum grzbietowy (ridged) znormalizowany do 0..1: ostre grzbiety w miejscach, gdzie szum
+ * przechodzi przez środek zakresu. `sharpness` 1 = łagodne, 2 = ostre (kwadrat).
+ */
+export function ridged(noise: Noise3D, x: number, y: number, z: number, octaves = 4, sharpness = 2): number {
+  let sum = 0;
+  let amplitude = 0.5;
+  let frequency = 1;
+  let norm = 0;
+  let weight = 1;
+  for (let i = 0; i < octaves; i++) {
+    let r = 1 - Math.abs(noise(x * frequency, y * frequency, z * frequency) * 2 - 1);
+    r = sharpness >= 2 ? r * r : r;
+    // Kolejne oktawy silniejsze na grzbietach (typowy „ridged multifractal”).
+    r *= weight;
+    weight = Math.min(1, r * 2);
+    sum += amplitude * r;
+    norm += amplitude;
+    amplitude *= 0.5;
+    frequency *= 2.03;
+  }
+  return sum / norm;
+}
