@@ -233,6 +233,8 @@ Wszystkie 18 kombinacji ma być technicznie obsługiwane. Kombinacje mniej udane
 
 ## 4. Plan etapów (każdy = osobna wersja, gałąź `claude/…`, akceptacja przed `main`)
 
+> **Numeracja wersji (2026-10-22):** v0.19–v0.21 poszły na zmiany UI ze szkiców właściciela (dolny pasek, ulepszanie dotknięciem, lista planet), więc etapy 3–8 przesunęły się na v0.22–v0.27. Część etapu 7 (dolny pasek, wysuwany panel) jest już zrobiona w v0.19 — przy etapie 7 zacznij od porównania tabeli niżej ze stanem kodu.
+
 ### Etap 2 — wspólny model powierzchni (v0.18)
 Cel: nowy potok z metodą `legacy` (obecny fBm). **Gra wygląda praktycznie tak samo**, ale wysokość, ciecz, materiał i cechy są już danymi w `core`. Zapisy są zabezpieczone przed zmianą wersji.
 
@@ -251,7 +253,7 @@ Cel: nowy potok z metodą `legacy` (obecny fBm). **Gra wygląda praktycznie tak 
 
 Ryzyka: wydajność na iPadzie (dodatkowe kroki) → pomiar przed/po. Różnice wyglądu legacy → test porównawczy z dotychczasowym `height()`.
 
-### Etap 3 — trzy metody terenu (v0.19)
+### Etap 3 — trzy metody terenu (v0.22)
 | Plik | Zmiana |
 |---|---|
 | `src/core/random/noise.ts` | + szum grzbietowy (ridged), szum komórkowy (Worley) do płyt i kraterów |
@@ -263,7 +265,7 @@ Ryzyka: wydajność na iPadzie (dodatkowe kroki) → pomiar przed/po. Różnice 
 
 Ryzyka: koszt erozji (limit iteracji, pomiar) i drobne różnice liczb zmiennoprzecinkowych między silnikami (§ 2.6).
 
-### Etap 4 — sześć profili (v0.20)
+### Etap 4 — sześć profili (v0.23)
 | Plik | Zmiana |
 |---|---|
 | `src/data/profiles/{terrestrial,arid,ice,oceanic,volcanic,barren}.ts`, `index.ts` | nowe — dane profili (robocze) |
@@ -274,7 +276,7 @@ Ryzyka: koszt erozji (limit iteracji, pomiar) i drobne różnice liczb zmiennopr
 
 Ryzyka: wygląd istniejących planet się zmienia (pytanie 1), a nazwy profili wymagają Lore Bible (status „robocza”).
 
-### Etap 5 — woda i lawa (v0.21)
+### Etap 5 — woda i lawa (v0.24)
 | Plik | Zmiana |
 |---|---|
 | `src/core/surface/hydrology.ts` | priority-flood, jeziora, akumulacja spływu, rzeki |
@@ -285,7 +287,7 @@ Ryzyka: wygląd istniejących planet się zmienia (pytanie 1), a nazwy profili w
 
 Ryzyka: liczba draw calli (+2 siatki), przezroczystość w Safari i koszt shadera. Zapas mierzony licznikiem FPS.
 
-### Etap 6 — światło, atmosfera, kamera (v0.22)
+### Etap 6 — światło, atmosfera, kamera (v0.25)
 | Plik | Zmiana |
 |---|---|
 | `PlanetView.ts`, `atmosphere.ts` | światło i atmosfera z profilu, strona nocna |
@@ -295,8 +297,8 @@ Ryzyka: liczba draw calli (+2 siatki), przezroczystość w Safari i koszt shader
 
 Ryzyka: konflikt gestów. Istniejące testy gestów są punktem odniesienia.
 
-### Etap 7 — przebudowa UI (v0.23)
-Łączy się z planem „etap 4 interfejs” z v0.17 (`docs/decisions.md`).
+### Etap 7 — przebudowa UI (v0.26)
+Łączy się z planem „etap 4 interfejs” z v0.17 (`docs/decisions.md`). Dolny pasek i wysuwany panel istnieją od v0.19 (pliki mogą mieć inne nazwy niż w tabeli) — tu zostaje to, czego jeszcze brakuje.
 
 | Plik | Zmiana |
 |---|---|
@@ -309,7 +311,7 @@ Ryzyka: konflikt gestów. Istniejące testy gestów są punktem odniesienia.
 
 Ryzyka: największy obszar regresji. Logika gry się nie zmienia; zmienia się tylko widok.
 
-### Etap 8 — laboratorium planet i walidacja (v0.24)
+### Etap 8 — laboratorium planet i walidacja (v0.27)
 | Plik | Zmiana |
 |---|---|
 | `src/game/scenes/PlanetLabScene.ts` | nowy — Ustawienia → Diagnostyka → „Laboratorium planet”: wybór metody, profilu i seeda, ponowne generowanie, obrót, zoom, poziom wody |
