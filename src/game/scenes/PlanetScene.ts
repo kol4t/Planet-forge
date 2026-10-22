@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { GameController } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled } from '../../core/economy/economy.ts';
-import type { AiAction, AiRuleId } from '../../core/ai/advisor.ts';
+import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
 import { ringLimit } from '../../core/research/research.ts';
 import type { BuildingId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
@@ -10,7 +10,18 @@ import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
 import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
 import { openTextPanel } from '../ui/textPanel.ts';
-import { computeLayout, TOUCH, type Insets, type Layout, type PanelState, type Rect } from '../ui/layout.ts';
+import {
+  computeLayout,
+  DOCK_ORDER,
+  DOCK_PANELS,
+  TOUCH,
+  type DockItemId,
+  type Insets,
+  type Layout,
+  type PanelId,
+  type PanelState,
+  type Rect,
+} from '../ui/layout.ts';
 import { loadPanels, savePanels } from '../ui/uiPrefs.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 import { OVERLAY_CLOSED } from './OverlayScene.ts';
@@ -88,6 +99,17 @@ const RICHNESS_ROWS: readonly [YieldId, string, number][] = [
 
 const YIELD_NAMES: Record<YieldId, string> = { metal: 'metal', crystal: 'kryształy', energy: 'energia' };
 
+const DOCK_LABELS: Record<DockItemId, string> = {
+  production: 'Produkcja',
+  research: 'Badania',
+  map: 'Mapa',
+  empire: 'Imperium',
+  planet: 'Planeta',
+  ai: 'SI',
+};
+
+const PANEL_TITLES: Record<PanelId, string> = { production: 'PRODUKCJA', planet: 'PLANETA', ai: 'SI MATKA' };
+
 /** HUD gry. Współrzędne liczone w punktach CSS, rysowane w pikselach urządzenia (px()). */
 export class PlanetScene extends Phaser.Scene {
   private readonly deps: SceneDeps;
@@ -104,10 +126,12 @@ export class PlanetScene extends Phaser.Scene {
   /** Bieżąca pozycja planety na ekranie (do płynnego przejścia przy zwijaniu paneli). */
   private focus: { cx: number; cy: number; r: number } | null = null;
   private focusTween: Phaser.Tweens.Tween | undefined;
-  /** Zwinięta „Produkcja”: pasek postępu budowy na zakładce. */
-  private productionTab: { progress: Phaser.GameObjects.Graphics; bar: { x: number; y: number; w: number } } | null = null;
+  /** Przycisk „Produkcja” na dolnym pasku: pasek postępu budowy (gdy panel jest zamknięty). */
+  private dockProgress: { progress: Phaser.GameObjects.Graphics; bar: { x: number; y: number; w: number } } | null = null;
+  /** Otwarty panel SI: stan reguł przy ostatnim rysowaniu (zmiana = przebudowa). */
+  private aiPanelShape = '';
   /** Dymek SI Matki z bieżącą propozycją (klucz = propozycja + poziom). */
-  private aiBubble: { container: Phaser.GameObjects.Container; key: string; top: number; bottom: boolean } | null = null;
+  private aiBubble: { container: Phaser.GameObjects.Container; key: string } | null = null;
   private refreshTimer = 0;
   private cancelArmedUntil = 0;
   /** Przełączenie na nową wersję gry (gdy service worker ją pobrał). */
@@ -249,17 +273,18 @@ export class PlanetScene extends Phaser.Scene {
   relayout(animate = false): void {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
-    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels);
+    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels, this.deps.controller.aiUnlocked ? AI_RULES.length : 0);
     this.layoutState = layout;
     this.deps.display.resize(viewport.width, viewport.height);
     this.moveFocus(layout.planet, animate);
     this.ui?.destroy(true);
     this.ui = this.add.container(0, 0);
     this.cards = [];
-    this.productionTab = null;
+    this.dockProgress = null;
+    this.aiPanelShape = '';
     this.buildTopBar(layout);
-    this.buildInfo(layout);
-    this.buildProduction(layout);
+    this.buildPanel(layout);
+    this.buildDock(layout);
     this.buildUpdateBanner(layout);
     this.aiBubble = null;
     this.refreshValues();
@@ -293,14 +318,24 @@ export class PlanetScene extends Phaser.Scene {
     });
   }
 
-  private togglePanel(key: keyof PanelState): void {
-    this.panels = { ...this.panels, [key]: !this.panels[key] };
+  /** Przycisk panelu na dolnym pasku: otwiera panel, drugie dotknięcie go zamyka. */
+  private togglePanel(id: PanelId): void {
+    this.panels = { open: this.panels.open === id ? null : id };
     savePanels(this.panels);
+    this.closeOverlay();
     this.relayout(true);
   }
 
-  /** Mały przycisk-ikona (44 × 44 pt): minimalizuj / rozwiń / menu „hamburger”. */
-  private iconButton(rect: Rect, kind: 'minimize' | 'expand' | 'menu', onTap: () => void): void {
+  /** Przycisk dolnego paska albo pozycja menu. */
+  private openDockItem(id: DockItemId): void {
+    if (DOCK_PANELS.has(id)) this.togglePanel(id as PanelId);
+    else if (id === 'research') this.openResearch();
+    else if (id === 'map') this.openMap();
+    else this.openScreen('empire');
+  }
+
+  /** Mały przycisk-ikona (44 × 44 pt): zamknij / menu „hamburger”. */
+  private iconButton(rect: Rect, kind: 'close' | 'menu', onTap: () => void): void {
     const g = this.add.graphics();
     const cx = this.px(rect.x + rect.w / 2);
     const cy = this.px(rect.y + rect.h / 2);
@@ -311,8 +346,9 @@ export class PlanetScene extends Phaser.Scene {
     if (kind === 'menu') {
       for (const dy of [-1, 0, 1]) g.lineBetween(cx - half, cy + dy * this.px(this.s(4.5)), cx + half, cy + dy * this.px(this.s(4.5)));
     } else {
-      g.lineBetween(cx - half, cy, cx + half, cy);
-      if (kind === 'expand') g.lineBetween(cx, cy - half, cx, cy + half);
+      const d = half * 0.8;
+      g.lineBetween(cx - d, cy - d, cx + d, cy + d);
+      g.lineBetween(cx - d, cy + d, cx + d, cy - d);
     }
     const zone = this.add
       .zone(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h))
@@ -491,14 +527,77 @@ export class PlanetScene extends Phaser.Scene {
     };
   }
 
-  /** Panel planety: nazwa, typ, seed, klasa, przyciski; rozwinięty także złoża i środowisko. */
-  private buildInfo(layout: Layout): void {
-    const { rect: box, open, toggle } = layout.info;
+  /** Dolny pasek: menu, przyciski paneli i ekranów (otwarty panel podświetlony). */
+  private buildDock(layout: Layout): void {
+    const { rect, menu, items } = layout.dock;
+    this.panel(rect);
+    this.iconButton(menu, 'menu', () => this.openMenu());
+    const open = this.panels.open;
+    for (const { id, rect: r } of items) {
+      const active = open === id;
+      this.addButton(r.x, r.y, r.w, r.h, DOCK_LABELS[id], active ? 'primary' : 'secondary', () => this.openDockItem(id), r.w < this.s(96) ? 12 : 13);
+      if (id === 'production' && !active) {
+        const progress = this.add.graphics();
+        this.ui!.add(progress);
+        this.dockProgress = { progress, bar: { x: r.x + this.s(10), y: r.y + r.h - this.s(7), w: r.w - this.s(20) } };
+      }
+    }
+  }
+
+  /** Otwarty panel nad dolnym paskiem: ramka, tytuł, „zamknij” i treść. */
+  private buildPanel(layout: Layout): void {
+    const panel = layout.panel;
+    if (!panel) return;
+    this.panel(panel.rect, panel.id === 'planet');
+    this.text(panel.rect.x + this.s(14), panel.rect.y + this.s(13), PANEL_TITLES[panel.id], 11, panel.id === 'ai' ? COLORS.antimatter : COLORS.teal, {
+      fontStyle: '600',
+      letterSpacing: 1.5,
+    });
+    this.iconButton(panel.close, 'close', () => this.togglePanel(panel.id));
+    if (panel.id === 'production') this.buildProduction(layout.cards);
+    else if (panel.id === 'planet') this.buildPlanetInfo(panel.body);
+    else this.buildAiPanel(panel.body);
+  }
+
+  /** Menu (przycisk z trzema kreskami): wszystkie przyciski paska i ustawienia. */
+  private openMenu(): void {
+    if (this.overlay) return;
+    const layout = this.layoutState!;
+    const viewport = this.deps.getViewport();
+    const shade = this.add.rectangle(0, 0, this.px(viewport.width), this.px(viewport.height), 0x000000, 0.35).setOrigin(0).setInteractive();
+    shade.on('pointerup', () => this.closeOverlay());
+    const entries: [string, () => void][] = [
+      ...DOCK_ORDER.map((id): [string, () => void] => [DOCK_LABELS[id], () => (this.closeOverlay(), this.openDockItem(id))]),
+      ['Ustawienia', () => (this.closeOverlay(), this.openSettings())],
+    ];
+    const pad = this.s(10);
+    const gap = this.s(6);
+    const w = Math.min(this.s(240), viewport.width - 2 * this.s(10));
+    const h = 2 * pad + entries.length * TOUCH + (entries.length - 1) * gap;
+    const x = layout.dock.rect.x;
+    const y = Math.max(layout.topBar.y, layout.dock.rect.y - this.s(8) - h);
+    const box = this.add
+      .graphics()
+      .fillStyle(COLORS.panel, 0.98)
+      .fillRoundedRect(0, 0, this.px(w), this.px(h), this.px(this.s(14)))
+      .lineStyle(this.px(1), COLORS.goldHex, 0.6)
+      .strokeRoundedRect(0, 0, this.px(w), this.px(h), this.px(this.s(14)));
+    const blocker = this.add.zone(0, 0, this.px(w), this.px(h)).setOrigin(0).setInteractive();
+    const buttons = entries.map(([label, onTap], i) =>
+      new Button(this, this.px(pad), this.px(pad + i * (TOUCH + gap)), this.px(w - 2 * pad), this.px(TOUCH), label, this.dpr, onTap, this.s(14)).setStyle(
+        'secondary',
+      ),
+    );
+    const dialog = this.add.container(this.px(x), this.px(y), [box, blocker, ...buttons]);
+    this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+  }
+
+  /** Panel „Planeta”: nazwa, typ, adres, złoża i środowisko. */
+  private buildPlanetInfo(box: Rect): void {
     const { planet } = this.deps.controller;
     const g = planet.gameplay;
-    this.panel(box, true);
-    this.iconButton(toggle, open ? 'minimize' : 'expand', () => this.togglePanel('infoOpen'));
-    const pad = this.s(14);
+    const pad = this.s(6);
+    const w = box.w - 2 * pad;
     const percent = (m: number | undefined) =>
       m && m !== 1 ? `${m > 1 ? '+' : ''}${Math.round((m - 1) * 100)}%` : null;
     const effects =
@@ -509,78 +608,89 @@ export class PlanetScene extends Phaser.Scene {
         })
         .filter(Boolean)
         .join(' · ') || 'bez efektów';
-    const buttonH = TOUCH;
-    const buttons = (x: number, y: number, w: number, fontSize = 13.5) => {
-      const half = (w - this.s(8)) / 2;
-      this.addButton(x, y, half, buttonH, 'Imperium', 'secondary', () => this.openScreen('empire'), fontSize);
-      this.addButton(x + half + this.s(8), y, half, buttonH, 'Ustawienia', 'secondary', () => this.openSettings(), fontSize);
-    };
-    const nameW = box.w - 2 * pad - TOUCH;
-
-    if (layout.mode === 'sides') {
-      let y = box.y + pad - this.s(2);
-      this.text(box.x + pad, y, 'PLANETA', 9.5, COLORS.muted, { fontStyle: '600' });
-      y += this.s(13);
-      this.text(box.x + pad, y, planet.displayName, 22, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(nameW) });
-      y += this.s(30);
-      this.text(box.x + pad, y, `${planet.category} · ${g.sizeClass.label} · ${formatInt(g.radiusKm)} km`, 11.5, COLORS.stone, {
-        wordWrap: { width: this.px(box.w - 2 * pad) },
-      });
-      y += this.s(17);
-      this.text(box.x + pad, y, addressLine(this.deps.controller.address, planet.seed), 10.5, COLORS.faint, { fontFamily: FONTS.mono });
-      y += this.s(22);
-      if (open) {
-        this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
-        y += this.s(15);
-        for (const [id, label, color] of RICHNESS_ROWS) {
-          this.richnessBar(box.x + pad, y, box.w - 2 * pad, label, g.richness[id], color);
-          y += this.s(26);
-        }
-        y += this.s(2);
-        this.text(box.x + pad, y, 'ŚRODOWISKO', 9.5, COLORS.muted, { fontStyle: '600' });
-        y += this.s(14);
-        this.text(box.x + pad, y, g.environment.label, 13.5, COLORS.text, { fontStyle: '600' });
-        y += this.s(19);
-        this.text(box.x + pad, y, `${g.environment.description}\n${effects}`, 11, COLORS.muted, {
-          wordWrap: { width: this.px(box.w - 2 * pad) },
-          lineSpacing: this.px(2),
-        });
-      }
-      const half = (box.w - 2 * pad - this.s(8)) / 2;
-      const rowY = box.y + box.h - pad - 2 * buttonH - this.s(8);
-      this.addButton(box.x + pad, rowY, half, buttonH, 'Badania', 'secondary', () => this.openResearch(), 13.5);
-      this.addButton(box.x + pad + half + this.s(8), rowY, half, buttonH, 'Mapa', 'secondary', () => this.openMap(), 13.5);
-      buttons(box.x + pad, box.y + box.h - pad - buttonH, box.w - 2 * pad);
-      return;
-    }
-
-    // Pionowo: zwinięty = jeden wiersz (nazwa + przyciski); rozwinięty = dwie kolumny.
-    const colW = (box.w - 3 * pad - TOUCH) / 2;
-    const btnW = Math.min(colW, this.s(260));
-    if (!open) {
-      const y = box.y + (box.h - this.s(38)) / 2;
-      this.text(box.x + pad, y, planet.displayName, 18, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(colW) });
-      this.text(box.x + pad, y + this.s(24), `${planet.category} · ${this.deps.controller.address}`, 10.5, COLORS.faint, { fixedWidth: this.px(colW) });
-      buttons(box.x + 2 * pad + colW, box.y + (box.h - buttonH) / 2, btnW, 12.5);
-      return;
-    }
-    let y = box.y + this.s(10);
-    this.text(box.x + pad, y, planet.displayName, 19, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(colW) });
-    y += this.s(26);
-    this.text(box.x + pad, y, `${planet.category} · ${g.sizeClass.label} · ${formatInt(g.radiusKm)} km`, 10.5, COLORS.stone, {
-      wordWrap: { width: this.px(colW) },
+    let y = box.y;
+    this.text(box.x + pad, y, planet.displayName, 22, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(w) });
+    y += this.s(30);
+    this.text(box.x + pad, y, `${planet.category} · ${g.sizeClass.label} · ${formatInt(g.radiusKm)} km`, 11.5, COLORS.stone, {
+      wordWrap: { width: this.px(w) },
     });
+    y += this.s(17);
+    this.text(box.x + pad, y, addressLine(this.deps.controller.address, planet.seed), 10.5, COLORS.faint, { fontFamily: FONTS.mono });
+    y += this.s(24);
+    this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
     y += this.s(15);
-    this.text(box.x + pad, y, addressLine(this.deps.controller.address, planet.seed), 10, COLORS.faint, { fontFamily: FONTS.mono });
-    buttons(box.x + pad, box.y + box.h - this.s(8) - buttonH, btnW, 12.5);
-    const x2 = box.x + 2 * pad + colW;
-    let y2 = box.y + this.s(10);
-    this.text(x2, y2, `${g.environment.label} · ${effects}`, 11.5, COLORS.text, { fontStyle: '600', fixedWidth: this.px(colW) });
-    y2 += this.s(20);
     for (const [id, label, color] of RICHNESS_ROWS) {
-      this.richnessBar(x2, y2, colW, label, g.richness[id], color, true);
-      y2 += this.s(19);
+      this.richnessBar(box.x + pad, y, w, label, g.richness[id], color);
+      y += this.s(26);
     }
+    y += this.s(4);
+    this.text(box.x + pad, y, 'ŚRODOWISKO', 9.5, COLORS.muted, { fontStyle: '600' });
+    y += this.s(14);
+    this.text(box.x + pad, y, g.environment.label, 13.5, COLORS.text, { fontStyle: '600' });
+    y += this.s(19);
+    this.text(box.x + pad, y, `${g.environment.description}\n${effects}`, 11, COLORS.muted, {
+      wordWrap: { width: this.px(w) },
+      lineSpacing: this.px(2),
+    });
+  }
+
+  /** Panel „SI”: stan SI Matki i samodzielność każdej reguły (pełny opis w „Imperium” → „SI”). */
+  private buildAiPanel(box: Rect): void {
+    const c = this.deps.controller;
+    this.aiPanelShape = this.aiShape();
+    const pad = this.s(6);
+    const w = box.w - 2 * pad;
+    const x = box.x + pad;
+    const bottom = box.y + box.h;
+    let y = box.y;
+    const line = (content: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}, after = 6) => {
+      const t = this.text(x, y, content, size, color, { wordWrap: { width: this.px(w) }, lineSpacing: this.px(2), ...extra });
+      y += t.height / this.dpr + this.s(after);
+    };
+    const more = () => this.addButton(x, bottom - TOUCH, w, TOUCH, 'Więcej w „Imperium” → SI', 'secondary', () => this.openScreen('empire', { tab: 'ai' }), 13);
+    if (!c.aiUnlocked) {
+      line('SI Matka jeszcze śpi. Zbadaj „SI Matka” (Badania → ramię SI), a zacznie proponować działania.', 12.5, COLORS.muted, {}, 12);
+      this.addButton(x, y, w, TOUCH, 'Otwórz Badania', 'secondary', () => this.openResearch(), 13);
+      return;
+    }
+    line(
+      c.aiAutoUnlocked
+        ? 'Wybierz, jak samodzielna ma być SI dla każdej reguły.'
+        : 'SI pyta o zgodę. Działanie bez pytania odblokuje badanie „SI wykonawcze”.',
+      11.5,
+      COLORS.muted,
+      {},
+      10,
+    );
+    const levels: [AiLevel, string][] = [
+      ['propose', 'Podpowiada'],
+      ['ask', 'Pyta'],
+      ['auto', 'Samo'],
+    ];
+    const gap = this.s(6);
+    const bw = (w - 2 * gap) / 3;
+    const rowH = this.s(20) + TOUCH + this.s(10);
+    for (const rule of AI_RULES) {
+      // Reguły, które się nie mieszczą, są w „Imperium” → „SI”.
+      if (y + rowH > bottom - TOUCH - this.s(8)) break;
+      line(rule.name, 13, COLORS.text, { fontStyle: '600' }, 4);
+      levels.forEach(([level, label], i) => {
+        const current = c.aiLevel(rule.id) === level;
+        const locked = level === 'auto' && !c.aiAutoUnlocked;
+        this.addButton(x + i * (bw + gap), y, bw, TOUCH, label, current ? 'primary' : locked ? 'disabled' : 'secondary', () => {
+          const result = c.setAiLevel(rule.id, level);
+          if (!result.ok) this.showToast(result.message, 'info', 3200);
+          this.relayout();
+        }, 12.5);
+      });
+      y += TOUCH + this.s(10);
+    }
+    more();
+  }
+
+  private aiShape(): string {
+    const c = this.deps.controller;
+    return `${c.aiUnlocked}|${c.aiAutoUnlocked}|${AI_RULES.map((r) => c.aiLevel(r.id)).join(',')}`;
   }
 
   private richnessBar(x: number, y: number, w: number, label: string, value: number, color: number, compact = false): void {
@@ -594,30 +704,8 @@ export class PlanetScene extends Phaser.Scene {
     this.ui!.add(g);
   }
 
-  /** Panel „Produkcja”: rozwinięty (nagłówek + karty budynków) albo zwinięty do zakładki. */
-  private buildProduction(layout: Layout): void {
-    const { rect, open, toggle, cards } = layout.production;
-    if (!open) {
-      // Zakładka: ikona menu + napis; pasek postępu, gdy coś się buduje.
-      this.panel(rect, true);
-      this.iconButton({ x: rect.x, y: rect.y, w: TOUCH, h: rect.h }, 'menu', () => this.togglePanel('productionOpen'));
-      this.text(rect.x + TOUCH, rect.y + rect.h / 2 - this.s(2), 'PRODUKCJA', 11, COLORS.teal, { fontStyle: '600', letterSpacing: 1.5 }).setOrigin(
-        0,
-        0.5,
-      );
-      const progress = this.add.graphics();
-      this.ui!.add(progress);
-      this.productionTab = { progress, bar: { x: rect.x + TOUCH, y: rect.y + rect.h - this.s(9), w: rect.w - TOUCH - this.s(12) } };
-      // Cała zakładka rozwija panel.
-      const zone = this.add.zone(this.px(rect.x + TOUCH), this.px(rect.y), this.px(rect.w - TOUCH), this.px(rect.h)).setOrigin(0).setInteractive();
-      zone.on('pointerup', () => this.togglePanel('productionOpen'));
-      this.ui!.add(zone);
-      return;
-    }
-    this.panel(rect);
-    if (layout.production.overflow) this.panel(layout.production.overflow);
-    this.text(rect.x + this.s(14), rect.y + this.s(13), 'PRODUKCJA', 11, COLORS.teal, { fontStyle: '600', letterSpacing: 1.5 });
-    this.iconButton(toggle, 'menu', () => this.togglePanel('productionOpen'));
+  /** Karty budynków w panelu „Produkcja”. */
+  private buildProduction(cards: Rect[]): void {
     BALANCE.buildings.forEach((def, index) => {
       const card = cards[index]!;
       this.subPanel(card);
@@ -722,9 +810,13 @@ export class PlanetScene extends Phaser.Scene {
       controller.economy.levels,
       construction ? { building: construction.building, targetLevel: construction.targetLevel, progress } : null,
     );
-    if (this.productionTab) {
-      // Zwinięta „Produkcja”: cienki złoty pasek postępu budowy pod napisem.
-      const { progress: g, bar } = this.productionTab;
+    if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
+      this.relayout();
+      return;
+    }
+    if (this.dockProgress) {
+      // Zamknięta „Produkcja”: cienki złoty pasek postępu budowy na przycisku paska.
+      const { progress: g, bar } = this.dockProgress;
       g.clear();
       if (construction) {
         const h = this.s(3);
@@ -899,30 +991,11 @@ export class PlanetScene extends Phaser.Scene {
     this.aiBubble = null;
     if (!suggestion) return;
     const controller = this.deps.controller;
-    const viewport = this.deps.getViewport();
-    const gap = this.s(10);
-    // Miejsce: między panelami u góry (szeroki ekran), pod panelem planety (telefon), na dole (tablet pionowo).
-    const info = layout.info.rect;
-    const prod = layout.production.rect;
-    const middle = prod.x - (info.x + info.w) - 2 * gap;
-    let w: number;
-    let x: number;
-    let anchor: 'top' | 'bottom';
-    let top = layout.topBar.y + layout.topBar.h + gap;
-    if (layout.mode === 'stacked') {
-      w = info.w;
-      x = info.x;
-      top = info.y + info.h + gap;
-      anchor = 'top';
-    } else if (middle >= this.s(320)) {
-      w = Math.min(this.s(460), middle);
-      x = info.x + info.w + gap + (middle - w) / 2;
-      anchor = 'top';
-    } else {
-      w = Math.min(this.s(460), viewport.width - 2 * gap);
-      x = (viewport.width - w) / 2;
-      anchor = 'bottom';
-    }
+    // Miejsce: u góry wolnego miejsca obok panelu (nad planetą).
+    const stage = layout.stage;
+    const w = Math.min(this.s(460), stage.w);
+    const x = stage.x + (stage.w - w) / 2;
+    const top = stage.y;
     const pad = this.s(12);
     const items: Phaser.GameObjects.GameObject[] = [];
     const t = (y: number, content: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}) => {
@@ -941,8 +1014,7 @@ export class PlanetScene extends Phaser.Scene {
     y = t(y, suggestion.text, 13.5, COLORS.text, { fontStyle: '600' }) + this.s(2);
     y = t(y, suggestion.reason, 11.5, COLORS.muted) + this.s(10);
     const h = y + TOUCH + pad;
-    const bottom = viewport.height - viewport.safe.bottom - gap;
-    const by = anchor === 'top' ? top : bottom - h;
+    const by = top;
     const bg = this.add.graphics();
     const radius = this.px(this.s(12));
     bg.fillStyle(COLORS.panel, 0.96).fillRoundedRect(0, 0, this.px(w), this.px(h), radius);
@@ -964,7 +1036,7 @@ export class PlanetScene extends Phaser.Scene {
     );
     const container = this.add.container(this.px(x), this.px(by), [bg, blocker, ...items, ...buttons]).setDepth(40);
     this.ui.add(container);
-    this.aiBubble = { container, key, top: by, bottom: anchor === 'bottom' };
+    this.aiBubble = { container, key };
   }
 
   private onAiAccept(key: string, action: AiAction, always = false): void {
@@ -1003,12 +1075,7 @@ export class PlanetScene extends Phaser.Scene {
       .lineStyle(this.px(1), kind === 'error' ? COLORS.dangerHex : COLORS.tealHex, 0.7)
       .strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2);
     const toast = this.add
-      // Dymek SI na dole ekranu — komunikat nad nim, żeby go nie zasłaniał.
-      .container(
-        this.px(layout.planet.cx),
-        this.px(this.aiBubble?.bottom ? Math.min(layout.toastY, this.aiBubble.top) : layout.toastY) - (this.aiBubble?.bottom ? h / 2 + this.px(8) : 0),
-        [bg, label],
-      )
+      .container(this.px(layout.stage.x + layout.stage.w / 2), this.px(layout.toastY), [bg, label])
       .setDepth(50)
       .setAlpha(0);
     this.toast = toast;
@@ -1036,9 +1103,7 @@ export class PlanetScene extends Phaser.Scene {
     const viewport = this.deps.getViewport();
     const w = Math.min(viewport.width - 2 * this.s(16), this.s(380));
     const h = this.s(60);
-    const top = layout.topBar.y + layout.topBar.h + this.s(12);
-    const info = layout.info.rect;
-    const y = Math.max(layout.mode === 'stacked' ? info.y + info.h + this.s(12) : top, layout.planet.cy - layout.planet.r - h - this.s(8));
+    const y = Math.max(layout.stage.y, layout.planet.cy - layout.planet.r - h - this.s(8));
     const rect: Rect = { x: layout.planet.cx - w / 2, y, w, h };
     this.panel(rect, true);
     const pad = this.s(10);

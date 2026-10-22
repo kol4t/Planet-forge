@@ -1,5 +1,6 @@
-// Układ ekranu: czysta funkcja (rozmiar okna + stan paneli) → prostokąty (testowalna bez Phaser).
-// Planeta jest tłem gry: zajmuje wolne miejsce między panelami, a po ich zwinięciu rośnie.
+// Układ ekranu: czysta funkcja (rozmiar okna + otwarty panel) → prostokąty (testowalna bez Phaser).
+// Od v0.19 (szkice właściciela): pasek zasobów u góry, dolny pasek z przyciskami, nad nim wysuwany
+// panel; planeta zajmuje najwyżej ~30% ekranu i stoi w wolnym miejscu obok panelu.
 // Jeden system dla komputera, tabletu i telefonu — wielkość UI skaluje `u`.
 
 export interface Rect {
@@ -16,221 +17,180 @@ export interface Insets {
   left: number;
 }
 
-/** Stan paneli (zapamiętywany na urządzeniu). */
+/** Panele wysuwane z dolnego paska. */
+export type PanelId = 'production' | 'planet' | 'ai';
+/** Przyciski dolnego paska: panel albo ekran pełnoekranowy. */
+export type DockItemId = PanelId | 'research' | 'map' | 'empire';
+
+/** Kolejność przycisków dolnego paska — gdy brakuje miejsca, ostatnie trafiają tylko do menu. */
+export const DOCK_ORDER: readonly DockItemId[] = ['production', 'research', 'map', 'empire', 'planet', 'ai'];
+export const DOCK_PANELS: ReadonlySet<DockItemId> = new Set<DockItemId>(['production', 'planet', 'ai']);
+
+/** Stan paneli (zapamiętywany na urządzeniu): otwarty jest najwyżej jeden. */
 export interface PanelState {
-  infoOpen: boolean;
-  productionOpen: boolean;
+  open: PanelId | null;
 }
 
 export interface Layout {
   /**
-   * `sides`: panel planety po lewej, produkcja po prawej (komputer, tablet w obu orientacjach).
-   * `stacked`: panel planety u góry, produkcja na dole (telefon — za wąski na boki).
+   * `side`: panel po lewej, planeta po prawej (komputer, tablet, telefon poziomo).
+   * `sheet`: panel na całą szerokość nad dolnym paskiem, planeta nad nim (telefon pionowo).
    */
-  mode: 'sides' | 'stacked';
+  mode: 'side' | 'sheet';
   /** Mnożnik wielkości UI (telefon ~0,8, tablet ~0,9, komputer do 1,1). */
   u: number;
   topBar: Rect;
-  info: {
+  dock: {
     rect: Rect;
-    open: boolean;
-    /** Przycisk zwijania (prawy górny róg panelu). */
-    toggle: Rect;
+    /** Okrągły przycisk menu po lewej. */
+    menu: Rect;
+    items: { id: DockItemId; rect: Rect }[];
+    /** Przyciski, które się nie zmieściły (dostępne w menu). */
+    hidden: DockItemId[];
   };
-  production: {
-    open: boolean;
-    /** Rozwinięty: cały panel. Zwinięty: mała zakładka „Produkcja”. */
+  /** Otwarty panel albo null. */
+  panel: {
+    id: PanelId;
     rect: Rect;
-    toggle: Rect;
-    /** Karty budynków (puste, gdy zwinięty). */
-    cards: Rect[];
-    /** Szeroki ekran: dodatkowy panel pod panelem planety na karty spoza prawej kolumny. */
-    overflow: Rect | null;
-  };
+    /** Przycisk zamykania (prawy górny róg). */
+    close: Rect;
+    /** Miejsce na treść pod nagłówkiem. */
+    body: Rect;
+  } | null;
+  /** Karty budynków (tylko przy otwartym panelu „Produkcja”). */
+  cards: Rect[];
+  /** Wolne miejsce na planetę (poza panelami). */
+  stage: Rect;
   planet: { cx: number; cy: number; r: number };
   toastY: number;
 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
-export const OPEN_PANELS: PanelState = { infoOpen: true, productionOpen: true };
+export const NO_PANEL: PanelState = { open: null };
 
 /** Przycisk dotykowy — zawsze co najmniej 44 pt. */
 export const TOUCH = 44;
-/** Nagłówek panelu „Produkcja”. */
+/** Planeta (średnica) zajmuje najwyżej tyle dłuższego boku ekranu (decyzja właściciela: ≤ 30%). */
+export const PLANET_SCREEN_SHARE = 0.3;
+/** Nagłówek panelu. */
 const HEADER_H = 40;
-/** Karta budynku w kolumnie (poziomo). */
-const CARD_H_COLUMN = 124;
-/** Karta w siatce (pionowo) — węższa karta = więcej zawijania tekstu. */
-const cardHeightFor = (cardW: number, u: number) => (cardW >= 210 * u ? 132 : cardW >= 160 * u ? 150 : 168);
+/** Wysokość karty budynku zależna od szerokości (węższa karta = więcej zawijania tekstu). */
+const cardHeightFor = (cardW: number, u: number) => (cardW >= 230 * u ? 128 : 176) * u;
 
 export function computeLayout(
   width: number,
   height: number,
   safe: Insets = NO_INSETS,
   cardCount = 6,
-  state: PanelState = OPEN_PANELS,
+  state: PanelState = NO_PANEL,
+  /** Liczba reguł w panelu SI (0 = SI jeszcze niezbadana — krótki panel). */
+  aiRows = 4,
 ): Layout {
   const u = clamp(Math.min(width, height) / 880, 0.8, 1.1);
   const gap = Math.round(10 * u);
+  const pad = Math.round(8 * u);
   const left = safe.left + gap;
   const right = width - safe.right - gap;
   const top = safe.top + gap;
   const bottom = height - safe.bottom - gap;
   const innerW = right - left;
   const topBar: Rect = { x: left, y: top, w: innerW, h: Math.round(54 * u) };
+  const dock = dockLayout({ x: left, y: bottom - Math.max(TOUCH + 12, Math.round(62 * u)), w: innerW, h: Math.max(TOUCH + 12, Math.round(62 * u)) }, u);
   const contentTop = topBar.y + topBar.h + gap;
-  const avail = bottom - contentTop;
-  const pad = Math.round(8 * u);
-  const toggleAt = (r: Rect): Rect => ({ x: r.x + r.w - TOUCH, y: r.y, w: TOUCH, h: TOUCH });
+  const contentBottom = dock.rect.y - gap;
+  const avail = contentBottom - contentTop;
+  const minPlanet = 60;
 
-  // Panele po bokach na komputerze i tablecie (poziomo i pionowo); telefon → góra/dół.
-  const wide = width / height >= 1.15;
-  if ((wide && width >= 700 && height >= 500) || (!wide && width >= 600 && height >= 700)) {
-    // ——— panele po bokach: planeta pośrodku, panel planety po lewej, produkcja po prawej ———
-    const infoW = clamp(width * (wide ? 0.24 : 0.29), 220, 320);
-    const info: Rect = {
-      x: left,
-      y: contentTop,
-      w: infoW,
-      // +52: przycisk „Badania” nad „Planety”/„Ustawienia”.
-      h: Math.min(avail, Math.round((state.infoOpen ? 404 : 210) * u)),
-    };
+  const side = width >= 600;
+  let panel: Layout['panel'] = null;
+  let cards: Rect[] = [];
+  let stage: Rect = { x: left, y: contentTop, w: innerW, h: avail };
 
-    let cardH = CARD_H_COLUMN * u;
-    const space = avail - HEADER_H * u - 2 * pad;
-    // Ile kart mieści się w kolumnie; reszta w kolejnych kolumnach (niskie ekrany, np. telefon poziomo).
-    let perColumn = clamp(Math.floor((space + gap) / (cardH + gap)), 1, cardCount);
-    // Szeroki ekran: karty, które nie mieszczą się w prawej kolumnie, trafiają pod panel planety
-    // (zamiast drugiej kolumny, która mocno zmniejsza planetę) — o ile jest tam miejsce.
-    const infoBottom = info.y + info.h + gap;
-    const extra = cardCount - perColumn;
-    const overflowH = extra * cardH + (extra - 1) * gap + 2 * pad;
-    const overflow = wide && state.productionOpen && extra > 0 && extra <= 2 && infoBottom + overflowH <= bottom;
-    if (overflow) perColumn = cardCount - extra;
-    const columnCount = overflow ? perColumn : cardCount;
-    const cols = Math.ceil(columnCount / perColumn);
-    const rows = Math.ceil(columnCount / cols);
-    // Kilka kolumn musi zmieścić się obok panelu planety.
-    const roomW = right - (left + infoW + gap) - 2 * pad - (cols - 1) * gap;
-    const cardW = Math.min(clamp(width * (wide ? 0.25 : 0.29), 220, 300), roomW / cols);
-    if (rows * cardH + (rows - 1) * gap > space) cardH = (space - (rows - 1) * gap) / rows;
-    const production = productionPanel(
-      state.productionOpen,
-      { x: right - (cols * cardW + (cols - 1) * gap + 2 * pad), y: contentTop },
-      cols,
-      rows,
-      cardW,
-      cardH,
-      columnCount,
-      pad,
-      gap,
-      u,
-      { x: right - 168 * u, y: contentTop },
-    );
-    if (overflow) {
-      const rect: Rect = { x: left, y: infoBottom, w: info.w, h: overflowH };
-      production.overflow = rect;
-      for (let i = 0; i < extra; i++) {
-        production.cards.push({ x: rect.x + pad, y: rect.y + pad + i * (cardH + gap), w: rect.w - 2 * pad, h: cardH });
-      }
-    }
-
-    let planet: Layout['planet'];
-    if (wide) {
-      // Szeroki ekran: planeta mieści się między panelami i rośnie po ich zwinięciu.
-      const x1 = state.infoOpen ? info.x + info.w + gap : left;
-      const x2 = state.productionOpen ? production.rect.x - gap : right;
-      planet = { cx: (x1 + x2) / 2, cy: contentTop + avail / 2, r: Math.max(60, Math.min((x2 - x1) / 2, avail / 2) * 0.92) };
+  if (state.open) {
+    // Panel wysuwa się z dolnego paska: dosunięty do niego, tak wysoki, jak jego treść.
+    const want = (w: number) =>
+      state.open === 'production'
+        ? HEADER_H * u + pad + gridHeight(cardGrid({ x: 0, y: 0, w: w - 2 * pad, h: Infinity }, cardCount, gap, u))
+        : state.open === 'planet'
+          ? 320 * u
+          : HEADER_H * u + (aiRows > 0 ? 50 * u + aiRows * 78 * u + TOUCH + 2 * pad : 110 * u);
+    let rect: Rect;
+    if (side) {
+      // Niski ekran (telefon poziomo): panel prawie na całą szerokość (karty w jednym wierszu),
+      // obok zostaje mała planeta.
+      const w = height < 500 ? innerW - 2 * minPlanet - 2 * gap : clamp(width * (width / height >= 1.15 ? 0.4 : 0.5), 300, 540);
+      const h = Math.min(avail, want(w));
+      rect = { x: left, y: contentBottom - h, w, h };
+      stage = { x: left + w + gap, y: contentTop, w: right - (left + w + gap), h: avail };
     } else {
-      // Wąski ekran (tablet pionowo): planeta ma stały rozmiar (mieści się obok jednego panelu),
-      // a otwarty panel „odsuwa” scenę: prawy w lewo, lewy w prawo; oba — planeta pośrodku.
-      const productionW = cols * cardW + (cols - 1) * gap + 2 * pad;
-      const sideW = Math.max(info.w, productionW);
-      const r = Math.max(60, Math.min((innerW - sideW - gap) / 2, avail / 2) * 0.95);
-      const shift = ((state.infoOpen ? info.w + gap : 0) - (state.productionOpen ? productionW + gap : 0)) / 2;
-      planet = { cx: (left + right) / 2 + shift, cy: contentTop + avail / 2, r };
+      // Nad panelem zostaje miejsce na planetę.
+      const h = Math.min(want(innerW), avail - 2 * minPlanet - 2 * gap);
+      rect = { x: left, y: contentBottom - h, w: innerW, h };
+      stage = { x: left, y: contentTop, w: innerW, h: rect.y - gap - contentTop };
     }
-    return {
-      mode: 'sides',
-      u,
-      topBar,
-      info: { rect: info, open: state.infoOpen, toggle: toggleAt(info) },
-      production,
-      planet,
-      toastY: bottom - 36 * u,
-    };
+    const body: Rect = { x: rect.x + pad, y: rect.y + HEADER_H * u, w: rect.w - 2 * pad, h: rect.h - HEADER_H * u - pad };
+    panel = { id: state.open, rect, close: { x: rect.x + rect.w - TOUCH, y: rect.y, w: TOUCH, h: TOUCH }, body };
+    if (state.open === 'production') cards = cardGrid(body, cardCount, gap, u);
   }
 
-  // ——— telefon: panel planety u góry, planeta pośrodku, produkcja na dole ———
-  // Na wąskim ekranie (telefon) tekst w kolumnie zawija się częściej — panel jest wyższy.
-  const infoOpenH = width < 520 ? 150 : 124;
-  const info: Rect = { x: left, y: contentTop, w: innerW, h: Math.round((state.infoOpen ? infoOpenH : 62) * u) };
-  // Niski ekran (telefon poziomo): węższe karty, żeby zmieściły się w jednym wierszu.
-  const minCardW = (width < 520 ? 150 : height < 500 ? 155 : 190) * u;
-  const maxCols = clamp(Math.floor((innerW - 2 * pad + gap) / (minCardW + gap)), 1, cardCount);
-  const rows = Math.ceil(cardCount / maxCols);
-  const cols = Math.ceil(cardCount / rows);
-  const cardW = (innerW - 2 * pad - gap * (cols - 1)) / cols;
-  const cardH = cardHeightFor(cardW, u) * u;
-  const panelH = HEADER_H * u + 2 * pad + rows * cardH + (rows - 1) * gap;
-  const production = productionPanel(
-    state.productionOpen,
-    { x: left, y: bottom - panelH },
-    cols,
-    rows,
-    cardW,
-    cardH,
-    cardCount,
-    pad,
-    gap,
-    u,
-    { x: right - 168 * u, y: bottom - TOUCH },
-  );
-  const y1 = info.y + info.h + gap;
-  // Rozwinięta produkcja albo zwinięta zakładka — planeta kończy się nad nią.
-  const y2 = production.rect.y - gap;
-  const r = Math.max(60, Math.min(innerW / 2, (y2 - y1) / 2) * 0.94);
-  return {
-    mode: 'stacked',
-    u,
-    topBar,
-    info: { rect: info, open: state.infoOpen, toggle: toggleAt(info) },
-    production,
-    planet: { cx: (left + right) / 2, cy: (y1 + y2) / 2, r },
-    toastY: production.rect.y - 30 * u,
-  };
+  const target = (PLANET_SCREEN_SHARE * Math.max(width, height)) / 2;
+  const r = Math.max(minPlanet, Math.min(target, (stage.w / 2) * 0.92, (stage.h / 2) * 0.92));
+  const planet = { cx: stage.x + stage.w / 2, cy: stage.y + stage.h / 2, r };
+  const toastY = (panel && !side ? panel.rect.y : dock.rect.y) - 28 * u;
+  return { mode: side ? 'side' : 'sheet', u, topBar, dock, panel, cards, stage, planet, toastY };
 }
 
-/** Panel „Produkcja”: rozwinięty (nagłówek + siatka kart) albo zwinięty do zakładki. */
-function productionPanel(
-  open: boolean,
-  origin: { x: number; y: number },
-  cols: number,
-  rows: number,
-  cardW: number,
-  cardH: number,
-  count: number,
-  pad: number,
-  gap: number,
-  u: number,
-  tabOrigin: { x: number; y: number },
-): Layout['production'] {
-  if (!open) {
-    const rect: Rect = { x: tabOrigin.x, y: tabOrigin.y, w: 168 * u, h: TOUCH };
-    return { open, rect, toggle: rect, cards: [], overflow: null };
+/** Dolny pasek: menu po lewej, potem przyciski; te, które się nie mieszczą, są tylko w menu. */
+function dockLayout(rect: Rect, u: number): Layout['dock'] {
+  const p = Math.round(6 * u);
+  const gap = Math.round(6 * u);
+  const y = rect.y + (rect.h - TOUCH) / 2;
+  const menu: Rect = { x: rect.x + p, y, w: Math.max(TOUCH, Math.round(52 * u)), h: TOUCH };
+  const x0 = menu.x + menu.w + gap * 2;
+  const room = rect.x + rect.w - p - x0;
+  const minW = 84 * u;
+  const count = clamp(Math.floor((room + gap) / (minW + gap)), 1, DOCK_ORDER.length);
+  const itemW = Math.min(132 * u, (room - (count - 1) * gap) / count);
+  const items = DOCK_ORDER.slice(0, count).map((id, i) => ({ id, rect: { x: x0 + i * (itemW + gap), y, w: itemW, h: TOUCH } }));
+  return { rect, menu, items, hidden: DOCK_ORDER.slice(count) };
+}
+
+/** Ile kolumn kart: najmniej takich, przy których karta ma wygodną szerokość i wysokość. */
+function columnsFor(w: number, count: number, gap: number, u: number): number {
+  for (let cols = 1; cols <= count; cols++) {
+    const cardW = (w - (cols - 1) * gap) / cols;
+    if (cardW <= 300 * u) return cols;
   }
-  const w = cols * cardW + (cols - 1) * gap + 2 * pad;
-  const h = HEADER_H * u + 2 * pad + rows * cardH + (rows - 1) * gap;
-  const rect: Rect = { x: origin.x, y: origin.y, w, h };
-  const cardsTop = rect.y + HEADER_H * u + pad;
+  return count;
+}
+
+const gridHeight = (cards: Rect[]) => Math.max(...cards.map((c) => c.y + c.h)) - Math.min(...cards.map((c) => c.y));
+
+/** Siatka kart w panelu „Produkcja”; przy braku wysokości więcej kolumn albo niższe karty. */
+function cardGrid(body: Rect, count: number, gap: number, u: number): Rect[] {
+  let best: { cols: number; cardW: number; cardH: number } | null = null;
+  for (let cols = columnsFor(body.w, count, gap, u); cols <= count; cols++) {
+    const cardW = (body.w - (cols - 1) * gap) / cols;
+    const rows = Math.ceil(count / cols);
+    const fitH = (body.h - (rows - 1) * gap) / rows;
+    const cardH = Math.min(cardHeightFor(cardW, u), fitH);
+    const option = { cols, cardW, cardH };
+    if (cardH >= cardHeightFor(cardW, u) - 0.5) {
+      best = option;
+      break;
+    }
+    // Nic nie mieści się w całości: karta najmniej ściśnięta (ale nie węższa niż 120 pt).
+    if (cardW >= 120 * u && (!best || cardH > best.cardH)) best = option;
+  }
+  const { cols, cardW, cardH } = best ?? { cols: count, cardW: (body.w - (count - 1) * gap) / count, cardH: body.h };
   const cards: Rect[] = [];
   for (let i = 0; i < count; i++) {
     const row = Math.floor(i / cols);
     const inRow = Math.min(cols, count - row * cols);
     // Niepełny ostatni wiersz jest wyśrodkowany.
     const offset = ((cols - inRow) * (cardW + gap)) / 2;
-    cards.push({ x: rect.x + pad + offset + (i % cols) * (cardW + gap), y: cardsTop + row * (cardH + gap), w: cardW, h: cardH });
+    cards.push({ x: body.x + offset + (i % cols) * (cardW + gap), y: body.y + row * (cardH + gap), w: cardW, h: cardH });
   }
-  return { open, rect, toggle: { x: rect.x + rect.w - TOUCH, y: rect.y, w: TOUCH, h: TOUCH }, cards, overflow: null };
+  return cards;
 }

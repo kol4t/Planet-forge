@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-22 — v0.19: nowy układ ekranu (szkice właściciela, etap 1 z 2)
+
+- **Układ ze szkiców:** pasek zasobów u góry, **dolny pasek** z przyciskami na całą szerokość, nad nim **wysuwany panel** (otwarty najwyżej jeden). Boczne panele (planeta po lewej, produkcja po prawej) usunięte.
+- **Przyciski paska:** Produkcja, Planeta, SI → wysuwają panel (drugie dotknięcie zamyka); Badania, Mapa, Imperium → ekran pełnoekranowy. Po lewej okrągły przycisk **menu** (trzy kreski): wszystkie przyciski + Ustawienia. Na wąskim ekranie (telefon) przyciski, które się nie mieszczą, są tylko w menu.
+- **Planeta ≤ 30% ekranu** (średnica ≤ 30% dłuższego boku, `PLANET_SCREEN_SHARE`); stoi pośrodku wolnego miejsca. Komputer i tablet (obie orientacje): panel po lewej, dosunięty do paska, tak wysoki jak treść — planeta przesuwa się w prawo. Telefon pionowo: panel na całą szerokość nad paskiem, planeta nad nim.
+- **Panel SI:** stan SI Matki i samodzielność reguł (Podpowiada / Pyta / Samo); pełny opis zostaje w „Imperium” → „SI”.
+- **Pamięć urządzenia:** nowy klucz `planet-forge.ui.v2` (`{ open }`); stary stan zwijanych paneli → rozwinięta produkcja = otwarta „Produkcja”.
+- **Etap 2 (następny):** ulepszanie budynków dotknięciem budowli na planecie (2D i 3D), aktywne od przybliżenia ≥ 80% drogi do maksimum (decyzja właściciela: wariant „1b”); panel „Produkcja” zostaje drugą drogą (budynki na poziomie 0).
+
 ## 2026-10-21 — v0.18: wspólny model powierzchni i planety jałowe (przebudowa generatora, etap 2)
 
 - **Decyzje właściciela:** (1) wariant A — po przebudowie wszystkie planety, także zapisane, dostają nowy teren; rozgrywka (promień, surowce, modyfikator) bez zmian. (2) roboczy typ „jałowa” na mapie galaktyki.

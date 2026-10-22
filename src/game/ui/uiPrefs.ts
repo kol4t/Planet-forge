@@ -1,17 +1,22 @@
-// Zapamiętany stan paneli (na tym urządzeniu). Brak pamięci = panele rozwinięte.
-import { OPEN_PANELS, type PanelState } from './layout.ts';
+// Zapamiętany otwarty panel (na tym urządzeniu). Brak pamięci = otwarta „Produkcja”.
+import type { PanelId, PanelState } from './layout.ts';
 
-const KEY = 'planet-forge.ui.v1';
+const KEY = 'planet-forge.ui.v2';
+/** Stan zwijanych paneli sprzed v0.19 — rozwinięta produkcja zostaje otwarta. */
+const OLD_KEY = 'planet-forge.ui.v1';
+const PANELS: readonly PanelId[] = ['production', 'planet', 'ai'];
 
 export function loadPanels(): PanelState {
   try {
-    const data = JSON.parse(globalThis.localStorage?.getItem(KEY) ?? 'null') as Partial<PanelState> | null;
-    return {
-      infoOpen: data?.infoOpen !== false,
-      productionOpen: data?.productionOpen !== false,
-    };
+    const raw = globalThis.localStorage?.getItem(KEY);
+    if (raw != null) {
+      const open = (JSON.parse(raw) as Partial<PanelState> | null)?.open;
+      return { open: PANELS.includes(open as PanelId) ? (open as PanelId) : null };
+    }
+    const old = JSON.parse(globalThis.localStorage?.getItem(OLD_KEY) ?? 'null') as { productionOpen?: boolean } | null;
+    return { open: old?.productionOpen === false ? null : 'production' };
   } catch {
-    return { ...OPEN_PANELS };
+    return { open: 'production' };
   }
 }
 
