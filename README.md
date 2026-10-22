@@ -81,7 +81,7 @@ Instrukcje i zasady architektury: **`CLAUDE.md`**. Decyzje: `docs/decisions.md`.
 41. „Planety” → przy każdej planecie mała, obracająca się pikselowa miniatura w jej kolorach.
 42. Lodowa planeta: krawędź lodu wyraźna i nieregularna, bez rozmytych pionowych smug.
 
-### Od 0.9: zwijane panele
+### Od 0.9: zwijane panele (nieaktualne od 0.19 — zastąpione dolnym paskiem)
 
 43. Poziomo: panel planety po lewej z przyciskiem „–” w prawym górnym rogu → zostaje nazwa, typ, seed, klasa i przyciski; „+” rozwija z powrotem.
 44. Poziomo: „Produkcja” po prawej z przyciskiem ☰ → zwija się do zakładki „PRODUKCJA” (z paskiem postępu, gdy coś się buduje); dotknięcie zakładki rozwija.
@@ -163,5 +163,25 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 91. „Mapa” → układy blisko gorącej gwiazdy albo daleko od niej: pojawiają się planety **„jałowa, bez atmosfery”** — szarobrązowe skały i pył, bez wody, małe szronowe czapy na biegunach. Dotknij takiej planety: podgląd i opis jak u innych typów.
 92. Pozostałe planety na mapie mają te same typy co w 0.17 (zmieniły się tylko te, które stały się jałowe — nigdy miejsca startowe ani Twoje planety).
 93. Skolonizuj (albo wyślij statek na) planetę jałową: gra działa jak z innymi typami, w panelu planety typ „jałowa, bez atmosfery”.
+
+### Od 0.19: nowy układ ekranu
+
+94. U góry pasek zasobów, na dole pasek z przyciskami: ☰, Produkcja, Badania, Mapa, Imperium, Planeta, SI (na telefonie część przycisków jest pod ☰).
+95. Dotknij „Produkcja”: nad paskiem wysuwa się panel z kartami budynków (iPad: po lewej, planeta przesuwa się w prawo). Drugie dotknięcie zamyka panel. To samo dla „Planeta” i „SI”.
+96. Gdy coś się buduje, a panel „Produkcja” jest zamknięty, na przycisku „Produkcja” widać cienki złoty pasek postępu.
+97. Planeta jest mniejsza niż dawniej (najwyżej ok. 1/3 ekranu) i nie chowa się pod panelem. Obróć iPada — układ się dopasowuje, w obu orientacjach da się obracać planetę palcem.
+98. Zamknij i otwórz grę: otwarty panel jest taki, jak go zostawiłeś.
+
+### Od 0.20: ulepszanie dotknięciem budowli
+
+99. Przybliż planetę dwoma palcami prawie do końca (od ok. 3×). Krótko dotknij budowli: otwiera się okienko „Budynek” z kartą jak w „Produkcji” (Ulepsz / Ukończ teraz / Anuluj).
+100. Przy małym przybliżeniu dotknięcie planety niczego nie otwiera, a przeciągnięcie palcem nadal obraca planetę (nie otwiera okienka).
+101. Sprawdź w 2D i w 3D (Ustawienia → Grafika).
+
+### Od 0.21: lista planet pod ☰
+
+102. Dotknij ☰: wysuwa się panel „Planety” z miniaturami Twoich planet i ich stanem (np. trwająca budowa).
+103. Dotknij innej planety na liście: gra przełącza się na nią. Pod listą są „Ustawienia” (i na telefonie przyciski, które nie zmieściły się na pasku).
+104. Przy wielu planetach pod listą pojawia się „…i jeszcze N — wszystkie w „Imperium””.
 
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.
