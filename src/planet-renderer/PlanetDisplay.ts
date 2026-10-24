@@ -20,6 +20,8 @@ export interface PlanetDisplay {
   setZoom(zoom: number): void;
   /** Bieżący obrót planety (rad) — dla paralaksy tła kosmosu. */
   orientation(): { yaw: number; pitch: number };
+  /** Ustaw obrót od razu, bez animacji i bezwładności (np. po przełączeniu 2D ↔ 3D). */
+  setOrientation(yaw: number, pitch: number): void;
     /** Środek i promień planety w pikselach CSS. */
   setFocus(cx: number, cy: number, r: number): void;
   resize(width: number, height: number): void;

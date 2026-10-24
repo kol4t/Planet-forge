@@ -103,6 +103,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     return { yaw: this.rotator.yaw, pitch: this.rotator.pitch };
   }
 
+  setOrientation(yaw: number, pitch: number): void {
+    this.rotator.setOrientation(yaw, pitch, performance.now());
+  }
+
   endDrag(): void {
     this.rotator.end(performance.now());
   }

@@ -78,6 +78,16 @@ export class DragRotator {
     this.velPitch = clamp(this.velPitch, -MAX_FLING, MAX_FLING);
   }
 
+  /** Natychmiastowa orientacja (bez animacji); autoobrót rusza jak po puszczeniu palca. */
+  setOrientation(yaw: number, pitch: number, now: number): void {
+    this.yaw = yaw;
+    this.pitch = pitch;
+    this.target = null;
+    this.velYaw = 0;
+    this.velPitch = 0;
+    this.releasedAt = now;
+  }
+
   /** Płynny obrót do podanej orientacji (np. pokazanie nowego budynku). Dotyk przerywa. */
   turnTo(yaw: number, pitch: number, now: number): void {
     if (this.dragging) return;
