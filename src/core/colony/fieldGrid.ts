@@ -78,6 +78,13 @@ export function fieldGrid(planet: Planet): FieldGrid {
   return grid;
 }
 
+/**
+ * Wersja siatki pól. Zmiana podziału na pola zmienia numery pól, więc zapisany przydział
+ * (`SlotSave.plots`) z inną wersją jest odrzucany i budowle dostają pola od nowa.
+ * 2 (v0.26.3): rodzaj pola z 13 próbek zamiast 3 — mała wyspa w dużym polu nie robi z niego lądu.
+ */
+export const FIELD_GRID_VERSION = 2;
+
 /** Największa siatka (planeta prawie cała pod wodą przy 200 polach lądu). */
 const MAX_CELLS = 2400;
 
@@ -262,9 +269,11 @@ function sampleKind(field: SurfaceField, planet: Planet, [x, y, z]: Vec3): Field
   return 'land';
 }
 
-/** Rodzaj pola: większość próbek (środek + punkty w połowie drogi do granicy). */
+/** Rodzaj pola: większość próbek (środek + punkty w 35% i 70% drogi do każdego wierzchołka obrysu). */
 function classify(field: SurfaceField, planet: Planet, center: Vec3, outline: Vec3[]): { kind: FieldKind; landShare: number; relief: number } {
-  const samples: Vec3[] = [center, ...outline.filter((_, k) => k % 3 === 0).map((p) => normalize([(p[0] + center[0]) / 2, (p[1] + center[1]) / 2, (p[2] + center[2]) / 2]))];
+  const toward = (p: Vec3, t: number): Vec3 =>
+    normalize([center[0] + (p[0] - center[0]) * t, center[1] + (p[1] - center[1]) * t, center[2] + (p[2] - center[2]) * t]);
+  const samples: Vec3[] = [center, ...outline.flatMap((p) => [toward(p, 0.35), toward(p, 0.7)])];
   const votes: Record<FieldKind, number> = { land: 0, water: 0, ice: 0, lava: 0 };
   const sea = field.seaLevel;
   let relief = 0;

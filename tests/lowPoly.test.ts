@@ -43,6 +43,7 @@ test('ląd low-poly: każdy typ planety daje poprawną siatkę i kolory', () => 
       assert.ok(r > 0.7 && r < 1.3, `${def.id}: promień ${r}`);
     }
     // Ląd nad morzem nigdy nie jest niżej niż poziom wody.
-    assert.ok(shapedRadius(planet, planet.visual.seaLevel) >= 1);
+    // Najniższy ląd ponad taflą morza (1,001) — inaczej w 3D wygląda jak woda.
+    assert.ok(shapedRadius(planet, planet.visual.seaLevel) > 1.001);
   }
 });

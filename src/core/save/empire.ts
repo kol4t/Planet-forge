@@ -24,6 +24,8 @@ export interface SlotSave {
   research?: ResearchState;
   /** Pola zajęte przez budowle (od v0.26; brak = przydzielane od nowa z poziomów). */
   plots?: Plots;
+  /** Wersja siatki pól, do której należy `plots` (od v0.26.3; inna lub brak = przydział od nowa). */
+  plotsGrid?: number;
 }
 
 export interface EmpireSave {
@@ -125,6 +127,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       economy: { ...economy, antimatter: 0 },
       ...(raw.research ? { research: parseResearch(raw.research) } : {}),
       ...(raw.plots ? { plots: parsePlots(raw.plots) } : {}),
+      ...(isNum(raw.plotsGrid) ? { plotsGrid: raw.plotsGrid } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;

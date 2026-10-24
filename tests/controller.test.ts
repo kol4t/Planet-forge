@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { GameController, type CompletedBuild } from '../src/app/GameController.ts';
 import { isColonizable } from '../src/core/galaxy/galaxy.ts';
 import { EMPIRE_KEY } from '../src/core/save/empire.ts';
+import { FIELD_GRID_VERSION } from '../src/core/colony/fieldGrid.ts';
 
 /** Prosta pamięć zamiast localStorage przeglądarki. */
 function withMemoryStorage(run: () => void): void {
@@ -299,5 +300,25 @@ test('imperium: zestawienie planet liczy nieaktywne „na teraz”, dziennik zap
     const texts = game.journalEntries().map((e) => e.text);
     assert.ok(texts.some((t) => t.includes('Kopalnia metalu — poziom 2 gotowy')), texts.join(' | '));
     assert.ok(texts.some((t) => t.startsWith('Skolonizowano')));
+  });
+});
+
+test('przydział pól z innej wersji siatki jest odrzucany — budowle dostają pola od nowa (v0.26.3)', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.save();
+    const { grid, plots } = game.colony();
+    const own = plots.metalMine![0]!;
+    const far = grid.cells.map((c, i) => (c.kind === 'land' && i !== own ? i : -1)).filter((i) => i >= 0).pop()!;
+    const plant = (version: number | undefined) => {
+      const data = JSON.parse(localStorage.getItem(EMPIRE_KEY)!);
+      data.slots[0].plots = { ...data.slots[0].plots, metalMine: [far] };
+      if (version === undefined) delete data.slots[0].plotsGrid;
+      else data.slots[0].plotsGrid = version;
+      localStorage.setItem(EMPIRE_KEY, JSON.stringify(data));
+      return new GameController(0).colony().plots.metalMine![0];
+    };
+    assert.equal(plant(FIELD_GRID_VERSION), far, 'ta sama wersja — przydział zostaje');
+    assert.equal(plant(undefined), own, 'zapis sprzed v0.26.3 — przydział od nowa');
   });
 });

@@ -29,13 +29,19 @@ export function terrace(t: number, steps: number): number {
   return (floor + smoothstep(0.45, 1, x - floor)) / steps;
 }
 
+/**
+ * Najniższy ląd stoi tuż nad taflą morza (1,001). Bez tego najniższy taras (promień 1,0) chował się
+ * pod wodą i nizinne wybrzeża w 3D wyglądały jak płycizna, choć w grze są lądem (v0.26.3).
+ */
+export const LAND_BASE_RADIUS = 1.004;
+
 /** Promień powierzchni 3D (ląd tarasowany i wyższy o `relief`, dno morza jak dotąd). */
 export function shapedRadius(planet: Planet, h: number): number {
   const v = planet.visual;
   const sea = v.seaLevel;
   if (h < sea) return 1 - (sea - h) * 0.25;
   const t = terrace((h - sea) / (1 - sea), v.style.terraces);
-  return 1 + t * (1 - sea) * v.terrainAmplitude * 2.2 * v.style.relief;
+  return LAND_BASE_RADIUS + t * (1 - sea) * v.terrainAmplitude * 2.2 * v.style.relief;
 }
 
 /** Wysokość „wyrównana do tarasu” — cały płaskowyż dostaje jeden kolor pasma. */

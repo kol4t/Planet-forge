@@ -162,3 +162,13 @@ test('zapis pól: poprawne wczytane, błędne pominięte', () => {
   assert.deepEqual(e?.settings, { metalMine: { work: 0.5, priority: 0.2 } });
   assert.deepEqual(e?.siteFactor, { metalMine: 0.875 });
 });
+
+test('kryształy najpierw zajmują lód, ląd dopiero gdy wolnego lodu brak (v0.26.3)', () => {
+  const grid = fieldGrid(generatePlanet(findDefinition('ice')!, 'PF-ICE-CRYSTAL'));
+  const ice = grid.cells.filter((c) => c.kind === 'ice').length;
+  assert.ok(ice >= 1);
+  const plots = reconcilePlots(grid, {}, levels({ crystalMine: (ice + 1) * 3 }), ORDER);
+  const kinds = plots.crystalMine!.map((c) => grid.cells[c]!.kind);
+  assert.deepEqual(kinds.slice(0, ice), Array(ice).fill('ice'));
+  assert.equal(kinds[ice], 'land');
+});

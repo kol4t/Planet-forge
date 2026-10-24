@@ -1,4 +1,4 @@
-import { buildableCount, fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
+import { buildableCount, FIELD_GRID_VERSION, fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import { hasRoomFor, reconcilePlots, siteFactors, suits, usedLandFields, type Plots } from '../core/colony/plots.ts';
 import {
   advance,
@@ -1023,6 +1023,7 @@ export class GameController {
         research: slot.research,
         // Bez przeliczania siatek wszystkich planet przy każdym zapisie — aktywna jest dopasowywana na bieżąco.
         plots: slot.plots,
+        plotsGrid: FIELD_GRID_VERSION,
       })),
     };
   }
@@ -1111,7 +1112,8 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       economy: slot.economy,
       address: slot.planet.address ?? '',
       research: slot.research ?? EMPTY_RESEARCH,
-      plots: slot.plots ?? {},
+      // Przydział z innej wersji siatki wskazywałby inne pola — budowle dostają pola od nowa.
+      plots: slot.plotsGrid === FIELD_GRID_VERSION ? (slot.plots ?? {}) : {},
     });
   }
   return slots;

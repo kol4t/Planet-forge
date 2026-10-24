@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.26.3: ląd w 3D nad wodą, dokładniejsze pola, kryształy najpierw na lodzie
+
+Zgłoszenie właściciela (zrzut z iPada): grupa Laboratorium na małej „wyspie” w dużym polu, część budowli jakby w wodzie.
+- **Przyczyna — 3D:** najniższy taras lądu miał promień 1,000, a tafla morza 1,001 — nizinne wybrzeża chowały się pod wodą i wyglądały jak płycizna, choć gra (i widok 2D) liczy je jako ląd. Teraz ląd zaczyna się od `LAND_BASE_RADIUS` = 1,004 (`lowPoly.ts`) — linia brzegu w 3D zgadza się z polami.
+- **Pola:** rodzaj pola z 13 próbek (środek + 35% i 70% drogi do każdego wierzchołka) zamiast 3 — mała wyspa w dużym polu nie robi z niego lądu. Siatka liczy się ok. 30–60% dłużej (raz na planetę). Nowa siatka = inne numery pól, więc `FIELD_GRID_VERSION` = 2 zapisywane przy przydziale (`SlotSave.plotsGrid`); przydział z inną wersją (także wszystkie zapisy sprzed v0.26.3) jest odrzucany i budowle dostają pola od nowa — **jednorazowe przestawienie** (poziomy i zasoby bez zmian).
+- **Kryształy najpierw na lodzie** (decyzja właściciela): w `nextCell` pole lodu dla ekstraktora +4 (więcej niż pasujący ląd +2 i każda odległość), więc grupy kryształów zajmują lód, a na ląd idą dopiero, gdy wolnego lodu brak. Lód nie zużywa pól lądu.
+
 ## 2026-10-24 — v0.26.2: budowle na lądzie, grupy przy środku wyspy
 
 Prośba właściciela (zrzut z iPada): budowle stały częściowo w wodzie, rozrzucone po polu.
