@@ -192,5 +192,6 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 108. Planeta wulkaniczna i jałowa: wyraźne okrągłe kratery (misa z wałem, duże z płaskim dnem), proste uskoki i szczeliny.
 109. „Mapa” → otwórz kilka układów i „Imperium”: miniatury rysują się normalnie; pierwsze otwarcie układu może trwać chwilę dłużej (teren liczy się raz).
 110. Sprawdź w 2D i w 3D (Ustawienia → Grafika). Płynność: Ustawienia → „Diagnostyka” — porównaj z pomiarem z 0.21 (3D: 59 średnio / 48 najsłabsza sekunda; 2D: 58 / 50).
+111. Obrót przez biegun: przeciągnij planetę palcem w górę albo w dół — da się ją przekręcić przez biegun i dalej, aż do pełnego obrotu (wcześniej zatrzymywała się przed biegunem). Za biegunem ruch w bok nadal przesuwa powierzchnię za palcem. Po puszczeniu planeta powoli wraca biegunem do góry.
 
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

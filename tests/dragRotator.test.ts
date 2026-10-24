@@ -2,13 +2,27 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DragRotator } from '../src/planet-renderer/input/dragRotator.ts';
 
-test('przeciągnięcie obraca planetę, pochylenie jest ograniczone', () => {
+test('przeciągnięcie obraca planetę, także przez biegun (bez ograniczenia pochylenia)', () => {
   const r = new DragRotator();
   r.start(0);
   r.move(100, 0, 16);
   assert.ok(Math.abs(r.yaw - 0.6) < 1e-9);
-  r.move(0, 10_000, 32);
-  assert.equal(r.pitch, 1.1);
+  r.move(0, 400, 32);
+  assert.ok(Math.abs(r.pitch - 2.4) < 1e-9, 'za biegunem');
+  // Do góry nogami: ruch w prawo obraca wokół osi w drugą stronę (powierzchnia idzie za palcem).
+  r.move(100, 0, 48);
+  assert.ok(Math.abs(r.yaw - 0) < 1e-9);
+  r.move(0, 600, 64);
+  assert.ok(Math.abs(r.pitch - 6) < 1e-9, 'pełny obrót bez skoku wartości');
+});
+
+test('po puszczeniu planeta wraca do najbliższego pionu, nie odkręca pełnych obrotów', () => {
+  const r = new DragRotator({ idleResumeMs: 0 });
+  r.start(0);
+  r.move(0, 1000, 16);
+  r.end(1000);
+  for (let t = 1016; t < 60_000; t += 16) r.update(0.016, t);
+  assert.ok(Math.abs(r.pitch - 2 * Math.PI) < 0.05, `pitch ${r.pitch}`);
 });
 
 test('szybki ruch → bezwładność, która wygasa', () => {

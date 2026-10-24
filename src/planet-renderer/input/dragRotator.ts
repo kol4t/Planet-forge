@@ -1,8 +1,9 @@
 // Obrót planety palcem z bezwładnością i powolnym autoobrotem. Bez DOM — testowalne.
+// Pochylenie (pitch) nie ma ograniczenia: planetę można przekręcić przez biegun w każdą stronę.
+// Wartość rośnie w sposób ciągły (bez skoku przy ±π), a autoobrót wraca do najbliższego „pionu”.
 
 export interface RotatorOptions {
   radiansPerPixel: number;
-  maxTilt: number;
   /** Ułamek prędkości pozostający po 1 s. */
   damping: number;
   idleSpin: number;
@@ -11,14 +12,16 @@ export interface RotatorOptions {
 
 const DEFAULTS: RotatorOptions = {
   radiansPerPixel: 0.006,
-  maxTilt: 1.1,
   damping: 0.04,
   idleSpin: 0.06,
   idleResumeMs: 2500,
 };
 
 const MAX_FLING = 6;
+const TWO_PI = Math.PI * 2;
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+/** Kąt równoważny `angle` (co do pełnego obrotu) najbliższy `reference`. */
+const nearestTurn = (angle: number, reference: number) => angle + Math.round((reference - angle) / TWO_PI) * TWO_PI;
 
 export class DragRotator {
   yaw = 0;
@@ -49,10 +52,13 @@ export class DragRotator {
 
   move(dx: number, dy: number, now: number): void {
     if (!this.dragging) return;
-    const dYaw = dx * this.opts.radiansPerPixel;
+    // Planeta „do góry nogami” (za biegunem): ruch w bok obraca ją w przeciwną stronę wokół osi,
+    // więc odwracamy go — powierzchnia dalej przesuwa się tak, jak palec.
+    const flip = Math.cos(this.pitch) < 0 ? -1 : 1;
+    const dYaw = dx * this.opts.radiansPerPixel * flip;
     const dPitch = dy * this.opts.radiansPerPixel;
     this.yaw += dYaw;
-    this.pitch = clamp(this.pitch + dPitch, -this.opts.maxTilt, this.opts.maxTilt);
+    this.pitch += dPitch;
     const dt = Math.max(1, now - this.lastMoveAt) / 1000;
     this.velYaw = 0.7 * this.velYaw + 0.3 * (dYaw / dt);
     this.velPitch = 0.7 * this.velPitch + 0.3 * (dPitch / dt);
@@ -75,9 +81,7 @@ export class DragRotator {
   /** Płynny obrót do podanej orientacji (np. pokazanie nowego budynku). Dotyk przerywa. */
   turnTo(yaw: number, pitch: number, now: number): void {
     if (this.dragging) return;
-    const twoPi = Math.PI * 2;
-    const delta = ((((yaw - this.yaw) % twoPi) + twoPi + Math.PI) % twoPi) - Math.PI;
-    this.target = { yaw: this.yaw + delta, pitch: clamp(pitch, -this.opts.maxTilt, this.opts.maxTilt) };
+    this.target = { yaw: nearestTurn(yaw, this.yaw), pitch: nearestTurn(pitch, this.pitch) };
     this.velYaw = 0;
     this.velPitch = 0;
     this.releasedAt = now;
@@ -100,14 +104,16 @@ export class DragRotator {
     this.velYaw *= decay;
     this.velPitch *= decay;
     this.yaw += this.velYaw * dt;
-    this.pitch = clamp(this.pitch + this.velPitch * dt, -this.opts.maxTilt, this.opts.maxTilt);
+    this.pitch += this.velPitch * dt;
     const idle = now - this.releasedAt - this.opts.idleResumeMs;
     if (idle > 0) {
       // Autoobrót wraca łagodnie (rozpędza się przez ok. 2 s), bez szarpnięcia po puszczeniu palca.
       const ramp = Math.min(1, idle / 2000);
       const ease = ramp * ramp * (3 - 2 * ramp);
       this.yaw += this.opts.idleSpin * ease * dt;
-      this.pitch *= 0.995 ** (dt * 60 * ease);
+      // Powolny powrót do pionu (biegun u góry) — do najbliższego pełnego obrotu, bez cofania kręcenia.
+      const upright = nearestTurn(0, this.pitch);
+      this.pitch = upright + (this.pitch - upright) * 0.995 ** (dt * 60 * ease);
     }
   }
 }

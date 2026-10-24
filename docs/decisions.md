@@ -11,6 +11,8 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
 - **Metoda zmienia kształt, nie bilans lądu i wody:** wysokości są przeliczane (kwantyle 1%, poziom morza, 99%) do rozkładu terenu `legacy` tej samej planety. Udział lądu, zakres gór, paleta, promień, lód i zakresy `seaLevel` w danych typów działają bez zmian. Rozgrywka (`GENERATOR_VERSION` = 1) nietknięta.
 - **`SURFACE_VERSION` = 2** — wszystkie planety, także zapisane, dostają nowy teren (wariant A).
 - **Determinizm:** w metodach tylko + − × ÷ sqrt i stała kolejność (sortowanie z rozstrzyganiem remisów indeksem); kierunki losowe bez funkcji trygonometrycznych.
+- **Obrót przez bieguny (zgłoszenie właściciela):** pochylenie palcem nie ma już limitu (było ±1,1 rad ≈ 63°, przez co bieguny nigdy nie trafiały na środek). Wartość `pitch` rośnie w sposób ciągły; za biegunem ruch w bok jest odwracany, żeby powierzchnia szła za palcem; autoobrót wraca do najbliższego „pionu”. Bez zmian w rendererach (2D, 3D, wybór budowli i tło liczą obrót tymi samymi wzorami).
+- **Pomiar w pionie (v0.21, okno 810×1048, 3D):** średnio 59/58 kl./s, najsłabsza sekunda 49/54.
 - **Metryki** (`core/surface/metrics.ts`: rozrzut, stromość, „chaos”, igły, udział płaskiego lądu) — testy pilnują, że metody się różnią i nie mają igieł; posłużą też `npm run atlas` w etapie 4.
 
 ## 2026-10-22 — v0.21: wysuwana lista planet z przycisku ☰ (szkic właściciela)
