@@ -170,8 +170,12 @@ export class PlanetView implements PlanetDisplay {
     return this.zoomer.value;
   }
 
-  setZoom(zoom: number): void {
-    this.zoomer.set(zoom, this.reducedMotion);
+  zoomLevel(): number {
+    return this.zoomer.target;
+  }
+
+  setZoom(zoom: number, instant = false): void {
+    this.zoomer.set(zoom, instant || this.reducedMotion);
     this.updateCamera();
   }
 

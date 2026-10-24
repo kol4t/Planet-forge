@@ -77,7 +77,8 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     beginDrag: () => display.beginDrag(),
     drag: (dx, dy) => display.drag(dx, dy),
     endDrag: () => display.endDrag(),
-    setZoom: (zoom) => display.setZoom(zoom),
+    setZoom: (zoom, instant) => display.setZoom(zoom, instant),
+    zoomLevel: () => display.zoomLevel(),
     resetView: () => display.resetView(),
     orientation: () => display.orientation(),
     setOrientation: (yaw, pitch) => display.setOrientation(yaw, pitch),
@@ -96,12 +97,12 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
   };
 }
 
-/** Obrót planety przenoszony przez przeładowanie strony przy zmianie grafiki 2D ↔ 3D. */
+/** Obrót i przybliżenie planety przenoszone przez przeładowanie strony przy zmianie grafiki 2D ↔ 3D. */
 const VIEW_KEY = 'planet-forge.view.v1';
 
 function rememberView(display: PlanetDisplay): void {
   try {
-    sessionStorage.setItem(VIEW_KEY, JSON.stringify(display.orientation()));
+    sessionStorage.setItem(VIEW_KEY, JSON.stringify({ ...display.orientation(), zoom: display.zoomLevel() }));
   } catch {
     // brak pamięci sesji — planeta startuje w zwykłej pozycji
   }
@@ -112,10 +113,11 @@ function restoreView(display: PlanetDisplay): void {
     const raw = sessionStorage.getItem(VIEW_KEY);
     if (!raw) return;
     sessionStorage.removeItem(VIEW_KEY);
-    const view = JSON.parse(raw) as { yaw?: unknown; pitch?: unknown };
+    const view = JSON.parse(raw) as { yaw?: unknown; pitch?: unknown; zoom?: unknown };
     if (typeof view.yaw === 'number' && typeof view.pitch === 'number' && Number.isFinite(view.yaw + view.pitch)) {
       display.setOrientation(view.yaw, view.pitch);
     }
+    if (typeof view.zoom === 'number' && Number.isFinite(view.zoom)) display.setZoom(view.zoom, true);
   } catch {
     // uszkodzony wpis — ignorujemy
   }

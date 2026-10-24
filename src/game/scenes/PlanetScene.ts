@@ -162,6 +162,8 @@ export class PlanetScene extends Phaser.Scene {
     // Gesty startują tylko poza panelami (panele mają strefy blokujące):
     // jeden palec obraca planetę, dwa palce ją przybliżają.
     const apply = (events: GestureEvent[]) => this.applyGestures(events);
+    // Przybliżenie przywrócone po przełączeniu grafiki — szczypanie i przyciski liczą od niego.
+    this.gestures.setZoom(display.zoomLevel());
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (over.length > 0 || this.overlay || this.screenOpen) return;
       apply(this.gestures.down(pointer.id, pointer.x, pointer.y));

@@ -218,4 +218,8 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 125. Telefon poziomo z otwartym panelem: przyciski chowają się (brak miejsca), szczypanie działa.
 126. Przełączanie planet (☰ → inna planeta) powinno przycinać się krócej niż w 0.24. Płynność: Ustawienia → „Diagnostyka” po ok. 60 s obracania, także na planecie wulkanicznej w 3D.
 
+### Od 0.25.1
+
+127. Przybliż planetę (np. „+” dwa razy), potem Ustawienia → „Włącz 3D” / „Wróć do 2D”: po przeładowaniu planeta jest tak samo przybliżona i obrócona; „−” oddala dalej od tego przybliżenia.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -17,7 +17,10 @@ export interface PlanetDisplay {
   drag(dx: number, dy: number): void;
   endDrag(): void;
   /** Przybliżenie (1 = cała planeta, maks. ok. 3,5). Planeta rośnie wokół swojego środka. */
-  setZoom(zoom: number): void;
+  /** `instant` — bez płynnego dojścia (np. przywrócenie widoku po przełączeniu 2D ↔ 3D). */
+  setZoom(zoom: number, instant?: boolean): void;
+  /** Docelowe przybliżenie (to, do którego widok dochodzi). */
+  zoomLevel(): number;
   /** Płynny powrót do widoku startowego: przybliżenie 1×, biegun u góry. */
   resetView(): void;
   /** Bieżący obrót planety (rad) — dla paralaksy tła kosmosu. */

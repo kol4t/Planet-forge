@@ -2,6 +2,11 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.25.1: przełączenie 2D ↔ 3D zachowuje przybliżenie
+
+- Zgłoszenie właściciela: po zmianie grafiki planeta wracała do 1×. Do pamięci sesji (obok obrotu) trafia teraz także przybliżenie (`PlanetDisplay.zoomLevel()`), przywracane od razu (`setZoom(z, true)`); gesty sceny startują od tej wartości, więc szczypanie i przyciski liczą dalej od niej.
+- Pomiar v0.25 (iPad, 3D, 5 s): średnio 58 kl./s, najsłabsza sekunda 49.
+
 ## 2026-10-24 — v0.25: lawa, kolory materiałów, światło, kamera (przebudowa generatora, etap 6)
 
 - **Lawa bez „plam” (zgłoszenie właściciela):** morze lawy nie świeci już całą powierzchnią — to ciemna, zastygła skorupa z siecią żarzących się pęknięć (`createLavaVeins`: szerokie szczeliny + drobne pęknięcia z szumu grzbietowego). Ten sam wzór w 2D (piksel po pikselu), w 3D (tekstura morza 512 × 256: kolor + mapa świecenia, ok. 1 MB) i na lawie na lądzie. Jeziora lawy (kaldery) to skorupa z pęknięciami, pełny żar mają tylko strumienie przy źródłach; kolory nasycone, bez wybielania przez tonemapping. Naprawiony jasny pierścień wokół jezior lawy (brzeg jeziora rysował się jak woda; `InlandField.lavaLakes`).
