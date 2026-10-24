@@ -164,7 +164,9 @@ export class PlanetView implements PlanetDisplay {
       const r = Math.max(1.003, shapedRadius(planet, Math.max(h, sampler.lakeLevel(...p))) + 0.004);
       return [p[0] * r, p[1] * r, p[2] * r];
     };
+    // Tylko pola lądu (do zabudowy) — woda, lód i lawa leżą między nimi bez obrysów.
     for (const cell of grid.cells) {
+      if (cell.kind !== 'land') continue;
       const points = cell.outline.map(lift);
       for (let k = 0; k < points.length; k++) positions.push(...points[k]!, ...points[(k + 1) % points.length]!);
     }
@@ -189,9 +191,9 @@ export class PlanetView implements PlanetDisplay {
     const palette = Object.fromEntries(Object.entries(FIELD_COLORS).map(([k, hex]) => [k, new THREE.Color(hex)])) as Record<string, THREE.Color>;
     let v = 0;
     this.grid.cells.forEach((cell, i) => {
+      if (cell.kind !== 'land') return;
       const c = palette[states[i]!]!;
-      const dim = states[i] === 'blocked' ? 0.45 : 1;
-      for (let k = 0; k < cell.outline.length * 2; k++) colors.setXYZ(v++, c.r * dim, c.g * dim, c.b * dim);
+      for (let k = 0; k < cell.outline.length * 2; k++) colors.setXYZ(v++, c.r, c.g, c.b);
     });
     colors.needsUpdate = true;
   }

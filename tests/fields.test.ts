@@ -39,11 +39,12 @@ test('liczba pól nie zmienia innych cech planety (osobny strumień losowania)',
   assert.equal(starter.visual.seaLevel, 0.456);
 });
 
-test('siatka pól: tyle pól, ile ma planeta; obrysy zamknięte, sąsiedztwo symetryczne, głównie 5- i 6-kąty', () => {
+test('siatka pól: dokładnie tyle pól lądu, ile mówi seed (woda między nimi); głównie 5- i 6-kąty', () => {
   for (const def of PLANET_DEFINITIONS) {
     const planet = generatePlanet(def, 'PF-GRID');
     const grid = buildFieldGrid(planet);
-    assert.equal(grid.cells.length, planet.gameplay.fields);
+    assert.equal(buildableCount(grid), planet.gameplay.fields, `${def.id}: pola lądu = liczba z seeda`);
+    assert.ok(grid.cells.length >= planet.gameplay.fields);
     let fiveSix = 0;
     grid.cells.forEach((cell, i) => {
       assert.ok(Math.abs(Math.hypot(...cell.center) - 1) < 1e-9);
@@ -63,10 +64,14 @@ test('budować można tylko na lądzie (woda i lód — po odblokowaniu)', () =>
   assert.equal(isBuildable('water', { water: true }), true);
   assert.equal(isBuildable('ice', { ice: true }), true);
   assert.equal(isBuildable('lava', { water: true, ice: true }), false);
-  const ocean = fieldGrid(generatePlanet(findDefinition('ocean')!, 'PF-OCEAN'));
+  const oceanPlanet = generatePlanet(findDefinition('ocean')!, 'PF-OCEAN');
+  const ocean = fieldGrid(oceanPlanet);
   const land = ocean.cells.filter((c) => c.kind === 'land').length;
   assert.equal(buildableCount(ocean), land);
+  assert.equal(land, oceanPlanet.gameplay.fields, 'planeta oceaniczna też ma pełną liczbę pól lądu');
   assert.ok(buildableCount(ocean, { water: true }) > land);
+  // Planeta startowa: 100 pól do zabudowy (mimo mórz i lodu na biegunach).
+  assert.equal(buildableCount(fieldGrid(generatePlanet(STARTER.definition, STARTER.seed))), 100);
 });
 
 test('gospodarka: każdy poziom zajmuje pole; bez wolnych pól — czytelny błąd', () => {

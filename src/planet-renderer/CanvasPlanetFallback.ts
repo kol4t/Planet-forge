@@ -165,7 +165,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.gridVisible = visible;
   }
 
-  /** Obrysy pól (tylko strona zwrócona do widza): turkus — wolny ląd, złoto — zajęte, szary — woda, lód, lawa. */
+  /** Obrysy pól lądu (tylko strona zwrócona do widza): turkus — wolne, złoto — zajęte. Woda, lód i lawa bez obrysów. */
   private drawFieldGrid(): void {
     if (!this.gridVisible || !this.grid) return;
     const { cx, cy: centerY } = this.focus;
@@ -179,8 +179,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const states = fieldStates(this.grid, this.plots);
     ctx.lineWidth = 1;
     this.grid.cells.forEach((cell, i) => {
+      if (states[i] === 'blocked') return;
       ctx.strokeStyle = FIELD_COLORS[states[i]!];
-      ctx.globalAlpha = states[i] === 'blocked' ? 0.35 : 0.75;
+      ctx.globalAlpha = 0.75;
       ctx.beginPath();
       let pen = false;
       for (let k = 0; k <= cell.outline.length; k++) {

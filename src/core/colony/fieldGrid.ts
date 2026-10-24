@@ -1,9 +1,10 @@
-// Siatka pól planety: tyle pól, ile ma planeta (`gameplay.fields`), rozłożonych równo po kuli.
-// Pola to komórki Woronoja wokół punktów siatki Fibonacciego (obróconej losowo z seeda) — na kuli
-// to głównie sześcio- i pięciokąty. Każde pole ma rodzaj (ląd, woda, lód, lawa) z terenu planety;
-// budować można tylko na lądzie (woda i lód — po przyszłym badaniu: `BuildRules`).
+// Siatka pól planety. Liczba pól DO ZABUDOWY (ląd) jest narzucona seedem (`gameplay.fields`, 30–200 —
+// decyzja właściciela); siatka gęstnieje tak, żeby na lądzie wypadło dokładnie tyle pól, a woda, lód
+// i lawa leżą między nimi. Pola to komórki Woronoja wokół siatki Fibonacciego (obróconej z seeda) —
+// na kuli głównie sześcio- i pięciokąty. Budować można tylko na lądzie (woda i lód — `BuildRules`).
 import { createRng } from '../random/rng.ts';
 import { createSurfaceField } from '../surface/field.ts';
+import type { SurfaceField } from '../surface/types.ts';
 import type { Planet } from '../types.ts';
 
 export type Vec3 = [number, number, number];
@@ -17,6 +18,8 @@ export interface FieldCell {
   /** Sąsiednie pola (indeksy). */
   neighbors: number[];
   kind: FieldKind;
+  /** Udział lądu w próbkach pola 0..1 (pola przybrzeżne mają mniej). */
+  landShare: number;
 }
 
 export interface FieldGrid {
@@ -66,25 +69,82 @@ export function fieldGrid(planet: Planet): FieldGrid {
   return grid;
 }
 
+/** Największa siatka (planeta prawie cała pod wodą przy 200 polach lądu). */
+const MAX_CELLS = 2400;
+
+/**
+ * Siatka z dokładnie `gameplay.fields` polami lądu: liczba wszystkich pól dobierana do udziału lądu,
+ * a nadmiarowe pola lądu — te z najmniejszą ilością lądu, czyli przybrzeżne — zostają polami wody.
+ */
 export function buildFieldGrid(planet: Planet): FieldGrid {
-  const count = Math.max(4, planet.gameplay.fields);
-  const centers = fibonacciCenters(count, `${planet.definitionId}|${planet.seed}|field-grid`);
-  // Kandydaci na sąsiadów: najbliższe środki (Woronoj na kuli ma zwykle 5–7 sąsiadów).
-  const candidates = centers.map((c, i) =>
-    centers
-      .map((o, j) => ({ j, d: dot(c, o) }))
-      .filter((o) => o.j !== i)
-      .sort((a, b) => b.d - a.d || a.j - b.j)
-      .slice(0, 12)
-      .map((o) => o.j),
-  );
-  const spacing = Math.sqrt(4 / count); // ≈ promień kątowy pola
+  const want = Math.max(4, planet.gameplay.fields);
   const field = createSurfaceField(planet.visual);
-  const cells: FieldCell[] = centers.map((center, i) => {
-    const { outline, neighbors } = traceOutline(i, centers, candidates[i]!, spacing);
-    return { center, outline, neighbors, kind: classify(field, planet, center, outline) };
-  });
+  const seed = `${planet.definitionId}|${planet.seed}|field-grid`;
+  // Liczbę wszystkich pól dobieramy tanio (rodzaj terenu tylko w środkach pól), z zapasem 4%;
+  // pełną siatkę (obrysy, głosowanie próbek) liczymy raz, a w razie niedoboru lądu — nieco gęstszą.
+  const share = Math.max(0.05, landShareEstimate(field, planet));
+  let count = Math.min(MAX_CELLS, Math.max(want, Math.round((want * 1.04) / share)));
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const land = fibonacciCenters(count, seed).filter((c) => sampleKind(field, planet, c) === 'land').length;
+    const ratio = (want * 1.04) / Math.max(1, land);
+    if (Math.abs(ratio - 1) < 0.02 || count >= MAX_CELLS) break;
+    count = Math.min(MAX_CELLS, Math.max(want, Math.round(count * ratio)));
+  }
+  let cells = buildCells(count, seed, field, planet);
+  for (let attempt = 0; attempt < 4 && count < MAX_CELLS; attempt++) {
+    const land = cells.filter((c) => c.kind === 'land').length;
+    if (land >= want) break;
+    count = Math.min(MAX_CELLS, Math.ceil((count * want * 1.03) / Math.max(1, land)));
+    cells = buildCells(count, seed, field, planet);
+  }
+  trimLand(cells, want);
   return { cells, colonyCenter: pickColonyCenter(cells) };
+}
+
+/** Nadmiar pól lądu → woda (najpierw najbardziej przybrzeżne; remis — wyższy indeks). */
+function trimLand(cells: FieldCell[], want: number): void {
+  const land = cells.map((c, i) => ({ c, i })).filter(({ c }) => c.kind === 'land');
+  land.sort((a, b) => a.c.landShare - b.c.landShare || b.i - a.i);
+  for (let k = 0; k < land.length - want; k++) land[k]!.c.kind = 'water';
+}
+
+/** Udział lądu na planecie (szybkie próbkowanie środkami gęstej siatki Fibonacciego). */
+function landShareEstimate(field: SurfaceField, planet: Planet): number {
+  const n = 1500;
+  let land = 0;
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (2 * (i + 0.5)) / n;
+    const r = Math.sqrt(1 - y * y);
+    const a = i * GOLDEN;
+    if (sampleKind(field, planet, [r * Math.cos(a), y, r * Math.sin(a)]) === 'land') land++;
+  }
+  return land / n;
+}
+
+function buildCells(count: number, seed: string, field: SurfaceField, planet: Planet): FieldCell[] {
+  const centers = fibonacciCenters(count, seed);
+  const candidates = centers.map((c, i) => nearestCenters(centers, c, i, 12));
+  const spacing = Math.sqrt(4 / count); // ≈ promień kątowy pola
+  return centers.map((center, i) => {
+    const { outline, neighbors } = traceOutline(i, centers, candidates[i]!, spacing);
+    const { kind, landShare } = classify(field, planet, center, outline);
+    return { center, outline, neighbors, kind, landShare };
+  });
+}
+
+/** `k` najbliższych środków (bez pełnego sortowania — siatka może mieć ponad tysiąc pól). */
+function nearestCenters(centers: Vec3[], c: Vec3, self: number, k: number): number[] {
+  const best: { j: number; d: number }[] = [];
+  centers.forEach((o, j) => {
+    if (j === self) return;
+    const d = dot(c, o);
+    if (best.length === k && d <= best[k - 1]!.d) return;
+    let at = best.length;
+    while (at > 0 && best[at - 1]!.d < d) at--;
+    best.splice(at, 0, { j, d });
+    if (best.length > k) best.pop();
+  });
+  return best.map((b) => b.j);
 }
 
 /** Siatka Fibonacciego obrócona losowo (obrót z dwóch losowych kierunków — bez trygonometrii w losowaniu). */
@@ -165,25 +225,26 @@ function traceOutline(i: number, centers: Vec3[], candidates: number[], spacing:
   return { outline, neighbors: [...neighbors].sort((a, b) => a - b) };
 }
 
+/** Rodzaj terenu w punkcie. */
+function sampleKind(field: SurfaceField, planet: Planet, [x, y, z]: Vec3): FieldKind {
+  const h = field.height(x, y, z);
+  const inland = field.inland;
+  if (field.ice(h, x, y, z) > 0.5) return 'ice';
+  if (h < field.seaLevel) return planet.visual.hydrology.liquid === 'lava' ? 'lava' : 'water';
+  if (inland && (inland.lava(x, y, z) >= 0.5 || (inland.lavaLakes && inland.lakeLevel(x, y, z) >= 0))) return 'lava';
+  if (inland && inland.lakeLevel(x, y, z) >= 0) return 'water';
+  return 'land';
+}
+
 /** Rodzaj pola: większość próbek (środek + punkty w połowie drogi do granicy). */
-function classify(field: ReturnType<typeof createSurfaceField>, planet: Planet, center: Vec3, outline: Vec3[]): FieldKind {
-  const lavaWorld = planet.visual.hydrology.liquid === 'lava';
+function classify(field: SurfaceField, planet: Planet, center: Vec3, outline: Vec3[]): { kind: FieldKind; landShare: number } {
   const samples: Vec3[] = [center, ...outline.filter((_, k) => k % 3 === 0).map((p) => normalize([(p[0] + center[0]) / 2, (p[1] + center[1]) / 2, (p[2] + center[2]) / 2]))];
   const votes: Record<FieldKind, number> = { land: 0, water: 0, ice: 0, lava: 0 };
-  const inland = field.inland;
-  for (const [x, y, z] of samples) {
-    const h = field.height(x, y, z);
-    let kind: FieldKind;
-    if (field.ice(h, x, y, z) > 0.5) kind = 'ice';
-    else if (h < field.seaLevel) kind = lavaWorld ? 'lava' : 'water';
-    else if (inland && (inland.lava(x, y, z) >= 0.5 || (inland.lavaLakes && inland.lakeLevel(x, y, z) >= 0))) kind = 'lava';
-    else if (inland && inland.lakeLevel(x, y, z) >= 0) kind = 'water';
-    else kind = 'land';
-    votes[kind]++;
-  }
+  for (const p of samples) votes[sampleKind(field, planet, p)]++;
+  const landShare = votes.land / samples.length;
   // Ląd, gdy przeważa (połowa próbek wystarczy — pola na wybrzeżu są do zabudowy).
-  if (votes.land * 2 >= samples.length) return 'land';
-  return (['water', 'ice', 'lava'] as const).reduce((a, b) => (votes[b] > votes[a] ? b : a));
+  if (votes.land * 2 >= samples.length) return { kind: 'land', landShare };
+  return { kind: (['water', 'ice', 'lava'] as const).reduce((a, b) => (votes[b] > votes[a] ? b : a)), landShare };
 }
 
 /** Środek kolonii: pole lądu z największą liczbą lądowych pól w promieniu dwóch sąsiedztw, nie przy biegunach. */

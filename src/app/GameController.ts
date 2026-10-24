@@ -85,9 +85,9 @@ const GALAXY_ID = 1;
 
 /** Skrót planety do listy „Twoje planety”. */
 export interface FieldsInfo {
-  /** Wszystkie pola planety (30–200). */
+  /** Wszystkie pola siatki (z wodą, lodem i lawą między polami lądu). */
   total: number;
-  /** Pola lądu — na nich wolno budować. */
+  /** Pola lądu — na nich wolno budować; ich liczba wynika z seeda planety (30–200). */
   buildable: number;
   /** Zajęte = suma poziomów budynków. */
   used: number;
@@ -998,7 +998,7 @@ export class GameController {
    */
   get fields(): FieldsInfo {
     const slot = this.slots[this.active]!;
-    return { total: slot.planet.gameplay.fields, buildable: this.fieldsFree(slot), used: usedFields(slot.economy.levels) };
+    return { total: fieldGrid(slot.planet).cells.length, buildable: this.fieldsFree(slot), used: usedFields(slot.economy.levels) };
   }
 
   /** Siatka pól i zajęte pola aktywnej planety (z budową w toku) — do rysowania kolonii. */

@@ -721,10 +721,10 @@ export class PlanetScene extends Phaser.Scene {
     y += this.s(17);
     this.text(box.x + pad, y, addressLine(this.deps.controller.address, planet.seed), 10.5, COLORS.faint, { fontFamily: FONTS.mono });
     y += this.s(19);
-    // Pola: każdy poziom budynku zajmuje jedno pole lądu (woda, lód i lawa — bez zabudowy).
+    // Pola: każdy poziom budynku zajmuje jedno pole lądu; ich liczba wynika z seeda planety.
     const f = this.deps.controller.fields;
     const full = f.used >= f.buildable;
-    this.text(box.x + pad, y, `POLA  ${f.used} / ${f.buildable} lądu · ${f.total} wszystkich`, 10.5, full ? COLORS.danger : COLORS.teal, {
+    this.text(box.x + pad, y, `POLA  ${f.used} / ${f.buildable} zajęte${full ? ' — brak wolnych' : ''}`, 10.5, full ? COLORS.danger : COLORS.teal, {
       fontStyle: '600',
       wordWrap: { width: this.px(w) },
     });

@@ -2,7 +2,7 @@
 import type { FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 
-/** Wolne pole lądu (do zabudowy), zajęte pole, pole bez możliwości budowy (woda, lód, lawa). */
+/** Wolne pole lądu (do zabudowy), zajęte pole, pole bez możliwości budowy (woda, lód, lawa — nie rysowane). */
 export const FIELD_COLORS = { free: '#5fd3c4', taken: '#d8b463', blocked: '#6f8796' } as const;
 
 export type FieldState = keyof typeof FIELD_COLORS;
