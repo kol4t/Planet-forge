@@ -133,6 +133,8 @@ export interface PlanetOverview extends PlanetSummary {
   capacity: number;
   rates: Rates;
   construction: { name: string; level: number; secondsLeft: number; progress: number } | null;
+  /** Pola lądu: zajęte / do zabudowy. */
+  fields: { used: number; buildable: number };
 }
 
 /** Statek kolonizacyjny w drodze (do mapy i zestawienia). */
@@ -441,6 +443,7 @@ export class GameController {
               progress: constructionProgress(economy, now),
             }
           : null,
+        fields: fieldsOf(slot, summary.active),
       };
     });
   }
@@ -1044,8 +1047,7 @@ export class GameController {
    */
   get fields(): FieldsInfo {
     const slot = this.slots[this.active]!;
-    const grid = fieldGrid(slot.planet);
-    return { total: grid.cells.length, buildable: buildableCount(grid), used: usedLandFields(grid, syncPlots(slot)) };
+    return { total: fieldGrid(slot.planet).cells.length, ...fieldsOf(slot, true) };
   }
 
   /** Siatka pól i zajęte pola aktywnej planety (z budową w toku) — do rysowania kolonii. */
@@ -1075,6 +1077,12 @@ export class GameController {
 }
 
 /** Przydział pól dopasowany do poziomów (budowa w toku już zajmuje swoje pole); wynik zostaje w miejscu. */
+/** Pola lądu planety; aktywna — z bieżącym przydziałem (budowa w toku), inne — z zapisanego. */
+function fieldsOf(slot: Slot, active: boolean): { used: number; buildable: number } {
+  const grid = fieldGrid(slot.planet);
+  return { used: usedLandFields(grid, active ? syncPlots(slot) : slot.plots), buildable: buildableCount(grid) };
+}
+
 function syncPlots(slot: Slot): Plots {
   const c = slot.economy.construction;
   const levels = c ? { ...slot.economy.levels, [c.building]: Math.max(slot.economy.levels[c.building] ?? 0, c.targetLevel) } : slot.economy.levels;

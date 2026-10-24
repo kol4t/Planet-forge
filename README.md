@@ -247,5 +247,6 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 ### Od 0.26.2
 
 141. Budowle nie stoją w wodzie: grupa (do 3 budowli) stoi zwartą kępką na lądzie pola, na wyspie — przy jej środku. Włącz siatkę pól i obejrzyj wybrzeża z bliska.
+142. Pasek u góry, po prawej od antymaterii: **POLA** zajęte/do zabudowy (np. „4/100”) ze złotym paskiem; gdy brak wolnych — na czerwono. Lista planet (☰) pokazuje „pola N/M” przy metalu i kryształach każdej planety.
 
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

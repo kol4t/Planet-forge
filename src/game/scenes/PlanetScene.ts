@@ -79,7 +79,7 @@ const CANCEL_CONFIRM_MS = 3000;
 interface ResourceTexts {
   /** Paski zapełnienia magazynu pod metalem i kryształami. */
   fill: Phaser.GameObjects.Graphics;
-  fillBars: { metal: { x: number; y: number; w: number }; crystal: { x: number; y: number; w: number } };
+  fillBars: { metal: { x: number; y: number; w: number }; crystal: { x: number; y: number; w: number }; fields: { x: number; y: number; w: number } };
   metal: Phaser.GameObjects.Text;
   metalRate: Phaser.GameObjects.Text;
   crystal: Phaser.GameObjects.Text;
@@ -88,6 +88,9 @@ interface ResourceTexts {
   energyNote: Phaser.GameObjects.Text;
   antimatter: Phaser.GameObjects.Text;
   antimatterNote: Phaser.GameObjects.Text;
+  /** Pola planety: zajęte / do zabudowy (v0.26.3). */
+  fields: Phaser.GameObjects.Text;
+  fieldsNote: Phaser.GameObjects.Text;
   /** Czy notatki (np. „+23/min”) mieszczą się obok wartości. */
   notes: boolean;
 }
@@ -468,7 +471,7 @@ export class PlanetScene extends Phaser.Scene {
     this.ui!.add([g, blocker]);
   }
 
-  private icon(kind: YieldId | 'storage' | 'antimatter' | 'research', x: number, y: number, size: number): void {
+  private icon(kind: YieldId | 'storage' | 'antimatter' | 'research' | 'fields', x: number, y: number, size: number): void {
     const g = this.add.graphics();
     const r = this.px(this.s(size));
     const cx = this.px(x);
@@ -481,6 +484,11 @@ export class PlanetScene extends Phaser.Scene {
         (_, i) => new V(cx + r * Math.cos((i * Math.PI) / 3 + Math.PI / 6), cy + r * Math.sin((i * Math.PI) / 3 + Math.PI / 6)),
       );
       g.fillPoints(hex, true);
+    } else if (kind === 'fields') {
+      // Pole siatki: obrys sześciokąta z kropką.
+      const hex = Array.from({ length: 6 }, (_, i) => new V(cx + r * Math.cos((i * Math.PI) / 3), cy + r * Math.sin((i * Math.PI) / 3)));
+      g.lineStyle(Math.max(1.5, r * 0.24), COLORS.goldHex, 1).strokePoints(hex, true, true);
+      g.fillStyle(COLORS.goldHex, 1).fillCircle(cx, cy, r * 0.28);
     } else if (kind === 'antimatter') {
       // Pierścień z jądrem.
       g.lineStyle(Math.max(1.5, r * 0.28), COLORS.antimatterHex, 1).strokeCircle(cx, cy, r * 0.95);
@@ -548,10 +556,10 @@ export class PlanetScene extends Phaser.Scene {
         letterSpacing: 3,
       }).setOrigin(0, 0.5);
     }
-    const colW = (bar.w - titleW - this.s(8)) / 4;
+    const colW = (bar.w - titleW - this.s(8)) / 5;
     const notes = colW >= 120;
     const valueSize = bar.w < 420 ? 14 : 17;
-    const column = (index: number, kind: YieldId | 'antimatter', label: string) => {
+    const column = (index: number, kind: YieldId | 'antimatter' | 'fields', label: string) => {
       const x = bar.x + titleW + this.s(8) + index * colW;
       if (index > 0 || showTitle) {
         const divider = this.add
@@ -574,11 +582,12 @@ export class PlanetScene extends Phaser.Scene {
     const crystal = column(1, 'crystal', short ? 'KRYSZT.' : 'KRYSZTAŁY');
     const energy = column(2, 'energy', 'ENERGIA');
     const antimatter = column(3, 'antimatter', short ? 'ANTYM.' : 'ANTYMATERIA');
+    const fields = column(4, 'fields', 'POLA');
     const fill = this.add.graphics();
     this.ui!.add(fill);
     this.res = {
       fill,
-      fillBars: { metal: metal.fillBar, crystal: crystal.fillBar },
+      fillBars: { metal: metal.fillBar, crystal: crystal.fillBar, fields: fields.fillBar },
       metal: metal.value,
       metalRate: metal.note,
       crystal: crystal.value,
@@ -587,6 +596,8 @@ export class PlanetScene extends Phaser.Scene {
       energyNote: energy.note,
       antimatter: antimatter.value,
       antimatterNote: antimatter.note,
+      fields: fields.value,
+      fieldsNote: fields.note,
       notes,
     };
   }
@@ -660,7 +671,7 @@ export class PlanetScene extends Phaser.Scene {
   private setPlanetStatus(text: Phaser.GameObjects.Text, p: PlanetOverview): void {
     const status = p.construction
       ? `Budowa: ${p.construction.name} ${p.construction.level} · ${formatDuration(p.construction.secondsLeft)}`
-      : `${formatInt(p.stock.metal)} metalu · ${formatInt(p.stock.crystal)} kryształów`;
+      : `${formatInt(p.stock.metal)} metalu · ${formatInt(p.stock.crystal)} kryształów · pola ${p.fields.used}/${p.fields.buildable}`;
     text.setText(`${p.active ? 'Tu jesteś · ' : ''}${p.address} · ${status}`).setColor(p.construction ? COLORS.gold : COLORS.muted);
   }
 
@@ -1047,6 +1058,12 @@ export class PlanetScene extends Phaser.Scene {
       this.res.energyNote.setColor(rates.efficiency < 1 ? COLORS.danger : COLORS.muted);
       pair(this.res.antimatter, this.res.antimatterNote, formatInt(controller.economy.antimatter), `+${formatRate(rates.antimatterPerHour)}/h`);
       this.res.antimatterNote.setColor(COLORS.antimatter);
+      const f = controller.fields;
+      const full = f.used >= f.buildable;
+      pair(this.res.fields, this.res.fieldsNote, `${formatInt(f.used)}/${formatInt(f.buildable)}`, full ? 'brak wolnych' : 'zajęte');
+      this.res.fields.setColor(full ? COLORS.danger : COLORS.text);
+      this.res.fieldsNote.setColor(full ? COLORS.danger : COLORS.muted);
+      this.drawFieldsFill(f.used / Math.max(1, f.buildable));
     }
 
     const balance = controller.balance;
@@ -1161,6 +1178,16 @@ export class PlanetScene extends Phaser.Scene {
       g.fillStyle(COLORS.divider, 1).fillRect(this.px(bar.x), this.px(bar.y), this.px(bar.w), this.px(h));
       g.fillStyle(v >= 1 ? COLORS.dangerHex : color, 0.9).fillRect(this.px(bar.x), this.px(bar.y), this.px(bar.w * v), this.px(h));
     }
+  }
+
+  /** Pasek zajętych pól pod „POLA” (rysowany na tej samej grafice co magazyn). */
+  private drawFieldsFill(value: number): void {
+    if (!this.res) return;
+    const bar = this.res.fillBars.fields;
+    const h = this.s(3);
+    const v = Math.min(1, Math.max(0, value));
+    this.res.fill.fillStyle(COLORS.divider, 1).fillRect(this.px(bar.x), this.px(bar.y), this.px(bar.w), this.px(h));
+    this.res.fill.fillStyle(v >= 1 ? COLORS.dangerHex : COLORS.goldHex, 0.9).fillRect(this.px(bar.x), this.px(bar.y), this.px(bar.w * v), this.px(h));
   }
 
   private drawProgress(card: BuildingCard, value: number): void {

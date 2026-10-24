@@ -6,6 +6,7 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
 
 Prośba właściciela (zrzut z iPada): budowle stały częściowo w wodzie, rozrzucone po polu.
 - **Miejsce grupy w polu** (`planet-renderer/colony.ts`, `groupDirs`): ok. 50 próbek wnętrza pola (od środka do wierzchołków i środków krawędzi); środek grupy = suchy punkt najdalej od wody (`sampler.isLand` z punktem — bez mórz, jezior, rzek i lawy), przy remisie bliżej środka pola — na wyspie wypada przy jej środku. Trzy budowle ciasno wokół (26% promienia pola zamiast 42% wokół środka); budowla, która wypadłaby w wodzie, przysuwa się do środka grupy. Pole bez lądu (lód dla kryształów) — jak dotąd. Budowli w wodzie (wszystkie pola lądu, 6 typów × 3 seedy): 7,4% → 0,1% (test).
+- **Pola w pasku zasobów** (prośba właściciela): 5. kolumna „POLA” po prawej od antymaterii — zajęte/do zabudowy, złoty pasek zapełnienia, na czerwono „brak wolnych”. W liście planet (☰) przy zapasach: „pola N/M” (`PlanetOverview.fields`; siatka liczona raz na planetę i zapamiętywana).
 - **Wybór nowego pola** (`plots.ts`, `nextCell`): +0,6 × udział lądu w polu — przybrzeżne skrawki przegrywają z polami pełnymi lądu (pasujący teren nadal ważniejszy). Zapisane pola się nie przesuwają; zmienia się tylko miejsce budowli wewnątrz pola (czysty wygląd, bez zmian w zapisie).
 
 ## 2026-10-24 — v0.26.1: grupy budowli, zarządzanie, teren pod budynki
