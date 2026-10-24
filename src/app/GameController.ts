@@ -23,6 +23,7 @@ import {
   type Rates,
   type UpgradeResult,
 } from '../core/economy/economy.ts';
+import { geologyOf, type Geology } from '../core/economy/geology.ts';
 import { simulateAwayAi } from '../core/ai/offline.ts';
 import { DEFAULT_AI_LEVELS, suggest, type AiAction, type AiLevel, type AiRuleId, type AiSuggestion } from '../core/ai/advisor.ts';
 import {
@@ -903,6 +904,18 @@ export class GameController {
   /** Planeta gracza pod adresem (do miniatur na mapie). */
   planetAtSlot(index: number): Planet | null {
     return this.slots[index]?.planet ?? null;
+  }
+
+  /**
+   * Geologia planety z mapy: pola i złoże całkowite; własna planeta także z tym, co zostało
+   * (nieaktywna — policzona na teraz, jak w „Imperium”; zapis się nie zmienia).
+   */
+  geologyAt(planet: Planet, address: string, now = Date.now()): Geology {
+    const index = this.slotAt(address);
+    const slot = this.slots[index];
+    if (!slot) return geologyOf(planet, null, this.balance);
+    const economy = index === this.active ? this.economy : advance(slot.economy, slot.planet, now, catchUpBalance(this.balanceFor(slot)));
+    return geologyOf(slot.planet, economy, this.balanceFor(slot));
   }
 
   /** Kto jest na planecie: Ty, bot (inny gracz), forma obca albo nikt. */

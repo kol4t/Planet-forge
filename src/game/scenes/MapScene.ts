@@ -2,12 +2,14 @@ import Phaser from 'phaser';
 import type { MapOccupant } from '../../app/GameController.ts';
 import { findStar, parseAddress, SPIRAL, spiralPoint, type GasGiantLook, type StarSystem, type SystemPlanet, type SystemSummary } from '../../core/galaxy/galaxy.ts';
 import { createRng } from '../../core/random/rng.ts';
+import { compareGeology } from '../../core/economy/geology.ts';
 import { generatePlanet } from '../../core/generation/generatePlanet.ts';
 import { GALAXY_RULES, ZONE_LABELS } from '../../data/galaxy.ts';
 import { findDefinition, STARTER } from '../../data/planets.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import type { ButtonStyle } from '../ui/Button.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
+import { geologyLines } from '../ui/geologyText.ts';
 import { COLORS, FONTS, formatDuration, formatInt } from '../ui/theme.ts';
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
@@ -82,7 +84,7 @@ export class MapScene extends OverlayScene {
   }
 
   relayout(): void {
-    const { bar } = this.frame(196, 226);
+    const { bar } = this.frame(226, 256);
     this.panZoom = this.mode === 'galaxy';
     this.world?.destroy(true);
     this.details?.destroy(true);
@@ -581,10 +583,18 @@ export class MapScene extends OverlayScene {
       COLORS.text,
     );
     line(
-      `Złoża: metal ${Math.round(rich.metal * 100)}% · kryształy ${Math.round(rich.crystal * 100)}% · energia ${Math.round(rich.energy * 100)}%`,
+      `Bogactwo złóż: metal ${Math.round(rich.metal * 100)}% · kryształy ${Math.round(rich.crystal * 100)}% · energia ${Math.round(rich.energy * 100)}%`,
       11,
       COLORS.muted,
+      {},
+      2,
     );
+    // Geologia: pola i złoża (własna planeta — ile zostało) oraz porównanie z planetą, na której jesteś.
+    const geology = controller.geologyAt(planet, p.address);
+    const here = p.address === controller.address;
+    const compare = here ? null : { name: controller.planet.displayName, diff: compareGeology(geology, controller.geologyAt(controller.planet, controller.address)) };
+    for (const text of geologyLines(geology, compare)) line(text, 11, COLORS.stone, {}, 2);
+    y += this.s(4);
     let action: [string, ButtonStyle, () => void];
     if (occupant === 'you') {
       action =

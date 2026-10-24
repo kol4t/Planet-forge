@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.28: informacja geologiczna na mapie
+
+Etap 2 planu gameplayu. Decyzja właściciela: **dokładne wartości złóż** od razu (bez szacunków i skanowania — to ewentualnie osobny etap później).
+- Panel planety na mapie: „Bogactwo złóż: …” (dawne „Złoża: …%” — nowa nazwa odróżnia mnożnik od ilości), „Pola: N · Złoże: metal X · kryształy Y”, dla własnej planety „Zostało: metal X z Y · …” (nieaktywna liczona na teraz, bez zmiany zapisu), dla innych planet „Względem <planeta, na której jesteś>: metal ±% · kryształy ±% · pola ±N” (porównanie potencjału — złóż całkowitych, niezależnie od wydobycia).
+- Czysta logika: `core/economy/geology.ts` (`geologyOf`, `compareGeology`), teksty `game/ui/geologyText.ts`, `GameController.geologyAt`. Pola z `gameplay.fields` (bez liczenia ciężkiej siatki pól dla obcych planet). Mapa i kolonizacja tworzą planetę tak samo (definicja + adres), więc pokazane złoże = złoże po kolonizacji (test).
+- Bez zmian w generatorze, seedzie, RNG i zapisach. Panel szczegółów mapy wyższy (196/226 → 226/256 × u) na dodatkowe linijki.
+
 ## 2026-10-24 — v0.27: skończone złoża metalu i kryształów
 
 Etap 1 planu rozwoju gameplayu (propozycja przekazana przez właściciela): naturalne złoża planety, które kopalnie wyczerpują.

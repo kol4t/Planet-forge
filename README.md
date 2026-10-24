@@ -274,4 +274,9 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 154. Ikona ustawień na karcie kopalni (**„Zarządzanie”**): na dole wiersz o złożu tej kopalni.
 155. Gdy złoże się wyczerpie: karta kopalni pisze na czerwono „Złoże wyczerpane — kopalnia stoi”, surowiec rośnie już tylko o przyrost podstawowy (+6/min metalu, +3/min kryształów), zgromadzone surowce zostają, a energia przechodzi na inne budynki.
 
+### Od 0.28: informacja geologiczna
+
+156. **Mapa** → układ → dotknij wolnej planety: pod typem planety są linijki „Bogactwo złóż: …”, „Pola: … · Złoże: metal … · kryształy …” i „Względem <Twoja planeta>: metal +…% · kryształy −…% · pola +…”.
+157. Dotknij swojej planety na mapie: zamiast „Złoże” jest „Zostało: metal … z … · kryształy … z …”.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.
