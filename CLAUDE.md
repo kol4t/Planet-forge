@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.23 — na gałęzi, czeka na akceptację; opublikowana v0.22)
+## Stan obecny (v0.23 — opublikowana)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **Przybliżanie dwoma palcami** (1×–3,5×, `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
@@ -118,7 +118,7 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 0. ~~Porządki w dokumentacji, lore w repozytorium~~ (2026-10-22).
 1. ~~Pomiar płynności~~ (v0.21: 3D 59/48 kl./s, 2D 58/50 — `docs/decisions.md`).
 2. ~~Trzy metody terenu~~ (v0.22, etap 3 planu generatora; opublikowana — test na iPadzie u właściciela).
-3. ~~Sześć profili i `npm run atlas`~~ (v0.23, etap 4) — czeka na test na iPadzie.
+3. ~~Sześć profili i `npm run atlas`~~ (v0.23, etap 4; opublikowana — test na iPadzie u właściciela).
 4. **Woda i lawa** (v0.24, etap 5) — po etapie ponowny pomiar kl./s.
 5. **Światło, atmosfera, kamera** (v0.25, etap 6).
 6. **Dokończenie UI** (v0.26, reszta etapu 7 — dolny pasek i panel już są od v0.19).
