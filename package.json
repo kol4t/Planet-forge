@@ -1,6 +1,6 @@
 {
   "name": "planet-forge",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "private": true,
   "description": "Planet Forge — przeglądarkowa strategia sci-fi z jedną planetą 3D (iPad / Safari).",
   "type": "module",
@@ -12,6 +12,7 @@
     "test": "node --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.ts",
+    "atlas": "node scripts/atlas.ts",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {

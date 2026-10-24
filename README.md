@@ -194,4 +194,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 110. Sprawdź w 2D i w 3D (Ustawienia → Grafika). Płynność: Ustawienia → „Diagnostyka” — porównaj z pomiarem z 0.21 (3D: 59 średnio / 48 najsłabsza sekunda; 2D: 58 / 50).
 111. Obrót przez biegun: przeciągnij planetę palcem w górę albo w dół — da się ją przekręcić przez biegun i dalej, aż do pełnego obrotu (wcześniej zatrzymywała się przed biegunem). Za biegunem ruch w bok nadal przesuwa powierzchnię za palcem. Po puszczeniu planeta powoli wraca biegunem do góry.
 
+### Od 0.23: profile powierzchni (przebudowa generatora, etap 4)
+
+112. Część planet ma **inny kształt terenu niż w 0.22** (np. umiarkowana z dolinami erozji albo kraterami zamiast płyt) — metoda jest teraz losowana z profilu planety. Planeta startowa wygląda jak w 0.22. Kolory, proporcja lądu i wody, surowce — bez zmian.
+113. „Mapa” → otwórz kilka układów: planety tego samego typu różnią się kształtem terenu, a jałowe nigdy nie mają dolin rzecznych.
+114. Ustawienia → „Włącz 3D”: po przeładowaniu planeta jest obrócona tak samo jak w 2D (i odwrotnie przy „Wróć do 2D”).
+115. Atlas: na GitHubie otwórz `docs/atlas/metryki.md` — obrazek wszystkich profili i metod oraz tabela liczb.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

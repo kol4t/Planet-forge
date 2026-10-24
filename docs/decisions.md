@@ -2,6 +2,17 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.23: sześć profili powierzchni i atlas (przebudowa generatora, etap 4)
+
+- **Profil powierzchni = dane** (`src/data/profiles/`, typ `SurfaceProfile` w `core/types.ts`): wygląd (paleta, morze, atmosfera, chmury, lód, styl 3D — przeniesione 1:1 z typów planet), dozwolone metody terenu z wagami, kombinacje niezgodne z powodem, rodzaj cieczy (dla etapu 5), oczekiwany udział lądu, pasma materiałów lądu. Profile to kategorie **techniczne** (CANON_STATUS R-003), nazwy robocze.
+- **Typ planety wskazuje profil** (`surface: { profile }`); `visual` w definicji tylko nadpisuje wygląd profilu (`resolveLook`). Wszystkie losowania planety bez zmian — test regresji planety startowej przechodzi.
+- **Metoda terenu losowana z wag profilu** w osobnym strumieniu (`<typ>|<seed>|surface-method`): preferowana 3, pozostałe 1 (ok. 60/20/20). Część planet dostaje inną metodę niż w v0.22; planeta startowa zostaje przy `tectonic`. `SURFACE_VERSION` = 3.
+- **Niezgodne:** jałowy × erozja (bez wody i atmosfery doliny rzeczne byłyby fałszywym śladem) — nigdy nie losowana, w atlasie przekreślona.
+- **Materiały z pasm profilu** (`classifyPoint`): nowe kody dopisane na końcu `MATERIALS` (piasek, skała, śnieg, popiół, bazalt, regolit). Renderery dalej kolorują według palety i wysokości — kolor z materiału przyjdzie razem z wodą i lawą (etap 5) albo światłem (etap 6).
+- **`npm run atlas`** → `docs/atlas/atlas.png` (6 profili × 3 metody × 2 seedy, widok 2D) i `docs/atlas/metryki.md` (ląd, chaos, stromość, płaskie, igły, czas). Do oglądania na GitHubie.
+- **Zmiana grafiki 2D ↔ 3D zachowuje obrót planety** (zgłoszenie właściciela): przy przełączeniu obrót trafia do pamięci sesji i jest przywracany po przeładowaniu (`PlanetDisplay.setOrientation`). Obie wersje liczą obrót tymi samymi wzorami (3D ma dodatkowo nachylenie osi planety).
+- **Pomiar v0.22 (iPad, pion, 3D):** średnio 58 kl./s, najsłabsza sekunda 49 — bez zmian względem v0.21.
+
 ## 2026-10-22 — v0.22: trzy metody terenu (przebudowa generatora, etap 3)
 
 - **Punkt odniesienia płynności (v0.21, iPad właściciela, 1080×778 @2, z ekranu początkowego):** 3D średnio 59 kl./s, najsłabsza sekunda 48 (pomiar 38 s); 2D średnio 58, najsłabsza sekunda 50–57 (pomiary 2–17 s). Po v0.22 porównujemy z tymi liczbami.

@@ -27,20 +27,14 @@ const randomDirs = (n: number, seed: string) => {
   });
 };
 
-test('metody terenu: rejestr i metoda preferowana każdego typu planety', () => {
+test('metody terenu: rejestr; planeta dostaje metodę dozwoloną przez swój profil', () => {
   assert.deepEqual([...TERRAIN_METHOD_IDS].sort(), ['erosion', 'fractured', 'legacy', 'tectonic']);
-  const expected: Record<string, TerrainMethodId> = {
-    'kepler-186f': 'tectonic',
-    arid: 'erosion',
-    ice: 'tectonic',
-    ocean: 'tectonic',
-    volcanic: 'fractured',
-    barren: 'fractured',
-  };
   for (const def of PLANET_DEFINITIONS) {
-    const method = generatePlanet(def, 'PF-M').visual.terrainMethod;
-    assert.ok(TERRAIN_METHOD_IDS.includes(method), def.id);
-    if (expected[def.id]) assert.equal(method, expected[def.id], def.id);
+    const allowed = def.surface.profile.methods.map((m) => m.id);
+    for (const seed of ['PF-M-1', 'PF-M-2', 'PF-M-3']) {
+      const method = generatePlanet(def, seed).visual.terrainMethod;
+      assert.ok(allowed.includes(method), `${def.id}: ${method}`);
+    }
   }
 });
 

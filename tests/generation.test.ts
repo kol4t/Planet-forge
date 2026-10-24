@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { resolveLook } from '../src/core/surface/profile.ts';
 import { test } from 'node:test';
 import {
   GENERATOR_VERSION,
@@ -49,7 +50,7 @@ test('walidacja wykrywa błędne dane', () => {
   const broken = {
     ...KEPLER_186F,
     weight: 0,
-    visual: { ...KEPLER_186F.visual, seaLevel: [0.7, 0.2] as const, atmosphereColor: 'zielony' },
+    visual: { seaLevel: [0.7, 0.2] as const, atmosphereColor: 'zielony' },
   };
   const problems = validateDefinition(broken);
   assert.ok(problems.some((p) => p.includes('waga')));
@@ -67,7 +68,8 @@ test('wartości wylosowane mieszczą się w zakresach definicji', () => {
         const [min, max] = def.generation.resourceRange[id];
         assert.ok(p.gameplay.richness[id] >= min - 0.005 && p.gameplay.richness[id] <= max + 0.005, `${def.id} ${id}`);
       }
-      assert.ok(p.visual.seaLevel >= def.visual.seaLevel[0] && p.visual.seaLevel <= def.visual.seaLevel[1]);
+      const sea = resolveLook(def).seaLevel;
+      assert.ok(p.visual.seaLevel >= sea[0] && p.visual.seaLevel <= sea[1]);
       assert.ok(p.visual.axialTiltDeg >= 5 && p.visual.axialTiltDeg <= 28);
       assert.ok(def.generation.environmentModifiers.some((e) => e.id === p.gameplay.environment.id));
     }

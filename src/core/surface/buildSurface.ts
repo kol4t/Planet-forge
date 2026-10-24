@@ -1,6 +1,6 @@
 // Model powierzchni na siatce: wysokość → ciecz → materiał (+ statystyki i walidacja).
 // Ciężkie kroki (hydrologia, lawa, erozja — kolejne etapy) liczone raz, przy generowaniu.
-import type { Planet } from '../types.ts';
+import type { MaterialBand, Planet } from '../types.ts';
 import { createSurfaceField } from './field.ts';
 import { sphereGrid } from './grid.ts';
 import { LIQUID, MATERIALS, type LiquidCode, type MaterialId, type SurfaceField, type SurfaceModel } from './types.ts';
@@ -10,8 +10,23 @@ export const MODEL_DETAIL = 40;
 
 const MATERIAL_CODE = Object.fromEntries(MATERIALS.map((id, i) => [id, i])) as Record<MaterialId, number>;
 
-/** Klasyfikacja punktu (wspólna dla siatki i próbkowania ciągłego). */
-export function classifyPoint(field: SurfaceField, h: number, x: number, y: number, z: number): { liquid: LiquidCode; material: MaterialId } {
+/** Pasma lądu sprzed profili (v0.18–v0.22): brzeg → nizina → wyżyna → szczyt. */
+export const DEFAULT_BANDS: readonly MaterialBand[] = [
+  { upTo: 0.03, material: 'shore' },
+  { upTo: 0.3, material: 'lowland' },
+  { upTo: 0.6, material: 'highland' },
+  { upTo: 1, material: 'peak' },
+];
+
+/** Klasyfikacja punktu (wspólna dla siatki i próbkowania ciągłego); ląd według pasm profilu. */
+export function classifyPoint(
+  field: SurfaceField,
+  h: number,
+  x: number,
+  y: number,
+  z: number,
+  bands: readonly MaterialBand[] = DEFAULT_BANDS,
+): { liquid: LiquidCode; material: MaterialId } {
   const sea = field.seaLevel;
   const icy = field.ice(h, x, y, z) > 0.5;
   if (h < sea) {
@@ -19,10 +34,9 @@ export function classifyPoint(field: SurfaceField, h: number, x: number, y: numb
     return { liquid: LIQUID.ocean, material: h > sea - 0.07 ? 'shallowWater' : 'deepWater' };
   }
   if (icy) return { liquid: LIQUID.none, material: 'glacier' };
-  // Pasma jak w kolorach v0.17: brzeg → nizina → wyżyna → szczyt.
   const t = (h - sea) / (1 - sea);
-  const material: MaterialId = t < 0.03 ? 'shore' : t < 0.3 ? 'lowland' : t < 0.6 ? 'highland' : 'peak';
-  return { liquid: LIQUID.none, material };
+  for (const band of bands) if (t < band.upTo) return { liquid: LIQUID.none, material: band.material };
+  return { liquid: LIQUID.none, material: bands[bands.length - 1]!.material };
 }
 
 /** Model powierzchni planety na siatce o szczegółowości `detail`. */
@@ -44,7 +58,7 @@ export function buildSurface(planet: Planet, detail = MODEL_DETAIL): SurfaceMode
     const y = nodes[i * 3 + 1]!;
     const z = nodes[i * 3 + 2]!;
     const h = field.height(x, y, z);
-    const c = classifyPoint(field, h, x, y, z);
+    const c = classifyPoint(field, h, x, y, z, planet.visual.bands);
     height[i] = h;
     liquid[i] = c.liquid;
     material[i] = MATERIAL_CODE[c.material];

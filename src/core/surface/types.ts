@@ -19,9 +19,25 @@ export type LiquidCode = (typeof LIQUID)[keyof typeof LIQUID];
 
 /**
  * Materiały powierzchni (indeks = kod w `SurfaceModel.material`). Dopisuj tylko na końcu.
- * Na razie pasma wysokości z v0.17; profile (etap 4) dodadzą piasek, bazalt, popiół…
+ * Ląd klasyfikowany pasmami wysokości z profilu (`SurfaceProfile.bands`); woda i lód — wspólnie.
  */
-export const MATERIALS = ['deepWater', 'shallowWater', 'seaIce', 'shore', 'lowland', 'highland', 'peak', 'glacier'] as const;
+export const MATERIALS = [
+  'deepWater',
+  'shallowWater',
+  'seaIce',
+  'shore',
+  'lowland',
+  'highland',
+  'peak',
+  'glacier',
+  // v0.23 — materiały profili:
+  'sand',
+  'rock',
+  'snow',
+  'ash',
+  'basalt',
+  'regolith',
+] as const;
 export type MaterialId = (typeof MATERIALS)[number];
 
 /** Ciągłe pole terenu — można je próbkować w dowolnym punkcie sfery jednostkowej. */

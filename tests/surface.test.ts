@@ -108,7 +108,7 @@ test('model powierzchni: deterministyczny, poprawny i zgodny z polem dla każdeg
       const planet = generatePlanet(def, seed);
       const model = buildSurface(planet, 16);
       assert.equal(model.version, SURFACE_VERSION);
-      assert.equal(model.method, def.visual.terrainMethod ?? 'tectonic');
+      assert.equal(model.method, planet.visual.terrainMethod);
       assert.deepEqual(validateSurface(model), [], `${def.id} ${seed}`);
       const again = buildSurface(planet, 16);
       assert.deepEqual(again.height, model.height);

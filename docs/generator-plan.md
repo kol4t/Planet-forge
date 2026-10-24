@@ -267,7 +267,9 @@ Zrobione: szczegóły i odstępstwa od tabeli (mapa sześcienna zamiast pełnej 
 
 Ryzyka: koszt erozji (limit iteracji, pomiar) i drobne różnice liczb zmiennoprzecinkowych między silnikami (§ 2.6).
 
-### Etap 4 — sześć profili (v0.23)
+### Etap 4 — sześć profili (v0.23) ✔
+Zrobione: profile jako dane, metoda losowana z wag, materiały z pasm, `npm run atlas` — szczegóły w `docs/decisions.md` (v0.23). Odstępstwo: jeden folder `src/data/profiles/` z typem w `core/types.ts`; kolor z materiału w rendererach — później.
+
 | Plik | Zmiana |
 |---|---|
 | `src/data/profiles/{terrestrial,arid,ice,oceanic,volcanic,barren}.ts`, `index.ts` | nowe — dane profili (robocze) |
@@ -327,7 +329,7 @@ Pomiary: czas generowania, wierzchołki, draw calle, FPS na iPadzie przed i po, 
 
 **Podjęte:** 1 → **A** (nowy wygląd dla wszystkich planet, rozgrywka bez zmian); 2 → **dodać roboczy typ „jałowa”** (zrobione w v0.18).
 
-**Stan etapów:** etap 1 ✔ · etap 2 ✔ (v0.18 — model na siatce z cieczą ocean/zamarznięte morze; jeziora, rzeki i lawa dochodzą w etapie 5, materiały profili w etapie 4) · etap 3 ✔ (v0.22 — metody tectonic, erosion, fractured).
+**Stan etapów:** etap 1 ✔ · etap 2 ✔ (v0.18 — model na siatce z cieczą ocean/zamarznięte morze; jeziora, rzeki i lawa dochodzą w etapie 5, materiały profili w etapie 4) · etap 3 ✔ (v0.22 — metody tectonic, erosion, fractured) · etap 4 ✔ (v0.23 — sześć profili, atlas).
 
 Pytania w pierwotnym brzmieniu:
 

@@ -1,4 +1,5 @@
 import { createRng, hashString } from '../random/rng.ts';
+import { pickTerrainMethod, resolveLook, validateProfile } from '../surface/profile.ts';
 import type { Planet, PlanetDefinition, Range, SurfaceStyle, YieldId } from '../types.ts';
 
 /**
@@ -11,12 +12,10 @@ export const GENERATOR_VERSION = 1;
 /**
  * Wersja WYGLĄDU terenu (`core/surface`). Nie jest zapisywana: po aktualizacji wszystkie planety,
  * także zapisane, dostają nowy teren (decyzja właściciela, wariant A) — rozgrywka bez zmian.
- * 1 = teren v0.1–v0.21 (`legacy`), 2 = trzy metody terenu (v0.22).
+ * 1 = teren v0.1–v0.21 (`legacy`), 2 = trzy metody terenu (v0.22), 3 = profile powierzchni
+ * i metoda losowana z wag profilu (v0.23).
  */
-export const SURFACE_VERSION = 2;
-
-/** Metoda terenu typu planety bez własnej (`visual.terrainMethod`). */
-export const DEFAULT_TERRAIN_METHOD = 'tectonic' as const;
+export const SURFACE_VERSION = 3;
 
 const YIELDS: readonly YieldId[] = ['metal', 'crystal', 'energy'];
 const NAME_LETTERS = 'bcdefg';
@@ -58,7 +57,7 @@ export function generatePlanet(definition: PlanetDefinition, seedInput: string):
 
   // Strumień „visual” — nowe losowania dopisuj wyłącznie na końcu.
   const pick = (range: Range, digits = 3) => round(visual.range(range[0], range[1]), digits);
-  const v = definition.visual;
+  const v = resolveLook(definition);
   const noiseSeed = hashString(`${seed}:noise`) ^ visual.int(0, 65535);
   const seaLevel = pick(v.seaLevel);
   const terrainAmplitude = pick(v.terrainAmplitude);
@@ -98,7 +97,9 @@ export function generatePlanet(definition: PlanetDefinition, seedInput: string):
       clouds: { threshold: cloudThreshold, opacity: clouds.opacity, color: clouds.color },
       polarCap: v.polarCap ?? DEFAULT_POLAR_CAP,
       style: { ...DEFAULT_SURFACE_STYLE, ...v.style },
-      terrainMethod: v.terrainMethod ?? DEFAULT_TERRAIN_METHOD,
+      profile: definition.surface.profile.id,
+      bands: definition.surface.profile.bands,
+      terrainMethod: pickTerrainMethod(definition, seed),
       surfaceVersion: SURFACE_VERSION,
     },
   };
@@ -136,7 +137,11 @@ export function validateDefinition(def: PlanetDefinition): string[] {
   if (!def.displayName && !def.catalogs?.length) problems.push('brak nazwy i katalogów');
   if (!(def.weight > 0)) problems.push('waga musi być > 0');
 
-  const v = def.visual;
+  problems.push(...validateProfile(def.surface.profile));
+  if (def.surface.methods) {
+    problems.push(...validateProfile({ ...def.surface.profile, methods: def.surface.methods }));
+  }
+  const v = resolveLook(def);
   checkRange('seaLevel', v.seaLevel, 0, 1);
   checkRange('terrainAmplitude', v.terrainAmplitude, 0, 0.2);
   checkRange('terrainScale', v.terrainScale, 0.2, 6);

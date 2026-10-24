@@ -1,5 +1,5 @@
 // Wspólne typy gry. Czysty TypeScript — bez importów z phaser/three/DOM.
-import type { TerrainMethodId } from './surface/types.ts';
+import type { MaterialId, TerrainMethodId } from './surface/types.ts';
 
 export type ResourceId = 'metal' | 'crystal';
 export type YieldId = ResourceId | 'energy';
@@ -73,6 +73,56 @@ export interface SurfaceStyle {
   atmosphereWidth: number;
 }
 
+/** Wygląd powierzchni opisany danymi (profil, z nadpisaniami w definicji typu planety). */
+export interface SurfaceLook {
+  palette: PlanetPalette;
+  seaLevel: Range;
+  terrainAmplitude: Range;
+  terrainScale: Range;
+  roughness: number;
+  atmosphereColor: string;
+  atmosphereIntensity: number;
+  ocean?: OceanLook;
+  clouds?: CloudLook;
+  /** Szerokość (|y| 0..1), od której zaczyna się czapa lodowa. */
+  polarCap?: number;
+  /** Styl low-poly widoku 3D (opcjonalnie; brak = domyślny). */
+  style?: Partial<SurfaceStyle>;
+}
+
+export interface MethodWeight {
+  id: TerrainMethodId;
+  weight: number;
+}
+
+/** Pasmo materiału lądu: do wysokości `upTo` (0 = brzeg, 1 = najwyższy szczyt) leży `material`. */
+export interface MaterialBand {
+  upTo: number;
+  material: MaterialId;
+}
+
+/**
+ * Profil powierzchni (`src/data/profiles/`) — kategoria TECHNICZNA (R-003), nie kanoniczny typ planety.
+ * Opisuje wygląd, dozwolone metody terenu z wagami i materiały; typ planety wskazuje swój profil.
+ */
+export interface SurfaceProfile {
+  id: string;
+  /** Nazwa robocza (do atlasu i laboratorium planet). */
+  label: string;
+  status: DataStatus;
+  /** Dozwolone metody terenu z wagami losowania (pierwsza = preferowana). */
+  methods: readonly MethodWeight[];
+  /** Kombinacje świadomie wyłączone, z powodem (atlas pokazuje je osobno). */
+  incompatible?: readonly { method: TerrainMethodId; reason: string }[];
+  /** Ciecz w zagłębieniach (woda; lawa i jej rzeki — etap 5; brak = suche kotliny). */
+  liquid: 'water' | 'lava' | 'none';
+  /** Oczekiwane granice metryk (testy i atlas). */
+  expect: { land: Range };
+  /** Materiały lądu od brzegu do szczytów (rosnące `upTo`, ostatnie ≥ 1). */
+  bands: readonly MaterialBand[];
+  look: SurfaceLook;
+}
+
 export interface PlanetDefinition {
   id: string;
   /** Stała nazwa planety. Gdy brak — nazwa powstaje z seeda i `catalogs`. */
@@ -84,23 +134,10 @@ export interface PlanetDefinition {
   status: DataStatus;
   /** Szansa wylosowania przy „Nowa planeta”. */
   weight: number;
-  visual: {
-    palette: PlanetPalette;
-    seaLevel: Range;
-    terrainAmplitude: Range;
-    terrainScale: Range;
-    roughness: number;
-    atmosphereColor: string;
-    atmosphereIntensity: number;
-    ocean?: OceanLook;
-    clouds?: CloudLook;
-    /** Szerokość (|y| 0..1), od której zaczyna się czapa lodowa. */
-    polarCap?: number;
-    /** Styl low-poly widoku 3D (opcjonalnie; brak = domyślny). */
-    style?: Partial<SurfaceStyle>;
-    /** Metoda terenu (preferowana dla typu, `docs/generator-plan.md` § 3; brak = `tectonic`). */
-    terrainMethod?: TerrainMethodId;
-  };
+  /** Profil powierzchni (wygląd, metody terenu, materiały); `methods` nadpisuje metody profilu. */
+  surface: { profile: SurfaceProfile; methods?: readonly MethodWeight[] };
+  /** Nadpisania wyglądu profilu tylko dla tego typu (opcjonalnie). */
+  visual?: Partial<SurfaceLook>;
   generation: {
     sizeClasses: readonly SizeClassDef[];
     resourceRange: Record<YieldId, Range>;
@@ -122,6 +159,10 @@ export interface PlanetVisual {
   clouds: { threshold: number; opacity: number; color: string };
   polarCap: number;
   style: SurfaceStyle;
+  /** Profil powierzchni (`SurfaceProfile.id`). */
+  profile: string;
+  /** Materiały lądu z profilu (klasyfikacja modelu powierzchni). */
+  bands: readonly MaterialBand[];
   /** Metoda terenu (`core/surface/field.ts`). */
   terrainMethod: TerrainMethodId;
   /** Wersja wyglądu terenu (`SURFACE_VERSION`) — niezależna od rozgrywki. */
