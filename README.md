@@ -262,4 +262,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 148. Zajęte pole ma złoty obrys w 2D i w 3D (cała granica, także wspólna z wolnym sąsiadem).
 149. Grupy budowli stoją w środkach pól i nie nachodzą na grupy z sąsiednich pól. Po aktualizacji budowle jednorazowo się przestawiają.
 
+### Od 0.26.5: zgłoszenia
+
+150. ☰ → Ustawienia → **„Zgłoś / diagnostyka”**: okno z rubrykami „Błąd” i „Sugestia, propozycja zmiany”, polami tytułu i opisu (klawiatura iPada), zaznaczeniem „Dołącz diagnostykę” i „Dołącz zapis gry”, podglądem diagnostyki.
+151. „Wyślij na GitHub” otwiera gotowe zgłoszenie w repozytorium (po zalogowaniu wystarczy „Create”); „Kopiuj” kopiuje całe zgłoszenie (dla osób bez konta GitHub).
+152. Wpisany tekst zostaje po powrocie z GitHuba; „Wyczyść zgłoszenie” go usuwa.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -161,6 +161,32 @@ html, body {
 #text-panel button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 #text-panel .tp-secondary { border: 1.5px solid var(--teal); background: #1a2b2d; color: var(--teal); }
 #text-panel .tp-primary { border: 0; background: var(--gold); color: #0c1513; }
+/* Okno „Diagnostyka i zgłoszenia” — src/game/ui/feedbackPanel.ts */
+#text-panel .fb-box { max-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#text-panel .fb-kinds { display: flex; gap: 8px; margin: 6px 0 12px; }
+#text-panel .fb-kinds button { border: 1.5px solid var(--teal); background: #1a2b2d; color: var(--teal); font-size: 14px; }
+#text-panel .fb-kinds button.on { background: var(--teal); color: #0c1513; }
+#text-panel .fb-title {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #2b4846;
+  background: #05090b;
+  color: var(--text);
+  font: 15px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+}
+#text-panel .fb-title:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+#text-panel .fb-text { font: 15px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif; word-break: normal; }
+#text-panel .fb-check { display: flex; gap: 10px; align-items: center; min-height: 44px; font-size: 14px; color: var(--text); }
+#text-panel .fb-check input { width: 22px; height: 22px; flex: none; accent-color: var(--teal); }
+#text-panel .fb-details { margin: 4px 0 8px; font-size: 14px; color: #8ea6a0; }
+#text-panel .fb-details summary { min-height: 32px; cursor: pointer; }
+#text-panel .tp-error.ok { color: var(--teal); }
+#text-panel .tp-error a { color: var(--gold); }
+#text-panel .fb-clear { display: block; flex: none; width: auto; margin: 12px auto 0; padding: 0 12px; border: 0; background: none; color: #8ea6a0; font-size: 14px; }
   </style>
 </head>
 <body>

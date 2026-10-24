@@ -11,6 +11,7 @@ import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThu
 import { Button, type ButtonStyle } from '../ui/Button.ts';
 import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
 import { openTextPanel } from '../ui/textPanel.ts';
+import { openFeedbackPanel } from '../ui/feedbackPanel.ts';
 import {
   computeLayout,
   planetFooterRows,
@@ -227,7 +228,7 @@ export class PlanetScene extends Phaser.Scene {
 
     if (this.deps.graphics.crashedLastTime) {
       this.showToast(
-        'Poprzednie uruchomienie się nie powiodło — gra działa na planecie 2D. Szczegóły: Ustawienia → Diagnostyka.',
+        'Poprzednie uruchomienie się nie powiodło — gra działa na planecie 2D. Zgłoś to: Ustawienia → Zgłoś / diagnostyka.',
         'info',
         6000,
       );
@@ -1535,7 +1536,7 @@ export class PlanetScene extends Phaser.Scene {
       g.active === 'webgl'
         ? 'Planeta 3D (opcja dodatkowa). Jeśli gra działa wolno, zamyka się albo iPad się restartuje, wróć do 2D.'
         : g.crashedLastTime
-          ? 'Planeta 2D — poprzednie uruchomienie się nie powiodło. Skopiuj diagnostykę i prześlij ją.'
+          ? 'Planeta 2D — poprzednie uruchomienie się nie powiodło. Zgłoś błąd przyciskiem „Zgłoś / diagnostyka”.'
           : 'Planeta 2D (domyślnie): lekka, pikselowa, z obrotem palcem. Model 3D to opcja dodatkowa — na starszych iPadach może działać wolniej.',
       font(13, COLORS.muted),
     );
@@ -1551,7 +1552,7 @@ export class PlanetScene extends Phaser.Scene {
       () => g.setMode(g.active === 'webgl' ? '2d' : '3d'),
       this.s(15),
     ).setStyle('secondary');
-    const diag = new Button(this, pad + halfW + gap, y, halfW, buttonH, 'Diagnostyka', this.dpr, () => this.copyDiagnostics(), this.s(15)).setStyle(
+    const diag = new Button(this, pad + halfW + gap, y, halfW, buttonH, 'Zgłoś / diagnostyka', this.dpr, () => this.openFeedback(), this.s(15)).setStyle(
       'secondary',
     );
     y += buttonH + gap * 1.5;
@@ -1598,18 +1599,10 @@ export class PlanetScene extends Phaser.Scene {
     this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
   }
 
-  private copyDiagnostics(): void {
-    const text = this.deps.graphics.diagnostics();
-    const fallback = () =>
-      openTextPanel({ title: 'Diagnostyka', hint: 'Zaznacz cały tekst, skopiuj i wklej w rozmowie.', text, readOnly: true });
-    try {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => this.showToast('Diagnostyka skopiowana — wklej ją w rozmowie.', 'ok', 3500))
-        .catch(fallback);
-    } catch {
-      fallback();
-    }
+  /** Okno „Diagnostyka i zgłoszenia”: błąd albo sugestia → zgłoszenie w repozytorium gry (GitHub) albo tekst do skopiowania. */
+  private openFeedback(): void {
+    this.closeOverlay();
+    openFeedbackPanel({ diagnostics: () => this.deps.graphics.diagnostics(), save: () => this.deps.controller.exportSave() });
   }
 
   private copySave(): void {

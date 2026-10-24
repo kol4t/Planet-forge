@@ -11,6 +11,7 @@ import { SpaceBackground, type SkyScene } from '../planet-renderer/spaceBackgrou
 import { findStar, generateSystem, parseAddress } from '../core/galaxy/galaxy.ts';
 import { PLANET_DEFINITIONS } from '../data/planets.ts';
 import { BootGuard } from './bootGuard.ts';
+import { createErrorLog } from './feedback.ts';
 import { FpsMeter } from './fpsMeter.ts';
 import { GameController } from './GameController.ts';
 import { registerServiceWorker } from './pwa.ts';
@@ -196,7 +197,8 @@ function start(boot: BootGuard): void {
         location.reload();
       },
       diagnostics: () =>
-        boot.diagnostics({
+        [
+          boot.diagnostics({
           wersja: __APP_VERSION__,
           przeglądarka: navigator.userAgent,
           ekran: `${screen.width}×${screen.height} @${window.devicePixelRatio}`,
@@ -205,7 +207,14 @@ function start(boot: BootGuard): void {
           'grafika teraz': display.kind + (display.renderScale ? ` (rozdzielczość ${Math.round(display.renderScale() * 100)}%)` : ''),
           'płynność (ostatnia minuta)': fps.describe(),
           planety: `${controller.slotInfo.used} z ${controller.slotInfo.unlocked}`,
+          planeta: `${controller.planet.displayName} (${controller.planet.definitionId}, ${controller.address || 'startowa'}, seed ${controller.planet.seed})`,
+          budynki: Object.entries(controller.economy.levels)
+            .map(([id, level]) => `${id} ${level}`)
+            .join(', '),
+          pola: `${controller.fields.used}/${controller.fields.buildable}`,
         }),
+          errors.describe(),
+        ].join('\n'),
     },
   });
   const research = new ResearchScene({ controller, getViewport });
@@ -280,10 +289,22 @@ function start(boot: BootGuard): void {
   }
 }
 
+// Dziennik błędów do zgłoszeń (Ustawienia → Zgłoś / diagnostyka): błędy JavaScript i odrzucone obietnice.
+const errors = createErrorLog(safeStorage(), __APP_VERSION__);
+window.addEventListener('error', (event) => {
+  const file = (event.filename || '').split('/').pop() || '?';
+  errors.record(event.message || String(event.error), `${file}:${event.lineno}:${event.colno}`);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason as { message?: string } | undefined;
+  errors.record(String(reason?.message ?? event.reason), 'promise');
+});
+
 const boot = new BootGuard(safeStorage(), Date.now());
 try {
   start(boot);
 } catch (error) {
+  errors.record((error as Error).message, 'start');
   boot.step(`błąd: ${(error as Error).message}`);
   console.error(error);
   showError(`Nie udało się uruchomić gry: ${(error as Error).message}`);

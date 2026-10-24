@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.26.5: zgłoszenia testerów (błędy i sugestie) do repozytorium
+
+Prośba właściciela: testerzy mają wysyłać błędy do repozytorium, żeby można je było przeanalizować i poprawić; w diagnostyce — rubryka z sugestiami i propozycjami zmian.
+- **Bez serwera (zakres MVP):** zgłoszenie = GitHub Issue w publicznym repozytorium gry. Gra otwiera `issues/new` z wypełnionym formularzem (szablony `.github/ISSUE_TEMPLATE/blad.yml` → etykieta `bug`, `sugestia.yml` → `enhancement`; pola `opis`, `diagnostyka`, `zapis` wypełniane parametrami adresu). Tester zatwierdza „Create” (darmowe konto GitHub). Bez konta — „Kopiuj” i tekst do właściciela. Alternatywy (formularz zewnętrznej usługi, własny serwer) odrzucone: dane poza repozytorium albo backend poza zakresem.
+- **Okno „Diagnostyka i zgłoszenia”** (`game/ui/feedbackPanel.ts`, HTML — klawiatura iPada): rubryki „Błąd” / „Sugestia, propozycja zmiany”, tytuł, opis, dołącz diagnostykę / zapis, podgląd diagnostyki, Wyślij / Kopiuj / Wyczyść. Szkic w `localStorage` (przetrwa wyjście na GitHuba). Przycisk w Ustawieniach: „Zgłoś / diagnostyka” (zamiast samego kopiowania diagnostyki).
+- **Logika** (`app/feedback.ts`, testowana): `issueLink` pilnuje długości adresu (7000 znaków: najpierw wypada zapis, potem skracana diagnostyka — opis zostaje), `reportText`, dziennik błędów `createErrorLog` (`window` `error` + `unhandledrejection`, 10 ostatnich różnych, z licznikiem powtórzeń i wersją; odporny na brak pamięci).
+- **Diagnostyka rozszerzona** o planetę (typ, adres, seed), poziomy budynków, pola i ostatnie błędy.
+- Obsługa zgłoszeń: `docs/zgloszenia.md` (instrukcja dla testerów i sposób pracy).
+
 ## 2026-10-24 — v0.26.4: siatka pól z mapy powierzchni (pomysł właściciela)
 
 Zgłoszenie właściciela: budowle z sąsiednich pól nachodziły na siebie, w 3D nie było widać zajętego pola, bieguny bez siatki i bez kopalni kryształu. Propozycja właściciela: **najpierw ustalić ląd, wodę, lawę (i lód), dopiero na tych granicach budować siatkę, a przy jej budowie od razu ustalić wzgórza i brzegi**.

@@ -1,0 +1,24 @@
+name: Błąd w grze
+description: Coś nie działa albo działa inaczej, niż powinno. Najwygodniej zgłosić z gry — Ustawienia → Zgłoś.
+title: "[Błąd] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: opis
+    attributes:
+      label: Co się stało?
+      description: Co robiłeś, co się stało i czego się spodziewałeś. Zrzut ekranu można dołączyć poniżej.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostyka
+    attributes:
+      label: Diagnostyka
+      description: Wypełniana przez grę (wersja, urządzenie, płynność, planeta, ostatnie błędy).
+      render: text
+  - type: textarea
+    id: zapis
+    attributes:
+      label: Zapis gry
+      description: Tekst „PF2:…” — pozwala odtworzyć błąd na tej samej planecie (Ustawienia → Kopiuj zapis).
+      render: text
