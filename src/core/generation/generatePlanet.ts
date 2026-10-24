@@ -1,5 +1,6 @@
 import { createRng, hashString } from '../random/rng.ts';
 import { DEFAULT_HYDROLOGY } from '../surface/hydrology.ts';
+import { planetFields } from './fields.ts';
 import { pickTerrainMethod, resolveLook, validateProfile } from '../surface/profile.ts';
 import type { Planet, PlanetDefinition, Range, SurfaceStyle, YieldId } from '../types.ts';
 
@@ -76,6 +77,7 @@ export function generatePlanet(definition: PlanetDefinition, seedInput: string):
     gameplay: {
       sizeClass: { id: sizeClass.id, label: sizeClass.label },
       radiusKm,
+      fields: planetFields(definition, seed, radiusKm),
       richness,
       environment: {
         id: environment.id,

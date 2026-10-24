@@ -71,7 +71,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
       display.setPlanet(planet);
       space.setScene(skyFor(controller));
     },
-    setStructures: (levels, site) => display.setStructures(levels, site),
+    setStructures: (levels, site, plots) => display.setStructures(levels, site, plots),
     pickStructure: (x, y) => display.pickStructure(x, y),
     showBuilding: (id, index) => display.showBuilding(id, index),
     beginDrag: () => display.beginDrag(),
@@ -82,6 +82,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     renderScale: display.renderScale ? () => display.renderScale!() : undefined,
     resetView: () => display.resetView(),
     holdSpin: (hold) => display.holdSpin(hold),
+    setGridVisible: (visible) => display.setGridVisible(visible),
     orientation: () => display.orientation(),
     setOrientation: (yaw, pitch) => display.setOrientation(yaw, pitch),
     setFocus(cx, cy, r) {
@@ -166,7 +167,7 @@ function start(boot: BootGuard): void {
   const display = withSpace(renderer, space, controller);
   boot.step(`grafika ${display.kind}`);
   display.setPlanet(controller.planet);
-  display.setStructures(controller.economy.levels);
+  display.setStructures(controller.economy.levels, null, controller.colony().plots);
   document.body.dataset.renderer = display.kind;
   restoreView(display);
   boot.step('planeta gotowa');

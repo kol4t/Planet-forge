@@ -25,7 +25,7 @@ import {
   type PanelState,
   type Rect,
 } from '../ui/layout.ts';
-import { loadPanels, savePanels, FOCUS_ZOOMS, loadFocusZoom, saveFocusZoom } from '../ui/uiPrefs.ts';
+import { loadPanels, savePanels, FOCUS_ZOOMS, loadFocusZoom, loadGridVisible, saveFocusZoom, saveGridVisible } from '../ui/uiPrefs.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 import { OVERLAY_CLOSED } from './OverlayScene.ts';
 
@@ -162,6 +162,7 @@ export class PlanetScene extends Phaser.Scene {
     // Gesty startują tylko poza panelami (panele mają strefy blokujące):
     // jeden palec obraca planetę, dwa palce ją przybliżają.
     const apply = (events: GestureEvent[]) => this.applyGestures(events);
+    display.setGridVisible(loadGridVisible());
     // Przybliżenie przywrócone po przełączeniu grafiki — szczypanie i przyciski liczą od niego.
     this.gestures.setZoom(display.zoomLevel());
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
@@ -188,7 +189,7 @@ export class PlanetScene extends Phaser.Scene {
 
     controller.onPlanetChange(() => {
       display.setPlanet(controller.planet);
-      display.setStructures(controller.economy.levels);
+      display.setStructures(controller.economy.levels, null, controller.colony().plots);
       this.selected = null;
       this.relayout();
     });
@@ -719,7 +720,15 @@ export class PlanetScene extends Phaser.Scene {
     });
     y += this.s(17);
     this.text(box.x + pad, y, addressLine(this.deps.controller.address, planet.seed), 10.5, COLORS.faint, { fontFamily: FONTS.mono });
-    y += this.s(24);
+    y += this.s(19);
+    // Pola: każdy poziom budynku zajmuje jedno pole lądu (woda, lód i lawa — bez zabudowy).
+    const f = this.deps.controller.fields;
+    const full = f.used >= f.buildable;
+    this.text(box.x + pad, y, `POLA  ${f.used} / ${f.buildable} lądu · ${f.total} wszystkich`, 10.5, full ? COLORS.danger : COLORS.teal, {
+      fontStyle: '600',
+      wordWrap: { width: this.px(w) },
+    });
+    y += this.s(21);
     this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
     y += this.s(15);
     for (const [id, label, color] of RICHNESS_ROWS) {
@@ -972,6 +981,7 @@ export class PlanetScene extends Phaser.Scene {
     this.deps.display.setStructures(
       controller.economy.levels,
       construction ? { building: construction.building, targetLevel: construction.targetLevel, progress } : null,
+      controller.colony().plots,
     );
     if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
       this.relayout();
@@ -1373,13 +1383,21 @@ export class PlanetScene extends Phaser.Scene {
         this.openSettings();
       }, this.s(15)).setStyle(zoom === focus ? 'primary' : 'secondary'),
     );
+    y += buttonH + gap;
+    const gridOn = loadGridVisible();
+    const gridButton = new Button(this, pad, y, w - 2 * pad, buttonH, gridOn ? 'Siatka pól: widoczna — ukryj' : 'Siatka pól: ukryta — pokaż', this.dpr, () => {
+      saveGridVisible(!gridOn);
+      this.deps.display.setGridVisible(!gridOn);
+      this.closeOverlay();
+      this.openSettings();
+    }, this.s(15)).setStyle(gridOn ? 'primary' : 'secondary');
     y += buttonH + gap * 1.5;
     const version = this.add.text(pad, y + (buttonH - this.px(this.s(16))) / 2, `Planet Forge ${this.deps.appVersion}`, font(12, COLORS.faint, { fontFamily: FONTS.mono }));
     const closeBtn = new Button(this, w - pad - halfW, y, halfW, buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle(
       'primary',
     );
     y += buttonH + pad;
-    items.push(title, saveLabel, saveHint, copy, load, gfxLabel, gfxHint, toggle, diag, viewLabel, viewHint, ...zoomButtons, version, closeBtn);
+    items.push(title, saveLabel, saveHint, copy, load, gfxLabel, gfxHint, toggle, diag, viewLabel, viewHint, ...zoomButtons, gridButton, version, closeBtn);
 
     const h = y;
     const x = (W - w) / 2;

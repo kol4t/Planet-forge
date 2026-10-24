@@ -15,6 +15,8 @@ export interface AwayAiInput {
   balance: Balance;
   research: ResearchState;
   levels: Readonly<Record<AiRuleId, AiLevel>>;
+  /** Pola, na których wolno budować (brak = bez limitu). */
+  fields?: number;
 }
 
 export interface AwayAiResult {
@@ -38,11 +40,11 @@ export function simulateAwayAi(input: AwayAiInput, until: number): AwayAiResult 
   let economy = input.economy;
   for (let guard = 0; economy.lastUpdate < end && guard < 1000; guard++) {
     if (!economy.construction) {
-      const pick = suggest({ economy, planet, balance, research, labLevel: economy.levels.laboratory ?? 0 }).find(
+      const pick = suggest({ economy, planet, balance, research, labLevel: economy.levels.laboratory ?? 0, fields: input.fields }).find(
         (s) => s.action.kind === 'build' && levels[s.rule] === 'auto',
       );
       if (pick && pick.action.kind === 'build') {
-        const result = upgradeBuilding(economy, pick.action.building, economy.lastUpdate, slow);
+        const result = upgradeBuilding(economy, pick.action.building, economy.lastUpdate, slow, { fields: input.fields });
         if (result.ok) {
           economy = result.state;
           started.push({ at: economy.lastUpdate, building: pick.action.building, level: economy.construction!.targetLevel });

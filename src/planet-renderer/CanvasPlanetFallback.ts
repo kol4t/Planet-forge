@@ -1,6 +1,9 @@
 import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
-import { layoutColony, visibleStructures, type ColonyLayout } from './colony.ts';
+import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
+import type { Plots } from '../core/colony/plots.ts';
+import { layoutFromPlots, plotsKey, visibleStructures, type ColonyLayout } from './colony.ts';
+import { FIELD_COLORS, fieldStates } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
@@ -38,6 +41,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private lastDrawn = { yaw: NaN, pitch: NaN };
   private disposed = false;
   private readonly zoomer = new ZoomSmoother();
+  private grid: FieldGrid | null = null;
+  private plotsKey = '';
+  private plots: Plots | null = null;
+  private gridVisible = false;
   private spinHeld = false;
   private readonly reducedMotion = prefersReducedMotion();
   /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
@@ -55,12 +62,22 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   setPlanet(planet: Planet): void {
     this.look = discLook(planet);
     this.sampler = this.look.sampler;
-    this.colony = layoutColony(planet, this.sampler, BUILDING_IDS);
+    this.grid = fieldGrid(planet);
+    this.plotsKey = '';
+    this.colony = layoutFromPlots(this.grid, {}, this.sampler, BUILDING_IDS);
     this.atmosphere = this.look.atmosphere;
     this.lastDrawn = { yaw: NaN, pitch: NaN };
   }
 
-  setStructures(levels: BuildingLevels, site: BuildSite | null = null): void {
+  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots): void {
+    if (plots && this.grid && this.sampler) {
+      const key = plotsKey(plots, BUILDING_IDS);
+      if (key !== this.plotsKey) {
+        this.plotsKey = key;
+        this.colony = layoutFromPlots(this.grid, plots, this.sampler, BUILDING_IDS);
+      }
+      this.plots = plots;
+    }
     this.levels = { ...levels };
     this.site = site;
   }
@@ -142,6 +159,48 @@ export class CanvasPlanetFallback implements PlanetDisplay {
 
   setFocus(cx: number, cy: number, r: number): void {
     this.focus = { cx, cy, r };
+  }
+
+  setGridVisible(visible: boolean): void {
+    this.gridVisible = visible;
+  }
+
+  /** Obrysy pól (tylko strona zwrócona do widza): turkus — wolny ląd, złoto — zajęte, szary — woda, lód, lawa. */
+  private drawFieldGrid(): void {
+    if (!this.gridVisible || !this.grid) return;
+    const { cx, cy: centerY } = this.focus;
+    const r = this.focus.r * this.zoom;
+    const { yaw, pitch } = this.rotator;
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    const cp = Math.cos(pitch);
+    const sp = Math.sin(pitch);
+    const ctx = this.ctx;
+    const states = fieldStates(this.grid, this.plots);
+    ctx.lineWidth = 1;
+    this.grid.cells.forEach((cell, i) => {
+      ctx.strokeStyle = FIELD_COLORS[states[i]!];
+      ctx.globalAlpha = states[i] === 'blocked' ? 0.35 : 0.75;
+      ctx.beginPath();
+      let pen = false;
+      for (let k = 0; k <= cell.outline.length; k++) {
+        const [px, py, pz] = cell.outline[k % cell.outline.length]!;
+        const sx = px * cy + pz * sy;
+        const hz = -px * sy + pz * cy;
+        const depth = py * sp + hz * cp;
+        if (depth < 0.02) {
+          pen = false;
+          continue;
+        }
+        const x = cx + sx * r;
+        const y = centerY - (py * cp - hz * sp) * r;
+        if (pen) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+        pen = true;
+      }
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
   }
 
   resize(width: number, height: number): void {
@@ -262,6 +321,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     ctx.imageSmoothingEnabled = this.zoom < 1.25;
     ctx.drawImage(this.buffer, cx - r, cy - r, r * 2, r * 2);
     ctx.restore();
+    this.drawFieldGrid();
     this.drawStructures();
   }
 

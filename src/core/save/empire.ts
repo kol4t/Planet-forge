@@ -5,6 +5,7 @@ import { parseAiLevels, type AiLevel, type AiRuleId } from '../ai/advisor.ts';
 import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
 import type { ColonyMission, EconomyState, JournalEntry, JournalKind, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
+import type { Plots } from '../colony/plots.ts';
 
 export const EMPIRE_VERSION = 2;
 export const EMPIRE_KEY = 'planet-forge.empire.v1';
@@ -21,6 +22,8 @@ export interface SlotSave {
   economy: EconomyState;
   /** Badania tej planety (od v0.15; brak = zapis sprzed v0.15 — badania imperium z pola `research`). */
   research?: ResearchState;
+  /** Pola zajęte przez budowle (od v0.26; brak = przydzielane od nowa z poziomów). */
+  plots?: Plots;
 }
 
 export interface EmpireSave {
@@ -48,6 +51,17 @@ const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
 const JOURNAL_KINDS: readonly JournalKind[] = ['build', 'research', 'colony', 'ship', 'away', 'empire', 'ai'];
 /** Ile wpisów dziennika trzymamy (starsze wypadają). */
 export const JOURNAL_LIMIT = 80;
+
+/** Zajęte pola z zapisu — tylko znane budynki i liczby całkowite ≥ 0 (resztę pomijamy). */
+export function parsePlots(raw: unknown): Plots {
+  const plots: Plots = {};
+  if (!raw || typeof raw !== 'object') return plots;
+  for (const def of BALANCE.buildings) {
+    const list = (raw as Record<string, unknown>)[def.id];
+    if (Array.isArray(list)) plots[def.id] = list.filter((v): v is number => Number.isInteger(v) && v >= 0 && v < 10_000);
+  }
+  return plots;
+}
 
 /** Statki z zapisu — błędne pomijane (nie psują reszty zapisu). */
 export function parseMissions(raw: unknown): ColonyMission[] {
@@ -110,6 +124,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       planet,
       economy: { ...economy, antimatter: 0 },
       ...(raw.research ? { research: parseResearch(raw.research) } : {}),
+      ...(raw.plots ? { plots: parsePlots(raw.plots) } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;

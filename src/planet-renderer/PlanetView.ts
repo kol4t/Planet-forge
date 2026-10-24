@@ -3,7 +3,10 @@ import { createNoise3D, fbm } from '../core/random/noise.ts';
 import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { createAtmosphere } from './atmosphere.ts';
-import { layoutColony, type ColonyLayout } from './colony.ts';
+import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
+import type { Plots } from '../core/colony/plots.ts';
+import { layoutFromPlots, plotsKey, type ColonyLayout } from './colony.ts';
+import { FIELD_COLORS, fieldStates } from './fieldOverlay.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { ZoomSmoother } from './input/zoom.ts';
@@ -70,6 +73,11 @@ export class PlanetView implements PlanetDisplay {
   private height = 1;
   private focus = { cx: 0.5, cy: 0.5, r: 200 };
   private readonly zoomer = new ZoomSmoother();
+  private grid: FieldGrid | null = null;
+  private shaped: SurfaceSampler | null = null;
+  private plotsKey = '';
+  private fieldLines: THREE.LineSegments | null = null;
+  private gridVisible = false;
   private spinHeld = false;
   private readonly resolution = new AdaptiveResolution();
   private readonly reducedMotion = prefersReducedMotion();
@@ -130,12 +138,74 @@ export class PlanetView implements PlanetDisplay {
     this.axialTilt = THREE.MathUtils.degToRad(planet.visual.axialTiltDeg);
     this.tiltGroup.rotation.z = this.axialTilt;
     // Budowle stoją na powierzchni 3D (tarasy i wyższe góry), nie na gładkiej wersji z 2D.
-    const shaped: SurfaceSampler = { ...sampler, radius: (h) => shapedRadius(planet, h) };
-    this.layout = layoutColony(planet, shaped, BUILDING_IDS);
+    this.shaped = { ...sampler, radius: (h) => shapedRadius(planet, h) };
+    this.grid = fieldGrid(planet);
+    this.plotsKey = '';
+    this.layout = layoutFromPlots(this.grid, {}, this.shaped, BUILDING_IDS);
     this.colony.setLayout(this.layout);
+    this.buildFieldLines(planet, sampler);
   }
 
-  setStructures(levels: BuildingLevels, site: BuildSite | null = null): void {
+  setGridVisible(visible: boolean): void {
+    this.gridVisible = visible;
+    if (this.fieldLines) this.fieldLines.visible = visible;
+  }
+
+  /** Obrysy pól jako jedna siatka linii tuż nad terenem (jeden draw call; ukryta, gdy siatka wyłączona). */
+  private buildFieldLines(planet: Planet, sampler: SurfaceSampler): void {
+    if (this.fieldLines) {
+      this.fieldLines.parent?.remove(this.fieldLines);
+      disposeObject(this.fieldLines);
+    }
+    const grid = this.grid!;
+    const positions: number[] = [];
+    const lift = (p: readonly [number, number, number]) => {
+      const h = sampler.height(...p);
+      const r = Math.max(1.003, shapedRadius(planet, Math.max(h, sampler.lakeLevel(...p))) + 0.004);
+      return [p[0] * r, p[1] * r, p[2] * r];
+    };
+    for (const cell of grid.cells) {
+      const points = cell.outline.map(lift);
+      for (let k = 0; k < points.length; k++) positions.push(...points[k]!, ...points[(k + 1) % points.length]!);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(positions.length), 3));
+    this.fieldLines = new THREE.LineSegments(
+      geometry,
+      new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.75, toneMapped: false }),
+    );
+    this.fieldLines.name = 'fields';
+    this.fieldLines.visible = this.gridVisible;
+    this.spinGroup.add(this.fieldLines);
+    this.colorFieldLines({});
+  }
+
+  /** Kolory obrysów według zajętości (wołane, gdy zmieniają się zajęte pola). */
+  private colorFieldLines(plots: Plots): void {
+    if (!this.fieldLines || !this.grid) return;
+    const colors = this.fieldLines.geometry.getAttribute('color') as THREE.BufferAttribute;
+    const states = fieldStates(this.grid, plots);
+    const palette = Object.fromEntries(Object.entries(FIELD_COLORS).map(([k, hex]) => [k, new THREE.Color(hex)])) as Record<string, THREE.Color>;
+    let v = 0;
+    this.grid.cells.forEach((cell, i) => {
+      const c = palette[states[i]!]!;
+      const dim = states[i] === 'blocked' ? 0.45 : 1;
+      for (let k = 0; k < cell.outline.length * 2; k++) colors.setXYZ(v++, c.r * dim, c.g * dim, c.b * dim);
+    });
+    colors.needsUpdate = true;
+  }
+
+  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots): void {
+    if (plots && this.grid && this.shaped) {
+      const key = plotsKey(plots, BUILDING_IDS);
+      if (key !== this.plotsKey) {
+        this.plotsKey = key;
+        this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS);
+        this.colony.updateLayout(this.layout);
+        this.colorFieldLines(plots);
+      }
+    }
     this.levels = levels;
     this.site = site;
     this.colony.setLevels(levels);
@@ -275,6 +345,7 @@ export class PlanetView implements PlanetDisplay {
     this.disposed = true;
     cancelAnimationFrame(this.frame);
     for (const object of this.planetObjects) disposeObject(object);
+    if (this.fieldLines) disposeObject(this.fieldLines);
     this.colony.dispose();
     this.renderer.dispose();
   }

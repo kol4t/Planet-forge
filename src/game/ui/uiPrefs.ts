@@ -49,3 +49,22 @@ export function saveFocusZoom(zoom: FocusZoom): void {
     // brak pamięci (tryb prywatny) — wybór obowiązuje do zamknięcia gry
   }
 }
+
+/** Siatka pól na planecie (Ustawienia → Widok); domyślnie ukryta. */
+const GRID_KEY = 'planet-forge.fieldGrid.v1';
+
+export function loadGridVisible(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(GRID_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveGridVisible(visible: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(GRID_KEY, visible ? '1' : '0');
+  } catch {
+    // brak pamięci (tryb prywatny) — wybór obowiązuje do zamknięcia gry
+  }
+}

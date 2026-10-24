@@ -229,4 +229,12 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 130. Pokazany budynek zostaje w kadrze (planeta nie obraca się sama); po dotknięciu planety albo „Resetuj widok” autoobrót wraca. Przy przybliżeniu od ok. 2× planeta też nie obraca się sama.
 131. Komputer, 3D: obracanie powinno być płynne także na dużym monitorze. Ustawienia → „Diagnostyka” pokazuje „rozdzielczość N%” — gra sama obniża ostrość, gdy karta graficzna nie nadąża.
 
+### Od 0.26: pola planety
+
+132. Panel „Planeta”: wiersz **POLA** — zajęte / pola lądu · wszystkie pola planety (np. „4 / 40 lądu · 100 wszystkich”). Gdy wszystkie pola lądu są zajęte, wiersz robi się czerwony.
+133. Każde ulepszenie zajmuje jedno pole: nowa budowla staje na wolnym polu lądu obok reszty swojego budynku. Gdy pól brak, „Ulepsz” pokazuje „Brak wolnych pól…”. SI Matka też nie buduje.
+134. Ustawienia → „Widok” → **„Siatka pól: ukryta — pokaż”**: na planecie widać pola (turkusowe — wolny ląd, złote — zajęte, szare — woda, lód, lawa). W 2D i 3D. Wybór zostaje po zamknięciu gry.
+135. Budowle nie przeskakują: rozbuduj jeden budynek i zobacz, że pozostałe stoją na tych samych polach.
+136. Nowe planety z mapy mają różną liczbę pól (zwykle ok. 100, rzadko ok. 30 albo ok. 200); planeta oceaniczna i lodowa mają mało pól lądu.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

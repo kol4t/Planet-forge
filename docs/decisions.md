@@ -2,6 +2,18 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.26: pola planety (siatka do zabudowy)
+
+Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje jedno pole** (jak w OGame); **pole wybiera gra automatycznie**; **30–200 to cała siatka** (z wodą i lodem — budować wolno tylko na lądzie, woda i lód do odblokowania badaniem w przyszłości); **siatka widoczna z przełącznika w Ustawieniach**.
+
+- **Liczba pól** (`core/generation/fields.ts`, `gameplay.fields`): osobny strumień losowania `<typ>|<seed>|fields` (inne cechy planet bez zmian, `GENERATOR_VERSION` = 1). Większa planeta = więcej pól (±35), do tego rozrzut zbliżony do normalnego (suma 4 losowań, w dół 20, w górę 32), przycięty do 30–200. Mediana ok. 100; ≤ 40 pól ma ok. 0,6% planet, ≥ 180 — ok. 1%. Planeta startowa: zawsze 100 (`generation.fixedFields` w danych typu).
+- **Siatka** (`core/colony/fieldGrid.ts`): komórki Woronoja wokół siatki Fibonacciego obróconej z seeda — na kuli głównie 5- i 6-kąty (samymi pięciokątami da się pokryć kulę tylko 12 polami). Rodzaj pola z terenu (większość z 7 próbek): ląd, woda (morze, jezioro), lód, lawa. `isBuildable` + `BuildRules` (woda/lód) — miejsce na przyszłe badanie. Liczona raz na planetę (pamięć 16 siatek).
+- **Gospodarka:** `upgradeBuilding(…, { fields })` — zajęte pola = suma poziomów; brak wolnego pola → „Brak wolnych pól…” (`no-fields`). SI Matka (także przy zamkniętej grze) nie proponuje budowy, gdy pól brak.
+- **Przydział pól** (`core/colony/plots.ts`, `reconcilePlots`): pola przydzielone budowlom są zapisywane (`SlotSave.plots`, opcjonalne — starsze zapisy dostają przydział z poziomów) i **nigdy nie przestawiane**; nowa budowla dostaje wolne pole lądu najbliżej swojej dzielnicy, pierwsza danego typu — w swoim kierunku wokół środka kolonii (pole lądu z największą ilością lądu w okolicy). Budowa w toku już zajmuje swoje pole; anulowanie je zwalnia.
+- **Widok:** budowla na środku każdego zajętego pola (2D i 3D) — bez dawnego limitu 10 budowli na typ i bez „rosnących” budowli; nowa budowla dalej „wyrasta”. Siatka pól: obrysy (turkus — wolny ląd, złoto — zajęte, szary — woda, lód, lawa), w 3D jedna siatka linii nad terenem (1 draw call, ukryta, gdy wyłączona). Panel „Planeta”: „POLA zajęte / lądu · wszystkich”.
+- **Skutek dla istniejących planet:** przydział pól i limit dotyczą także starych zapisów. Planeta z większą liczbą poziomów niż pól lądu zachowuje poziomy i produkcję (nic nie znika), ale nie da się jej dalej rozbudować; na planecie stoi tyle budowli, ile jest pól.
+- **Pomiar v0.25.2 (iPad, 3D, 42 s):** średnio 58 kl./s, najsłabsza sekunda 53, rozdzielczość 100%.
+
 ## 2026-10-24 — v0.25.2: płynność 3D na komputerze, wybór budowli przy każdym przybliżeniu
 
 - **Płynność 3D na komputerze (zgłoszenie właściciela):** płótno 3D ma rozmiar całego okna, a na ekranach o zwykłej gęstości pikseli (komputer) było włączone wygładzanie krawędzi (MSAA) — na dużym monitorze to kilka milionów próbek na klatkę. Teraz MSAA tylko dla małych okien (< 1,3 mln pikseli). Do tego **automatyczna rozdzielczość** (`adaptiveResolution.ts`): gdy średnia klatka > 22 ms (okno 45 klatek), gęstość pikseli spada o 15% (do 60%); przy zapasie (< 15 ms przez 4 okna) wraca. Pojedyncze przerwy > 200 ms (karta w tle, przeliczenie planety) się nie liczą. Diagnostyka pokazuje „rozdzielczość N%”. iPad bez zmian (tam MSAA i tak było wyłączone).

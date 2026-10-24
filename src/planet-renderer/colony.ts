@@ -1,16 +1,15 @@
-// Rozmieszczenie budowli kolonii na powierzchni planety. Czysta matematyka (bez three),
-// deterministyczna z seeda — ta sama planeta zawsze ma kolonię w tym samym miejscu.
-import { createRng, type Rng } from '../core/random/rng.ts';
-import type { BuildingId, Planet } from '../core/types.ts';
+// Rozmieszczenie budowli kolonii na powierzchni planety. Czysta matematyka (bez three).
+// Od v0.26 każda budowla stoi na swoim polu siatki (`core/colony`): pola przydziela gra i zapisuje,
+// więc kolonia wygląda tak samo po każdym uruchomieniu i nic nie przeskakuje przy rozbudowie.
+import type { FieldGrid } from '../core/colony/fieldGrid.ts';
+import type { Plots } from '../core/colony/plots.ts';
+import type { BuildingId } from '../core/types.ts';
 import type { SurfaceSampler } from './surface.ts';
 
 export type Vec3 = [number, number, number];
 
-/** Maksymalna liczba osobnych budowli jednego typu (wydajność iPada). */
-export const MAX_STRUCTURES = 10;
-
-const MIN_SPACING = 0.058; // rad — odstęp między budowlami
-const SITE_SPREAD = 0.2; // rad — odległość dzielnic od centrum kolonii
+/** Najwięcej budowli jednego typu = najwięcej pól planety (pojemność siatek 3D). */
+export const MAX_STRUCTURES = 200;
 
 export interface ColonySlot {
   /** Kierunek od środka planety (wektor jednostkowy). */
@@ -29,15 +28,9 @@ export interface ColonyLayout {
   slots: Record<BuildingId, ColonySlot[]>;
 }
 
-/** Ile budowli danego typu widać na danym poziomie. */
+/** Ile budowli danego typu widać na danym poziomie (każdy poziom = jedna budowla na swoim polu). */
 export function visibleStructures(level: number): number {
   return Math.max(0, Math.min(MAX_STRUCTURES, Math.floor(level)));
-}
-
-/** Skala budowli: po zapełnieniu dzielnicy kolejne poziomy powiększają zabudowę. */
-export function structureScale(level: number): number {
-  const extra = Math.max(0, level - MAX_STRUCTURES);
-  return 1 + Math.min(0.6, extra * 0.03);
 }
 
 const normalize = (v: Vec3): Vec3 => {
@@ -67,81 +60,36 @@ export function offsetOnSphere(center: Vec3, heading: number, distance: number):
   return normalize([center[0] * c + t[0] * s, center[1] * c + t[1] * s, center[2] * c + t[2] * s]);
 }
 
-function randomDir(rng: Rng, maxLatitude: number): Vec3 {
-  const y = rng.range(-maxLatitude, maxLatitude);
-  const a = rng.range(0, Math.PI * 2);
-  const r = Math.sqrt(1 - y * y);
-  return [r * Math.cos(a), y, r * Math.sin(a)];
+/** Stała „losowość” budowli z numeru pola (obrót i wielkość) — tylko wygląd. */
+function hash01(n: number, salt: number): number {
+  const v = Math.sin(n * 12.9898 + salt * 78.233) * 43758.5453;
+  return v - Math.floor(v);
 }
 
-/** Ile lądu jest wokół punktu (0..1) — kolonia woli większe wyspy/kontynenty. */
-function landScore(sampler: SurfaceSampler, dir: Vec3): number {
-  let land = 0;
-  const probes = 12;
-  for (let i = 0; i < probes; i++) {
-    const p = offsetOnSphere(dir, (i / probes) * Math.PI * 2, i % 2 ? 0.09 : 0.17);
-    if (sampler.isLand(sampler.height(...p), ...p)) land++;
-  }
-  const h = sampler.height(...dir);
-  return sampler.isLand(h, ...dir) ? land / probes : -1;
-}
-
-export function layoutColony(planet: Planet, sampler: SurfaceSampler, ids: readonly BuildingId[]): ColonyLayout {
-  const rng = createRng(`${planet.definitionId}|${planet.seed}|colony`);
-
-  // 1. Centrum kolonii: najlepszy z kilkudziesięciu kandydatów (dużo lądu, z dala od biegunów).
-  let center: Vec3 = randomDir(rng, 0.6);
-  let best = -Infinity;
-  for (let i = 0; i < 48; i++) {
-    const dir = randomDir(rng, 0.6);
-    const score = landScore(sampler, dir);
-    if (score > best) {
-      best = score;
-      center = dir;
-    }
-  }
-
-  // 2. Dzielnice: każdy typ budynku ma swój skrawek wokół centrum.
-  const taken: Vec3[] = [];
+/**
+ * Kolonia z zajętych pól: budowla stoi na środku swojego pola, na wysokości terenu
+ * (`sampler.radius` — 3D podaje promień z tarasami, 2D sferę).
+ */
+export function layoutFromPlots(grid: FieldGrid, plots: Plots, sampler: SurfaceSampler, ids: readonly BuildingId[]): ColonyLayout {
   const slots = {} as Record<BuildingId, ColonySlot[]>;
-  const baseHeading = rng.range(0, Math.PI * 2);
-  ids.forEach((id, index) => {
-    // Dzielnica w swoim kierunku od centrum, ale tam, gdzie jest najwięcej lądu.
-    const heading = baseHeading + (index / ids.length) * Math.PI * 2;
-    let site = offsetOnSphere(center, heading, SITE_SPREAD);
-    let siteScore = landScore(sampler, site);
-    for (const distance of [0.6, 0.35, 1.4]) {
-      for (const turn of [0, -0.6, 0.6]) {
-        const candidate = offsetOnSphere(center, heading + turn, SITE_SPREAD * distance);
-        const score = landScore(sampler, candidate);
-        if (score > siteScore + 0.05 && !taken.some((t) => angleBetween(t, candidate) < MIN_SPACING)) {
-          site = candidate;
-          siteScore = score;
-        }
-      }
-    }
-    const list: ColonySlot[] = [];
-    for (let attempt = 0; attempt < 600 && list.length < MAX_STRUCTURES; attempt++) {
-      // Po 300 nieudanych próbach krąg poszukiwań się poszerza (dzielnica otoczona wodą albo sąsiadami).
-      const ring = 0.02 + 0.05 * list.length ** 0.6 + rng.range(0, 0.05) + Math.max(0, attempt - 300) * 0.001;
-      const dir = list.length === 0 && attempt === 0 ? site : offsetOnSphere(site, rng.range(0, Math.PI * 2), ring);
+  for (const id of ids) {
+    slots[id] = (plots[id] ?? []).map((cell) => {
+      const dir = grid.cells[cell]!.center;
       const h = sampler.height(...dir);
-      const onLand = sampler.isLand(h, ...dir);
-      // Po wielu próbach dopuszczamy platformy na wodzie (planety oceaniczne).
-      if (!onLand && attempt < 300) continue;
-      if (taken.some((other) => angleBetween(other, dir) < MIN_SPACING)) continue;
-      taken.push(dir);
-      list.push({
+      const level = Math.max(h, sampler.lakeLevel(...dir));
+      return {
         dir,
-        // Platforma: na morzu tuż nad wodą, na jeziorze — na jego lustrze (rzeka, lawa: na gruncie).
-        surface: onLand ? sampler.radius(h) : sampler.isLand(h) ? sampler.radius(Math.max(h, sampler.lakeLevel(...dir))) : 1.001,
-        spin: rng.range(0, Math.PI * 2),
-        size: rng.range(0.85, 1.15),
-        onLand,
-      });
-    }
-    slots[id] = list;
-  });
+        surface: sampler.isLand(level) ? sampler.radius(level) : 1.001,
+        spin: hash01(cell, 1) * Math.PI * 2,
+        size: 0.85 + 0.3 * hash01(cell, 2),
+        onLand: sampler.isLand(h, ...dir),
+      };
+    });
+  }
+  return { center: grid.cells[grid.colonyCenter]!.center, slots };
+}
 
-  return { center, slots };
+/** Klucz zajętych pól — renderer przebudowuje kolonię tylko, gdy się zmienił. */
+export function plotsKey(plots: Plots, ids: readonly BuildingId[]): string {
+  return ids.map((id) => (plots[id] ?? []).join(',')).join('|');
 }

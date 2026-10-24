@@ -147,6 +147,8 @@ export interface PlanetDefinition {
     sizeClasses: readonly SizeClassDef[];
     resourceRange: Record<YieldId, Range>;
     environmentModifiers: readonly EnvironmentModifierDef[];
+    /** Stała liczba pól dla wybranych seedów (planeta startowa ma zawsze ok. 100 — decyzja właściciela). */
+    fixedFields?: Readonly<Record<string, number>>;
   };
 }
 
@@ -185,6 +187,8 @@ export interface Planet {
   gameplay: {
     sizeClass: { id: string; label: string };
     radiusKm: number;
+    /** Liczba pól siatki (30–200): każdy poziom budynku zajmuje jedno pole lądu (od v0.26). */
+    fields: number;
     richness: Record<YieldId, number>;
     environment: {
       id: string;

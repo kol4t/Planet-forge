@@ -30,6 +30,8 @@ export const KEPLER_186F: PlanetDefinition = {
   generation: {
     sizeClasses: SIZES_ROCKY,
     resourceRange: { metal: [0.75, 1.3], crystal: [0.65, 1.35], energy: [0.8, 1.2] },
+    // Planeta startowa (STARTER) ma zawsze 100 pól — optymalnie dla gracza (decyzja właściciela).
+    fixedFields: { 'KEPLER-186F-ALFA': 100 },
     environmentModifiers: [
       STABLE,
       {

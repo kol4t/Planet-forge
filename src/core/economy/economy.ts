@@ -1,3 +1,4 @@
+import { usedFields } from '../colony/plots.ts';
 import { BALANCE } from '../../data/balance.ts';
 import type { Balance, BuildingDef, BuildingId, Construction, EconomyState, Planet, Resources, YieldId } from '../types.ts';
 
@@ -13,7 +14,12 @@ export interface Rates {
   antimatterPerHour: number;
 }
 
-export type UpgradeFailure = 'unknown-building' | 'max-level' | 'not-enough-resources' | 'storage-too-small' | 'busy';
+export type UpgradeFailure = 'unknown-building' | 'max-level' | 'not-enough-resources' | 'storage-too-small' | 'busy' | 'no-fields';
+
+/** Ograniczenia planety przy budowie: liczba pól, na których wolno budować (brak = bez limitu). */
+export interface BuildLimits {
+  fields?: number;
+}
 export type CancelFailure = 'nothing-to-cancel';
 export type FinishFailure = 'nothing-to-finish' | 'not-enough-antimatter';
 
@@ -165,6 +171,7 @@ export function upgradeBuilding(
   id: BuildingId,
   now: number,
   balance: Balance = BALANCE,
+  limits: BuildLimits = {},
 ): UpgradeResult {
   const def = getBuilding(id, balance);
   if (!def) return { ok: false, state, reason: 'unknown-building', message: 'Nieznany budynek.' };
@@ -180,6 +187,15 @@ export function upgradeBuilding(
   const level = state.levels[id] ?? 0;
   if (level >= balance.maxLevel) {
     return { ok: false, state, reason: 'max-level', message: `${def.name}: osiągnięto maksymalny poziom.` };
+  }
+  // Każdy poziom zajmuje jedno pole planety (od v0.26).
+  if (limits.fields !== undefined && usedFields(state.levels) >= limits.fields) {
+    return {
+      ok: false,
+      state,
+      reason: 'no-fields',
+      message: `Brak wolnych pól: zajęte ${usedFields(state.levels)} z ${limits.fields} pól lądu. Każdy poziom budynku zajmuje jedno pole.`,
+    };
   }
   const cost = upgradeCost(id, level, balance);
   if (!fitsInStorage(state, cost, balance)) {

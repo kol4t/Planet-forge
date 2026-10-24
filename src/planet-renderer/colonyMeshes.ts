@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingId, BuildingLevels } from '../core/types.ts';
 import type { BuildSite } from './PlanetDisplay.ts';
-import { MAX_STRUCTURES, structureScale, visibleStructures, type ColonyLayout } from './colony.ts';
+import { MAX_STRUCTURES, visibleStructures, type ColonyLayout } from './colony.ts';
 import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
 
 // Zabudowa kolonii na powierzchni planety: każdy typ budynku = 2 InstancedMesh
@@ -176,18 +176,26 @@ export class ColonyMeshes {
     }
   }
 
-  setLevels(levels: BuildingLevels): void {
+  /**
+   * Kolonia urosła o nowe pola (te same budowle zostają na swoich miejscach, nowe dochodzą na końcu
+   * list) — bez zerowania animacji, więc nowa budowla „wyrasta” jak dotąd.
+   */
+  updateLayout(layout: ColonyLayout): void {
+    this.layout = layout;
+    if (this.levels) this.setLevels(this.levels, true);
+  }
+
+  setLevels(levels: BuildingLevels, force = false): void {
     if (!this.layout) return;
     const first = this.levels === null;
-    if (!first && [...this.groups.keys()].every((id) => this.levels![id] === levels[id])) return;
+    if (!force && !first && [...this.groups.keys()].every((id) => this.levels![id] === levels[id])) return;
     this.levels = { ...levels };
     for (const [id, group] of this.groups) {
       const slots = this.layout.slots[id] ?? [];
       const level = levels[id] ?? 0;
       const count = Math.min(visibleStructures(level), slots.length);
-      const scale = structureScale(level);
       for (let i = 0; i < MAX_STRUCTURES; i++) {
-        group.target[i] = i < count ? scale * slots[i]!.size : 0;
+        group.target[i] = i < count ? slots[i]!.size : 0;
         if (first) group.current[i] = group.target[i]!;
       }
       // Rysujemy też budowle znikające (np. nowa gra), dopóki nie zmaleją do zera.
@@ -268,7 +276,7 @@ export class ColonyMeshes {
     }
     const slot = slots[slotIndex(site.targetLevel, slots.length)]!;
     const { q, spin, p, s, n, up } = this.tmp;
-    const size = STRUCTURE_SIZE * slot.size * structureScale(site.targetLevel) * 1.08;
+    const size = STRUCTURE_SIZE * slot.size * 1.08;
     n.set(slot.dir[0], slot.dir[1], slot.dir[2]);
     q.setFromUnitVectors(up, n);
     spin.setFromAxisAngle(up, slot.spin);
