@@ -67,21 +67,27 @@ function hash01(n: number, salt: number): number {
 }
 
 /**
- * Kolonia z zajętych pól: budowla stoi na środku swojego pola, na wysokości terenu
- * (`sampler.radius` — 3D podaje promień z tarasami, 2D sferę).
+ * Kolonia z zajętych pól: każde pole mieści grupę do 3 budowli jednego budynku, ustawionych w trójkąt
+ * wokół środka pola, na wysokości terenu (`sampler.radius` — 3D podaje promień z tarasami, 2D sferę).
+ * Lista budowli typu = kolejne poziomy (poziom n → pole ⌊(n−1)/3⌋, miejsce (n−1) mod 3).
  */
 export function layoutFromPlots(grid: FieldGrid, plots: Plots, sampler: SurfaceSampler, ids: readonly BuildingId[]): ColonyLayout {
   const slots = {} as Record<BuildingId, ColonySlot[]>;
   for (const id of ids) {
-    slots[id] = (plots[id] ?? []).map((cell) => {
-      const dir = grid.cells[cell]!.center;
+    slots[id] = (plots[id] ?? []).flatMap((cell) => {
+      const field = grid.cells[cell]!;
+      // Promień pola (najbliższy punkt obrysu) — budowle stoją w 40% drogi od środka do brzegu.
+      const radius = Math.min(...field.outline.map((p) => angleBetween(p, field.center)));
+      const turn = hash01(cell, 3) * Math.PI * 2;
+      return [0, 1, 2].map((k) => offsetOnSphere(field.center, turn + (k * Math.PI * 2) / 3, radius * 0.42)).map((dir, k) => ({ cell, k, dir }));
+    }).map(({ cell, k, dir }) => {
       const h = sampler.height(...dir);
       const level = Math.max(h, sampler.lakeLevel(...dir));
       return {
         dir,
         surface: sampler.isLand(level) ? sampler.radius(level) : 1.001,
-        spin: hash01(cell, 1) * Math.PI * 2,
-        size: 0.85 + 0.3 * hash01(cell, 2),
+        spin: hash01(cell * 3 + k, 1) * Math.PI * 2,
+        size: 0.85 + 0.3 * hash01(cell * 3 + k, 2),
         onLand: sampler.isLand(h, ...dir),
       };
     });

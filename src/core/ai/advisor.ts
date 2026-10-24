@@ -2,10 +2,9 @@
 // wykonanie (po zgodzie gracza albo samodzielnie) robi kontroler zwykłymi akcjami gry.
 import { BALANCE } from '../../data/balance.ts';
 import { RESEARCH_NODES } from '../../data/research.ts';
-import { usedFields } from '../colony/plots.ts';
 import { fitsInStorage, getBuilding, productionRates, scaled, storageCapacity, upgradeCost } from '../economy/economy.ts';
 import { researchCost, researchStatus } from '../research/research.ts';
-import type { Balance, BuildingId, EconomyState, Planet, ResearchState, Resources } from '../types.ts';
+import type { Balance, BuildingId, EconomyState, Planet, ResearchState, Resources, BuildingLevels } from '../types.ts';
 
 export type AiRuleId = 'energy' | 'storage' | 'research' | 'mines';
 
@@ -52,8 +51,8 @@ export interface AdvisorInput {
   balance: Balance;
   research: ResearchState;
   labLevel: number;
-  /** Pola, na których wolno budować (brak = bez limitu). Gdy zajęte — SI nie proponuje budowy. */
-  fields?: number;
+  /** Czy następny poziom zmieści się na polach planety (brak = bez limitu). Bez miejsca SI nie proponuje budowy. */
+  hasRoom?: (id: BuildingId, levels: BuildingLevels) => boolean;
 }
 
 /** Propozycje SI w kolejności ważności (tylko takie, które da się wykonać teraz). */
@@ -65,7 +64,7 @@ export function suggest(input: AdvisorInput): AiSuggestion[] {
     const level = economy.levels[id] ?? 0;
     // SI rozwija budynki najwyżej do poziomu Laboratorium tej planety (decyzja właściciela).
     if (level >= balance.maxLevel || level + 1 > input.labLevel) return null;
-    if (input.fields !== undefined && usedFields(economy.levels) >= input.fields) return null;
+    if (input.hasRoom && !input.hasRoom(id, economy.levels)) return null;
     const cost = upgradeCost(id, level, balance);
     return affordable(economy, cost, balance) ? { level, cost } : null;
   };

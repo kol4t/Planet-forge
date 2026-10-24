@@ -3,7 +3,7 @@ import type { GameController, PlanetOverview } from '../../app/GameController.ts
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled } from '../../core/economy/economy.ts';
 import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
 import { ringLimit } from '../../core/research/research.ts';
-import type { BuildingId, YieldId } from '../../core/types.ts';
+import type { BuildingId, BuildingSettings, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import { findResearch } from '../../data/research.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
@@ -384,8 +384,8 @@ export class PlanetScene extends Phaser.Scene {
     else this.openScreen('empire');
   }
 
-  /** Mały przycisk-ikona (44 × 44 pt): zamknij, menu „hamburger”, przybliż, oddal, resetuj widok. */
-  private iconButton(rect: Rect, kind: 'close' | 'menu' | 'plus' | 'minus' | 'reset', onTap: () => void): void {
+  /** Mały przycisk-ikona (44 × 44 pt): zamknij, menu „hamburger”, przybliż, oddal, resetuj widok, zarządzanie. */
+  private iconButton(rect: Rect, kind: 'close' | 'menu' | 'plus' | 'minus' | 'reset' | 'manage', onTap: () => void): void {
     const g = this.add.graphics();
     const cx = this.px(rect.x + rect.w / 2);
     const cy = this.px(rect.y + rect.h / 2);
@@ -398,6 +398,13 @@ export class PlanetScene extends Phaser.Scene {
     } else if (kind === 'plus' || kind === 'minus') {
       g.lineBetween(cx - half, cy, cx + half, cy);
       if (kind === 'plus') g.lineBetween(cx, cy - half, cx, cy + half);
+    } else if (kind === 'manage') {
+      // Trzy suwaki: kreski z gałkami na różnej wysokości.
+      [-1, 0, 1].forEach((row, i) => {
+        const y = cy + row * this.px(this.s(4.5));
+        g.lineBetween(cx - half, y, cx + half, y);
+        g.fillStyle(COLORS.tealHex, 1).fillCircle(cx + [-0.4, 0.5, -0.1][i]! * half * 2 * 0.6, y, this.px(1.9));
+      });
     } else if (kind === 'reset') {
       // Celownik: okrąg z kropką — „wróć do widoku planety”.
       g.strokeCircle(cx, cy, half);
@@ -834,12 +841,17 @@ export class PlanetScene extends Phaser.Scene {
     const narrow = card.w < 150;
     const pad = this.s(narrow ? 8 : 10);
     this.icon(def.produces, card.x + pad + this.s(5), card.y + pad + this.s(8), 5.5);
-    const level = this.text(card.x + card.w - pad, card.y + pad, 'poz. 00', 11, COLORS.gold, { fontStyle: '600' }).setOrigin(1, 0);
+    // Mały kwadrat „Zarządzanie” w prawym górnym rogu (wszystkie budynki poza kolektorem antymaterii).
+    const managed = def.id !== 'antimatterCollector';
+    if (managed) this.iconButton({ x: card.x + card.w - TOUCH, y: card.y, w: TOUCH, h: TOUCH }, 'manage', () => this.openManagement(def.id));
+    const levelRight = managed ? card.x + card.w - TOUCH + this.s(4) : card.x + card.w - pad;
+    const level = this.text(levelRight, card.y + pad, 'poz. 00', 11, COLORS.gold, { fontStyle: '600' }).setOrigin(1, 0);
     // Nazwa zawija się przed etykietą poziomu, zamiast na nią nachodzić.
-    const levelSpace = narrow ? 0 : level.width / this.dpr + this.s(6);
-    const title = this.text(card.x + pad + this.s(16), card.y + pad, def.name, narrow ? 12 : 13, COLORS.text, {
+    const titleX = card.x + pad + this.s(16);
+    const titleRight = narrow ? card.x + card.w - pad : levelRight - level.width / this.dpr - this.s(6);
+    const title = this.text(titleX, card.y + pad, def.name, narrow ? 12 : 13, COLORS.text, {
       fontStyle: '600',
-      wordWrap: { width: this.px(card.w - 2 * pad - this.s(16) - levelSpace) },
+      wordWrap: { width: this.px(titleRight - titleX) },
     });
     const textTop = Math.max(this.s(narrow ? 34 : 21), title.height / this.dpr + this.s(4));
     const effect = this.text(card.x + pad, card.y + pad + textTop, '', narrow ? 10.5 : 11, COLORS.teal, {
@@ -1299,6 +1311,151 @@ export class PlanetScene extends Phaser.Scene {
   private closeOverlay(): void {
     this.overlay?.destroy(true);
     this.overlay = undefined;
+  }
+
+  /**
+   * Okno „Zarządzanie” budynku: suwaki produktywności (wydobycie i zużycie energii razem) i pierwszeństwa
+   * do energii, teren grup budowli i złoża planety. Zmiana zapisuje się po puszczeniu suwaka.
+   */
+  private openManagement(id: BuildingId): void {
+    if (this.overlay) this.closeOverlay();
+    const c = this.deps.controller;
+    const def = BALANCE.buildings.find((b) => b.id === id)!;
+    const info = c.buildingInfo(id);
+    const viewport = this.deps.getViewport();
+    const W = this.px(viewport.width);
+    const H = this.px(viewport.height);
+    const shade = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0).setInteractive();
+    shade.on('pointerup', () => this.closeOverlay());
+    const w = this.px(Math.min(viewport.width - 32, this.s(420)));
+    const pad = this.px(this.s(20));
+    const buttonH = this.px(Math.max(44, this.s(44)));
+    const gap = this.px(this.s(10));
+    const font = (size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}) => ({
+      fontFamily: FONTS.body,
+      fontSize: `${this.px(this.s(size))}px`,
+      color,
+      wordWrap: { width: w - 2 * pad },
+      lineSpacing: this.px(3),
+      ...extra,
+    });
+    const items: Phaser.GameObjects.GameObject[] = [];
+    let y = pad;
+    const add = (text: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}, after = gap) => {
+      const t = this.add.text(pad, y, text, font(size, color, extra));
+      items.push(t);
+      y += t.height + after;
+      return t;
+    };
+    add('Zarządzanie', 11, COLORS.muted, { fontStyle: '600' }, this.px(2));
+    add(`${def.name} · poz. ${info.level}`, 20, COLORS.gold, { fontFamily: FONTS.serif });
+    const pct = (v: number) => `${Math.round(v * 100)}%`;
+    const consumes = def.baseEnergyUse > 0;
+    const produces = def.produces === 'metal' || def.produces === 'crystal' || def.produces === 'energy';
+    const slider = (label: string, hint: string, value: number, apply: (v: number) => void) => {
+      add(label, 13, COLORS.text, { fontStyle: '600' }, this.px(2));
+      add(hint, 11, COLORS.muted, {}, this.px(6));
+      items.push(...this.slider(pad, y, w - 2 * pad, buttonH, value, apply));
+      y += buttonH + gap;
+    };
+    if (produces) {
+      slider(
+        'Produktywność',
+        def.produces === 'energy' ? 'Ile energii wytwarza elektrownia.' : 'Wydobycie i zużycie energii razem — 0% wyłącza budynek.',
+        info.settings.work,
+        (v) => this.applySetting(id, { work: v }),
+      );
+    }
+    if (consumes) {
+      slider(
+        'Energia — pierwszeństwo',
+        'Gdy energii brakuje, budynki z wyższym pierwszeństwem dostają ją najpierw.',
+        info.settings.priority,
+        (v) => this.applySetting(id, { priority: v }),
+      );
+    }
+    const terrain: Partial<Record<BuildingId, string>> = {
+      metalMine: 'wzgórza',
+      crystalMine: 'doliny, góry i lód',
+      powerPlant: 'brzeg (przy wodzie, lodzie albo lawie)',
+    };
+    const lines: string[] = [];
+    if (consumes) lines.push(`Energia: dostaje ${pct(info.energyEfficiency)} potrzebnej.`);
+    lines.push(`Pola: ${info.groups} (każde mieści 3 poziomy)${info.onIce > 0 ? `, w tym ${info.onIce} na lodzie` : ''}.`);
+    if (terrain[id]) {
+      lines.push(`Najlepszy teren: ${terrain[id]} — ${info.suitedGroups} z ${info.groups} pól. Wydajność terenu: ${pct(info.siteFactor)} (pola poza nim pracują w 75%).`);
+    }
+    if (info.richness !== null) lines.push(`Złoża planety: ${pct(info.richness)}.`);
+    if (id === 'storage') lines.push('Magazyn nie ma ustawień pracy — tu przybędą funkcje z badań.');
+    add(lines.join('\n'), 12, COLORS.stone, {}, gap * 1.5);
+    const closeBtn = new Button(this, w - pad - this.px(this.s(150)), y, this.px(this.s(150)), buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle('primary');
+    items.push(closeBtn);
+    y += buttonH + pad;
+    const h = y;
+    const x = (W - w) / 2;
+    const top = Math.max(this.px(8), (H - h) / 2);
+    const box = this.add
+      .graphics()
+      .fillStyle(COLORS.panel, 0.98)
+      .fillRoundedRect(0, 0, w, h, this.px(16))
+      .lineStyle(this.px(1), COLORS.goldHex, 0.7)
+      .strokeRoundedRect(0, 0, w, h, this.px(16));
+    const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
+    const dialog = this.add.container(x, top, [box, blocker, ...items]);
+    this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+  }
+
+  /** Zapis ustawienia budynku i odświeżenie okna (nowa wydajność energii, produkcja w pasku). */
+  private applySetting(id: BuildingId, change: Partial<BuildingSettings>): void {
+    this.deps.controller.setBuildingSettings(id, change);
+    this.refreshValues();
+    // Po zakończeniu obsługi dotknięcia — okno budujemy od nowa z aktualnymi liczbami.
+    this.time.delayedCall(0, () => this.openManagement(id));
+  }
+
+  /**
+   * Suwak 0–100% (krok 5%) w pikselach okna: tor z wypełnieniem, gałka i wartość. Przeciąganie
+   * i dotknięcie toru zmieniają wartość; `commit` dostaje ją po puszczeniu palca (zapis gry).
+   */
+  private slider(x: number, y: number, w: number, h: number, value: number, commit: (v: number) => void): Phaser.GameObjects.GameObject[] {
+    const labelW = this.px(this.s(52));
+    const trackW = w - labelW;
+    const g = this.add.graphics();
+    const label = this.add.text(x + w, y + h / 2, '', { fontFamily: FONTS.body, fontSize: `${this.px(this.s(15))}px`, color: COLORS.gold, fontStyle: '600' }).setOrigin(1, 0.5);
+    let current = value;
+    const draw = () => {
+      const cy = y + h / 2;
+      const knob = x + current * trackW;
+      g.clear();
+      g.fillStyle(COLORS.panelBorder, 1).fillRoundedRect(x, cy - this.px(3), trackW, this.px(6), this.px(3));
+      g.fillStyle(COLORS.tealHex, 1).fillRoundedRect(x, cy - this.px(3), Math.max(this.px(6), current * trackW), this.px(6), this.px(3));
+      g.fillStyle(COLORS.goldHex, 1).fillCircle(knob, cy, this.px(this.s(10)));
+      label.setText(`${Math.round(current * 100)}%`);
+    };
+    draw();
+    const zone = this.add.zone(x - this.px(12), y, trackW + this.px(24), h).setOrigin(0).setInteractive({ useHandCursor: true });
+    let dragging = false;
+    const at = (pointer: Phaser.Input.Pointer) => {
+      // Strefa leży w kontenerze okna — pozycję toru liczymy względem jej lewej krawędzi na ekranie.
+      const left = zone.getBounds().x + this.px(12);
+      current = Math.round(Math.min(1, Math.max(0, (pointer.x - left) / trackW)) * 20) / 20;
+      draw();
+    };
+    zone.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      dragging = true;
+      at(pointer);
+    });
+    zone.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (dragging && pointer.isDown) at(pointer);
+    });
+    const release = () => {
+      if (!dragging) return;
+      dragging = false;
+      commit(current);
+    };
+    zone.on('pointerup', release);
+    zone.on('pointerout', release);
+    return [g, label, zone];
   }
 
   /** Okno ustawień: przenoszenie zapisu, nowa planeta, wersja gry. */

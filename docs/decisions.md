@@ -2,6 +2,19 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.26.1: grupy budowli, zarządzanie, teren pod budynki
+
+Decyzje właściciela: **pole = 3 poziomy jednego budynku** (grupa produkcyjna; nowe pole zajmują poziomy 1, 4, 7…); **suwaki „praca + pierwszeństwo”**; **budynek poza dobrym terenem stoi na dowolnym lądzie, ale słabiej**; **lód tylko dla kryształów**.
+
+- **Grupy** (`core/colony/plots.ts`): `LEVELS_PER_FIELD` = 3, liczba pól budynku = ⌈poziom / 3⌉. Na polu stoją do 3 budowli (`planet-renderer/colony.ts`, `layoutFromPlots` — 3 miejsca co 120° wokół środka pola). Brak miejsca → `no-fields` („brak wolnego pola…”); SI (także offline) dostaje tę samą funkcję `hasRoom`.
+- **Teren pól** (`fieldGrid.ts`, `FieldCell.terrain`, `coast`): ranga wysokości wśród pól lądu — 30% najniższych doliny, potem równiny (20%), wzgórza (30%), góry (20%); brzeg = pole lądu z sąsiadem nie-lądem (woda, lód, lawa). Dobry teren: kopalnia metalu — wzgórza; ekstraktor kryształów — doliny, góry albo lód; elektrownia — brzeg. Pozostałe budynki — dowolny ląd. Nowe pole szuka najpierw dobrego terenu blisko dzielnicy budynku; gdy go brak — dowolny ląd.
+- **Wydajność terenu** (`EconomyState.siteFactor`): poziomy na złym terenie pracują w 75% (`OFF_SITE_FACTOR`), średnia po poziomach. Liczona z przydziału pól przez kontroler i zapisywana w stanie gospodarki (core nie zna siatki).
+- **Lód dla kryształów:** ekstraktor może stać na polu lodu — takie pole nie zużywa pól lądu z seeda (dodatkowe miejsce). Inne budynki na lodzie — dopiero po badaniu (`BuildRules`).
+- **Zarządzanie** (`EconomyState.settings`, `setBuildingSettings`, mały kwadrat na karcie; wszystkie budynki poza kolektorem antymaterii): **produktywność** 0–100% skaluje razem wydobycie i zużycie energii (0% = budynek stoi); **energia — pierwszeństwo** 0–100%: przy braku energii najpierw dostają ją budynki z wyższym pierwszeństwem, równe dzielą się proporcjonalnie. Przy domyślnych 100%/100% wynik identyczny jak w v0.26. Krok 5%.
+- **„Dostępność metali na planecie”** — na razie tylko informacja (złoża planety, %); suwak do doprecyzowania z właścicielem.
+- **Stare zapisy:** przydział z v0.26 (1 poziom = 1 pole) jest przycinany do liczby grup — budowle przestawiają się jednorazowo; poziomy ponad dostępne pola produkują dalej, ale blokują kolejne ulepszenia.
+- **Później (badania, odłożone):** elektrownia wodna na wodzie, panele słoneczne, satelity z panelami.
+
 ## 2026-10-24 — v0.26: pola planety (siatka do zabudowy)
 
 Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje jedno pole** (jak w OGame); **pole wybiera gra automatycznie**; **liczba pól DO ZABUDOWY narzucona seedem (30–200)** — siatka dopasowuje się tak, żeby na lądzie było dokładnie tyle pól, woda, lód i lawa leżą między nimi (pierwotnie 30–200 miało być całą siatką, ale wtedy planeta startowa miała tylko 40 pól lądu — właściciel zmienił decyzję); **siatka widoczna z przełącznika w Ustawieniach**.

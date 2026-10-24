@@ -70,7 +70,21 @@ export function parseEconomy(economy: any): EconomyState | null {
     construction,
     // Zapisy sprzed antymaterii dostają zapas startowy.
     antimatter: isNum(economy.antimatter) ? Math.max(0, economy.antimatter) : BALANCE.antimatter.startingStock,
+    ...parseBuildingMaps(economy),
   };
+}
+
+/** Ustawienia budynków i dopasowanie do terenu (od v0.26.1) — błędne wartości pomijane. */
+function parseBuildingMaps(economy: any): Pick<EconomyState, 'settings' | 'siteFactor'> {
+  const unit = (v: unknown): v is number => isNum(v) && v >= 0 && v <= 1;
+  const out: Pick<EconomyState, 'settings' | 'siteFactor'> = {};
+  for (const def of BALANCE.buildings) {
+    const s = economy.settings?.[def.id];
+    if (s && unit(s.work) && unit(s.priority)) (out.settings ??= {})[def.id] = { work: s.work, priority: s.priority };
+    const f = economy.siteFactor?.[def.id];
+    if (unit(f)) (out.siteFactor ??= {})[def.id] = f;
+  }
+  return out;
 }
 
 function parseConstruction(raw: any, levels: BuildingLevels): Construction | null {

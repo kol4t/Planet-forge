@@ -1,7 +1,7 @@
 // SI podczas nieobecności (po badaniu „Autonomia”): symulacja czasu bez gracza — SI zaczyna budowy
 // według reguł „działa samo”, ale każda budowa trwa dłużej (decyzja właściciela: ~50%). Czysta funkcja.
 import { advance, upgradeBuilding } from '../economy/economy.ts';
-import type { Balance, BuildingId, EconomyState, Planet, ResearchState } from '../types.ts';
+import type { Balance, BuildingId, EconomyState, Planet, ResearchState, BuildingLevels } from '../types.ts';
 import { suggest, type AiLevel, type AiRuleId } from './advisor.ts';
 
 /** O ile dłużej trwa budowa zlecona przez SI pod nieobecność gracza. */
@@ -15,8 +15,8 @@ export interface AwayAiInput {
   balance: Balance;
   research: ResearchState;
   levels: Readonly<Record<AiRuleId, AiLevel>>;
-  /** Pola, na których wolno budować (brak = bez limitu). */
-  fields?: number;
+  /** Czy następny poziom zmieści się na polach planety (brak = bez limitu). */
+  hasRoom?: (id: BuildingId, levels: BuildingLevels) => boolean;
 }
 
 export interface AwayAiResult {
@@ -40,11 +40,11 @@ export function simulateAwayAi(input: AwayAiInput, until: number): AwayAiResult 
   let economy = input.economy;
   for (let guard = 0; economy.lastUpdate < end && guard < 1000; guard++) {
     if (!economy.construction) {
-      const pick = suggest({ economy, planet, balance, research, labLevel: economy.levels.laboratory ?? 0, fields: input.fields }).find(
+      const pick = suggest({ economy, planet, balance, research, labLevel: economy.levels.laboratory ?? 0, hasRoom: input.hasRoom }).find(
         (s) => s.action.kind === 'build' && levels[s.rule] === 'auto',
       );
       if (pick && pick.action.kind === 'build') {
-        const result = upgradeBuilding(economy, pick.action.building, economy.lastUpdate, slow, { fields: input.fields });
+        const result = upgradeBuilding(economy, pick.action.building, economy.lastUpdate, slow, { hasRoom: input.hasRoom });
         if (result.ok) {
           economy = result.state;
           started.push({ at: economy.lastUpdate, building: pick.action.building, level: economy.construction!.targetLevel });

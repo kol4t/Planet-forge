@@ -237,4 +237,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 135. Budowle nie przeskakują: rozbuduj jeden budynek i zobacz, że pozostałe stoją na tych samych polach.
 136. Nowe planety z mapy mają różną liczbę pól (zwykle ok. 100, rzadko ok. 30 albo ok. 200) — liczba wynika z seeda planety, niezależnie od tego, ile na niej wody.
 
+### Od 0.26.1: grupy budowli i zarządzanie
+
+137. Jedno pole mieści 3 poziomy jednego budynku (3 budowle obok siebie). Rozbuduj kopalnię metalu z poz. 1 do 3 — wiersz POLA w panelu „Planeta” się nie zmienia; poz. 4 zajmuje nowe pole.
+138. Każda karta (poza kolektorem antymaterii) ma w prawym górnym rogu mały kwadrat z suwakami → okno **„Zarządzanie”**. Przesuń „Produktywność” na 50%: wydobycie i zużycie energii spadają o połowę (pasek zasobów u góry). 0% wyłącza budynek.
+139. „Energia — pierwszeństwo”: gdy energii brakuje, budynek z wyższym pierwszeństwem dostaje ją pierwszy (wiersz „Energia: dostaje N% potrzebnej”).
+140. Okno pokazuje najlepszy teren budynku: kopalnia metalu — wzgórza, ekstraktor kryształów — doliny, góry i lód, elektrownia — brzeg. Budynki poza dobrym terenem pracują w 75%.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

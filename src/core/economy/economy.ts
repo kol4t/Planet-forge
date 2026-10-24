@@ -1,6 +1,5 @@
-import { usedFields } from '../colony/plots.ts';
 import { BALANCE } from '../../data/balance.ts';
-import type { Balance, BuildingDef, BuildingId, Construction, EconomyState, Planet, Resources, YieldId } from '../types.ts';
+import type { Balance, BuildingDef, BuildingId, BuildingLevels, BuildingSettings, Construction, EconomyState, Planet, Resources, YieldId } from '../types.ts';
 
 export interface Rates {
   /** Produkcja na minutę. */
@@ -8,17 +7,22 @@ export interface Rates {
   crystal: number;
   energyProduced: number;
   energyUsed: number;
-  /** Wydajność kopalń 0..1 (spada, gdy brakuje energii). */
+  /** Wydajność kopalń 0..1 (spada, gdy brakuje energii) — średnia dla wszystkich odbiorców. */
   efficiency: number;
+  /** Wydajność energetyczna każdego odbiorcy 0..1 (zależy od pierwszeństwa przy niedoborze). */
+  efficiencyBy: Partial<Record<BuildingId, number>>;
   /** Antymateria na GODZINĘ (przyrost pasywny + kolektor). */
   antimatterPerHour: number;
 }
 
 export type UpgradeFailure = 'unknown-building' | 'max-level' | 'not-enough-resources' | 'storage-too-small' | 'busy' | 'no-fields';
 
-/** Ograniczenia planety przy budowie: liczba pól, na których wolno budować (brak = bez limitu). */
+/**
+ * Ograniczenia planety przy budowie: czy następny poziom budynku zmieści się na polach planety
+ * (każde pole mieści 3 poziomy jednego budynku; brak = bez limitu).
+ */
 export interface BuildLimits {
-  fields?: number;
+  hasRoom?: (id: BuildingId, levels: BuildingLevels) => boolean;
 }
 export type CancelFailure = 'nothing-to-cancel';
 export type FinishFailure = 'nothing-to-finish' | 'not-enough-antimatter';
@@ -79,28 +83,68 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
   const growth = balance.levelGrowth;
   let energyProduced = 0;
   let energyUsed = 0;
+  const consumers: { def: BuildingDef; output: number; need: number; priority: number }[] = [];
+  for (const def of balance.buildings) {
+    const level = state.levels[def.id] ?? 0;
+    const { work, priority } = buildingSettings(state, def.id);
+    // Produktywność skaluje wydobycie i zużycie energii; teren — tylko wydobycie.
+    const output = scaled(def.baseOutput, level, growth) * work * (state.siteFactor?.[def.id] ?? 1);
+    const need = scaled(def.baseEnergyUse, level, growth) * work;
+    energyUsed += need;
+    if (def.produces === 'energy') energyProduced += output * rich.energy * env.energy;
+    else consumers.push({ def, output, need, priority });
+  }
+  // Energia według pierwszeństwa: wyższe najpierw, równe dzielą się proporcjonalnie do potrzeb
+  // (wszystkie na 100% = jak dotąd: jedna wspólna wydajność).
+  const efficiencyBy: Partial<Record<BuildingId, number>> = {};
+  let left = energyProduced;
+  const groups = [...new Set(consumers.map((c) => c.priority))].sort((a, b) => b - a);
+  for (const p of groups) {
+    const group = consumers.filter((c) => c.priority === p);
+    const need = group.reduce((sum, c) => sum + c.need, 0);
+    const share = need <= 0 ? 1 : Math.min(1, left / need);
+    left = Math.max(0, left - need * share);
+    for (const c of group) efficiencyBy[c.def.id] = share;
+  }
   let metal = 0;
   let crystal = 0;
   let collector = 0;
-  for (const def of balance.buildings) {
-    const level = state.levels[def.id] ?? 0;
-    const output = scaled(def.baseOutput, level, growth);
-    energyUsed += scaled(def.baseEnergyUse, level, growth);
-    if (def.produces === 'energy') energyProduced += output * rich.energy * env.energy;
-    if (def.produces === 'metal') metal += output * rich.metal * env.metal;
-    if (def.produces === 'crystal') crystal += output * rich.crystal * env.crystal;
-    if (def.produces === 'antimatter') collector += output;
+  for (const c of consumers) {
+    const out = c.output * (efficiencyBy[c.def.id] ?? 1);
+    if (c.def.produces === 'metal') metal += out * rich.metal * env.metal;
+    if (c.def.produces === 'crystal') crystal += out * rich.crystal * env.crystal;
+    // Kolektor, jak kopalnie, słabnie przy braku energii; przyrost pasywny — nie.
+    if (c.def.produces === 'antimatter') collector += out;
   }
   const efficiency = energyUsed <= 0 ? 1 : Math.min(1, energyProduced / energyUsed);
   return {
-    metal: balance.passiveIncome.metal + metal * efficiency,
-    crystal: balance.passiveIncome.crystal + crystal * efficiency,
+    metal: balance.passiveIncome.metal + metal,
+    crystal: balance.passiveIncome.crystal + crystal,
     energyProduced,
     energyUsed,
     efficiency,
-    // Kolektor, jak kopalnie, słabnie przy braku energii; przyrost pasywny — nie.
-    antimatterPerHour: balance.antimatter.passivePerHour + collector * efficiency,
+    efficiencyBy,
+    antimatterPerHour: balance.antimatter.passivePerHour + collector,
   };
+}
+
+/** Ustawienia budynku (domyślnie praca 100%, pierwszeństwo 100%). */
+export function buildingSettings(state: EconomyState, id: BuildingId): BuildingSettings {
+  const s = state.settings?.[id];
+  return { work: clamp01(s?.work ?? 1), priority: clamp01(s?.priority ?? 1) };
+}
+
+const clamp01 = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1);
+
+/** Zmiana ustawień budynku z panelu „Zarządzanie” (wartości 0..1, zaokrąglane do 5%). */
+export function setBuildingSettings(state: EconomyState, id: BuildingId, change: Partial<BuildingSettings>): EconomyState {
+  const current = buildingSettings(state, id);
+  const round = (v: number) => Math.round(clamp01(v) * 20) / 20;
+  const next: BuildingSettings = {
+    work: change.work !== undefined ? round(change.work) : current.work,
+    priority: change.priority !== undefined ? round(change.priority) : current.priority,
+  };
+  return { ...state, settings: { ...state.settings, [id]: next } };
 }
 
 /** Pojemność magazynu (dla metalu i kryształów osobno). */
@@ -188,13 +232,13 @@ export function upgradeBuilding(
   if (level >= balance.maxLevel) {
     return { ok: false, state, reason: 'max-level', message: `${def.name}: osiągnięto maksymalny poziom.` };
   }
-  // Każdy poziom zajmuje jedno pole planety (od v0.26).
-  if (limits.fields !== undefined && usedFields(state.levels) >= limits.fields) {
+  // Pola planety: każde mieści grupę 3 poziomów jednego budynku (od v0.26.1).
+  if (limits.hasRoom && !limits.hasRoom(id, state.levels)) {
     return {
       ok: false,
       state,
       reason: 'no-fields',
-      message: `Brak wolnych pól: zajęte ${usedFields(state.levels)} z ${limits.fields} pól lądu. Każdy poziom budynku zajmuje jedno pole.`,
+      message: `${def.name}: brak wolnego pola. Każde pole mieści 3 poziomy jednego budynku — wolne pola się skończyły.`,
     };
   }
   const cost = upgradeCost(id, level, balance);

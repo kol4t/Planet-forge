@@ -23,7 +23,7 @@ test('offsetOnSphere zachowuje odległość kątową', () => {
 });
 
 for (const def of PLANET_DEFINITIONS) {
-  test(`kolonia: ${def.id} — budowle na swoich polach lądu, deterministyczne, bez nakładania`, () => {
+  test(`kolonia: ${def.id} — grupy do 3 budowli na swoich polach, deterministyczne, bez nakładania`, () => {
     for (const seed of ['PF-COL-1', 'PF-COL-2']) {
       const planet = generatePlanet(def, seed);
       const grid = fieldGrid(planet);
@@ -34,9 +34,16 @@ for (const def of PLANET_DEFINITIONS) {
       assert.deepEqual(a, layoutFromPlots(grid, plots, createSurfaceSampler(planet), IDS));
       const all = IDS.flatMap((id) => a.slots[id]);
       for (let i = 0; i < all.length; i++) {
-        for (let j = i + 1; j < all.length; j++) assert.ok(angleBetween(all[i]!.dir, all[j]!.dir) > 0.05, 'jedno pole = jedna budowla');
+        for (let j = i + 1; j < all.length; j++) assert.ok(angleBetween(all[i]!.dir, all[j]!.dir) > 0.01, 'budowle się nie nakładają');
       }
-      for (const id of IDS) for (const cell of plots[id] ?? []) assert.equal(grid.cells[cell]!.kind, 'land', `${seed} ${id}: budowla poza lądem`);
+      for (const id of IDS) {
+        // Każda budowla ma swoje miejsce: 3 na pole (ostatnie pole może być niepełne).
+        assert.equal(a.slots[id].length, (plots[id] ?? []).length * 3);
+        for (const cell of plots[id] ?? []) {
+          const kind = grid.cells[cell]!.kind;
+          assert.ok(kind === 'land' || (id === 'crystalMine' && kind === 'ice'), `${seed} ${id}: budowla na ${kind}`);
+        }
+      }
       for (const s of all) assert.ok(s.surface >= 1 && s.surface < 1.1);
     }
   });

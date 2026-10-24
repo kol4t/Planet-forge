@@ -220,6 +220,21 @@ export interface EconomyState {
   construction: Construction | null;
   /** Waluta premium zdobywana w grze (ułamki się kumulują, wyświetlamy całość). */
   antimatter: number;
+  /** Zarządzanie budynkami (od v0.26.1; brak = praca 100%, pierwszeństwo 100%). */
+  settings?: Partial<Record<BuildingId, BuildingSettings>>;
+  /**
+   * Dopasowanie do terenu 0..1 na budynek (od v0.26.1): grupy na pasującym terenie pracują w 100%,
+   * na innym — słabiej. Liczy gra z zajętych pól; brak = 1.
+   */
+  siteFactor?: Partial<Record<BuildingId, number>>;
+}
+
+/** Ustawienia budynku z panelu „Zarządzanie” (0..1). */
+export interface BuildingSettings {
+  /** Produktywność: skaluje naraz wydobycie i zużycie energii (0 = wyłączony). */
+  work: number;
+  /** Pierwszeństwo do energii: przy niedoborze budynki z wyższym dostają ją najpierw. */
+  priority: number;
 }
 
 export interface BuildingDef {

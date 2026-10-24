@@ -20,7 +20,16 @@ export interface FieldCell {
   kind: FieldKind;
   /** Udział lądu w próbkach pola 0..1 (pola przybrzeżne mają mniej). */
   landShare: number;
+  /** Średnia wysokość lądu w polu nad poziomem morza 0..1. */
+  relief: number;
+  /** Ukształtowanie pola lądu (względem innych pól lądu tej planety); pola wody, lodu, lawy — `none`. */
+  terrain: FieldTerrain;
+  /** Pole lądu sąsiaduje z wodą, lodem albo lawą (brzeg). */
+  coast: boolean;
 }
+
+/** Doliny: najniższe 30% pól lądu, równiny: do połowy, wzgórza: do 80%, góry: najwyższe 20%. */
+export type FieldTerrain = 'valley' | 'plain' | 'hill' | 'mountain' | 'none';
 
 export interface FieldGrid {
   cells: FieldCell[];
@@ -98,7 +107,24 @@ export function buildFieldGrid(planet: Planet): FieldGrid {
     cells = buildCells(count, seed, field, planet);
   }
   trimLand(cells, want);
+  describeTerrain(cells);
   return { cells, colonyCenter: pickColonyCenter(cells) };
+}
+
+/** Ukształtowanie pól lądu (ranga wysokości wśród pól lądu tej planety) i brzegi. */
+function describeTerrain(cells: FieldCell[]): void {
+  const land = cells.map((c, i) => ({ c, i })).filter(({ c }) => c.kind === 'land');
+  land.sort((a, b) => a.c.relief - b.c.relief || a.i - b.i);
+  land.forEach(({ c }, rank) => {
+    const q = land.length > 1 ? rank / (land.length - 1) : 0.5;
+    c.terrain = q < 0.3 ? 'valley' : q < 0.5 ? 'plain' : q < 0.8 ? 'hill' : 'mountain';
+  });
+  for (const cell of cells) {
+    if (cell.kind !== 'land') {
+      cell.terrain = 'none';
+      cell.coast = false;
+    } else cell.coast = cell.neighbors.some((n) => cells[n]!.kind !== 'land');
+  }
 }
 
 /** Nadmiar pól lądu → woda (najpierw najbardziej przybrzeżne; remis — wyższy indeks). */
@@ -127,8 +153,8 @@ function buildCells(count: number, seed: string, field: SurfaceField, planet: Pl
   const spacing = Math.sqrt(4 / count); // ≈ promień kątowy pola
   return centers.map((center, i) => {
     const { outline, neighbors } = traceOutline(i, centers, candidates[i]!, spacing);
-    const { kind, landShare } = classify(field, planet, center, outline);
-    return { center, outline, neighbors, kind, landShare };
+    const { kind, landShare, relief } = classify(field, planet, center, outline);
+    return { center, outline, neighbors, kind, landShare, relief, terrain: 'none', coast: false };
   });
 }
 
@@ -237,14 +263,20 @@ function sampleKind(field: SurfaceField, planet: Planet, [x, y, z]: Vec3): Field
 }
 
 /** Rodzaj pola: większość próbek (środek + punkty w połowie drogi do granicy). */
-function classify(field: SurfaceField, planet: Planet, center: Vec3, outline: Vec3[]): { kind: FieldKind; landShare: number } {
+function classify(field: SurfaceField, planet: Planet, center: Vec3, outline: Vec3[]): { kind: FieldKind; landShare: number; relief: number } {
   const samples: Vec3[] = [center, ...outline.filter((_, k) => k % 3 === 0).map((p) => normalize([(p[0] + center[0]) / 2, (p[1] + center[1]) / 2, (p[2] + center[2]) / 2]))];
   const votes: Record<FieldKind, number> = { land: 0, water: 0, ice: 0, lava: 0 };
-  for (const p of samples) votes[sampleKind(field, planet, p)]++;
+  const sea = field.seaLevel;
+  let relief = 0;
+  for (const p of samples) {
+    votes[sampleKind(field, planet, p)]++;
+    relief += Math.max(0, field.height(...p) - sea) / (1 - sea);
+  }
+  relief /= samples.length;
   const landShare = votes.land / samples.length;
   // Ląd, gdy przeważa (połowa próbek wystarczy — pola na wybrzeżu są do zabudowy).
-  if (votes.land * 2 >= samples.length) return { kind: 'land', landShare };
-  return { kind: (['water', 'ice', 'lava'] as const).reduce((a, b) => (votes[b] > votes[a] ? b : a)), landShare };
+  if (votes.land * 2 >= samples.length) return { kind: 'land', landShare, relief };
+  return { kind: (['water', 'ice', 'lava'] as const).reduce((a, b) => (votes[b] > votes[a] ? b : a)), landShare, relief };
 }
 
 /** Środek kolonii: pole lądu z największą liczbą lądowych pól w promieniu dwóch sąsiedztw, nie przy biegunach. */

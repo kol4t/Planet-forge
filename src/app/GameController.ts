@@ -1,17 +1,19 @@
 import { buildableCount, fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
-import { reconcilePlots, usedFields, type Plots } from '../core/colony/plots.ts';
+import { hasRoomFor, reconcilePlots, siteFactors, suits, usedLandFields, type Plots } from '../core/colony/plots.ts';
 import {
   advance,
   buildSeconds,
   fitsInStorage,
   cancelConstruction,
   constructionProgress,
+  buildingSettings,
   createEconomy,
   finishConstructionNow,
   finishCost,
   storageCapacity,
   productionRates,
   secondsUntilAffordable,
+  setBuildingSettings,
   upgradeBuilding,
   upgradeCost,
   type CancelResult,
@@ -49,7 +51,7 @@ import {
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { Balance, BuildingId, ColonyMission, EconomyState, JournalEntry, JournalKind, Planet, ResearchState, Resources } from '../core/types.ts';
+import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, JournalEntry, JournalKind, Planet, ResearchState, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -84,12 +86,27 @@ export type MapOccupant = 'you' | 'bot' | 'alien' | 'free';
 const GALAXY_ID = 1;
 
 /** Skrót planety do listy „Twoje planety”. */
+export interface BuildingInfo {
+  level: number;
+  settings: BuildingSettings;
+  /** Ile potrzebnej energii budynek dostaje 0..1 (zależy od pierwszeństwa przy niedoborze). */
+  energyEfficiency: number;
+  /** Dopasowanie do terenu 0..1 (grupy na niepasującym terenie pracują słabiej). */
+  siteFactor: number;
+  /** Zajęte pola (grupy do 3 poziomów) i ile z nich stoi na pasującym terenie / na lodzie. */
+  groups: number;
+  suitedGroups: number;
+  onIce: number;
+  /** Złoża planety dla tego, co budynek wydobywa (1 = 100%); null — budynek nic nie wydobywa. */
+  richness: number | null;
+}
+
 export interface FieldsInfo {
   /** Wszystkie pola siatki (z wodą, lodem i lawą między polami lądu). */
   total: number;
   /** Pola lądu — na nich wolno budować; ich liczba wynika z seeda planety (30–200). */
   buildable: number;
-  /** Zajęte = suma poziomów budynków. */
+  /** Zajęte pola lądu (każde mieści grupę do 3 poziomów jednego budynku; kryształy na lodzie się nie liczą). */
   used: number;
 }
 
@@ -235,6 +252,35 @@ export class GameController {
     return balance;
   }
 
+  /** Zmiana produktywności / pierwszeństwa budynku (panel „Zarządzanie”). */
+  setBuildingSettings(id: BuildingId, change: Partial<BuildingSettings>, now = Date.now()): void {
+    this.tick(now);
+    this.economy = setBuildingSettings(this.economy, id, change);
+    this.save();
+    this.emit();
+  }
+
+  /** Stan budynku do panelu „Zarządzanie”: ustawienia, wydajność, teren grup i złoża planety. */
+  buildingInfo(id: BuildingId): BuildingInfo {
+    const slot = this.slots[this.active]!;
+    const grid = fieldGrid(slot.planet);
+    const plots = syncPlots(slot);
+    const cells = (plots[id] ?? []).map((c) => grid.cells[c]!);
+    const rates = this.rates;
+    const def = this.balance.buildings.find((b) => b.id === id)!;
+    const produces = def.produces;
+    return {
+      level: this.economy.levels[id] ?? 0,
+      settings: buildingSettings(this.economy, id),
+      energyEfficiency: rates.efficiencyBy[id] ?? 1,
+      siteFactor: this.economy.siteFactor?.[id] ?? 1,
+      groups: cells.length,
+      suitedGroups: cells.filter((c) => suits(id, c)).length,
+      onIce: cells.filter((c) => c.kind === 'ice').length,
+      richness: produces === 'metal' || produces === 'crystal' || produces === 'energy' ? slot.planet.gameplay.richness[produces] : null,
+    };
+  }
+
   get rates(): Rates {
     return productionRates(this.economy, this.planet, this.balance);
   }
@@ -292,7 +338,7 @@ export class GameController {
   /** Rozpoczyna ulepszenie (budowę). Ukończenie przychodzi przez `onBuildComplete`. */
   upgrade(id: BuildingId, now = Date.now()): UpgradeResult {
     this.tick(now);
-    const result = upgradeBuilding(this.economy, id, now, this.balance, { fields: this.fieldsFree(this.slots[this.active]!) });
+    const result = upgradeBuilding(this.economy, id, now, this.balance, { hasRoom: this.roomCheck(this.slots[this.active]!) });
     this.economy = result.state;
     if (result.ok) this.save();
     this.emit();
@@ -472,7 +518,7 @@ export class GameController {
       balance: this.balance,
       research: this.research,
       labLevel: this.labLevel,
-      fields: this.fieldsFree(this.slots[this.active]!),
+      hasRoom: this.roomCheck(this.slots[this.active]!),
     });
   }
 
@@ -533,7 +579,7 @@ export class GameController {
     if (now - slot.economy.lastUpdate < 60_000) return;
     const before = slot.economy;
     const result = simulateAwayAi(
-      { economy: before, planet: slot.planet, balance, research: slot.research, levels: this.aiLevels, fields: this.fieldsFree(slot) },
+      { economy: before, planet: slot.planet, balance, research: slot.research, levels: this.aiLevels, hasRoom: this.roomCheck(slot) },
       now,
     );
     slot.economy = result.economy;
@@ -558,7 +604,7 @@ export class GameController {
   /** Wykonanie działania SI zwykłymi regułami gry (bez ponownego `tick`). */
   private applyAiAction(action: AiAction, now: number): ActionMessage {
     if (action.kind === 'build') {
-      const result = upgradeBuilding(this.economy, action.building, now, this.balance, { fields: this.fieldsFree(this.slots[this.active]!) });
+      const result = upgradeBuilding(this.economy, action.building, now, this.balance, { hasRoom: this.roomCheck(this.slots[this.active]!) });
       this.economy = result.state;
       return result;
     }
@@ -998,7 +1044,8 @@ export class GameController {
    */
   get fields(): FieldsInfo {
     const slot = this.slots[this.active]!;
-    return { total: fieldGrid(slot.planet).cells.length, buildable: this.fieldsFree(slot), used: usedFields(slot.economy.levels) };
+    const grid = fieldGrid(slot.planet);
+    return { total: grid.cells.length, buildable: buildableCount(grid), used: usedLandFields(grid, syncPlots(slot)) };
   }
 
   /** Siatka pól i zajęte pola aktywnej planety (z budową w toku) — do rysowania kolonii. */
@@ -1007,9 +1054,9 @@ export class GameController {
     return { grid: fieldGrid(slot.planet), plots: syncPlots(slot) };
   }
 
-  /** Liczba pól, na których wolno budować (siatka liczona raz na planetę). */
-  private fieldsFree(slot: Slot): number {
-    return buildableCount(fieldGrid(slot.planet));
+  /** Czy następny poziom budynku zmieści się na polach planety (grupy po 3 poziomy; siatka liczona raz na planetę). */
+  private roomCheck(slot: Slot): (id: BuildingId, levels: BuildingLevels) => boolean {
+    return (id, levels) => hasRoomFor(fieldGrid(slot.planet), slot.plots, levels, id, BUILDING_ORDER);
   }
 
   onBuildComplete(listener: (done: CompletedBuild) => void): () => void {
@@ -1031,7 +1078,11 @@ export class GameController {
 function syncPlots(slot: Slot): Plots {
   const c = slot.economy.construction;
   const levels = c ? { ...slot.economy.levels, [c.building]: Math.max(slot.economy.levels[c.building] ?? 0, c.targetLevel) } : slot.economy.levels;
-  slot.plots = reconcilePlots(fieldGrid(slot.planet), slot.plots, levels, BUILDING_ORDER);
+  const grid = fieldGrid(slot.planet);
+  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER);
+  // Dopasowanie do terenu (poziomy w grupach na niepasującym terenie produkują słabiej).
+  const factors = siteFactors(grid, slot.plots, slot.economy.levels);
+  if (JSON.stringify(factors) !== JSON.stringify(slot.economy.siteFactor ?? {})) slot.economy = { ...slot.economy, siteFactor: factors };
   return slot.plots;
 }
 

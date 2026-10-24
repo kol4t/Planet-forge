@@ -1,41 +1,67 @@
-// Przydział pól budowlom (automatyczny — decyzja właściciela): każdy poziom budynku zajmuje jedno pole.
-// Zajęte pola zapisujemy w stanie planety i nigdy ich nie przestawiamy — nowa budowla dostaje
-// wolne pole obok reszty swojego budynku, więc kolonia rośnie dzielnicami, a nic nie „przeskakuje”.
+// Przydział pól budowlom (automatyczny — decyzja właściciela). Jedno pole mieści GRUPĘ do 3 poziomów
+// tego samego budynku (od v0.26.1): poziomy 1–3 stoją na pierwszym polu, 4–6 na drugim itd.
+// Zajęte pola zapisujemy w stanie planety i nigdy ich nie przestawiamy — nowa grupa dostaje wolne pole
+// obok reszty swojego budynku, najlepiej na pasującym terenie (`siteRules`).
 import type { BuildingId, BuildingLevels } from '../types.ts';
-import { isBuildable, type BuildRules, type FieldGrid, type Vec3 } from './fieldGrid.ts';
+import { isBuildable, type BuildRules, type FieldCell, type FieldGrid, type Vec3 } from './fieldGrid.ts';
 
-/** Pola zajęte przez budowle danego typu (indeksy pól siatki, w kolejności budowy). */
+/** Pola zajęte przez grupy budowli danego typu (indeksy pól siatki, w kolejności budowy). */
 export type Plots = Partial<Record<BuildingId, number[]>>;
 
-/** Zajęte pola = suma poziomów budynków. */
-export function usedFields(levels: BuildingLevels): number {
+/** Ile poziomów budynku mieści jedno pole. */
+export const LEVELS_PER_FIELD = 3;
+
+/** Ile pól potrzeba na dany poziom budynku. */
+export const groupsFor = (level: number) => Math.ceil(Math.max(0, Math.floor(level)) / LEVELS_PER_FIELD);
+
+/** Grupa na niepasującym terenie produkuje słabiej (decyzja właściciela: „dowolny ląd, słabiej”). */
+export const OFF_SITE_FACTOR = 0.75;
+
+/**
+ * Teren, na którym budynek pracuje w pełni: kopalnie metalu — wzgórza; kryształy — doliny, góry i lód;
+ * elektrownie — brzeg (przy wodzie, lodzie albo lawie). Reszta — dowolny ląd.
+ */
+export function suits(id: BuildingId, cell: FieldCell): boolean {
+  if (id === 'metalMine') return cell.kind === 'land' && cell.terrain === 'hill';
+  if (id === 'crystalMine') return cell.kind === 'ice' || (cell.kind === 'land' && (cell.terrain === 'valley' || cell.terrain === 'mountain'));
+  if (id === 'powerPlant') return cell.kind === 'land' && cell.coast;
+  return cell.kind === 'land';
+}
+
+/** Czy budynek może stanąć na polu: ląd (zgodnie z `BuildRules`), a kryształy także na lodzie. */
+export function canStand(id: BuildingId, cell: FieldCell, rules: BuildRules = {}): boolean {
+  return isBuildable(cell.kind, rules) || (id === 'crystalMine' && cell.kind === 'ice');
+}
+
+/** Zajęte pola lądu (liczą się do limitu z seeda; kryształy na lodzie — nie). */
+export function usedLandFields(grid: FieldGrid, plots: Plots): number {
   let used = 0;
-  for (const level of Object.values(levels)) used += Math.max(0, Math.floor(level ?? 0));
+  for (const list of Object.values(plots)) for (const cell of list ?? []) if (grid.cells[cell]?.kind === 'land') used++;
   return used;
 }
 
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 /**
- * Dopasowanie pól do poziomów: brakującym budowlom przydziela wolne pola (w stałej kolejności budynków),
+ * Dopasowanie pól do poziomów: brakującym grupom przydziela wolne pola (w stałej kolejności budynków),
  * nadmiar (np. anulowana budowa) zdejmuje od końca. Istniejące przydziały zostają bez zmian.
- * Gdy wolnych pól brak (stary zapis z większą liczbą poziomów), część budowli po prostu nie stoi.
+ * Gdy wolnych pól brak (stary zapis z większą liczbą poziomów), część grup po prostu nie stoi.
  */
 export function reconcilePlots(grid: FieldGrid, plots: Plots, levels: BuildingLevels, order: readonly BuildingId[], rules: BuildRules = {}): Plots {
   const result: Plots = {};
   const taken = new Set<number>();
   for (const id of order) {
-    // Pola spoza siatki albo podwójne (np. po zmianie wyglądu terenu) odrzucamy.
-    const list = (plots[id] ?? []).filter((cell) => cell >= 0 && cell < grid.cells.length && !taken.has(cell));
-    const keep = list.slice(0, Math.max(0, Math.floor(levels[id] ?? 0)));
+    // Pola spoza siatki, podwójne albo niedozwolone (np. po zmianie terenu) odrzucamy.
+    const list = (plots[id] ?? []).filter((cell) => cell >= 0 && cell < grid.cells.length && !taken.has(cell) && canStand(id, grid.cells[cell]!, rules));
+    const keep = list.slice(0, groupsFor(levels[id] ?? 0));
     for (const cell of keep) taken.add(cell);
     result[id] = keep;
   }
   order.forEach((id, index) => {
     const list = result[id]!;
-    const want = Math.max(0, Math.floor(levels[id] ?? 0));
+    const want = groupsFor(levels[id] ?? 0);
     while (list.length < want) {
-      const cell = nextCell(grid, list, taken, index, order.length, rules);
+      const cell = nextCell(grid, id, list, taken, index, order.length, rules);
       if (cell < 0) break;
       list.push(cell);
       taken.add(cell);
@@ -44,19 +70,47 @@ export function reconcilePlots(grid: FieldGrid, plots: Plots, levels: BuildingLe
   return result;
 }
 
+/** Czy następny poziom budynku zmieści się na planecie (wolne miejsce w grupie albo wolne pole). */
+export function hasRoomFor(grid: FieldGrid, plots: Plots, levels: BuildingLevels, id: BuildingId, order: readonly BuildingId[], rules: BuildRules = {}): boolean {
+  const next = { ...levels, [id]: (levels[id] ?? 0) + 1 };
+  const placed = reconcilePlots(grid, plots, next, order, rules);
+  return (placed[id]?.length ?? 0) >= groupsFor(next[id]);
+}
+
 /**
- * Wolne pole dla kolejnej budowli: najbliżej środka „dzielnicy” budynku. Pierwsza budowla danego typu
- * staje w kierunku przypisanym budynkowi wokół środka kolonii (dzielnice rozchodzą się promieniście).
+ * Dopasowanie budynku do terenu 0..1: poziomy w grupach na pasującym terenie liczą się w 100%,
+ * na innym — `OFF_SITE_FACTOR`. Poziomy bez pola (stary zapis) — jak na pasującym terenie.
  */
-function nextCell(grid: FieldGrid, own: number[], taken: Set<number>, index: number, total: number, rules: BuildRules): number {
+export function siteFactors(grid: FieldGrid, plots: Plots, levels: BuildingLevels): Partial<Record<BuildingId, number>> {
+  const out: Partial<Record<BuildingId, number>> = {};
+  for (const [id, raw] of Object.entries(levels) as [BuildingId, number][]) {
+    const level = Math.max(0, Math.floor(raw ?? 0));
+    if (level === 0) continue;
+    let sum = 0;
+    for (let l = 0; l < level; l++) {
+      const cell = plots[id]?.[Math.floor(l / LEVELS_PER_FIELD)];
+      sum += cell === undefined || suits(id, grid.cells[cell]!) ? 1 : OFF_SITE_FACTOR;
+    }
+    out[id] = Math.round((sum / level) * 1000) / 1000;
+  }
+  return out;
+}
+
+/**
+ * Wolne pole dla nowej grupy: najpierw pasujący teren najbliżej „dzielnicy” budynku, gdy go brak —
+ * dowolne dozwolone pole najbliżej. Pierwsza grupa staje w kierunku przypisanym budynkowi wokół
+ * środka kolonii (dzielnice rozchodzą się promieniście).
+ */
+function nextCell(grid: FieldGrid, id: BuildingId, own: number[], taken: Set<number>, index: number, total: number, rules: BuildRules): number {
   const target = own.length > 0 ? centroid(grid, own) : districtTarget(grid, index, total, taken);
   let best = -1;
-  let bestDot = -Infinity;
+  let bestScore = -Infinity;
   grid.cells.forEach((cell, i) => {
-    if (taken.has(i) || !isBuildable(cell.kind, rules)) return;
-    const d = dot(cell.center, target);
-    if (d > bestDot) {
-      bestDot = d;
+    if (taken.has(i) || !canStand(id, cell, rules)) return;
+    // Pasujący teren wygrywa z każdą odległością (+2 > największa różnica iloczynów skalarnych).
+    const score = dot(cell.center, target) / Math.max(1e-9, Math.hypot(...target)) + (suits(id, cell) ? 2 : 0);
+    if (score > bestScore) {
+      bestScore = score;
       best = i;
     }
   });
@@ -80,6 +134,5 @@ function districtTarget(grid: FieldGrid, index: number, total: number, taken: Se
   if (!taken.has(grid.colonyCenter) && index === 0) return center.center;
   const ring = center.neighbors.length > 0 ? center.neighbors : [grid.colonyCenter];
   const toward = grid.cells[ring[Math.floor((index * ring.length) / Math.max(1, total)) % ring.length]!]!.center;
-  // Dwa kroki od środka: środek + 2 × (sąsiad − środek).
   return [2 * toward[0] - center.center[0], 2 * toward[1] - center.center[1], 2 * toward[2] - center.center[2]];
 }
