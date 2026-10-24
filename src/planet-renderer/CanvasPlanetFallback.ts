@@ -38,6 +38,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private lastDrawn = { yaw: NaN, pitch: NaN };
   private disposed = false;
   private readonly zoomer = new ZoomSmoother();
+  private spinHeld = false;
   private readonly reducedMotion = prefersReducedMotion();
   /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
   private size = BUFFER;
@@ -84,6 +85,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   }
 
   beginDrag(): void {
+    this.spinHeld = false;
     this.rotator.start(performance.now());
   }
 
@@ -105,7 +107,12 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.resizeBuffer();
   }
 
+  holdSpin(hold: boolean): void {
+    this.spinHeld = hold;
+  }
+
   resetView(): void {
+    this.spinHeld = false;
     this.zoomer.set(1, this.reducedMotion);
     this.resizeBuffer();
     this.rotator.turnTo(this.rotator.yaw, 0, performance.now());
@@ -219,8 +226,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.raf = requestAnimationFrame(this.loop);
     const dt = (time - this.last) / 1000;
     this.last = time;
-    // Przy przybliżeniu od 2× planeta przestaje sama się obracać (od 1× do 2× autoobrót słabnie).
-    this.rotator.spinFactor = Math.min(1, Math.max(0, 2 - this.zoom));
+    // Przy przybliżeniu od 2× planeta przestaje sama się obracać (od 1× do 2× autoobrót słabnie);
+    // pokazany budynek wstrzymuje autoobrót całkiem.
+    this.rotator.spinFactor = this.spinHeld ? 0 : Math.min(1, Math.max(0, 2 - this.zoom));
     this.rotator.update(dt, time);
     if (this.zoomer.update(dt)) this.resizeBuffer();
     if (

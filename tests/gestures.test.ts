@@ -3,7 +3,7 @@ import { ZoomSmoother } from '../src/planet-renderer/input/zoom.ts';
 import { test } from 'node:test';
 import { generatePlanet } from '../src/core/generation/generatePlanet.ts';
 import { PLANET_DEFINITIONS } from '../src/data/planets.ts';
-import { GestureTracker, PICK_ZOOM } from '../src/game/ui/gestures.ts';
+import { GestureTracker } from '../src/game/ui/gestures.ts';
 import { renderDisc } from '../src/planet-renderer/discRenderer.ts';
 import { createSurfaceSampler, hexToRgb } from '../src/planet-renderer/surface.ts';
 
@@ -92,15 +92,16 @@ test('krótkie dotknięcie bez przesuwania = tap (wybór budowli)', () => {
   assert.deepEqual(g.up(1, 60), []);
 });
 
-test('wybór budowli od 80% drogi do maksymalnego przybliżenia', async () => {
-  const { PICK_ZOOM, MIN_ZOOM, MAX_ZOOM } = await import('../src/game/ui/gestures.ts');
-  assert.equal(PICK_ZOOM, 3);
-  assert.ok(PICK_ZOOM > MIN_ZOOM && PICK_ZOOM < MAX_ZOOM);
+test('przybliżenie do budynku: 1,5× domyślnie, 3× do wyboru — oba w zakresie przybliżania', async () => {
+  const { MIN_ZOOM, MAX_ZOOM } = await import('../src/game/ui/gestures.ts');
+  const { FOCUS_ZOOMS, loadFocusZoom } = await import('../src/game/ui/uiPrefs.ts');
+  assert.deepEqual([...FOCUS_ZOOMS], [1.5, 3]);
+  assert.equal(loadFocusZoom(), 1.5, 'bez zapisanego wyboru (i bez localStorage) — 1,5×');
+  for (const z of FOCUS_ZOOMS) assert.ok(z > MIN_ZOOM && z < MAX_ZOOM);
 });
 
-test('przybliżenie: zakres 0,8–3,5, wybór budowli od 3×, przyciski krokiem', () => {
+test('przybliżenie: zakres 0,8–3,5, przyciski krokiem', () => {
   const g = new GestureTracker();
-  assert.equal(PICK_ZOOM, 3);
   assert.deepEqual(g.setZoom(0.5), [{ type: 'zoom', zoom: 0.8 }], 'lekkie oddalenie do 0,8×');
   assert.deepEqual(g.setZoom(0.8), [], 'bez zmiany — bez zdarzenia');
   assert.deepEqual(g.setZoom(10), [{ type: 'zoom', zoom: 3.5 }]);

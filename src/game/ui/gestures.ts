@@ -12,8 +12,6 @@ export type GestureEvent =
 /** Lekkie oddalenie (0,8×) pokazuje planetę z kawałkiem nieba; maks. 3,5× jak dotąd. */
 export const MIN_ZOOM = 0.8;
 export const MAX_ZOOM = 3.5;
-/** Budowle można wybierać dotknięciem od przybliżenia 3× (80% drogi od 1× do 3,5× — decyzja właściciela). */
-export const PICK_ZOOM = 3;
 /** Tap: palec podniesiony najpóźniej po tylu ms… */
 const TAP_MS = 450;
 

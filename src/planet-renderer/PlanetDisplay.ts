@@ -29,6 +29,8 @@ export interface PlanetDisplay {
   renderScale?(): number;
   /** Docelowe przybliżenie (to, do którego widok dochodzi). */
   zoomLevel(): number;
+  /** Wstrzymaj autoobrót (pokazany budynek nie ucieka z kadru); dotyk albo reset go zwalnia. */
+  holdSpin(hold: boolean): void;
   /** Płynny powrót do widoku startowego: przybliżenie 1×, biegun u góry. */
   resetView(): void;
   /** Bieżący obrót planety (rad) — dla paralaksy tła kosmosu. */

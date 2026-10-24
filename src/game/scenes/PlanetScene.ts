@@ -9,7 +9,7 @@ import { findResearch } from '../../data/research.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
-import { GestureTracker, PICK_ZOOM, type GestureEvent } from '../ui/gestures.ts';
+import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
 import { openTextPanel } from '../ui/textPanel.ts';
 import {
   computeLayout,
@@ -25,7 +25,7 @@ import {
   type PanelState,
   type Rect,
 } from '../ui/layout.ts';
-import { loadPanels, savePanels } from '../ui/uiPrefs.ts';
+import { loadPanels, savePanels, FOCUS_ZOOMS, loadFocusZoom, saveFocusZoom } from '../ui/uiPrefs.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 import { OVERLAY_CLOSED } from './OverlayScene.ts';
 
@@ -865,7 +865,6 @@ export class PlanetScene extends Phaser.Scene {
     this.cards.push({ id: def.id, level, effect, cost, button, finish, extra, buttons, progress, bar });
   }
 
-  /** Dotknięcie planety: od przybliżenia PICK_ZOOM wybiera budowlę (okienko z „Ulepsz”). */
   /**
    * Dotknięcie planety przy dowolnym przybliżeniu: trafiona budowla → kamera obraca się do niej,
    * przybliża (do 3×) i otwiera się okienko budynku. Dotknięcie obok budowli zamyka okienko.
@@ -879,13 +878,19 @@ export class PlanetScene extends Phaser.Scene {
     this.relayout();
   }
 
-  /** Pokaż budowlę z bliska: obrót do niej i przybliżenie co najmniej do 3×. */
+  /**
+   * Pokaż budowlę z bliska: obrót do niej i przybliżenie co najmniej do wybranego w Ustawieniach
+   * (1,5× domyślnie, 3× opcjonalnie); autoobrót wstrzymany, dopóki gracz nie dotknie planety.
+   */
   private focusBuilding(id: BuildingId, index?: number): void {
     // Najpierw przybliżenie — renderer dobiera do niego kąt, żeby budowla stanęła w środku kadru.
     const zoom = this.gestures.zoom;
-    if (zoom < PICK_ZOOM) this.applyGestures(this.gestures.setZoom(PICK_ZOOM));
-    if (!this.deps.display.showBuilding(id, index)) {
-      if (zoom < PICK_ZOOM) this.applyGestures(this.gestures.setZoom(zoom));
+    const target = loadFocusZoom();
+    if (zoom < target) this.applyGestures(this.gestures.setZoom(target));
+    if (this.deps.display.showBuilding(id, index)) {
+      this.deps.display.holdSpin(true);
+    } else {
+      if (zoom < target) this.applyGestures(this.gestures.setZoom(zoom));
       const name = BALANCE.buildings.find((b) => b.id === id)?.name ?? id;
       this.showToast(`${name} nie stoi jeszcze na planecie — ulepsz do poz. 1.`, 'info', 2600);
     }
@@ -1356,12 +1361,25 @@ export class PlanetScene extends Phaser.Scene {
       'secondary',
     );
     y += buttonH + gap * 1.5;
+    const viewLabel = this.add.text(pad, y, 'WIDOK', font(11, COLORS.muted, { fontStyle: '600' }));
+    y += viewLabel.height + this.px(4);
+    const viewHint = this.add.text(pad, y, 'Dotknięcie budynku (na planecie albo karty w „Produkcji”) przybliża planetę do:', font(13, COLORS.muted));
+    y += viewHint.height + gap;
+    const focus = loadFocusZoom();
+    const zoomButtons = FOCUS_ZOOMS.map((zoom, i) =>
+      new Button(this, pad + i * (halfW + gap), y, halfW, buttonH, zoom === 1.5 ? '1,5× (domyślnie)' : `${zoom}× — z bliska`, this.dpr, () => {
+        saveFocusZoom(zoom);
+        this.closeOverlay();
+        this.openSettings();
+      }, this.s(15)).setStyle(zoom === focus ? 'primary' : 'secondary'),
+    );
+    y += buttonH + gap * 1.5;
     const version = this.add.text(pad, y + (buttonH - this.px(this.s(16))) / 2, `Planet Forge ${this.deps.appVersion}`, font(12, COLORS.faint, { fontFamily: FONTS.mono }));
     const closeBtn = new Button(this, w - pad - halfW, y, halfW, buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle(
       'primary',
     );
     y += buttonH + pad;
-    items.push(title, saveLabel, saveHint, copy, load, gfxLabel, gfxHint, toggle, diag, version, closeBtn);
+    items.push(title, saveLabel, saveHint, copy, load, gfxLabel, gfxHint, toggle, diag, viewLabel, viewHint, ...zoomButtons, version, closeBtn);
 
     const h = y;
     const x = (W - w) / 2;

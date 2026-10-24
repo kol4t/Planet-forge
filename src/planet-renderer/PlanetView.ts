@@ -70,6 +70,7 @@ export class PlanetView implements PlanetDisplay {
   private height = 1;
   private focus = { cx: 0.5, cy: 0.5, r: 200 };
   private readonly zoomer = new ZoomSmoother();
+  private spinHeld = false;
   private readonly resolution = new AdaptiveResolution();
   private readonly reducedMotion = prefersReducedMotion();
   private frame = 0;
@@ -166,6 +167,7 @@ export class PlanetView implements PlanetDisplay {
   }
 
   beginDrag(): void {
+    this.spinHeld = false;
     this.rotator.start(performance.now());
   }
 
@@ -187,7 +189,12 @@ export class PlanetView implements PlanetDisplay {
     this.updateCamera();
   }
 
+  holdSpin(hold: boolean): void {
+    this.spinHeld = hold;
+  }
+
   resetView(): void {
+    this.spinHeld = false;
     this.zoomer.set(1, this.reducedMotion);
     this.updateCamera();
     this.rotator.turnTo(this.rotator.yaw, 0, performance.now());
@@ -249,8 +256,9 @@ export class PlanetView implements PlanetDisplay {
     const dt = Math.min(0.1, frameMs / 1000);
     this.lastTime = time;
     if (this.resolution.sample(frameMs)) this.applyPixelRatio();
-    // Przy przybliżeniu od 2× planeta przestaje sama się obracać (od 1× do 2× autoobrót słabnie).
-    this.rotator.spinFactor = Math.min(1, Math.max(0, 2 - this.zoom));
+    // Przy przybliżeniu od 2× planeta przestaje sama się obracać (od 1× do 2× autoobrót słabnie);
+    // pokazany budynek wstrzymuje autoobrót całkiem.
+    this.rotator.spinFactor = this.spinHeld ? 0 : Math.min(1, Math.max(0, 2 - this.zoom));
     this.rotator.update(dt, time);
     if (this.zoomer.update(dt)) this.updateCamera();
     this.spinGroup.rotation.y = this.rotator.yaw;
