@@ -255,4 +255,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 144. Po aktualizacji budowle jednorazowo się przestawiają (nowa, dokładniejsza siatka pól) — poziomy i zasoby bez zmian.
 145. Ekstraktor kryształów staje najpierw na lodzie (czapy polarne, lodowce); na lądzie dopiero, gdy wolnego lodu brak. Lód nie zmniejsza liczby wolnych POLA.
 
+### Od 0.26.4: siatka z mapy powierzchni
+
+146. Siatka pól (Ustawienia → Widok) leży tylko na lądzie i lodzie: granice biegną wzdłuż brzegów i omijają jeziora; morza i lawa są bez pól.
+147. Bieguny: czapy lodowe podzielone na pola (jasnobłękitne linie); ekstraktory kryształów stoją na lodzie.
+148. Zajęte pole ma złoty obrys w 2D i w 3D (cała granica, także wspólna z wolnym sąsiadem).
+149. Grupy budowli stoją w środkach pól i nie nachodzą na grupy z sąsiednich pól. Po aktualizacji budowle jednorazowo się przestawiają.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -6,7 +6,7 @@ import { createAtmosphere } from './atmosphere.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import { layoutFromPlots, plotsKey, type ColonyLayout } from './colony.ts';
-import { FIELD_COLORS, fieldStates } from './fieldOverlay.ts';
+import { borderStates, FIELD_COLORS } from './fieldOverlay.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { ZoomSmoother } from './input/zoom.ts';
@@ -164,12 +164,8 @@ export class PlanetView implements PlanetDisplay {
       const r = Math.max(1.003, shapedRadius(planet, Math.max(h, sampler.lakeLevel(...p))) + 0.004);
       return [p[0] * r, p[1] * r, p[2] * r];
     };
-    // Tylko pola lądu (do zabudowy) — woda, lód i lawa leżą między nimi bez obrysów.
-    for (const cell of grid.cells) {
-      if (cell.kind !== 'land') continue;
-      const points = cell.outline.map(lift);
-      for (let k = 0; k < points.length; k++) positions.push(...points[k]!, ...points[(k + 1) % points.length]!);
-    }
+    // Granice pól lądu i lodu (wzdłuż brzegów) — woda i lawa nie mają pól.
+    for (const border of grid.borders) positions.push(...lift(border.from), ...lift(border.to));
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(positions.length), 3));
@@ -187,13 +183,12 @@ export class PlanetView implements PlanetDisplay {
   private colorFieldLines(plots: Plots): void {
     if (!this.fieldLines || !this.grid) return;
     const colors = this.fieldLines.geometry.getAttribute('color') as THREE.BufferAttribute;
-    const states = fieldStates(this.grid, plots);
+    const states = borderStates(this.grid, plots);
     const palette = Object.fromEntries(Object.entries(FIELD_COLORS).map(([k, hex]) => [k, new THREE.Color(hex)])) as Record<string, THREE.Color>;
-    let v = 0;
-    this.grid.cells.forEach((cell, i) => {
-      if (cell.kind !== 'land') return;
-      const c = palette[states[i]!]!;
-      for (let k = 0; k < cell.outline.length * 2; k++) colors.setXYZ(v++, c.r, c.g, c.b);
+    states.forEach((state, i) => {
+      const c = palette[state]!;
+      colors.setXYZ(i * 2, c.r, c.g, c.b);
+      colors.setXYZ(i * 2 + 1, c.r, c.g, c.b);
     });
     colors.needsUpdate = true;
   }

@@ -3,7 +3,7 @@ import { BALANCE } from '../data/balance.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import { layoutFromPlots, plotsKey, visibleStructures, type ColonyLayout } from './colony.ts';
-import { FIELD_COLORS, fieldStates } from './fieldOverlay.ts';
+import { borderStates, FIELD_COLORS } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
@@ -165,7 +165,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.gridVisible = visible;
   }
 
-  /** Obrysy pól lądu (tylko strona zwrócona do widza): turkus — wolne, złoto — zajęte. Woda, lód i lawa bez obrysów. */
+  /** Granice pól (tylko strona zwrócona do widza): turkus — wolne, złoto — zajęte, błękit — lód. Woda i lawa bez pól. */
   private drawFieldGrid(): void {
     if (!this.gridVisible || !this.grid) return;
     const { cx, cy: centerY } = this.focus;
@@ -176,31 +176,29 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const cp = Math.cos(pitch);
     const sp = Math.sin(pitch);
     const ctx = this.ctx;
-    const states = fieldStates(this.grid, this.plots);
+    const states = borderStates(this.grid, this.plots);
+    const project = ([px, py, pz]: readonly number[]): [number, number] | null => {
+      const sx = px! * cy + pz! * sy;
+      const hz = -px! * sy + pz! * cy;
+      if (py! * sp + hz * cp < 0.02) return null;
+      return [cx + sx * r, centerY - (py! * cp - hz * sp) * r];
+    };
     ctx.lineWidth = 1;
-    this.grid.cells.forEach((cell, i) => {
-      if (states[i] === 'blocked') return;
-      ctx.strokeStyle = FIELD_COLORS[states[i]!];
-      ctx.globalAlpha = 0.75;
+    ctx.globalAlpha = 0.75;
+    // Jedna ścieżka na kolor (zajęte rysowane na końcu — na wierzchu).
+    for (const state of ['ice', 'free', 'taken'] as const) {
+      ctx.strokeStyle = FIELD_COLORS[state];
       ctx.beginPath();
-      let pen = false;
-      for (let k = 0; k <= cell.outline.length; k++) {
-        const [px, py, pz] = cell.outline[k % cell.outline.length]!;
-        const sx = px * cy + pz * sy;
-        const hz = -px * sy + pz * cy;
-        const depth = py * sp + hz * cp;
-        if (depth < 0.02) {
-          pen = false;
-          continue;
-        }
-        const x = cx + sx * r;
-        const y = centerY - (py * cp - hz * sp) * r;
-        if (pen) ctx.lineTo(x, y);
-        else ctx.moveTo(x, y);
-        pen = true;
-      }
+      this.grid.borders.forEach((border, i) => {
+        if (states[i] !== state) return;
+        const a = project(border.from);
+        const b = project(border.to);
+        if (!a || !b) return;
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+      });
       ctx.stroke();
-    });
+    }
     ctx.globalAlpha = 1;
   }
 

@@ -69,15 +69,15 @@ function hash01(n: number, salt: number): number {
 /**
  * Kolonia z zajętych pól: każde pole mieści grupę do 3 budowli jednego budynku, ustawionych ciasno w trójkąt
  * na wysokości terenu (`sampler.radius` — 3D podaje promień z tarasami, 2D sferę).
- * Od v0.26.2 grupa stoi na suchym lądzie pola, jak najdalej od wody (na wyspie — blisko jej środka);
- * pole bez lądu (lód dla kryształów) — wokół środka pola.
+ * Od v0.26.4 grupa stoi w środku pola (punkt najdalej od jego granic — na wyspie przy jej środku),
+ * a każda budowla na punkcie mapy powierzchni należącym do pola — zawsze na lądzie (lub lodzie) pola,
+ * z dala od grup z pól sąsiednich.
  * Lista budowli typu = kolejne poziomy (poziom n → pole ⌊(n−1)/3⌋, miejsce (n−1) mod 3).
  */
 export function layoutFromPlots(grid: FieldGrid, plots: Plots, sampler: SurfaceSampler, ids: readonly BuildingId[]): ColonyLayout {
   const slots = {} as Record<BuildingId, ColonySlot[]>;
-  const dry = (dir: Vec3) => sampler.isLand(sampler.height(...dir), ...dir);
   for (const id of ids) {
-    slots[id] = (plots[id] ?? []).flatMap((cell) => groupDirs(grid, cell, dry).map((dir, k) => ({ cell, k, dir }))).map(({ cell, k, dir }) => {
+    slots[id] = (plots[id] ?? []).flatMap((cell) => groupDirs(grid, cell).map((dir, k) => ({ cell, k, dir }))).map(({ cell, k, dir }) => {
       const h = sampler.height(...dir);
       const level = Math.max(h, sampler.lakeLevel(...dir));
       return {
@@ -92,42 +92,32 @@ export function layoutFromPlots(grid: FieldGrid, plots: Plots, sampler: SurfaceS
   return { center: grid.cells[grid.colonyCenter]!.center, slots };
 }
 
-/** Punkt na łuku od `a` do `b` (część `t` drogi) — przybliżenie wystarczające w obrębie pola. */
-const between = (a: Vec3, b: Vec3, t: number): Vec3 =>
-  normalize([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]);
+/** Odstęp budowli w grupie (kąt) — jak dotąd, ale nie dalej niż w obrębie pola. */
+const GROUP_SPREAD = 0.028;
 
-/** Trzy miejsca grupy na polu `cell`: środek grupy w najsuchszym miejscu, budowle ciasno wokół niego. */
-function groupDirs(grid: FieldGrid, cell: number, dry: (dir: Vec3) => boolean): Vec3[] {
+/** Trzy miejsca grupy na polu `cell`: wokół środka pola, każde na najbliższym punkcie pola. */
+function groupDirs(grid: FieldGrid, cell: number): Vec3[] {
   const field = grid.cells[cell]!;
-  // Promień pola (najbliższy punkt obrysu).
-  const radius = Math.min(...field.outline.map((p) => angleBetween(p, field.center)));
+  const hub = field.center;
   const turn = hash01(cell, 3) * Math.PI * 2;
-  // Próbki wnętrza pola: środek i punkty na drodze do wierzchołków i środków krawędzi obrysu.
-  const edges = field.outline.flatMap((p, i) => [p, between(p, field.outline[(i + 1) % field.outline.length]!, 0.5)]);
-  const samples: Vec3[] = [field.center, ...edges.flatMap((p) => [0.2, 0.4, 0.6, 0.8].map((t) => between(field.center, p, t)))];
-  const land = samples.filter(dry);
-  const wet = samples.filter((p) => !dry(p));
-  let hub = field.center;
-  if (land.length > 0 && wet.length > 0) {
-    // Najdalej od wody; przy remisie bliżej środka pola.
-    let best = -Infinity;
-    for (const p of land) {
-      const score = Math.min(...wet.map((w) => angleBetween(p, w))) - 0.25 * angleBetween(p, field.center);
-      if (score > best) {
-        best = score;
-        hub = p;
+  const spread = Math.min(GROUP_SPREAD, field.radius * 0.45);
+  const used = new Set<number>();
+  return [0, 1, 2].map((k) => {
+    const want = offsetOnSphere(hub, turn + (k * Math.PI * 2) / 3, spread);
+    let best = -1;
+    let bestDot = -Infinity;
+    for (const p of field.members) {
+      if (used.has(p)) continue;
+      const q = grid.samples[p]!;
+      const d = q[0] * want[0] + q[1] * want[1] + q[2] * want[2];
+      if (d > bestDot) {
+        bestDot = d;
+        best = p;
       }
     }
-  }
-  const spread = land.length > 0 ? 0.26 : 0.42;
-  return [0, 1, 2].map((k) => {
-    const heading = turn + (k * Math.PI * 2) / 3;
-    // Budowla na suchym lądzie: gdy wypada w wodzie, przysuwa się do środka grupy.
-    for (const f of [1, 0.65, 0.4]) {
-      const dir = offsetOnSphere(hub, heading, radius * spread * f);
-      if (land.length === 0 || dry(dir)) return dir;
-    }
-    return offsetOnSphere(hub, heading, radius * spread * 0.4);
+    if (best < 0) return want;
+    used.add(best);
+    return grid.samples[best]!;
   });
 }
 

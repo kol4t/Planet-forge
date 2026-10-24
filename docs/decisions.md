@@ -2,6 +2,16 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.26.4: siatka pól z mapy powierzchni (pomysł właściciela)
+
+Zgłoszenie właściciela: budowle z sąsiednich pól nachodziły na siebie, w 3D nie było widać zajętego pola, bieguny bez siatki i bez kopalni kryształu. Propozycja właściciela: **najpierw ustalić ląd, wodę, lawę (i lód), dopiero na tych granicach budować siatkę, a przy jej budowie od razu ustalić wzgórza i brzegi**.
+- **Mapa powierzchni** (`fieldGrid.ts`): 40 tys. punktów Fibonacciego (ok. 1°; więcej, gdy lądu bardzo mało), w każdym rodzaj terenu (ląd/woda/lód/lawa) i wysokość. Sąsiedzi punktów z przesunięć o liczby Fibonacciego (bez kosztownego szukania), tablice płaskie (CSR).
+- **Pola** dzielą tylko ląd (dokładnie `gameplay.fields`) i osobno lód (ta sama wielkość pola, maks. 200): każdy spójny obszar (kontynent, wyspa, czapa) dostaje pola proporcjonalnie do wielkości (największe reszty; wysepka mniejsza niż pół pola zostaje bez pola), potem 5 kroków wyrównania (Lloyd) z przypisaniem „po swoim terenie” (Dijkstra po sąsiadach) — granica nie przeskakuje przez wodę. Woda i lawa nie mają pól (przyszła elektrownia wodna — nowe pola wody po badaniu).
+- **Opis pola przy budowie siatki:** środek = punkt najdalej od granic pola (na wyspie przy jej środku), ukształtowanie z rangi średniej wysokości (jak dotąd), **brzeg = 35% pól lądu najmocniej stykających się z wodą, lodem albo lawą** (jeziora i rzeki są prawie wszędzie — bez progu prawie każde pole byłoby brzegiem).
+- **Granice** (`FieldGrid.borders`): odcinki dualnej siatki mapy między punktami różnych pól (także pole–woda), wygładzone 3 razy (węzły trzech pól stałe). Kolor odcinka: złoty, gdy którekolwiek z dwóch pól jest zajęte (`borderStates`) — wcześniej wspólna krawędź rysowała się dwa razy i turkus sąsiada zasłaniał złoto w 3D. Lód — jasny błękit.
+- **Budowle** (`colony.ts`): grupa wokół środka pola, każda budowla na punkcie mapy należącym do pola (zawsze ląd/lód pola) — grupy z sąsiednich pól się nie stykają.
+- `FIELD_GRID_VERSION` = 3 → przydział pól z zapisów jest odrzucany, budowle jednorazowo dostają pola od nowa (kryształy — na lód). Czas budowy siatki ok. 0,35–0,7 s na planetę w Node (jak w v0.26.3), raz na planetę.
+
 ## 2026-10-24 — v0.26.3: ląd w 3D nad wodą, dokładniejsze pola, kryształy najpierw na lodzie
 
 Zgłoszenie właściciela (zrzut z iPada): grupa Laboratorium na małej „wyspie” w dużym polu, część budowli jakby w wodzie.

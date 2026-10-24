@@ -40,23 +40,40 @@ test('liczba pól nie zmienia innych cech planety (osobny strumień losowania)',
   assert.equal(starter.visual.seaLevel, 0.456);
 });
 
-test('siatka pól: dokładnie tyle pól lądu, ile mówi seed (woda między nimi); głównie 5- i 6-kąty', () => {
+test('siatka pól na mapie powierzchni: dokładnie tyle pól lądu, ile mówi seed; pola obejmują sam ląd albo sam lód', () => {
   for (const def of PLANET_DEFINITIONS) {
     const planet = generatePlanet(def, 'PF-GRID');
     const grid = buildFieldGrid(planet);
     assert.equal(buildableCount(grid), planet.gameplay.fields, `${def.id}: pola lądu = liczba z seeda`);
-    assert.ok(grid.cells.length >= planet.gameplay.fields);
-    let fiveSix = 0;
     grid.cells.forEach((cell, i) => {
+      assert.ok(cell.kind === 'land' || cell.kind === 'ice', `${def.id}: bez pól wody i lawy`);
       assert.ok(Math.abs(Math.hypot(...cell.center) - 1) < 1e-9);
-      assert.ok(cell.outline.length >= 12);
-      for (const n of cell.neighbors) assert.ok(grid.cells[n]!.neighbors.includes(i) || grid.cells[n]!.neighbors.length > 0);
-      if (cell.neighbors.length === 5 || cell.neighbors.length === 6) fiveSix++;
+      assert.ok(cell.members.length > 0);
+      // Każdy punkt pola ma rodzaj pola (granica nie obejmuje wody) i należy do niego.
+      for (const p of cell.members) {
+        assert.equal(grid.kinds[p], cell.kind);
+        assert.equal(grid.owner[p], i);
+      }
+      assert.equal(grid.owner[grid.samples.indexOf(cell.center)], i, 'środek leży w polu');
+      for (const n of cell.neighbors) assert.ok(grid.cells[n]!.neighbors.includes(i), 'sąsiedztwo symetryczne');
     });
-    assert.ok(fiveSix / grid.cells.length > 0.7, `${def.id}: 5–6-kąty ${fiveSix}/${grid.cells.length}`);
+    // Pola podobnej wielkości (wyrównane): największe najwyżej kilka razy większe od mediany.
+    const sizes = grid.cells.filter((c) => c.kind === 'land').map((c) => c.members.length).sort((a, b) => a - b);
+    assert.ok(sizes[sizes.length - 1]! < sizes[sizes.length >> 1]! * 4, `${def.id}: rozmiary ${sizes[0]}…${sizes[sizes.length - 1]}`);
+    assert.ok(grid.borders.length > 0 && grid.borders.every((b) => b.a >= 0 && b.a !== b.b));
     assert.equal(grid.cells[grid.colonyCenter]!.kind, 'land');
-    assert.deepEqual(buildFieldGrid(planet).cells.map((c) => c.kind), grid.cells.map((c) => c.kind), 'deterministyczna');
+    assert.deepEqual(buildFieldGrid(planet).cells.map((c) => c.members.length), grid.cells.map((c) => c.members.length), 'deterministyczna');
   }
+});
+
+test('lód ma własne pola (bieguny), brzeg to część pól lądu, nie wszystkie', () => {
+  const grid = fieldGrid(generatePlanet(STARTER.definition, STARTER.seed));
+  const ice = grid.cells.filter((c) => c.kind === 'ice');
+  assert.ok(ice.length > 0, 'czapy polarne podzielone na pola');
+  assert.ok(ice.some((c) => Math.abs(c.center[1]) > 0.9), 'pole lodu przy biegunie');
+  const land = grid.cells.filter((c) => c.kind === 'land');
+  const coast = land.filter((c) => c.coast).length;
+  assert.ok(coast > 0.2 * land.length && coast < 0.5 * land.length, `brzeg ${coast}/${land.length}`);
 });
 
 test('budować można tylko na lądzie (woda i lód — po odblokowaniu)', () => {
@@ -70,7 +87,6 @@ test('budować można tylko na lądzie (woda i lód — po odblokowaniu)', () =>
   const land = ocean.cells.filter((c) => c.kind === 'land').length;
   assert.equal(buildableCount(ocean), land);
   assert.equal(land, oceanPlanet.gameplay.fields, 'planeta oceaniczna też ma pełną liczbę pól lądu');
-  assert.ok(buildableCount(ocean, { water: true }) > land);
   // Planeta startowa: 100 pól do zabudowy (mimo mórz i lodu na biegunach).
   assert.equal(buildableCount(fieldGrid(generatePlanet(STARTER.definition, STARTER.seed))), 100);
 });
