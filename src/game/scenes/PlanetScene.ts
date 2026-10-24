@@ -114,6 +114,9 @@ const DOCK_LABELS: Record<DockItemId, string> = {
 const PANEL_TITLES: Record<PanelId, string> = { production: 'PRODUKCJA', planet: 'PLANETA', ai: 'SI MATKA', planets: 'PLANETY' };
 
 /** HUD gry. Współrzędne liczone w punktach CSS, rysowane w pikselach urządzenia (px()). */
+/** Krok przybliżania przyciskiem / klawiszem. */
+const ZOOM_STEP = 1.4;
+
 export class PlanetScene extends Phaser.Scene {
   private readonly deps: SceneDeps;
   private ui: Phaser.GameObjects.Container | undefined;
@@ -158,15 +161,7 @@ export class PlanetScene extends Phaser.Scene {
 
     // Gesty startują tylko poza panelami (panele mają strefy blokujące):
     // jeden palec obraca planetę, dwa palce ją przybliżają.
-    const apply = (events: GestureEvent[]) => {
-      for (const e of events) {
-        if (e.type === 'drag-start') display.beginDrag();
-        else if (e.type === 'drag') display.drag(e.dx / this.dpr, e.dy / this.dpr);
-        else if (e.type === 'drag-end') display.endDrag();
-        else if (e.type === 'zoom') display.setZoom(e.zoom);
-        else this.onPlanetTap(e.x, e.y);
-      }
-    };
+    const apply = (events: GestureEvent[]) => this.applyGestures(events);
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (over.length > 0 || this.overlay || this.screenOpen) return;
       apply(this.gestures.down(pointer.id, pointer.x, pointer.y));
@@ -179,6 +174,14 @@ export class PlanetScene extends Phaser.Scene {
     // Komputer: kółko myszy przybliża planetę (nad panelami nie).
     this.input.on('wheel', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
       if (over.length === 0 && !this.overlay && !this.screenOpen) apply(this.gestures.wheel(dy));
+    });
+
+    // Komputer: + / − przybliżają i oddalają, 0 wraca do widoku startowego.
+    this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+      if (this.overlay || this.screenOpen) return;
+      if (event.key === '+' || event.key === '=') this.zoomBy(ZOOM_STEP);
+      else if (event.key === '-') this.zoomBy(1 / ZOOM_STEP);
+      else if (event.key === '0') this.resetView();
     });
 
     controller.onPlanetChange(() => {
@@ -279,6 +282,36 @@ export class PlanetScene extends Phaser.Scene {
     this.refreshValues();
   }
 
+  private applyGestures(events: GestureEvent[]): void {
+    const display = this.deps.display;
+    for (const e of events) {
+      if (e.type === 'drag-start') display.beginDrag();
+      else if (e.type === 'drag') display.drag(e.dx / this.dpr, e.dy / this.dpr);
+      else if (e.type === 'drag-end') display.endDrag();
+      else if (e.type === 'zoom') display.setZoom(e.zoom);
+      else this.onPlanetTap(e.x, e.y);
+    }
+  }
+
+  /** Przycisk albo klawisz: przybliżenie razy `factor` (płynnie — renderer dochodzi do celu). */
+  private zoomBy(factor: number): void {
+    this.applyGestures(this.gestures.setZoom(this.gestures.zoom * factor));
+  }
+
+  /** „Resetuj widok”: przybliżenie 1× i biegun u góry. */
+  private resetView(): void {
+    this.gestures.setZoom(1);
+    this.deps.display.resetView();
+  }
+
+  /** Przyciski kamery w rogu wolnego miejsca (gdy się mieszczą). */
+  private buildCamera(layout: Layout): void {
+    if (!layout.camera) return;
+    this.iconButton(layout.camera.zoomIn, 'plus', () => this.zoomBy(ZOOM_STEP));
+    this.iconButton(layout.camera.zoomOut, 'minus', () => this.zoomBy(1 / ZOOM_STEP));
+    this.iconButton(layout.camera.reset, 'reset', () => this.resetView());
+  }
+
   /** `animate` — planeta płynnie przechodzi do nowego miejsca (zwijanie/rozwijanie paneli). */
   relayout(animate = false): void {
     const viewport = this.deps.getViewport();
@@ -298,6 +331,7 @@ export class PlanetScene extends Phaser.Scene {
     this.buildPanel(layout);
     this.buildSelected(layout);
     this.buildDock(layout);
+    this.buildCamera(layout);
     this.buildUpdateBanner(layout);
     this.aiBubble = null;
     this.refreshValues();
@@ -347,8 +381,8 @@ export class PlanetScene extends Phaser.Scene {
     else this.openScreen('empire');
   }
 
-  /** Mały przycisk-ikona (44 × 44 pt): zamknij / menu „hamburger”. */
-  private iconButton(rect: Rect, kind: 'close' | 'menu', onTap: () => void): void {
+  /** Mały przycisk-ikona (44 × 44 pt): zamknij, menu „hamburger”, przybliż, oddal, resetuj widok. */
+  private iconButton(rect: Rect, kind: 'close' | 'menu' | 'plus' | 'minus' | 'reset', onTap: () => void): void {
     const g = this.add.graphics();
     const cx = this.px(rect.x + rect.w / 2);
     const cy = this.px(rect.y + rect.h / 2);
@@ -358,6 +392,13 @@ export class PlanetScene extends Phaser.Scene {
     const half = this.px(this.s(6.5));
     if (kind === 'menu') {
       for (const dy of [-1, 0, 1]) g.lineBetween(cx - half, cy + dy * this.px(this.s(4.5)), cx + half, cy + dy * this.px(this.s(4.5)));
+    } else if (kind === 'plus' || kind === 'minus') {
+      g.lineBetween(cx - half, cy, cx + half, cy);
+      if (kind === 'plus') g.lineBetween(cx, cy - half, cx, cy + half);
+    } else if (kind === 'reset') {
+      // Celownik: okrąg z kropką — „wróć do widoku planety”.
+      g.strokeCircle(cx, cy, half);
+      g.fillStyle(COLORS.tealHex, 1).fillCircle(cx, cy, this.px(1.8));
     } else {
       const d = half * 0.8;
       g.lineBetween(cx - d, cy - d, cx + d, cy + d);

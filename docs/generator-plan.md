@@ -293,7 +293,9 @@ Zrobione: hydrologia na siatce, jeziora, rzeki, lawa, widok 2D i 3D — szczegó
 
 Ryzyka: liczba draw calli (+2 siatki), przezroczystość w Safari i koszt shadera. Zapas mierzony licznikiem FPS.
 
-### Etap 6 — światło, atmosfera, kamera (v0.25)
+### Etap 6 — światło, atmosfera, kamera (v0.25) ✔
+Zrobione: płynny zoom 0,8×–3,5×, przyciski + / − / „Resetuj widok”, klawisze, światło z profilu w 2D, kolory z materiałów, nowa lawa — szczegóły w `docs/decisions.md` (v0.25). Kamera nie wchodzi w teren (minimalna odległość jak dotąd).
+
 | Plik | Zmiana |
 |---|---|
 | `PlanetView.ts`, `atmosphere.ts` | światło i atmosfera z profilu, strona nocna |
@@ -331,7 +333,7 @@ Pomiary: czas generowania, wierzchołki, draw calle, FPS na iPadzie przed i po, 
 
 **Podjęte:** 1 → **A** (nowy wygląd dla wszystkich planet, rozgrywka bez zmian); 2 → **dodać roboczy typ „jałowa”** (zrobione w v0.18).
 
-**Stan etapów:** etap 1 ✔ · etap 2 ✔ (v0.18 — model na siatce z cieczą ocean/zamarznięte morze; jeziora, rzeki i lawa dochodzą w etapie 5, materiały profili w etapie 4) · etap 3 ✔ (v0.22 — metody tectonic, erosion, fractured) · etap 4 ✔ (v0.23 — sześć profili, atlas) · etap 5 ✔ (v0.24 — jeziora, rzeki, lawa).
+**Stan etapów:** etap 1 ✔ · etap 2 ✔ (v0.18 — model na siatce z cieczą ocean/zamarznięte morze; jeziora, rzeki i lawa dochodzą w etapie 5, materiały profili w etapie 4) · etap 3 ✔ (v0.22 — metody tectonic, erosion, fractured) · etap 4 ✔ (v0.23 — sześć profili, atlas) · etap 5 ✔ (v0.24 — jeziora, rzeki, lawa) · etap 6 ✔ (v0.25 — kamera, światło, kolory materiałów, lawa).
 
 Pytania w pierwotnym brzmieniu:
 

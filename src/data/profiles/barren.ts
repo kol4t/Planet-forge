@@ -13,9 +13,9 @@ export const BARREN: SurfaceProfile = {
   liquid: 'none',
   expect: { land: [0.95, 1] },
   bands: [
-    { upTo: 0.45, material: 'regolith' },
-    { upTo: 0.8, material: 'rock' },
-    { upTo: 1, material: 'peak' },
+    { upTo: 0.45, material: 'regolith', color: '#7d6e60' },
+    { upTo: 0.8, material: 'rock', color: '#6a5650' },
+    { upTo: 1, material: 'peak', color: '#b0a596' },
   ],
   look: {
     // Skały i pył; prawie bez wody (płytkie, zamarznięte resztki tylko w najgłębszych kotlinach).

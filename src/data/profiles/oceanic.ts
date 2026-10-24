@@ -13,10 +13,10 @@ export const OCEANIC: SurfaceProfile = {
   liquid: 'water',
   expect: { land: [0.05, 0.55] },
   bands: [
-    { upTo: 0.04, material: 'shore' },
-    { upTo: 0.35, material: 'lowland' },
-    { upTo: 0.65, material: 'highland' },
-    { upTo: 1, material: 'peak' },
+    { upTo: 0.04, material: 'shore', color: '#d4c79a' },
+    { upTo: 0.35, material: 'lowland', color: '#3f7a4a' },
+    { upTo: 0.65, material: 'highland', color: '#5f6e4d' },
+    { upTo: 1, material: 'peak', color: '#d8dccf' },
   ],
   look: {
     palette: {

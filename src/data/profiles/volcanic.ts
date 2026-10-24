@@ -15,10 +15,10 @@ export const VOLCANIC: SurfaceProfile = {
   hydrology: { lakeNodes: 6, lakeDepth: 0.015 },
   expect: { land: [0.5, 0.97] },
   bands: [
-    { upTo: 0.06, material: 'ash' },
-    { upTo: 0.55, material: 'basalt' },
-    { upTo: 0.8, material: 'rock' },
-    { upTo: 1, material: 'peak' },
+    { upTo: 0.06, material: 'ash', color: '#3a2a26' },
+    { upTo: 0.55, material: 'basalt', color: '#2d2626' },
+    { upTo: 0.8, material: 'rock', color: '#4a3d39' },
+    { upTo: 1, material: 'peak', color: '#8a7c74' },
   ],
   look: {
     palette: {

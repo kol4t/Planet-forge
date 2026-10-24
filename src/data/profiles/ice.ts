@@ -13,9 +13,9 @@ export const ICE: SurfaceProfile = {
   liquid: 'water',
   expect: { land: [0.2, 0.8] },
   bands: [
-    { upTo: 0.03, material: 'shore' },
-    { upTo: 0.4, material: 'rock' },
-    { upTo: 1, material: 'snow' },
+    { upTo: 0.03, material: 'shore', color: '#c9d6dc' },
+    { upTo: 0.4, material: 'rock', color: '#8e9fae' },
+    { upTo: 1, material: 'snow', color: '#f2f6f8' },
   ],
   look: {
     palette: {

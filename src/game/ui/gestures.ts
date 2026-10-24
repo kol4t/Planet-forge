@@ -9,10 +9,11 @@ export type GestureEvent =
   | { type: 'zoom'; zoom: number }
   | { type: 'tap'; x: number; y: number };
 
-export const MIN_ZOOM = 1;
+/** Lekkie oddalenie (0,8×) pokazuje planetę z kawałkiem nieba; maks. 3,5× jak dotąd. */
+export const MIN_ZOOM = 0.8;
 export const MAX_ZOOM = 3.5;
-/** Budowle można wybierać dotknięciem od 80% drogi do maksymalnego przybliżenia (decyzja właściciela). */
-export const PICK_ZOOM = MIN_ZOOM + 0.8 * (MAX_ZOOM - MIN_ZOOM);
+/** Budowle można wybierać dotknięciem od przybliżenia 3× (80% drogi od 1× do 3,5× — decyzja właściciela). */
+export const PICK_ZOOM = 3;
 /** Tap: palec podniesiony najpóźniej po tylu ms… */
 const TAP_MS = 450;
 
@@ -88,6 +89,14 @@ export class GestureTracker {
     if (zoom === this.zoom) return [];
     this.zoom = zoom;
     return [{ type: 'zoom', zoom }];
+  }
+
+  /** Przybliżenie z przycisku albo klawisza (np. ×1,4); 1 = widok startowy. */
+  setZoom(zoom: number): GestureEvent[] {
+    const next = Math.min(this.max, Math.max(this.min, zoom));
+    if (next === this.zoom) return [];
+    this.zoom = next;
+    return [{ type: 'zoom', zoom: next }];
   }
 
   /** Wszystkie palce znikły (np. przełączenie aplikacji). */

@@ -6,10 +6,11 @@ import { createAtmosphere } from './atmosphere.ts';
 import { layoutColony, type ColonyLayout } from './colony.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
+import { ZoomSmoother } from './input/zoom.ts';
 import { levelsWithSite, pickStructure } from './pick.ts';
 import { facingAngles, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { buildLowPolyLand, shapedRadius } from './lowPoly.ts';
-import { createSurfaceSampler, type SurfaceSampler } from './surface.ts';
+import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler } from './surface.ts';
 
 /**
  * Szczegółowość siatki lądu (IcosahedronGeometry detail): 20 × (n+1)² faset.
@@ -66,7 +67,8 @@ export class PlanetView implements PlanetDisplay {
   private width = 1;
   private height = 1;
   private focus = { cx: 0.5, cy: 0.5, r: 200 };
-  private zoom = 1;
+  private readonly zoomer = new ZoomSmoother();
+  private readonly reducedMotion = prefersReducedMotion();
   private frame = 0;
   private lastTime = performance.now();
   private disposed = false;
@@ -164,9 +166,19 @@ export class PlanetView implements PlanetDisplay {
     this.rotator.move(dx / this.zoom, dy / this.zoom, performance.now());
   }
 
+  private get zoom(): number {
+    return this.zoomer.value;
+  }
+
   setZoom(zoom: number): void {
-    this.zoom = Math.min(3.5, Math.max(1, zoom));
+    this.zoomer.set(zoom, this.reducedMotion);
     this.updateCamera();
+  }
+
+  resetView(): void {
+    this.zoomer.set(1, this.reducedMotion);
+    this.updateCamera();
+    this.rotator.turnTo(this.rotator.yaw, 0, performance.now());
   }
 
   orientation(): { yaw: number; pitch: number } {
@@ -213,6 +225,7 @@ export class PlanetView implements PlanetDisplay {
     const dt = Math.min(0.1, (time - this.lastTime) / 1000);
     this.lastTime = time;
     this.rotator.update(dt, time);
+    if (this.zoomer.update(dt)) this.updateCamera();
     this.spinGroup.rotation.y = this.rotator.yaw;
     this.tiltGroup.rotation.x = this.rotator.pitch;
     if (this.clouds) this.clouds.rotation.y += dt * 0.012;
@@ -272,9 +285,22 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
   }
 
   // Woda: fasetowana tafla; dno pod nią ma własne kolory (głębina → płycizna), więc prześwit jest ostry.
+  // Morze lawy: nieprzezroczysta skorupa z teksturą, świecą tylko pęknięcia (ten sam wzór co w 2D).
+  const lavaSea = v.hydrology.liquid === 'lava';
+  const lavaLook = lavaSea ? createLavaSeaTextures(planet) : null;
   const ocean = new THREE.Mesh(
     new THREE.IcosahedronGeometry(1.001, 18),
-    new THREE.MeshStandardMaterial({
+    lavaLook
+      ? new THREE.MeshStandardMaterial({
+          map: lavaLook.map,
+          emissiveMap: lavaLook.glow,
+          emissive: new THREE.Color('#ffffff'),
+          emissiveIntensity: 1.25,
+          roughness: 0.9,
+          metalness: 0,
+          flatShading: true,
+        })
+      : new THREE.MeshStandardMaterial({
       color: new THREE.Color(v.palette.shallowWater),
       roughness: Math.max(0.45, v.ocean.roughness),
       metalness: 0,
@@ -283,7 +309,7 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
       opacity: Math.max(0.7, v.ocean.opacity),
       emissive: new THREE.Color(v.ocean.emissive ?? '#000000'),
       emissiveIntensity: v.ocean.emissive ? (v.ocean.emissiveIntensity ?? 1) : 0,
-    }),
+        }),
   );
   ocean.name = 'ocean';
 
@@ -300,6 +326,49 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
 
   const atmosphere = createAtmosphere(v.atmosphereColor, v.atmosphereIntensity, LIGHT_POSITION, 1 + v.style.atmosphereWidth);
   return [...objects, ocean, clouds, ...atmosphere];
+}
+
+/**
+ * Tekstury morza lawy w układzie UV `IcosahedronGeometry` (azymut, inklinacja): kolor skorupy z żyłami
+ * i osobna mapa świecenia (czarna skorupa, jasne pęknięcia). 512 × 256 — ok. 1 MB pamięci grafiki.
+ */
+function createLavaSeaTextures(planet: Planet): { map: THREE.CanvasTexture; glow: THREE.CanvasTexture } {
+  const width = 512;
+  const height = 256;
+  const make = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+    return { canvas, ctx, image: ctx.createImageData(width, height) };
+  };
+  const color = make();
+  const glow = make();
+  // Ten sam wzór i kolory co morze lawy w 2D (`surface.ts`), pęknięcia liczone raz na teksel.
+  const veins = createLavaVeins(planet.visual.noiseSeed);
+  const { crust, glow: hot } = lavaColors(planet);
+  for (let row = 0; row < height; row++) {
+    // Wiersz 0 obrazu = v = 1 (tekstury three są odwracane w pionie).
+    const incl = (1 - (row + 0.5) / height - 0.5) * Math.PI;
+    const r = Math.cos(incl);
+    const y = -Math.sin(incl);
+    for (let col = 0; col < width; col++) {
+      const az = ((col + 0.5) / width - 0.5) * Math.PI * 2;
+      const v = veins(-r * Math.cos(az), y, r * Math.sin(az));
+      const c = [0, 1, 2].map((k) => crust[k]! + (hot[k]! - crust[k]!) * v);
+      const g = v * 0.9;
+      const i = (row * width + col) * 4;
+      color.image.data.set([c[0]! * 255, c[1]! * 255, c[2]! * 255, 255], i);
+      glow.image.data.set([c[0]! * g * 255, c[1]! * g * 255, c[2]! * g * 255, 255], i);
+    }
+  }
+  const texture = (part: ReturnType<typeof make>) => {
+    part.ctx.putImageData(part.image, 0, 0);
+    const t = new THREE.CanvasTexture(part.canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
+  return { map: texture(color), glow: texture(glow) };
 }
 
 function createCloudTexture(noiseSeed: number, look: Planet['visual']['clouds']): THREE.CanvasTexture {
@@ -352,6 +421,7 @@ function disposeObject(root: THREE.Object3D): void {
     const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
     for (const material of materials) {
       (material as THREE.MeshStandardMaterial).map?.dispose();
+      (material as THREE.MeshStandardMaterial).emissiveMap?.dispose();
       material.dispose();
     }
   });

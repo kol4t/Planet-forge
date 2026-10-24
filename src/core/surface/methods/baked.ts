@@ -150,6 +150,7 @@ function inlandField(v: PlanetVisual, height: (x: number, y: number, z: number) 
     lakeLevel: (x, y, z) => (hydro.lakes > 0 && lakeMask(x, y, z) >= 0.5 ? lakeLevel(x, y, z) : -1),
     river,
     lava,
+    lavaLakes: v.hydrology.liquid === 'lava',
     lakes: hydro.lakes,
     riverNodes: hydro.riverNodes,
   };

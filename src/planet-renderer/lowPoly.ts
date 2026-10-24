@@ -64,9 +64,11 @@ export function buildLowPolyLand(planet: Planet, sampler: SurfaceSampler, unitTr
   const positions = new Float32Array(unitTriangles.length);
   const colors = new Float32Array(unitTriangles.length);
   const sea = planet.visual.seaLevel;
-  const cache = new Map<string, { h: number; r: number }>();
+  const cache = new Map<number, { h: number; r: number }>();
   const vertex = (x: number, y: number, z: number) => {
-    const key = `${x.toFixed(5)},${y.toFixed(5)},${z.toFixed(5)}`;
+    // Klucz liczbowy z współrzędnych zaokrąglonych do 1e-5 (dokładna liczba całkowita < 2^53) —
+    // wielokrotnie szybszy niż tekstowy, a wspólne wierzchołki trafiają w ten sam wpis.
+    const key = ((Math.round(x * 1e5) + 100000) * 200001 + Math.round(y * 1e5) + 100000) * 200001 + Math.round(z * 1e5) + 100000;
     let v = cache.get(key);
     if (!v) {
       const h = sampler.height(x, y, z);
@@ -124,7 +126,8 @@ export function buildLowPolyLand(planet: Planet, sampler: SurfaceSampler, unitTr
     const slope = 1 - Math.abs(nx * cx + ny * cy + nz * cz);
     const h = hSum / 3;
     const [r, g, b] = sampler.color(bandHeight(planet, h), cx, cy, cz);
-    const heat = sampler.glow(cx, cy, cz);
+    // Tylko lawa na lądzie — morze lawy ma własną teksturę skorupy (PlanetView).
+    const heat = h >= sea ? sampler.glow(h, cx, cy, cz) : 0;
     if (heat > 0.05) {
       for (let k = 0; k < 9; k++) lavaPositions.push(p[k]! * LAVA_LIFT);
       lavaHeat.push(heat, heat, heat);

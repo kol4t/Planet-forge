@@ -191,8 +191,9 @@ export function computeHydrology(grid: SphereGrid, height: Float32Array, sea: nu
       riverNodes++;
     }
   } else if (params.liquid === 'lava') {
-    // Jeziora lawy (kaldery): stygnąca skorupa, jaśniejsze tylko strumienie przy źródłach.
-    for (let i = 0; i < count; i++) if (lakeLevel[i]! >= 0) lava[i] = 0.65;
+    // Jeziora lawy (kaldery): zastygła skorupa (po wzmocnieniu pól liniowych ×1,8 ≈ 0,65),
+    // żarzą się tylko pęknięcia; pełny żar mają strumienie przy źródłach.
+    for (let i = 0; i < count; i++) if (lakeLevel[i]! >= 0) lava[i] = 0.36;
     // Źródła: najwyższe szczyty (lokalne maksima), nie bliżej siebie niż 4 skoki po siatce.
     const peaks: number[] = [];
     for (let i = 0; i < count; i++) {

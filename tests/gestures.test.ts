@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import { ZoomSmoother } from '../src/planet-renderer/input/zoom.ts';
 import { test } from 'node:test';
 import { generatePlanet } from '../src/core/generation/generatePlanet.ts';
 import { PLANET_DEFINITIONS } from '../src/data/planets.ts';
-import { GestureTracker } from '../src/game/ui/gestures.ts';
+import { GestureTracker, PICK_ZOOM } from '../src/game/ui/gestures.ts';
 import { renderDisc } from '../src/planet-renderer/discRenderer.ts';
 import { createSurfaceSampler, hexToRgb } from '../src/planet-renderer/surface.ts';
 
@@ -95,4 +96,34 @@ test('wybór budowli od 80% drogi do maksymalnego przybliżenia', async () => {
   const { PICK_ZOOM, MIN_ZOOM, MAX_ZOOM } = await import('../src/game/ui/gestures.ts');
   assert.equal(PICK_ZOOM, 3);
   assert.ok(PICK_ZOOM > MIN_ZOOM && PICK_ZOOM < MAX_ZOOM);
+});
+
+test('przybliżenie: zakres 0,8–3,5, wybór budowli od 3×, przyciski krokiem', () => {
+  const g = new GestureTracker();
+  assert.equal(PICK_ZOOM, 3);
+  assert.deepEqual(g.setZoom(0.5), [{ type: 'zoom', zoom: 0.8 }], 'lekkie oddalenie do 0,8×');
+  assert.deepEqual(g.setZoom(0.8), [], 'bez zmiany — bez zdarzenia');
+  assert.deepEqual(g.setZoom(10), [{ type: 'zoom', zoom: 3.5 }]);
+  g.setZoom(1);
+  assert.equal(g.zoom, 1, 'reset widoku');
+});
+
+test('płynne przybliżanie: widok dochodzi do celu w ćwierć sekundy, bez przeskoku', () => {
+  const z = new ZoomSmoother();
+  z.set(3);
+  let previous = z.value;
+  let t = 0;
+  while (z.update(1 / 60)) {
+    assert.ok(z.value > previous && z.value <= 3, 'rośnie monotonicznie, bez przestrzelenia');
+    previous = z.value;
+    t += 1 / 60;
+    if (t > 0.25) assert.ok(3 - z.value < 0.15, `po ${t.toFixed(2)} s: ${z.value}`);
+  }
+  assert.equal(z.value, 3);
+  assert.ok(t < 0.6, `animacja trwała ${t} s`);
+  z.set(0.1);
+  assert.equal(z.target, 0.8);
+  z.set(2, true);
+  assert.equal(z.value, 2, '„Ogranicz ruch”: od razu');
+  assert.equal(z.update(1 / 60), false);
 });

@@ -33,6 +33,14 @@ for (const [name, w, h] of SCREENS) {
       // Planeta w wolnym miejscu — nie pod panelami.
       for (const r of blocks) assert.ok(!overlap(circleBox(l.planet), r), `${label}: planeta pod panelem`);
       assert.ok(l.planet.r >= 60, label);
+      // Przyciski kamery: ≥ 44 pt, w wolnym miejscu, nie na tarczy planety.
+      if (state.open === null) assert.ok(l.camera, `${label}: bez panelu przyciski kamery są zawsze`);
+      for (const b of l.camera ? [l.camera.zoomIn, l.camera.zoomOut, l.camera.reset] : []) {
+        assert.ok(b.w >= TOUCH && b.h >= TOUCH && within(b, l.stage), `${label}: przycisk kamery poza wolnym miejscem`);
+        const nx = Math.max(b.x, Math.min(l.planet.cx, b.x + b.w));
+        const ny = Math.max(b.y, Math.min(l.planet.cy, b.y + b.h));
+        assert.ok(Math.hypot(nx - l.planet.cx, ny - l.planet.cy) >= l.planet.r, `${label}: przycisk kamery na planecie`);
+      }
       assert.equal(l.cards.length, state.open === 'production' ? 6 : 0);
       for (const card of l.cards) {
         assert.ok(card.w >= 100 && card.h >= 100, `${label}: karta ${card.w}×${card.h}`);

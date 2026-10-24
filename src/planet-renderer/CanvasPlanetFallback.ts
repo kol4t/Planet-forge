@@ -5,6 +5,7 @@ import { DragRotator } from './input/dragRotator.ts';
 import { levelsWithSite, pickStructure } from './pick.ts';
 import { facingAngles, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
+import { ZoomSmoother } from './input/zoom.ts';
 import type { RGB, SurfaceSampler } from './surface.ts';
 
 // Widok 2D (domyślny od v0.7): ta sama planeta z tego samego seeda, rysowana piksel
@@ -14,8 +15,6 @@ import type { RGB, SurfaceSampler } from './surface.ts';
 const BUFFER = 180;
 /** Przy przybliżeniu rozdzielczość rośnie maks. do BUFFER × 1,6 (koszt rysowania ~2,6×). */
 const MAX_BUFFER_SCALE = 1.6;
-export const MIN_ZOOM = 1;
-export const MAX_ZOOM = 3.5;
 const BUILDING_IDS: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
 
 export class CanvasPlanetFallback implements PlanetDisplay {
@@ -38,7 +37,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private last = performance.now();
   private lastDrawn = { yaw: NaN, pitch: NaN };
   private disposed = false;
-  private zoom = 1;
+  private readonly zoomer = new ZoomSmoother();
+  private readonly reducedMotion = prefersReducedMotion();
   /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
   private size = BUFFER;
 
@@ -89,9 +89,24 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.rotator.move(dx / this.zoom, dy / this.zoom, performance.now());
   }
 
+  private get zoom(): number {
+    return this.zoomer.value;
+  }
+
   setZoom(zoom: number): void {
-    this.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
-    const size = Math.round(BUFFER * Math.min(this.zoom, MAX_BUFFER_SCALE));
+    this.zoomer.set(zoom, this.reducedMotion);
+    this.resizeBuffer();
+  }
+
+  resetView(): void {
+    this.zoomer.set(1, this.reducedMotion);
+    this.resizeBuffer();
+    this.rotator.turnTo(this.rotator.yaw, 0, performance.now());
+  }
+
+  /** Rozdzielczość bufora rośnie z przybliżeniem (co 12 px — przy płynnym zoomie mniej przeliczeń). */
+  private resizeBuffer(): void {
+    const size = Math.round((BUFFER * Math.min(this.zoom, MAX_BUFFER_SCALE)) / 12) * 12;
     if (size !== this.size) {
       this.size = size;
       this.buffer.width = this.buffer.height = size;
@@ -198,6 +213,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const dt = (time - this.last) / 1000;
     this.last = time;
     this.rotator.update(dt, time);
+    if (this.zoomer.update(dt)) this.resizeBuffer();
     if (
       Number.isNaN(this.lastDrawn.yaw) ||
       Math.abs(this.rotator.yaw - this.lastDrawn.yaw) > 0.01 ||

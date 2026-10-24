@@ -15,9 +15,9 @@ export const ARID: SurfaceProfile = {
   hydrology: { lakeNodes: 30, lakeDepth: 0.025, riverFlow: 160 },
   expect: { land: [0.8, 1] },
   bands: [
-    { upTo: 0.35, material: 'sand' },
-    { upTo: 0.7, material: 'rock' },
-    { upTo: 1, material: 'peak' },
+    { upTo: 0.35, material: 'sand', color: '#cfa86c' },
+    { upTo: 0.7, material: 'rock', color: '#9a6a43' },
+    { upTo: 1, material: 'peak', color: '#e8d6b4' },
   ],
   look: {
     palette: {

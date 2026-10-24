@@ -68,7 +68,7 @@ test('siatka: najbliższy węzeł = wynik przeszukania wszystkich węzłów', ()
   }
 });
 
-test('regresja: metoda legacy daje teren identyczny z v0.17 (wysokość, promień, lód, kolor)', () => {
+test('regresja: metoda legacy daje teren identyczny z v0.17 (wysokość, promień, lód)', () => {
   // Wartości zmierzone na v0.17 przed przeniesieniem algorytmu do core/surface (seed PF-SNAP).
   const expected: Record<string, number[][]> = {
     'kepler-186f': [
@@ -96,8 +96,9 @@ test('regresja: metoda legacy daje teren identyczny z v0.17 (wysokość, promie�
     const sampler = createSurfaceSampler({ ...planet, visual: { ...planet.visual, terrainMethod: 'legacy' } });
     points.forEach(([x, y, z], i) => {
       const h = sampler.height(x, y, z);
-      const got = [h, sampler.radius(h), sampler.ice(h, x, y, z), ...sampler.color(h, x, y, z)].map((v) => +v.toPrecision(12));
-      assert.deepEqual(got, rows[i], `${id}, punkt ${i}`);
+      // Kolor od v0.25 pochodzi z materiałów profilu (celowa zmiana) — teren legacy: wysokość, promień, lód.
+      const got = [h, sampler.radius(h), sampler.ice(h, x, y, z)].map((v) => +v.toPrecision(12));
+      assert.deepEqual(got, rows[i]!.slice(0, 3), `${id}, punkt ${i}`);
     });
   }
 });

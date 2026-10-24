@@ -12,10 +12,10 @@ const MATERIAL_CODE = Object.fromEntries(MATERIALS.map((id, i) => [id, i])) as R
 
 /** Pasma lądu sprzed profili (v0.18–v0.22): brzeg → nizina → wyżyna → szczyt. */
 export const DEFAULT_BANDS: readonly MaterialBand[] = [
-  { upTo: 0.03, material: 'shore' },
-  { upTo: 0.3, material: 'lowland' },
-  { upTo: 0.6, material: 'highland' },
-  { upTo: 1, material: 'peak' },
+  { upTo: 0.03, material: 'shore', color: '#b8a77e' },
+  { upTo: 0.3, material: 'lowland', color: '#4f6b4b' },
+  { upTo: 0.6, material: 'highland', color: '#7b6a54' },
+  { upTo: 1, material: 'peak', color: '#dcd5c6' },
 ];
 
 /** Klasyfikacja punktu (wspólna dla siatki i próbkowania ciągłego); ląd według pasm profilu. */
@@ -35,8 +35,9 @@ export function classifyPoint(
   }
   const inland = field.inland;
   if (inland) {
-    if (inland.lava(x, y, z) >= 0.5) return { liquid: LIQUID.lava, material: 'lava' };
-    if (inland.lakeLevel(x, y, z) >= 0) return { liquid: LIQUID.lake, material: icy ? 'seaIce' : 'shallowWater' };
+    const lake = inland.lakeLevel(x, y, z) >= 0;
+    if (inland.lava(x, y, z) >= 0.5 || (lake && inland.lavaLakes)) return { liquid: LIQUID.lava, material: 'lava' };
+    if (lake) return { liquid: LIQUID.lake, material: icy ? 'seaIce' : 'shallowWater' };
     if (inland.river(x, y, z) >= 0.5) return { liquid: LIQUID.river, material: icy ? 'glacier' : 'shallowWater' };
   }
   if (icy) return { liquid: LIQUID.none, material: 'glacier' };

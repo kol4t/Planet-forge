@@ -2,6 +2,16 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.25: lawa, kolory materiałów, światło, kamera (przebudowa generatora, etap 6)
+
+- **Lawa bez „plam” (zgłoszenie właściciela):** morze lawy nie świeci już całą powierzchnią — to ciemna, zastygła skorupa z siecią żarzących się pęknięć (`createLavaVeins`: szerokie szczeliny + drobne pęknięcia z szumu grzbietowego). Ten sam wzór w 2D (piksel po pikselu), w 3D (tekstura morza 512 × 256: kolor + mapa świecenia, ok. 1 MB) i na lawie na lądzie. Jeziora lawy (kaldery) to skorupa z pęknięciami, pełny żar mają tylko strumienie przy źródłach; kolory nasycone, bez wybielania przez tonemapping. Naprawiony jasny pierścień wokół jezior lawy (brzeg jeziora rysował się jak woda; `InlandField.lavaLakes`).
+- **Kolory lądu z materiałów profilu:** każde pasmo materiału ma kolor (`MaterialBand.color`, walidowany); 2D i 3D kolorują ląd pasmami z płynnym przejściem. Kolory przeniesione z dotychczasowej palety (wygląd zbliżony), pustynia ma osobny kolor piasku, lodowa — skały.
+- **Światło z profilu także w 2D:** jasność nocy i siła światła gwiazdy z `style.ambient` / `style.sunIntensity` (jak w 3D).
+- **Kamera:** płynne przybliżanie (`input/zoom.ts`: cel + wygładzanie, ~0,25 s; przy „Ogranicz ruch” od razu), zakres 0,8×–3,5× (lekkie oddalenie), wybór budowli dalej od 3×. Przyciski „+”, „−” i „Resetuj widok” (celownik) w prawym dolnym rogu wolnego miejsca (≥ 44 pt, nigdy na tarczy planety; gdy brak miejsca — telefon poziomo z otwartym panelem — chowają się, szczypanie działa). Komputer: klawisze + / − / 0. `PlanetDisplay.resetView()` — przybliżenie 1× i biegun u góry.
+- **Spadek płynności v0.24 (najsłabsza sekunda 18 kl./s):** najpewniej jednorazowe przeliczenie planety (teren + hydrologia + ląd 3D + tekstura lawy, w Node 0,3–0,6 s). Przyspieszone: klucze wierzchołków lądu 3D liczbowe zamiast tekstowych (ląd 3D o 25–40% szybciej), pęknięcia lawy w teksturze liczone raz na teksel. Gra w trakcie zwykłej rozgrywki: średnio 57–60 kl./s.
+- **Pomiar v0.24 (iPad, poziomo, 3D, 40 s):** średnio 57 kl./s, najsłabsza sekunda 18 (jednorazowe przycięcie — wyżej).
+- `SURFACE_VERSION` bez zmian (4) — kształt terenu, woda i lawa się nie zmieniły, tylko wygląd.
+
 ## 2026-10-24 — v0.24: woda i lawa (przebudowa generatora, etap 5)
 
 - **Hydrologia uproszczona, liczona raz** (`core/surface/hydrology.ts`, siatka detail 32): zalewanie od morza (priority-flood) wypełnia zagłębienia do najniższej przełęczy → jeziora z płaskim lustrem (min. głębokość i wielkość z profilu); kolejność zalewania wyznacza spływ do morza → rzeki tam, gdzie zlewnia przekracza próg. Rzeka zawsze płynie w dół (po powierzchni po zalaniu) i kończy się w morzu albo jeziorze.

@@ -78,6 +78,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     drag: (dx, dy) => display.drag(dx, dy),
     endDrag: () => display.endDrag(),
     setZoom: (zoom) => display.setZoom(zoom),
+    resetView: () => display.resetView(),
     orientation: () => display.orientation(),
     setOrientation: (yaw, pitch) => display.setOrientation(yaw, pitch),
     setFocus(cx, cy, r) {

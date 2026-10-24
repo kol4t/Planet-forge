@@ -43,12 +43,12 @@ test('profile: walidacja wykrywa złe dane', () => {
     ],
     incompatible: [{ method: 'tectonic', reason: '' }],
     bands: [
-      { upTo: 0.5, material: 'rock' },
-      { upTo: 0.4, material: 'lawa' as 'rock' },
+      { upTo: 0.5, material: 'rock', color: 'szary' },
+      { upTo: 0.4, material: 'lawa' as 'rock', color: '#123456' },
     ],
   };
   const problems = validateProfile(broken).join('\n');
-  for (const part of ['waga', 'nieznana metoda', 'jednocześnie', 'bez powodu', 'rosnąć', 'nieznany materiał', 'sięgać 1']) {
+  for (const part of ['waga', 'nieznana metoda', 'jednocześnie', 'bez powodu', 'rosnąć', 'nieznany materiał', 'sięgać 1', 'zły kolor']) {
     assert.ok(problems.includes(part), `brak: ${part}\n${problems}`);
   }
 });
@@ -106,8 +106,8 @@ test('profile: nowy profil dodany tylko w danych działa bez zmian generatora', 
     label: 'testowy',
     methods: [{ id: 'erosion', weight: 1 }],
     bands: [
-      { upTo: 0.5, material: 'ash' },
-      { upTo: 1, material: 'snow' },
+      { upTo: 0.5, material: 'ash', color: '#444444' },
+      { upTo: 1, material: 'snow', color: '#eeeeee' },
     ],
     look: { ...TERRESTRIAL.look, seaLevel: [0.3, 0.32], atmosphereColor: '#aa66cc' },
     expect: { land: [0.5, 1] },

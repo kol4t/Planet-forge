@@ -68,6 +68,8 @@ export interface InlandField {
   river(x: number, y: number, z: number): number;
   /** Lawa 0..1 (≥ 0,5 = lawa; 1 = najgorętsza). */
   lava(x: number, y: number, z: number): number;
+  /** Jeziora są z lawy (planeta z lawą) — także na brzegu, gdzie pole `lava` spada poniżej 0,5. */
+  lavaLakes: boolean;
   /** Statystyki (atlas, testy). */
   lakes: number;
   riverNodes: number;

@@ -45,6 +45,7 @@ export function validateProfile(profile: SurfaceProfile): string[] {
   let previous = 0;
   for (const band of profile.bands) {
     if (!MATERIALS.includes(band.material)) problems.push(`${name}: nieznany materiał ${band.material}`);
+    if (!/^#[0-9a-f]{6}$/i.test(band.color)) problems.push(`${name}: zły kolor materiału ${band.material}`);
     if (!(band.upTo > previous)) problems.push(`${name}: pasma muszą rosnąć (${band.material})`);
     previous = band.upTo;
   }

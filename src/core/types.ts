@@ -100,6 +100,8 @@ export interface MethodWeight {
 export interface MaterialBand {
   upTo: number;
   material: MaterialId;
+  /** Kolor materiału w widoku 2D i 3D (lód, woda i lawa mają własne kolory). */
+  color: string;
 }
 
 /**

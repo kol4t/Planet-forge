@@ -1,5 +1,6 @@
 // Próbkowanie powierzchni planety (wysokość i lód z `core/surface`, tu promień i kolor). Czysta matematyka,
 // wspólna dla widoku 3D, awaryjnego widoku 2D i rozmieszczenia budynków.
+import { createNoise3D, ridged } from '../core/random/noise.ts';
 import { createSurfaceField } from '../core/surface/field.ts';
 import type { Planet } from '../core/types.ts';
 
@@ -18,12 +19,9 @@ export interface SurfaceSampler {
   ice(h: number, x: number, y: number, z: number): number;
   /** Lustro jeziora w punkcie (−1 = brak). */
   lakeLevel(x: number, y: number, z: number): number;
-  /** Świecenie 0..1 (lawa) — jasna także po nocnej stronie. */
-  glow(x: number, y: number, z: number): number;
+  /** Świecenie 0..1 (pęknięcia i strumienie lawy) — jasne także po nocnej stronie. */
+  glow(h: number, x: number, y: number, z: number): number;
 }
-
-/** Kolor najgorętszej lawy (przy źródle). */
-const LAVA_HOT: RGB = [1, 0.82, 0.45];
 
 export function hexToRgb(hex: string): RGB {
   const n = parseInt(hex.replace('#', ''), 16);
@@ -42,6 +40,34 @@ const smoothstep = (edge0: number, edge1: number, x: number) => {
 };
 
 /**
+ * Pęknięcia w skorupie lawy 0..1 (1 = jarząca się szczelina): sieć cienkich żył z szumu grzbietowego.
+ * Wspólne dla widoku 2D, siatki lawy 3D i tekstury morza lawy — wszędzie ten sam wzór.
+ */
+export function createLavaVeins(noiseSeed: number): (x: number, y: number, z: number) => number {
+  const noise = createNoise3D(noiseSeed ^ 0x27d4eb2f);
+  const fine = createNoise3D(noiseSeed ^ 0x165667b1);
+  // Szerokie szczeliny między płytami skorupy + drobniejsze pęknięcia wewnątrz płyt.
+  return (x, y, z) =>
+    Math.max(
+      smoothstep(0.66, 0.9, ridged(noise, x * 4 + 11, y * 4, z * 4, 3)),
+      0.7 * smoothstep(0.8, 0.95, ridged(fine, x * 11 + 3, y * 11, z * 11, 2)),
+    );
+}
+
+/** Kolory skorupy i żaru lawy z wyglądu planety. */
+export function lavaColors(planet: Planet): { crust: RGB; glow: RGB; hot: RGB } {
+  const v = planet.visual;
+  return {
+    crust: mix(hexToRgb(v.palette.deepWater), [0.06, 0.04, 0.04], 0.55),
+    glow: hexToRgb(v.ocean.emissive ?? v.palette.shallowWater),
+    hot: [1, 0.62, 0.22],
+  };
+}
+
+/** Kolor lądu z pasm materiałów profilu: płynne przejście (±`BAND_BLEND`) na granicy pasm. */
+const BAND_BLEND = 0.05;
+
+/**
  * `inland: false` — bez jezior, rzek i lawy na lądzie (miniatury, sąsiedzi na niebie): nie trzeba
  * liczyć hydrologii, a w kilkudziesięciu pikselach i tak jej nie widać.
  */
@@ -52,38 +78,58 @@ export function createSurfaceSampler(planet: Planet, options: { inland?: boolean
   const p = {
     deep: hexToRgb(v.palette.deepWater),
     shallow: hexToRgb(v.palette.shallowWater),
-    shore: hexToRgb(v.palette.shore),
-    low: hexToRgb(v.palette.lowland),
-    high: hexToRgb(v.palette.highland),
     peak: hexToRgb(v.palette.peak),
   };
+  const bands = v.bands.map((band) => ({ upTo: band.upTo, color: hexToRgb(band.color) }));
   const sea = field.seaLevel;
   const inland = options.inland === false ? undefined : field.inland;
-  const lava = hexToRgb(v.ocean.emissive ?? v.palette.shallowWater);
+  const lavaSea = v.hydrology.liquid === 'lava';
+  const veins = lavaSea ? createLavaVeins(v.noiseSeed) : () => 0;
+  const lava = lavaColors(planet);
   const lakeLevel = inland ? inland.lakeLevel : () => -1;
-  const glow = inland ? (x: number, y: number, z: number) => smoothstep(0.4, 0.6, inland.lava(x, y, z)) * inland.lava(x, y, z) : () => 0;
+  /** Skorupa z żyłami żaru; `heat` 1 = strumień przy źródle (prawie cały żarzy się). */
+  const lavaAt = (heat: number, x: number, y: number, z: number) => {
+    const hot = smoothstep(0.75, 1, heat);
+    const glowing = Math.max(veins(x, y, z), hot * 0.85);
+    return { glowing, color: mix(lava.crust, mix(lava.glow, lava.hot, hot * 0.6), glowing) };
+  };
+  const landColor = (t: number): RGB => {
+    let c = bands[0]!.color;
+    for (let i = 1; i < bands.length; i++) {
+      const edge = bands[i - 1]!.upTo;
+      const width = Math.min(BAND_BLEND, edge * 0.5);
+      c = mix(c, bands[i]!.color, smoothstep(edge - width, edge + width, t));
+    }
+    return c;
+  };
 
   return {
     ice: field.ice,
     height: field.height,
     lakeLevel,
-    glow,
+    glow(h, x, y, z) {
+      if (!lavaSea) return 0;
+      if (h < sea) return veins(x, y, z) * 0.9;
+      if (!inland) return 0;
+      const heat = inland.lava(x, y, z);
+      const lava = heat >= 0.5 || (inland.lavaLakes && inland.lakeLevel(x, y, z) >= 0);
+      return lava ? lavaAt(heat, x, y, z).glowing * (0.6 + 0.4 * heat) : 0;
+    },
     radius(h) {
       return 1 + Math.max(0, h - sea) * v.terrainAmplitude * 2.2;
     },
     color(h, x, y, z) {
       let c: RGB;
       if (h < sea) {
+        // Morze lawy: zastygła skorupa z jarzącymi się pęknięciami (nie jednolita plama).
+        if (lavaSea) return lavaAt(0, x, y, z).color;
         c = mix(p.deep, p.shallow, smoothstep(sea - 0.14, sea, h));
       } else {
-        const t = (h - sea) / (1 - sea);
-        c = mix(p.shore, p.low, smoothstep(0, 0.06, t));
-        c = mix(c, p.high, smoothstep(0.18, 0.42, t));
-        c = mix(c, p.peak, smoothstep(0.5, 0.7, t));
+        c = landColor((h - sea) / (1 - sea));
         if (inland) {
-          const hot = inland.lava(x, y, z);
-          if (hot >= 0.5) return mix(lava, LAVA_HOT, smoothstep(0.6, 1, hot) * 0.7);
+          const heat = inland.lava(x, y, z);
           const level = inland.lakeLevel(x, y, z);
+          if (heat >= 0.5 || (level >= 0 && inland.lavaLakes)) return lavaAt(heat, x, y, z).color;
           if (level >= 0) {
             // Jezioro: płytko przy brzegu, głębiej w środku.
             c = mix(p.shallow, p.deep, smoothstep(0, 0.06, level - h) * 0.7);

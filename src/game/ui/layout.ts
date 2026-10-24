@@ -62,10 +62,21 @@ export interface Layout {
   /** Wolne miejsce na planetę (poza panelami). */
   stage: Rect;
   planet: { cx: number; cy: number; r: number };
+  /**
+   * Przyciski kamery w prawym dolnym rogu wolnego miejsca: przybliż, oddal, resetuj widok.
+   * null — za mało miejsca (np. telefon poziomo z otwartym panelem); szczypanie działa dalej.
+   */
+  camera: { zoomIn: Rect; zoomOut: Rect; reset: Rect } | null;
   toastY: number;
 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+function circleHitsRect(c: { cx: number; cy: number; r: number }, b: Rect): boolean {
+  const nx = clamp(c.cx, b.x, b.x + b.w);
+  const ny = clamp(c.cy, b.y, b.y + b.h);
+  return Math.hypot(nx - c.cx, ny - c.cy) < c.r;
+}
 const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
 export const NO_PANEL: PanelState = { open: null };
 
@@ -143,11 +154,25 @@ export function computeLayout(
     if (state.open === 'production') cards = cardGrid(body, cardCount, gap, u);
   }
 
+  // Kolumna przycisków kamery (od dołu: reset, oddal, przybliż) przy prawej krawędzi wolnego miejsca.
+  const column = stage.x + stage.w - TOUCH - 4;
+  const button = (row: number): Rect => ({ x: column, y: stage.y + stage.h - 4 - (row + 1) * TOUCH - row * 6, w: TOUCH, h: TOUCH });
+  let camera: Layout['camera'] = { reset: button(0), zoomOut: button(1), zoomIn: button(2) };
   const target = (PLANET_SCREEN_SHARE * Math.max(width, height)) / 2;
-  const r = Math.max(minPlanet, Math.min(target, (stage.w / 2) * 0.92, (stage.h / 2) * 0.92));
-  const planet = { cx: stage.x + stage.w / 2, cy: stage.y + stage.h / 2, r };
+  const fit = (area: Rect) => {
+    const r = Math.max(minPlanet, Math.min(target, (area.w / 2) * 0.92, (area.h / 2) * 0.92));
+    return { cx: area.x + area.w / 2, cy: area.y + area.h / 2, r };
+  };
+  let planet = fit(stage);
+  // Gdy miejsca jest mało, planeta odsuwa się od przycisków kamery (nie chowa się pod nimi).
+  const buttons = [camera.zoomIn, camera.zoomOut, camera.reset];
+  if (buttons.some((b) => circleHitsRect(planet, b))) {
+    const moved = fit({ ...stage, w: column - 6 - stage.x });
+    if (moved.r >= planet.r * 0.85 && !buttons.some((b) => circleHitsRect(moved, b))) planet = moved;
+    else camera = null;
+  }
   const toastY = (panel && !side ? panel.rect.y : dock.rect.y) - 28 * u;
-  return { mode: side ? 'side' : 'sheet', u, topBar, dock, panel, cards, stage, planet, toastY };
+  return { mode: side ? 'side' : 'sheet', u, topBar, dock, panel, cards, stage, planet, camera, toastY };
 }
 
 /** Dolny pasek: menu po lewej, potem przyciski; te, które się nie mieszczą, są tylko w menu. */

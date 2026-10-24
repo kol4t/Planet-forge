@@ -13,10 +13,10 @@ export const TERRESTRIAL: SurfaceProfile = {
   liquid: 'water',
   expect: { land: [0.25, 0.85] },
   bands: [
-    { upTo: 0.03, material: 'shore' },
-    { upTo: 0.3, material: 'lowland' },
-    { upTo: 0.6, material: 'highland' },
-    { upTo: 1, material: 'peak' },
+    { upTo: 0.03, material: 'shore', color: '#b8a77e' },
+    { upTo: 0.3, material: 'lowland', color: '#4f6b4b' },
+    { upTo: 0.6, material: 'highland', color: '#7b6a54' },
+    { upTo: 1, material: 'peak', color: '#dcd5c6' },
   ],
   look: {
     palette: {

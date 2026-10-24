@@ -210,4 +210,12 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 120. „Mapa” i „Imperium”: miniatury rysują się tak szybko jak w 0.23.
 121. Płynność: Ustawienia → „Diagnostyka” — porównaj z 0.23 (3D: średnio 60, najsłabsza sekunda 53). Ważne: także na planecie wulkanicznej w 3D (jedna dodatkowa siatka lawy).
 
+### Od 0.25: lawa, kolory, kamera (przebudowa generatora, etap 6)
+
+122. Planeta wulkaniczna: zamiast jednolitych pomarańczowych plam — **ciemna skorupa z żarzącymi się pęknięciami** (morze lawy i jeziora w kraterach); najjaśniejsze są tylko strumienie lawy przy szczytach. W 2D i 3D ten sam wzór, świeci także nocą.
+123. Kolory lądu nieco inne: pustynia ma piaszczyste niziny i rdzawe skały, planeta lodowa szare skały pod śniegiem, wulkaniczna popiół i bazalt.
+124. W prawym dolnym rogu obok planety trzy okrągłe przyciski: **„+”** przybliża, **„−”** oddala (do 0,8× — planeta z kawałkiem nieba), **celownik** wraca do widoku startowego (1×, biegun u góry). Przybliżanie (także palcami) jest płynne.
+125. Telefon poziomo z otwartym panelem: przyciski chowają się (brak miejsca), szczypanie działa.
+126. Przełączanie planet (☰ → inna planeta) powinno przycinać się krócej niż w 0.24. Płynność: Ustawienia → „Diagnostyka” po ok. 60 s obracania, także na planecie wulkanicznej w 3D.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.
