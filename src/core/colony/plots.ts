@@ -107,8 +107,10 @@ function nextCell(grid: FieldGrid, id: BuildingId, own: number[], taken: Set<num
   let bestScore = -Infinity;
   grid.cells.forEach((cell, i) => {
     if (taken.has(i) || !canStand(id, cell, rules)) return;
-    // Pasujący teren wygrywa z każdą odległością (+2 > największa różnica iloczynów skalarnych).
-    const score = dot(cell.center, target) / Math.max(1e-9, Math.hypot(...target)) + (suits(id, cell) ? 2 : 0);
+    // Pasujący teren wygrywa z każdą odległością (+2 > największa różnica iloczynów skalarnych);
+    // pola z większą ilością lądu mają pierwszeństwo przed przybrzeżnymi skrawkami (v0.26.2).
+    const score =
+      dot(cell.center, target) / Math.max(1e-9, Math.hypot(...target)) + (suits(id, cell) ? 2 : 0) + 0.6 * cell.landShare;
     if (score > bestScore) {
       bestScore = score;
       best = i;

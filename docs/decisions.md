@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.26.2: budowle na lądzie, grupy przy środku wyspy
+
+Prośba właściciela (zrzut z iPada): budowle stały częściowo w wodzie, rozrzucone po polu.
+- **Miejsce grupy w polu** (`planet-renderer/colony.ts`, `groupDirs`): ok. 50 próbek wnętrza pola (od środka do wierzchołków i środków krawędzi); środek grupy = suchy punkt najdalej od wody (`sampler.isLand` z punktem — bez mórz, jezior, rzek i lawy), przy remisie bliżej środka pola — na wyspie wypada przy jej środku. Trzy budowle ciasno wokół (26% promienia pola zamiast 42% wokół środka); budowla, która wypadłaby w wodzie, przysuwa się do środka grupy. Pole bez lądu (lód dla kryształów) — jak dotąd. Budowli w wodzie (wszystkie pola lądu, 6 typów × 3 seedy): 7,4% → 0,1% (test).
+- **Wybór nowego pola** (`plots.ts`, `nextCell`): +0,6 × udział lądu w polu — przybrzeżne skrawki przegrywają z polami pełnymi lądu (pasujący teren nadal ważniejszy). Zapisane pola się nie przesuwają; zmienia się tylko miejsce budowli wewnątrz pola (czysty wygląd, bez zmian w zapisie).
+
 ## 2026-10-24 — v0.26.1: grupy budowli, zarządzanie, teren pod budynki
 
 Decyzje właściciela: **pole = 3 poziomy jednego budynku** (grupa produkcyjna; nowe pole zajmują poziomy 1, 4, 7…); **suwaki „praca + pierwszeństwo”**; **budynek poza dobrym terenem stoi na dowolnym lądzie, ale słabiej**; **lód tylko dla kryształów**.

@@ -244,4 +244,8 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 139. „Energia — pierwszeństwo”: gdy energii brakuje, budynek z wyższym pierwszeństwem dostaje ją pierwszy (wiersz „Energia: dostaje N% potrzebnej”).
 140. Okno pokazuje najlepszy teren budynku: kopalnia metalu — wzgórza, ekstraktor kryształów — doliny, góry i lód, elektrownia — brzeg. Budynki poza dobrym terenem pracują w 75%.
 
+### Od 0.26.2
+
+141. Budowle nie stoją w wodzie: grupa (do 3 budowli) stoi zwartą kępką na lądzie pola, na wyspie — przy jej środku. Włącz siatkę pól i obejrzyj wybrzeża z bliska.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

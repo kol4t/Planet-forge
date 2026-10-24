@@ -57,3 +57,21 @@ test('facingAngles kieruje punkt do kamery (+z)', () => {
   const z = -dir[0] * Math.sin(yaw) + dir[2] * Math.cos(yaw);
   assert.ok(Math.abs(x) < 1e-9 && z > 0.99);
 });
+
+test('budowle stoją na suchym lądzie pola, nie w wodzie (v0.26.2)', () => {
+  let wet = 0;
+  let all = 0;
+  for (const def of PLANET_DEFINITIONS) {
+    for (const seed of ['1:5:3', 'kepler-x']) {
+      const planet = generatePlanet(def, seed);
+      const grid = fieldGrid(planet);
+      const land = grid.cells.map((c, i) => (c.kind === 'land' ? i : -1)).filter((i) => i >= 0);
+      const layout = layoutFromPlots(grid, { metalMine: land }, createSurfaceSampler(planet), ['metalMine']);
+      for (const slot of layout.slots.metalMine) {
+        all += 1;
+        if (!slot.onLand) wet += 1;
+      }
+    }
+  }
+  assert.ok(wet / all < 0.01, `w wodzie ${wet} z ${all}`);
+});
