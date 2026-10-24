@@ -2,8 +2,8 @@ import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { layoutColony, visibleStructures, type ColonyLayout } from './colony.ts';
 import { DragRotator } from './input/dragRotator.ts';
-import { levelsWithSite, pickStructure } from './pick.ts';
-import { facingAngles, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
+import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
+import { facingAngles, focusLift, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
 import { ZoomSmoother } from './input/zoom.ts';
 import type { RGB, SurfaceSampler } from './surface.ts';
@@ -64,20 +64,23 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.site = site;
   }
 
-  pickStructure(x: number, y: number): BuildingId | null {
+  pickStructure(x: number, y: number): StructureHit | null {
     if (!this.colony || !this.levels) return null;
     const { yaw, pitch } = this.rotator;
     const view = { cx: this.focus.cx, cy: this.focus.cy, yaw, pitch, tilt: 0, projection: { kind: 'ortho' as const, r: this.focus.r * this.zoom } };
-    return pickStructure(this.colony, levelsWithSite(this.levels, this.site), view, x, y);
+    return pickStructureHit(this.colony, levelsWithSite(this.levels, this.site), view, x, y);
   }
 
-  showBuilding(id: BuildingId): void {
+  showBuilding(id: BuildingId, index?: number): boolean {
     const slots = this.colony?.slots[id];
-    if (!slots?.length) return;
-    const level = this.site?.building === id ? this.site.targetLevel : (this.levels?.[id] ?? 1);
-    const index = Math.max(0, Math.min(visibleStructures(level), slots.length) - 1);
-    const { yaw, pitch } = facingAngles(slots[index]!.dir, 0);
+    if (!slots?.length) return false;
+    const level = this.site?.building === id ? this.site.targetLevel : (this.levels?.[id] ?? 0);
+    const count = Math.min(visibleStructures(level), slots.length);
+    if (count === 0) return false;
+    const slot = slots[Math.max(0, Math.min(index ?? count - 1, count - 1))]!;
+    const { yaw, pitch } = facingAngles(slot.dir, 0, focusLift(this.zoomer.target));
     this.rotator.turnTo(yaw, pitch, performance.now());
+    return true;
   }
 
   beginDrag(): void {
@@ -216,6 +219,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.raf = requestAnimationFrame(this.loop);
     const dt = (time - this.last) / 1000;
     this.last = time;
+    // Przy przybliżeniu od 2× planeta przestaje sama się obracać (od 1× do 2× autoobrót słabnie).
+    this.rotator.spinFactor = Math.min(1, Math.max(0, 2 - this.zoom));
     this.rotator.update(dt, time);
     if (this.zoomer.update(dt)) this.resizeBuffer();
     if (

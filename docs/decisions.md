@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.25.2: płynność 3D na komputerze, wybór budowli przy każdym przybliżeniu
+
+- **Płynność 3D na komputerze (zgłoszenie właściciela):** płótno 3D ma rozmiar całego okna, a na ekranach o zwykłej gęstości pikseli (komputer) było włączone wygładzanie krawędzi (MSAA) — na dużym monitorze to kilka milionów próbek na klatkę. Teraz MSAA tylko dla małych okien (< 1,3 mln pikseli). Do tego **automatyczna rozdzielczość** (`adaptiveResolution.ts`): gdy średnia klatka > 22 ms (okno 45 klatek), gęstość pikseli spada o 15% (do 60%); przy zapasie (< 15 ms przez 4 okna) wraca. Pojedyncze przerwy > 200 ms (karta w tle, przeliczenie planety) się nie liczą. Diagnostyka pokazuje „rozdzielczość N%”. iPad bez zmian (tam MSAA i tak było wyłączone).
+- **Dotknięcie budowli przy każdym przybliżeniu** (wcześniej od 3×): kamera obraca się do trafionej budowli (konkretnej — `pickStructureHit` zwraca numer w dzielnicy), przybliża do 3× i otwiera okienko budynku.
+- **Dotknięcie karty w „Produkcji”** (poza przyciskami) pokazuje ten budynek na planecie z bliska; budynek na poz. 0 → komunikat.
+- **Budowla w środku kadru:** `facingAngles` liczy obrót dokładnie z nachyleniem osi (3D) i z „podniesieniem” zależnym od przybliżenia (`focusLift`: przy 1× budowla nad środkiem tarczy, przy 3× prawie w środku). Autoobrót słabnie od 1× i wygasa od 2× (`DragRotator.spinFactor`) — oglądana budowla nie ucieka z kadru.
+- Pomiar v0.25 (iPad, 3D, 5 s): średnio 58 kl./s, najsłabsza sekunda 49.
+
 ## 2026-10-24 — v0.25.1: przełączenie 2D ↔ 3D zachowuje przybliżenie
 
 - Zgłoszenie właściciela: po zmianie grafiki planeta wracała do 1×. Do pamięci sesji (obok obrotu) trafia teraz także przybliżenie (`PlanetDisplay.zoomLevel()`), przywracane od razu (`setZoom(z, true)`); gesty sceny startują od tej wartości, więc szczypanie i przyciski liczą dalej od niej.

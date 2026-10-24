@@ -7,8 +7,10 @@ import { layoutColony, type ColonyLayout } from './colony.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { ZoomSmoother } from './input/zoom.ts';
-import { levelsWithSite, pickStructure } from './pick.ts';
-import { facingAngles, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
+import { AdaptiveResolution } from './adaptiveResolution.ts';
+import { visibleStructures } from './colony.ts';
+import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
+import { facingAngles, focusLift, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { buildLowPolyLand, shapedRadius } from './lowPoly.ts';
 import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler } from './surface.ts';
 
@@ -68,6 +70,7 @@ export class PlanetView implements PlanetDisplay {
   private height = 1;
   private focus = { cx: 0.5, cy: 0.5, r: 200 };
   private readonly zoomer = new ZoomSmoother();
+  private readonly resolution = new AdaptiveResolution();
   private readonly reducedMotion = prefersReducedMotion();
   private frame = 0;
   private lastTime = performance.now();
@@ -77,7 +80,9 @@ export class PlanetView implements PlanetDisplay {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       // Na ekranach Retina wygładzanie jest prawie niewidoczne, a kosztuje dużo pamięci grafiki.
-      antialias: (window.devicePixelRatio || 1) < 2,
+      // Na komputerze (zwykła gęstość pikseli) płótno ma rozmiar całego okna — przy dużym monitorze
+      // wygładzanie (MSAA) było główną przyczyną spadków płynności, więc tylko dla małych okien.
+      antialias: (window.devicePixelRatio || 1) < 2 && window.innerWidth * window.innerHeight < 1_300_000,
       alpha: true,
       powerPreference: 'default',
     });
@@ -136,7 +141,7 @@ export class PlanetView implements PlanetDisplay {
     this.colony.setConstruction(site);
   }
 
-  pickStructure(x: number, y: number): BuildingId | null {
+  pickStructure(x: number, y: number): StructureHit | null {
     if (!this.layout || !this.levels) return null;
     const f = this.height / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
     const view = {
@@ -147,14 +152,17 @@ export class PlanetView implements PlanetDisplay {
       tilt: this.axialTilt,
       projection: { kind: 'perspective' as const, f, d: this.camera.position.z },
     };
-    return pickStructure(this.layout, levelsWithSite(this.levels, this.site), view, x, y, undefined, true);
+    return pickStructureHit(this.layout, levelsWithSite(this.levels, this.site), view, x, y, undefined, true);
   }
 
-  showBuilding(id: BuildingId): void {
-    const dir = this.colony.focusDir(id);
-    if (!dir) return;
-    const { yaw, pitch } = facingAngles(dir, this.axialTilt);
+  showBuilding(id: BuildingId, index?: number): boolean {
+    const levels = this.levels ? levelsWithSite(this.levels, this.site) : null;
+    if (!levels || visibleStructures(levels[id] ?? 0) === 0) return false;
+    const dir = index !== undefined ? this.layout?.slots[id]?.[index]?.dir : this.colony.focusDir(id);
+    if (!dir) return false;
+    const { yaw, pitch } = facingAngles(dir, this.axialTilt, focusLift(this.zoomer.target));
     this.rotator.turnTo(yaw, pitch, performance.now());
+    return true;
   }
 
   beginDrag(): void {
@@ -205,9 +213,20 @@ export class PlanetView implements PlanetDisplay {
   resize(width: number, height: number): void {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    this.renderer.setPixelRatio(renderPixelRatio(this.width, this.height, window.devicePixelRatio));
-    this.renderer.setSize(this.width, this.height, false);
+    this.applyPixelRatio();
     this.updateCamera();
+  }
+
+  /** Gęstość pikseli z budżetu × automatyczna skala (spada, gdy klatki są za długie). */
+  private applyPixelRatio(): void {
+    const ratio = renderPixelRatio(this.width, this.height, window.devicePixelRatio) * this.resolution.scale;
+    this.renderer.setPixelRatio(ratio);
+    this.renderer.setSize(this.width, this.height, false);
+  }
+
+  /** Skala rozdzielczości 3D (diagnostyka): 1 = pełna. */
+  renderScale(): number {
+    return this.resolution.scale;
   }
 
   /** Kamera tak, by planeta (promień 1) miała na ekranie promień `focus.r` w punkcie `focus`. */
@@ -226,8 +245,12 @@ export class PlanetView implements PlanetDisplay {
   private loop(time: number): void {
     if (this.disposed) return;
     this.frame = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.1, (time - this.lastTime) / 1000);
+    const frameMs = time - this.lastTime;
+    const dt = Math.min(0.1, frameMs / 1000);
     this.lastTime = time;
+    if (this.resolution.sample(frameMs)) this.applyPixelRatio();
+    // Przy przybliżeniu od 2× planeta przestaje sama się obracać (od 1× do 2× autoobrót słabnie).
+    this.rotator.spinFactor = Math.min(1, Math.max(0, 2 - this.zoom));
     this.rotator.update(dt, time);
     if (this.zoomer.update(dt)) this.updateCamera();
     this.spinGroup.rotation.y = this.rotator.yaw;

@@ -50,10 +50,13 @@ export function projectPoint(p: Vec3, view: PickView): { x: number; y: number; v
   return { x: view.cx + x2 * k, y: view.cy - y3 * k, visible: d * z3 - len2 > 0.05 * d };
 }
 
-/**
- * Najbliższa widoczna budowla w promieniu `radius` od punktu (x, y) albo null.
- * `surface(slot)` — promień podstawy budowli (3D stoi na tarasach; 2D na sferze = 1).
- */
+/** Trafiona budowla: typ i numer w dzielnicy kolonii (`ColonyLayout.slots[id][index]`). */
+export interface StructureHit {
+  id: BuildingId;
+  index: number;
+}
+
+/** Najbliższa widoczna budowla pod punktem (typ) — zob. `pickStructureHit`. */
 export function pickStructure(
   colony: ColonyLayout,
   levels: BuildingLevels,
@@ -63,7 +66,23 @@ export function pickStructure(
   radius = PICK_RADIUS,
   useSurface = false,
 ): BuildingId | null {
-  let best: BuildingId | null = null;
+  return pickStructureHit(colony, levels, view, x, y, radius, useSurface)?.id ?? null;
+}
+
+/**
+ * Najbliższa widoczna budowla w promieniu `radius` od punktu (x, y) albo null.
+ * `useSurface` — budowla stoi na powierzchni 3D (tarasy); 2D na sferze = 1.
+ */
+export function pickStructureHit(
+  colony: ColonyLayout,
+  levels: BuildingLevels,
+  view: PickView,
+  x: number,
+  y: number,
+  radius = PICK_RADIUS,
+  useSurface = false,
+): StructureHit | null {
+  let best: StructureHit | null = null;
   let bestDistance = radius;
   for (const id of Object.keys(colony.slots) as BuildingId[]) {
     const slots = colony.slots[id] ?? [];
@@ -76,7 +95,7 @@ export function pickStructure(
       const distance = Math.hypot(p.x - x, p.y - y);
       if (distance <= bestDistance) {
         bestDistance = distance;
-        best = id;
+        best = { id, index: i };
       }
     }
   }

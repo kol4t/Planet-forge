@@ -28,6 +28,8 @@ export class DragRotator {
   pitch = 0;
   velYaw = 0;
   velPitch = 0;
+  /** Siła autoobrotu 0..1 (renderer ją zmniejsza przy przybliżeniu — oglądana budowla nie ucieka z kadru). */
+  spinFactor = 1;
   private dragging = false;
   private lastMoveAt = 0;
   private releasedAt = -Infinity;
@@ -119,7 +121,7 @@ export class DragRotator {
     if (idle > 0) {
       // Autoobrót wraca łagodnie (rozpędza się przez ok. 2 s), bez szarpnięcia po puszczeniu palca.
       const ramp = Math.min(1, idle / 2000);
-      const ease = ramp * ramp * (3 - 2 * ramp);
+      const ease = ramp * ramp * (3 - 2 * ramp) * this.spinFactor;
       this.yaw += this.opts.idleSpin * ease * dt;
       // Powolny powrót do pionu (biegun u góry) — do najbliższego pełnego obrotu, bez cofania kręcenia.
       const upright = nearestTurn(0, this.pitch);

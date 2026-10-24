@@ -222,4 +222,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 
 127. Przybliż planetę (np. „+” dwa razy), potem Ustawienia → „Włącz 3D” / „Wróć do 2D”: po przeładowaniu planeta jest tak samo przybliżona i obrócona; „−” oddala dalej od tego przybliżenia.
 
+### Od 0.25.2
+
+128. Dotknij budowli na planecie przy dowolnym przybliżeniu (także bez przybliżania): planeta obraca się do niej, przybliża i otwiera się okienko budynku z „Ulepsz”.
+129. „Produkcja” → dotknij karty budynku (np. w nazwę „Elektrownia”, nie w przycisk): planeta pokazuje ten budynek z bliska. Budynek na poz. 0 → komunikat „nie stoi jeszcze na planecie”.
+130. Przy przybliżeniu (od ok. 2×) planeta przestaje sama się obracać; po „Resetuj widok” obraca się znowu.
+131. Komputer, 3D: obracanie powinno być płynne także na dużym monitorze. Ustawienia → „Diagnostyka” pokazuje „rozdzielczość N%” — gra sama obniża ostrość, gdy karta graficzna nie nadąża.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

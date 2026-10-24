@@ -815,6 +815,13 @@ export class PlanetScene extends Phaser.Scene {
   /** Karta budynku: nazwa, poziom, efekt, koszt, „Ulepsz” (odświeżana w refreshValues). */
   private addCard(def: (typeof BALANCE.buildings)[number], card: Rect): void {
     this.subPanel(card);
+    // Dotknięcie karty (poza przyciskami, które leżą wyżej) pokazuje budynek na planecie z bliska.
+    const cardZone = this.add
+      .zone(this.px(card.x), this.px(card.y), this.px(card.w), this.px(card.h))
+      .setOrigin(0)
+      .setInteractive({ useHandCursor: true });
+    cardZone.on('pointerup', () => this.focusBuilding(def.id));
+    this.ui!.add(cardZone);
     const narrow = card.w < 150;
     const pad = this.s(narrow ? 8 : 10);
     this.icon(def.produces, card.x + pad + this.s(5), card.y + pad + this.s(8), 5.5);
@@ -859,16 +866,29 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   /** Dotknięcie planety: od przybliżenia PICK_ZOOM wybiera budowlę (okienko z „Ulepsz”). */
+  /**
+   * Dotknięcie planety przy dowolnym przybliżeniu: trafiona budowla → kamera obraca się do niej,
+   * przybliża (do 3×) i otwiera się okienko budynku. Dotknięcie obok budowli zamyka okienko.
+   */
   private onPlanetTap(x: number, y: number): void {
-    const id = this.deps.display.pickStructure(x / this.dpr, y / this.dpr);
-    if (this.gestures.zoom < PICK_ZOOM) {
-      if (id) this.showToast('Przybliż planetę dwoma palcami, żeby wybrać budynek.', 'info', 2600);
-      return;
-    }
+    const hit = this.deps.display.pickStructure(x / this.dpr, y / this.dpr);
+    if (hit) this.focusBuilding(hit.id, hit.index);
+    const id = hit?.id ?? null;
     if (id === this.selected) return;
-    // Dotknięcie obok budowli zamyka okienko.
     this.selected = id;
     this.relayout();
+  }
+
+  /** Pokaż budowlę z bliska: obrót do niej i przybliżenie co najmniej do 3×. */
+  private focusBuilding(id: BuildingId, index?: number): void {
+    // Najpierw przybliżenie — renderer dobiera do niego kąt, żeby budowla stanęła w środku kadru.
+    const zoom = this.gestures.zoom;
+    if (zoom < PICK_ZOOM) this.applyGestures(this.gestures.setZoom(PICK_ZOOM));
+    if (!this.deps.display.showBuilding(id, index)) {
+      if (zoom < PICK_ZOOM) this.applyGestures(this.gestures.setZoom(zoom));
+      const name = BALANCE.buildings.find((b) => b.id === id)?.name ?? id;
+      this.showToast(`${name} nie stoi jeszcze na planecie — ulepsz do poz. 1.`, 'info', 2600);
+    }
   }
 
   /** Okienko wybranego budynku nad dolnym paskiem (w wolnym miejscu obok panelu). */
