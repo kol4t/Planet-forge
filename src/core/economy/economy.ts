@@ -13,6 +13,8 @@ export interface Rates {
   efficiencyBy: Partial<Record<BuildingId, number>>;
   /** Antymateria na GODZINĘ (przyrost pasywny + kolektor). */
   antimatterPerHour: number;
+  /** Część `metal`/`crystal` z kopalń (na minutę) — tyle ubywa ze złóż, gdy magazyn ma miejsce. */
+  fromDeposits: Resources;
 }
 
 export type UpgradeFailure = 'unknown-building' | 'max-level' | 'not-enough-resources' | 'storage-too-small' | 'busy' | 'no-fields';
@@ -73,6 +75,33 @@ export function environmentEffect(planet: Planet, id: YieldId, balance: Balance 
   return effect >= 1 ? effect : 1 - (1 - effect) * Math.max(0, balance.environmentPenalty);
 }
 
+const RESOURCES = ['metal', 'crystal'] as const;
+/** Resztka złoża mniejsza od tej liczby jednostek = złoże wyczerpane (błędy zaokrągleń). */
+const DEPOSIT_EPSILON = 1e-3;
+
+/**
+ * Początkowy zasób złóż planety: deterministyczny z danych planety (bogactwo złóż i liczba pól,
+ * oba z seeda) — bez nowych losowań, więc seed, wygląd i `GENERATOR_VERSION` bez zmian.
+ */
+export function depositTotal(planet: Planet, balance: Balance = BALANCE): Resources {
+  const g = planet.gameplay;
+  const size = g.fields / 100;
+  return {
+    metal: Math.round(balance.deposits.perHundredFields.metal * g.richness.metal * size),
+    crystal: Math.round(balance.deposits.perHundredFields.crystal * g.richness.crystal * size),
+  };
+}
+
+/** Ile zostało w złożach (0 = wyczerpane). */
+export function depositsLeft(state: EconomyState, planet: Planet, balance: Balance = BALANCE): Resources {
+  const total = depositTotal(planet, balance);
+  const left = (id: (typeof RESOURCES)[number]) => {
+    const rest = total[id] - (state.mined?.[id] ?? 0);
+    return rest < DEPOSIT_EPSILON ? 0 : rest;
+  };
+  return { metal: left('metal'), crystal: left('crystal') };
+}
+
 export function productionRates(state: EconomyState, planet: Planet, balance: Balance = BALANCE): Rates {
   const env = {
     metal: environmentEffect(planet, 'metal', balance),
@@ -81,12 +110,16 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
   };
   const rich = planet.gameplay.richness;
   const growth = balance.levelGrowth;
+  const deposits = depositsLeft(state, planet, balance);
   let energyProduced = 0;
   let energyUsed = 0;
   const consumers: { def: BuildingDef; output: number; need: number; priority: number }[] = [];
   for (const def of balance.buildings) {
     const level = state.levels[def.id] ?? 0;
-    const { work, priority } = buildingSettings(state, def.id);
+    const { work: setWork, priority } = buildingSettings(state, def.id);
+    // Kopalnia na wyczerpanym złożu stoi i nie pobiera energii (dostaną ją inne budynki).
+    const dry = (def.produces === 'metal' || def.produces === 'crystal') && deposits[def.produces] <= 0;
+    const work = dry ? 0 : setWork;
     // Produktywność skaluje wydobycie i zużycie energii; teren — tylko wydobycie.
     const output = scaled(def.baseOutput, level, growth) * work * (state.siteFactor?.[def.id] ?? 1);
     const need = scaled(def.baseEnergyUse, level, growth) * work;
@@ -125,6 +158,7 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
     efficiency,
     efficiencyBy,
     antimatterPerHour: balance.antimatter.passivePerHour + collector,
+    fromDeposits: { metal, crystal },
   };
 }
 
@@ -178,21 +212,52 @@ export function constructionProgress(state: EconomyState, now: number): number {
  */
 export function advance(state: EconomyState, planet: Planet, now: number, balance: Balance = BALANCE): EconomyState {
   let budget = balance.maxOfflineSeconds;
-  const produce = (s: EconomyState, until: number): EconomyState => {
-    const seconds = Math.min(Math.max(0, (until - s.lastUpdate) / 1000), budget);
-    if (seconds === 0) return until > s.lastUpdate ? { ...s, lastUpdate: until } : s;
-    budget -= seconds;
-    const rates = productionRates(s, planet, balance);
-    const minutes = seconds / 60;
-    const cap = storageCapacity(s, balance);
-    // Pełny magazyn zatrzymuje przyrost; nadwyżki ponad pojemność (np. zwrot kosztu) nie przepadają.
-    const fill = (have: number, perMinute: number) => (have >= cap ? have : Math.min(cap, have + perMinute * minutes));
-    return {
-      ...s,
-      stock: { metal: fill(s.stock.metal, rates.metal), crystal: fill(s.stock.crystal, rates.crystal) },
-      antimatter: s.antimatter + (rates.antimatterPerHour * seconds) / 3600,
-      lastUpdate: until,
-    };
+  const produce = (start: EconomyState, until: number): EconomyState => {
+    let s = start;
+    // Wyczerpanie złoża zmienia podział energii, więc od tej chwili liczymy od nowa (najwyżej
+    // kilka odcinków: każdy kończy się czasem `until`, wyczerpaniem złoża albo pełnym magazynem).
+    for (let round = 0; ; round++) {
+      const seconds = Math.min(Math.max(0, (until - s.lastUpdate) / 1000), budget);
+      if (seconds === 0) return until > s.lastUpdate ? { ...s, lastUpdate: until } : s;
+      const rates = productionRates(s, planet, balance);
+      const cap = storageCapacity(s, balance);
+      const left = depositsLeft(s, planet, balance);
+      let span = seconds;
+      if (round < 4) {
+        for (const id of RESOURCES) {
+          const perMinute = rates.fromDeposits[id];
+          if (perMinute > 0 && s.stock[id] < cap) span = Math.min(span, (left[id] / perMinute) * 60);
+        }
+      }
+      budget -= span;
+      const minutes = span / 60;
+      const stock = { ...s.stock };
+      const mined = { metal: s.mined?.metal ?? 0, crystal: s.mined?.crystal ?? 0 };
+      let dug = false;
+      for (const id of RESOURCES) {
+        const fromDeposit = Math.min(left[id], rates.fromDeposits[id] * minutes);
+        const potential = (rates[id] - rates.fromDeposits[id]) * minutes + fromDeposit;
+        const have = s.stock[id];
+        // Pełny magazyn zatrzymuje przyrost; nadwyżki ponad pojemność (np. zwrot kosztu) nie przepadają.
+        if (have >= cap || potential <= 0) continue;
+        stock[id] = Math.min(cap, have + potential);
+        // Złoże traci tylko to, co faktycznie trafiło do magazynu (część kopalń w przyroście).
+        const used = fromDeposit * ((stock[id] - have) / potential);
+        if (used > 0) {
+          mined[id] += left[id] - used < DEPOSIT_EPSILON ? left[id] : used;
+          dug = true;
+        }
+      }
+      const done = span >= seconds;
+      s = {
+        ...s,
+        stock,
+        ...(dug || s.mined ? { mined } : {}),
+        antimatter: s.antimatter + (rates.antimatterPerHour * span) / 3600,
+        lastUpdate: done ? until : s.lastUpdate + span * 1000,
+      };
+      if (done) return s;
+    }
   };
 
   const c = state.construction;

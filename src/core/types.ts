@@ -227,6 +227,11 @@ export interface EconomyState {
    * na innym — słabiej. Liczy gra z zajętych pól; brak = 1.
    */
   siteFactor?: Partial<Record<BuildingId, number>>;
+  /**
+   * Ile metalu i kryształów kopalnie wydobyły już ze złóż planety (od v0.27; brak = nic).
+   * Zasób złoża = `depositTotal(planet)` − `mined`; zgromadzony zapas (`stock`) to osobna rzecz.
+   */
+  mined?: Resources;
 }
 
 /** Ustawienia budynku z panelu „Zarządzanie” (0..1). */
@@ -279,6 +284,11 @@ export interface Balance {
   environmentPenalty: number;
   /** Mnożnik czasu badań (badania „przyspieszające badania” go zmniejszają). */
   researchTimeFactor: number;
+  /**
+   * Naturalne złoża planety: zasób = `perHundredFields` × bogactwo złóż × (pola / 100).
+   * Kopalnie je wyczerpują; przyrost podstawowy (`passiveIncome`) — nie (nigdy nie ma blokady).
+   */
+  deposits: { perHundredFields: Resources };
   /** Statek kolonizacyjny (kolonizacja innych układów): koszt i czas lotu = base + odległość × perUnit. */
   colonyShip: { cost: Resources; baseSeconds: number; secondsPerUnit: number };
   buildings: readonly BuildingDef[];

@@ -133,7 +133,7 @@ export function computeLayout(
         : state.open === 'planets'
           ? HEADER_H * u + planetRows * (PLANET_ROW_H + PLANET_ROW_GAP) * u + planetFooterRows(dock.hidden.length) * (TOUCH + gap) + pad
           : state.open === 'planet'
-          ? 320 * u
+          ? 370 * u
           : HEADER_H * u + (aiRows > 0 ? 50 * u + aiRows * 78 * u + TOUCH + 2 * pad : 110 * u);
     let rect: Rect;
     if (side) {

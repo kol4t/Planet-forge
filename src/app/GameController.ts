@@ -3,6 +3,8 @@ import { hasRoomFor, reconcilePlots, siteFactors, suits, usedLandFields, type Pl
 import {
   advance,
   buildSeconds,
+  depositsLeft,
+  depositTotal,
   fitsInStorage,
   cancelConstruction,
   constructionProgress,
@@ -51,7 +53,7 @@ import {
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, JournalEntry, JournalKind, Planet, ResearchState, Resources } from '../core/types.ts';
+import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, JournalEntry, JournalKind, Planet, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -99,6 +101,18 @@ export interface BuildingInfo {
   onIce: number;
   /** Złoża planety dla tego, co budynek wydobywa (1 = 100%); null — budynek nic nie wydobywa. */
   richness: number | null;
+  /** Zasób złoża (tylko kopalnie metalu i kryształów). */
+  deposit: DepositInfo | null;
+}
+
+/** Naturalne złoże planety (od v0.27): ile było, ile zostało, tempo i czas do wyczerpania. */
+export interface DepositInfo {
+  total: number;
+  left: number;
+  /** Ile kopalnie wydobywają teraz ze złoża (na minutę). */
+  perMinute: number;
+  /** Sekundy do wyczerpania przy obecnym wydobyciu; null — nie ubywa (kopalnia stoi, pełny magazyn, złoże puste). */
+  secondsLeft: number | null;
 }
 
 export interface FieldsInfo {
@@ -280,7 +294,22 @@ export class GameController {
       suitedGroups: cells.filter((c) => suits(id, c)).length,
       onIce: cells.filter((c) => c.kind === 'ice').length,
       richness: produces === 'metal' || produces === 'crystal' || produces === 'energy' ? slot.planet.gameplay.richness[produces] : null,
+      deposit: produces === 'metal' || produces === 'crystal' ? this.deposits[produces] : null,
     };
+  }
+
+  /** Złoża aktywnej planety: zasób, tempo wydobycia i czas do wyczerpania. */
+  get deposits(): Record<ResourceId, DepositInfo> {
+    const total = depositTotal(this.planet, this.balance);
+    const left = depositsLeft(this.economy, this.planet, this.balance);
+    const rates = this.rates;
+    const cap = storageCapacity(this.economy, this.balance);
+    const info = (id: ResourceId): DepositInfo => {
+      const perMinute = rates.fromDeposits[id];
+      const flowing = left[id] > 0 && perMinute > 0 && this.economy.stock[id] < cap;
+      return { total: total[id], left: left[id], perMinute, secondsLeft: flowing ? (left[id] / perMinute) * 60 : null };
+    };
+    return { metal: info('metal'), crystal: info('crystal') };
   }
 
   get rates(): Rates {

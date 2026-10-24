@@ -143,7 +143,7 @@ test('maksymalny poziom blokuje ulepszenie', () => {
 
 test('czas oczekiwania na zasoby', () => {
   const e = { ...createEconomy(0), stock: { metal: 0, crystal: 100 } };
-  const rates = { metal: 30, crystal: 10, energyProduced: 0, energyUsed: 0, efficiency: 1, efficiencyBy: {}, antimatterPerHour: 1 };
+  const rates = { metal: 30, crystal: 10, energyProduced: 0, energyUsed: 0, efficiency: 1, efficiencyBy: {}, antimatterPerHour: 1, fromDeposits: { metal: 24, crystal: 7 } };
   assert.equal(secondsUntilAffordable(e, { metal: 60, crystal: 50 }, rates), 120);
   assert.equal(secondsUntilAffordable(e, { metal: 0, crystal: 50 }, rates), 0);
   assert.equal(secondsUntilAffordable(e, { metal: 10, crystal: 0 }, { ...rates, metal: 0 }), Infinity);

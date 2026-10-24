@@ -268,4 +268,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 151. „Wyślij na GitHub” otwiera gotowe zgłoszenie w repozytorium (po zalogowaniu wystarczy „Create”); „Kopiuj” kopiuje całe zgłoszenie (dla osób bez konta GitHub).
 152. Wpisany tekst zostaje po powrocie z GitHuba; „Wyczyść zgłoszenie” go usuwa.
 
+### Od 0.27: skończone złoża
+
+153. Panel **„Planeta”**: pod paskami „ZŁOŻA” dwa wiersze — „Metal: zostało … z … (…%) · wyczerpie się za ok. …” i to samo dla kryształów. Na nowej planecie złoża są pełne (100%); stare zapisy też zaczynają od pełnych złóż.
+154. Ikona ustawień na karcie kopalni (**„Zarządzanie”**): na dole wiersz o złożu tej kopalni.
+155. Gdy złoże się wyczerpie: karta kopalni pisze na czerwono „Złoże wyczerpane — kopalnia stoi”, surowiec rośnie już tylko o przyrost podstawowy (+6/min metalu, +3/min kryształów), zgromadzone surowce zostają, a energia przechodzi na inne budynki.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

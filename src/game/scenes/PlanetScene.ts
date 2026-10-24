@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import type { GameController, PlanetOverview } from '../../app/GameController.ts';
+import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled } from '../../core/economy/economy.ts';
 import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
 import { ringLimit } from '../../core/research/research.ts';
-import type { BuildingId, BuildingSettings, YieldId } from '../../core/types.ts';
+import type { BuildingId, BuildingSettings, ResourceId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import { findResearch } from '../../data/research.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
@@ -27,7 +27,7 @@ import {
   type Rect,
 } from '../ui/layout.ts';
 import { loadPanels, savePanels, FOCUS_ZOOMS, loadFocusZoom, loadGridVisible, saveFocusZoom, saveGridVisible } from '../ui/uiPrefs.ts';
-import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
+import { COLORS, FONTS, formatAmount, formatDuration, formatInt, formatRate, formatSpan } from '../ui/theme.ts';
 import { OVERLAY_CLOSED } from './OverlayScene.ts';
 
 export interface Viewport {
@@ -104,6 +104,15 @@ const RICHNESS_ROWS: readonly [YieldId, string, number][] = [
   ['energy', 'Energia', COLORS.goldHex],
 ];
 
+/** „Metal: zostało 1,9 mln z 2,0 mln (97%) · wyczerpie się za ok. 5 d 3 h”. */
+function depositLine(id: ResourceId, d: DepositInfo): string {
+  const name = id === 'metal' ? 'Metal' : 'Kryształy';
+  if (d.left <= 0) return `${name}: złoże wyczerpane — kopalnia stoi`;
+  const share = Math.ceil((d.left / Math.max(1, d.total)) * 100);
+  const when = d.secondsLeft !== null ? ` · wyczerpie się za ok. ${formatSpan(d.secondsLeft)}` : ' · wydobycie stoi';
+  return `${name}: zostało ${formatAmount(d.left)} z ${formatAmount(d.total)} (${share}%)${when}`;
+}
+
 const YIELD_NAMES: Record<YieldId, string> = { metal: 'metal', crystal: 'kryształy', energy: 'energia' };
 
 const DOCK_LABELS: Record<DockItemId, string> = {
@@ -143,6 +152,9 @@ export class PlanetScene extends Phaser.Scene {
   /** Panel „Planety”: teksty stanu w wierszach (odświeżane co sekundę). */
   private planetStatus: { index: number; text: Phaser.GameObjects.Text }[] = [];
   private planetStatusAt = 0;
+  /** Wiersze zasobu złóż w panelu „Planeta” (odświeżane co sekundę). */
+  private depositRows: { id: ResourceId; text: Phaser.GameObjects.Text }[] = [];
+  private depositRowsAt = 0;
   /** Otwarty panel SI: stan reguł przy ostatnim rysowaniu (zmiana = przebudowa). */
   private aiPanelShape = '';
   /** Dymek SI Matki z bieżącą propozycją (klucz = propozycja + poziom). */
@@ -332,6 +344,7 @@ export class PlanetScene extends Phaser.Scene {
     this.ui = this.add.container(0, 0);
     this.cards = [];
     this.planetStatus = [];
+    this.depositRows = [];
     this.dockProgress = null;
     this.aiPanelShape = '';
     this.buildTopBar(layout);
@@ -754,7 +767,15 @@ export class PlanetScene extends Phaser.Scene {
       this.richnessBar(box.x + pad, y, w, label, g.richness[id], color);
       y += this.s(26);
     }
-    y += this.s(4);
+    // Zasób złóż: kopalnie go wyczerpują (przyrost podstawowy działa zawsze).
+    const deposits = this.deps.controller.deposits;
+    for (const id of ['metal', 'crystal'] as const) {
+      const t = this.text(box.x + pad, y, '', 10.5, COLORS.stone, { wordWrap: { width: this.px(w) } });
+      this.setDepositRow(t, id, deposits[id]);
+      this.depositRows.push({ id, text: t });
+      y += t.height / this.dpr + this.s(3);
+    }
+    y += this.s(6);
     this.text(box.x + pad, y, 'ŚRODOWISKO', 9.5, COLORS.muted, { fontStyle: '600' });
     y += this.s(14);
     this.text(box.x + pad, y, g.environment.label, 13.5, COLORS.text, { fontStyle: '600' });
@@ -763,6 +784,11 @@ export class PlanetScene extends Phaser.Scene {
       wordWrap: { width: this.px(w) },
       lineSpacing: this.px(2),
     });
+  }
+
+  private setDepositRow(t: Phaser.GameObjects.Text, id: ResourceId, d: DepositInfo): void {
+    t.setText(depositLine(id, d));
+    t.setColor(d.left <= 0 ? COLORS.danger : COLORS.stone);
   }
 
   /** Panel „SI”: stan SI Matki i samodzielność każdej reguły (pełny opis w „Imperium” → „SI”). */
@@ -1019,6 +1045,11 @@ export class PlanetScene extends Phaser.Scene {
         if (p) this.setPlanetStatus(row.text, p);
       }
     }
+    if (this.depositRows.length > 0 && now - this.depositRowsAt >= 1000) {
+      this.depositRowsAt = now;
+      const deposits = controller.deposits;
+      for (const row of this.depositRows) this.setDepositRow(row.text, row.id, deposits[row.id]);
+    }
     if (this.dockProgress) {
       // Zamknięta „Produkcja”: cienki złoty pasek postępu budowy na przycisku paska.
       const { progress: g, bar } = this.dockProgress;
@@ -1092,6 +1123,8 @@ export class PlanetScene extends Phaser.Scene {
       } else if (def.produces === 'storage') {
         const next = capacityAtLevel(level + 1, balance);
         card.effect.setText(`Na poz. ${level + 1}: pojemność ${formatInt(next)} (+${formatInt(next - capacityAtLevel(level, balance))})`);
+      } else if ((def.produces === 'metal' || def.produces === 'crystal') && controller.deposits[def.produces].left <= 0) {
+        card.effect.setText('Złoże wyczerpane — kopalnia stoi');
       } else {
         const richness = controller.planet.gameplay.richness[def.produces];
         const env = environmentEffect(controller.planet, def.produces, balance);
@@ -1099,7 +1132,8 @@ export class PlanetScene extends Phaser.Scene {
         const unit = def.produces === 'energy' ? 'energii' : def.produces === 'metal' ? 'metalu/min' : 'kryształów/min';
         card.effect.setText(`Na poz. ${level + 1}: +${formatRate(gain)} ${unit}${energyNext}`);
       }
-      card.effect.setColor(def.produces === 'research' && controller.research.current ? COLORS.gold : COLORS.teal);
+      const dry = (def.produces === 'metal' || def.produces === 'crystal') && controller.deposits[def.produces].left <= 0;
+      card.effect.setColor(dry ? COLORS.danger : def.produces === 'research' && controller.research.current ? COLORS.gold : COLORS.teal);
       card.progress.clear();
       const { x: bx, w: bw, gap: bgap } = card.buttons;
       const building = construction?.building === card.id;
@@ -1414,6 +1448,7 @@ export class PlanetScene extends Phaser.Scene {
       lines.push(`Najlepszy teren: ${terrain[id]} — ${info.suitedGroups} z ${info.groups} pól. Wydajność terenu: ${pct(info.siteFactor)} (pola poza nim pracują w 75%).`);
     }
     if (info.richness !== null) lines.push(`Złoża planety: ${pct(info.richness)}.`);
+    if (info.deposit) lines.push(`${depositLine(def.produces === 'metal' ? 'metal' : 'crystal', info.deposit)}.`);
     if (id === 'storage') lines.push('Magazyn nie ma ustawień pracy — tu przybędą funkcje z badań.');
     add(lines.join('\n'), 12, COLORS.stone, {}, gap * 1.5);
     const closeBtn = new Button(this, w - pad - this.px(this.s(150)), y, this.px(this.s(150)), buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle('primary');

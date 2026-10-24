@@ -57,3 +57,21 @@ export function formatClock(at: number, now = Date.now()): string {
   if (day(at) === day(now - 86_400_000)) return `wczoraj ${time}`;
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${time}`;
 }
+
+/** Duże ilości w skrócie: „1,9 mln”, „45 tys.”, „870”. */
+export function formatAmount(value: number): string {
+  if (value >= 1_000_000) return `${oneDecimal.format(Math.floor(value / 100_000) / 10)} mln`;
+  if (value >= 10_000) return `${whole.format(Math.floor(value / 1000))} tys.`;
+  return formatInt(value);
+}
+
+/** Długi czas w przybliżeniu: „45 min”, „12 h 30 min”, „5 d 3 h”. */
+export function formatSpan(seconds: number): string {
+  if (!Number.isFinite(seconds)) return '—';
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} h${minutes % 60 ? ` ${minutes % 60} min` : ''}`;
+  const days = Math.floor(hours / 24);
+  return `${days} d${hours % 24 ? ` ${hours % 24} h` : ''}`;
+}

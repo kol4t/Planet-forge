@@ -2,7 +2,7 @@
 // wykonanie (po zgodzie gracza albo samodzielnie) robi kontroler zwykłymi akcjami gry.
 import { BALANCE } from '../../data/balance.ts';
 import { RESEARCH_NODES } from '../../data/research.ts';
-import { fitsInStorage, getBuilding, productionRates, scaled, storageCapacity, upgradeCost } from '../economy/economy.ts';
+import { depositsLeft, fitsInStorage, getBuilding, productionRates, scaled, storageCapacity, upgradeCost } from '../economy/economy.ts';
 import { researchCost, researchStatus } from '../research/research.ts';
 import type { Balance, BuildingId, EconomyState, Planet, ResearchState, Resources, BuildingLevels } from '../types.ts';
 
@@ -60,11 +60,15 @@ export function suggest(input: AdvisorInput): AiSuggestion[] {
   const { economy, planet, balance } = input;
   const out: AiSuggestion[] = [];
   const builderFree = economy.construction === null;
+  const deposits = depositsLeft(economy, planet, balance);
   const canBuild = (id: BuildingId) => {
     const level = economy.levels[id] ?? 0;
     // SI rozwija budynki najwyżej do poziomu Laboratorium tej planety (decyzja właściciela).
     if (level >= balance.maxLevel || level + 1 > input.labLevel) return null;
     if (input.hasRoom && !input.hasRoom(id, economy.levels)) return null;
+    // Kopalnia na wyczerpanym złożu nic już nie wydobędzie.
+    if (id === 'metalMine' && deposits.metal <= 0) return null;
+    if (id === 'crystalMine' && deposits.crystal <= 0) return null;
     const cost = upgradeCost(id, level, balance);
     return affordable(economy, cost, balance) ? { level, cost } : null;
   };

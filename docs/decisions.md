@@ -2,6 +2,18 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.27: skończone złoża metalu i kryształów
+
+Etap 1 planu rozwoju gameplayu (propozycja przekazana przez właściciela): naturalne złoża planety, które kopalnie wyczerpują.
+- **Złoże ≠ zapas.** `stock` = surowce w magazynie gracza; złoże = to, co jeszcze można wydobyć z planety. Wyczerpanie zatrzymuje tylko kopalnię danego surowca — zgromadzone surowce zostają.
+- **Zasób początkowy bez nowych losowań** (`depositTotal`): `deposits.perHundredFields` (robocze: 2 mln metalu, 1,2 mln kryształów) × bogactwo złóż planety × (pola / 100). Bogactwo i pola już wynikają z seeda, więc zasób jest deterministyczny, różny dla planet, a seed, wygląd, strumienie RNG i `GENERATOR_VERSION` się nie zmieniają.
+- **Zapisujemy wydobycie, nie zasób:** `EconomyState.mined` (opcjonalne). Zasób = `depositTotal − mined`. Dzięki temu strojenie wielkości złóż przed MVP nie wymaga migracji. Stare zapisy (bez `mined`) = złoża pełne — każda planeta liczy swój zasób z własnego seeda; nie zgadujemy historycznego wydobycia (to mogłoby odebrać graczowi postęp). `SAVE_VERSION` / `EMPIRE_VERSION` bez zmian, eksport `PF2` niesie pole automatycznie.
+- **Złoże traci tylko faktyczny urobek kopalń:** z uwzględnieniem poziomu, produktywności, energii i pierwszeństwa, terenu, środowiska, premii z badań. Przyrost podstawowy (`passiveIncome`, 6/3 na min) **nie** zużywa złóż — gwarancja, że gra nigdy się nie blokuje. Przy pełnym magazynie złoże nie ubywa; gdy magazyn zapełnia się w trakcie, złoże traci część kopalń w tym, co się zmieściło (proporcjonalnie).
+- **Kopalnia na pustym złożu stoi i nie pobiera energii** — energia przechodzi na inne budynki. `advance` dzieli czas w chwili wyczerpania (najwyżej kilka odcinków), więc wynik nie zależy od częstotliwości odświeżania i nadrabianie nieobecności (limit 8 h) daje to samo co gra na bieżąco (test).
+- **SI** nie proponuje rozbudowy kopalni na wyczerpanym złożu. Ulepszanie takiej kopalni ręcznie jest nadal możliwe (na przyszłość: badania mogą powiększać złoża).
+- **UI:** panel „Planeta” pod paskami bogactwa — „Metal: zostało X z Y (Z%) · wyczerpie się za ok. …” (odświeżane co sekundę; „wydobycie stoi”, gdy nie ubywa), karta kopalni „Złoże wyczerpane — kopalnia stoi” (czerwono), to samo w oknie „Zarządzanie”. Panel „Planeta” wyższy (320 → 370 × u).
+- Poza zakresem tego etapu (świadomie): materia, stacja, informacja geologiczna przed kolonizacją, odnawianie złóż.
+
 ## 2026-10-24 — v0.26.5: zgłoszenia testerów (błędy i sugestie) do repozytorium
 
 Prośba właściciela: testerzy mają wysyłać błędy do repozytorium, żeby można je było przeanalizować i poprawić; w diagnostyce — rubryka z sugestiami i propozycjami zmian.

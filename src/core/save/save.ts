@@ -71,7 +71,18 @@ export function parseEconomy(economy: any): EconomyState | null {
     // Zapisy sprzed antymaterii dostają zapas startowy.
     antimatter: isNum(economy.antimatter) ? Math.max(0, economy.antimatter) : BALANCE.antimatter.startingStock,
     ...parseBuildingMaps(economy),
+    ...parseMined(economy.mined),
   };
+}
+
+/**
+ * Wydobycie ze złóż (od v0.27). Starsze zapisy go nie mają = złoża pełne: każda planeta liczy
+ * swój zasób z własnego seeda, a zgromadzone surowce i poziomy zostają bez zmian.
+ */
+function parseMined(raw: any): Pick<EconomyState, 'mined'> {
+  const ok = (v: unknown): v is number => isNum(v) && v >= 0;
+  if (!raw || (!ok(raw.metal) && !ok(raw.crystal))) return {};
+  return { mined: { metal: ok(raw.metal) ? raw.metal : 0, crystal: ok(raw.crystal) ? raw.crystal : 0 } };
 }
 
 /** Ustawienia budynków i dopasowanie do terenu (od v0.26.1) — błędne wartości pomijane. */
