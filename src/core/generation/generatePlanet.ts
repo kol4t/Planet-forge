@@ -1,4 +1,5 @@
 import { createRng, hashString } from '../random/rng.ts';
+import { DEFAULT_HYDROLOGY } from '../surface/hydrology.ts';
 import { pickTerrainMethod, resolveLook, validateProfile } from '../surface/profile.ts';
 import type { Planet, PlanetDefinition, Range, SurfaceStyle, YieldId } from '../types.ts';
 
@@ -13,9 +14,9 @@ export const GENERATOR_VERSION = 1;
  * Wersja WYGLĄDU terenu (`core/surface`). Nie jest zapisywana: po aktualizacji wszystkie planety,
  * także zapisane, dostają nowy teren (decyzja właściciela, wariant A) — rozgrywka bez zmian.
  * 1 = teren v0.1–v0.21 (`legacy`), 2 = trzy metody terenu (v0.22), 3 = profile powierzchni
- * i metoda losowana z wag profilu (v0.23).
+ * i metoda losowana z wag profilu (v0.23), 4 = jeziora, rzeki i lawa (v0.24).
  */
-export const SURFACE_VERSION = 3;
+export const SURFACE_VERSION = 4;
 
 const YIELDS: readonly YieldId[] = ['metal', 'crystal', 'energy'];
 const NAME_LETTERS = 'bcdefg';
@@ -99,6 +100,7 @@ export function generatePlanet(definition: PlanetDefinition, seedInput: string):
       style: { ...DEFAULT_SURFACE_STYLE, ...v.style },
       profile: definition.surface.profile.id,
       bands: definition.surface.profile.bands,
+      hydrology: { ...DEFAULT_HYDROLOGY, ...definition.surface.profile.hydrology, liquid: definition.surface.profile.liquid },
       terrainMethod: pickTerrainMethod(definition, seed),
       surfaceVersion: SURFACE_VERSION,
     },

@@ -12,7 +12,7 @@ export class PlanetThumbnail {
   private image: ImageData | null = null;
 
   constructor(planet: Planet) {
-    this.look = discLook(planet);
+    this.look = discLook(planet, { inland: false });
   }
 
   /** Rysuje planetę obróconą o `yaw` w lewym górnym rogu `ctx` (THUMBNAIL_SIZE × THUMBNAIL_SIZE). */

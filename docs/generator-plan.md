@@ -280,7 +280,9 @@ Zrobione: profile jako dane, metoda losowana z wag, materiały z pasm, `npm run 
 
 Ryzyka: wygląd istniejących planet się zmienia (pytanie 1), a nazwy profili wymagają Lore Bible (status „robocza”).
 
-### Etap 5 — woda i lawa (v0.24)
+### Etap 5 — woda i lawa (v0.24) ✔
+Zrobione: hydrologia na siatce, jeziora, rzeki, lawa, widok 2D i 3D — szczegóły w `docs/decisions.md` (v0.24). Odstępstwa: jeziora w 3D przez podniesienie wierzchołków lądu do lustra (bez osobnej siatki), lawa osobną siatką; `lava.ts` jest częścią `hydrology.ts`.
+
 | Plik | Zmiana |
 |---|---|
 | `src/core/surface/hydrology.ts` | priority-flood, jeziora, akumulacja spływu, rzeki |
@@ -329,7 +331,7 @@ Pomiary: czas generowania, wierzchołki, draw calle, FPS na iPadzie przed i po, 
 
 **Podjęte:** 1 → **A** (nowy wygląd dla wszystkich planet, rozgrywka bez zmian); 2 → **dodać roboczy typ „jałowa”** (zrobione w v0.18).
 
-**Stan etapów:** etap 1 ✔ · etap 2 ✔ (v0.18 — model na siatce z cieczą ocean/zamarznięte morze; jeziora, rzeki i lawa dochodzą w etapie 5, materiały profili w etapie 4) · etap 3 ✔ (v0.22 — metody tectonic, erosion, fractured) · etap 4 ✔ (v0.23 — sześć profili, atlas).
+**Stan etapów:** etap 1 ✔ · etap 2 ✔ (v0.18 — model na siatce z cieczą ocean/zamarznięte morze; jeziora, rzeki i lawa dochodzą w etapie 5, materiały profili w etapie 4) · etap 3 ✔ (v0.22 — metody tectonic, erosion, fractured) · etap 4 ✔ (v0.23 — sześć profili, atlas) · etap 5 ✔ (v0.24 — jeziora, rzeki, lawa).
 
 Pytania w pierwotnym brzmieniu:
 

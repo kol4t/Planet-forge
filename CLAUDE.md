@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.23 — opublikowana)
+## Stan obecny (v0.24 — na gałęzi, czeka na akceptację; opublikowana v0.23)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **Przybliżanie dwoma palcami** (1×–3,5×, `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
@@ -46,7 +46,8 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **v0.21**: przycisk ☰ wysuwa panel **„Planety”** — lista planet (miniatury, stan, przełączanie dotknięciem), pod nią Ustawienia i przyciski, które nie zmieściły się na pasku.
 - **v0.22 (przebudowa generatora, etap 3)**: trzy metody terenu w `core/surface/methods/` (rejestr `index.ts`): `tectonic` (płyty, pasma gór na zderzeniach), `erosion` (erozja wodna, doliny wzdłuż spływu), `fractured` (kratery, uskoki, płaskowyże); `legacy` = teren v0.1–v0.21 (test regresji). Metoda preferowana typu w `visual.terrainMethod` danych planety. Kształt „pieczony” raz do mapy sześciennej (`cube.ts`, wspólny potok `methods/baked.ts`), pamięć 24 pól w `field.ts`; wysokości przeliczane do rozkładu `legacy` (udział lądu i paleta bez zmian). `SURFACE_VERSION` = 2. Metryki terenu: `core/surface/metrics.ts`. Obrót palcem bez limitu pochylenia — przez bieguny (`input/dragRotator.ts`).
 - **v0.23 (przebudowa generatora, etap 4)**: **profile powierzchni** jako dane w `src/data/profiles/` (6 profili technicznych, R-003): wygląd, metody terenu z wagami, kombinacje niezgodne, ciecz, oczekiwany ląd, pasma materiałów. Typ planety: `surface: { profile }`, `visual` tylko nadpisuje (`core/surface/profile.ts`: `resolveLook`, `pickTerrainMethod`, `validateProfile`). Metoda losowana z wag (osobny strumień). `SURFACE_VERSION` = 3. `npm run atlas` → `docs/atlas/`. Zmiana grafiki 2D ↔ 3D zachowuje obrót planety.
-- 172 testy (w tym profile, metody terenu, badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
+- **v0.24 (przebudowa generatora, etap 5)**: **woda i lawa** — `core/surface/hydrology.ts` (zalewanie od morza → jeziora z płaskim lustrem, spływ → rzeki do morza/jezior, lawa: jeziora lawy i strumienie z najwyższych szczytów); wynik pieczony do map sześciennych (`SurfaceField.inland`, liczone leniwie, miniatury bez hydrologii). Profil: `liquid` + `hydrology`. 2D: jeziora, rzeki, świecąca lawa; 3D: płaskie lustra jezior, osobna siatka lawy (animowany kolor). Kolonia omija wodę i lawę. `SURFACE_VERSION` = 4.
+- 176 testów (w tym hydrologia, profile, metody terenu, badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -119,8 +120,8 @@ Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacj
 1. ~~Pomiar płynności~~ (v0.21: 3D 59/48 kl./s, 2D 58/50 — `docs/decisions.md`).
 2. ~~Trzy metody terenu~~ (v0.22, etap 3 planu generatora; opublikowana — test na iPadzie u właściciela).
 3. ~~Sześć profili i `npm run atlas`~~ (v0.23, etap 4; opublikowana — test na iPadzie u właściciela).
-4. **Woda i lawa** (v0.24, etap 5) — po etapie ponowny pomiar kl./s.
-5. **Światło, atmosfera, kamera** (v0.25, etap 6).
+4. ~~Woda i lawa~~ (v0.24, etap 5) — czeka na test na iPadzie i pomiar kl./s.
+5. **Światło, atmosfera, kamera** (v0.25, etap 6) + kolor terenu z materiałów profilu.
 6. **Dokończenie UI** (v0.26, reszta etapu 7 — dolny pasek i panel już są od v0.19).
 7. **Laboratorium planet** (v0.27, etap 8) i raport końcowy przebudowy.
 

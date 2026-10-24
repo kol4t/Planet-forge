@@ -328,7 +328,7 @@ function drawBody(canvas: HTMLCanvasElement, body: DistantBody, radius: number, 
     disc.width = disc.height = size;
     const dctx = disc.getContext('2d')!;
     const image = dctx.createImageData(size, size);
-    renderDisc(image.data, size, discLook(planet), 0.8, 0.25);
+    renderDisc(image.data, size, discLook(planet, { inland: false }), 0.8, 0.25);
     dctx.putImageData(image, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(disc, c - radius, c - radius, radius * 2, radius * 2);

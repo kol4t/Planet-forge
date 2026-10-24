@@ -8,7 +8,8 @@
 import type { PlanetVisual } from '../../types.ts';
 import { bakeCube, sampleCube } from '../cube.ts';
 import { sphereGrid } from '../grid.ts';
-import type { SphereGrid, SurfaceField, TerrainMethodId } from '../types.ts';
+import { computeHydrology } from '../hydrology.ts';
+import type { InlandField, SphereGrid, SurfaceField, TerrainMethodId } from '../types.ts';
 import { createIce, legacyHeight } from './legacy.ts';
 
 export interface TerrainRecipe {
@@ -92,16 +93,64 @@ export function bakedField(v: PlanetVisual, method: TerrainMethodId, recipe: Ter
   const last = from.length - 1;
   const slope = (k: number) => (to[k + 1]! - to[k]!) / (from[k + 1]! - from[k]!);
 
+  const height = (x: number, y: number, z: number) => {
+    const r = raw(x, y, z);
+    let k = 0;
+    while (k < last - 1 && r > from[k + 1]!) k++;
+    const h = to[k]! + (r - from[k]!) * slope(k);
+    return h < MIN_H ? MIN_H : h > MAX_H ? MAX_H : h;
+  };
+  // Hydrologia liczona dopiero przy pierwszym użyciu — miniatury i sąsiedzi na niebie jej nie potrzebują.
+  let inland: InlandField | null | undefined;
   return {
     method,
     seaLevel: v.seaLevel,
-    height(x, y, z) {
-      const r = raw(x, y, z);
-      let k = 0;
-      while (k < last - 1 && r > from[k + 1]!) k++;
-      const h = to[k]! + (r - from[k]!) * slope(k);
-      return h < MIN_H ? MIN_H : h > MAX_H ? MAX_H : h;
-    },
+    height,
     ice: createIce(v),
+    get inland() {
+      if (inland === undefined) inland = v.hydrology.liquid === 'none' ? null : inlandField(v, height);
+      return inland ?? undefined;
+    },
+  };
+}
+
+/** Wzmocnienie pól liniowych (rzeki, strumienie lawy) po interpolacji. */
+const LINE_GAIN = 1.8;
+
+/** Siatka hydrologii (detail 32 ≈ 10,9 tys. węzłów). */
+export const HYDROLOGY_DETAIL = 32;
+
+/** Jeziora, rzeki i lawa: hydrologia na siatce, potem „pieczenie” do map sześciennych jak teren. */
+function inlandField(v: PlanetVisual, height: (x: number, y: number, z: number) => number): InlandField {
+  const grid = sphereGrid(HYDROLOGY_DETAIL);
+  const hydro = computeHydrology(grid, sampleNodes(grid, height), v.seaLevel, v.hydrology);
+  const { count, neighborStart, neighbors } = grid;
+  const mask = new Float32Array(count);
+  // Lustro także w węzłach przy brzegu (z sąsiedniego jeziora) — interpolacja nie „opada” przy brzegu.
+  const level = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    let l = hydro.lakeLevel[i]!;
+    if (l >= 0) mask[i] = 1;
+    else for (let k = neighborStart[i]!; k < neighborStart[i + 1]!; k++) l = Math.max(l, hydro.lakeLevel[neighbors[k]!]!);
+    level[i] = Math.max(0, l);
+  }
+  const bake = (values: Float32Array, gain = 1) => {
+    const cube = bakeCube(CUBE_RES, gridInterpolator(grid, values));
+    return gain === 1
+      ? (x: number, y: number, z: number) => sampleCube(cube, x, y, z)
+      : (x: number, y: number, z: number) => Math.min(1, sampleCube(cube, x, y, z) * gain);
+  };
+  const lakeMask = bake(mask);
+  const lakeLevel = bake(level);
+  // Koryta mają szerokość jednego węzła, a interpolacja z sąsiadami spłaszcza je mniej więcej o połowę —
+  // wzmocnienie przywraca wartości ≥ 0,5 wzdłuż koryta (rzeka i strumień lawy są ciągłe i widoczne).
+  const river = hydro.riverNodes > 0 ? bake(hydro.river, LINE_GAIN) : () => 0;
+  const lava = v.hydrology.liquid === 'lava' ? bake(hydro.lava, LINE_GAIN) : () => 0;
+  return {
+    lakeLevel: (x, y, z) => (hydro.lakes > 0 && lakeMask(x, y, z) >= 0.5 ? lakeLevel(x, y, z) : -1),
+    river,
+    lava,
+    lakes: hydro.lakes,
+    riverNodes: hydro.riverNodes,
   };
 }

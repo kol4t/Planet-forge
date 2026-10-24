@@ -2,6 +2,19 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-24 — v0.24: woda i lawa (przebudowa generatora, etap 5)
+
+- **Hydrologia uproszczona, liczona raz** (`core/surface/hydrology.ts`, siatka detail 32): zalewanie od morza (priority-flood) wypełnia zagłębienia do najniższej przełęczy → jeziora z płaskim lustrem (min. głębokość i wielkość z profilu); kolejność zalewania wyznacza spływ do morza → rzeki tam, gdzie zlewnia przekracza próg. Rzeka zawsze płynie w dół (po powierzchni po zalaniu) i kończy się w morzu albo jeziorze.
+- **Lawa** (profil z `liquid: 'lava'`): jeziora stają się jeziorami lawy (kaldery, stygnąca skorupa), a z najwyższych szczytów (do 6, odstęp ≥ 4 węzły) spływają strumienie najstromszym spadkiem — nigdy wyżej niż źródło, chłodniejsze dalej od źródła. Na planecie z lawą nie ma rzek wody; planeta jałowa (`none`) nie ma żadnej cieczy na lądzie. Morze lawy jak dotąd.
+- **Profile stroją wodę** (`hydrology` w profilu): pustynia — rzadkie, głębokie jeziora i tylko duże rzeki; wulkaniczna — jeziora lawy tylko w wyraźnych kalderach.
+- **Wyniki „pieczone”** do map sześciennych jak teren (`methods/baked.ts`, pole `inland` w `SurfaceField`). Koryta mają szerokość jednego węzła; interpolacja spłaszcza je, więc pola liniowe są wzmocnione ×1,8. Hydrologia liczona **leniwie** — miniatury i sąsiedzi na niebie jej nie używają (`discLook(planet, { inland: false })`), więc mapa układu nie zwalnia.
+- **Model powierzchni:** nowe kody cieczy (dopisane): jezioro 3, rzeka 4, lawa 5; materiał `lava`. Walidacja: morze tylko poniżej poziomu morza, ląd/jeziora/rzeki/lawa powyżej.
+- **Widok 2D:** jeziora (płytko przy brzegu, głębiej w środku), rzeki w kolorze płytkiej wody, lawa świeci także nocą. **3D:** jeziora jako płaskie lustro na poziomie przelewu (wierzchołki lądu podniesione do lustra — bez dodatkowej siatki i migotania), rzeki jako fasety w kolorze wody, lawa jako **jedna dodatkowa siatka** bez cieniowania tuż nad lądem (+1 draw call tylko na planetach z lawą), animowany jest tylko jej kolor.
+- **Kolonia** nie stawia budowli w jeziorach, rzekach ani lawie (`isLand` z punktem); platformy na jeziorze stoją na lustrze. Gdy dzielnica jest otoczona wodą, po 300 próbach krąg poszukiwań się poszerza.
+- **Koszt** (Node): pieczenie z hydrologią 20–250 ms na planetę (najdłużej erozja); rysowanie tarczy 2D (180 px) dalej szybsze niż teren sprzed v0.22: 20–27 ms wobec 33–36 ms na klatkę w Node. `SURFACE_VERSION` = 4.
+- **Kolor terenu z materiałów** (piasek, bazalt, regolit) — przesunięty do etapu 6 (światło i kolory), żeby zmieniać wygląd jednym krokiem.
+- **Pomiar v0.23 (iPad, pion, 3D, 60 s):** średnio 60 kl./s, najsłabsza sekunda 53.
+
 ## 2026-10-24 — v0.23: sześć profili powierzchni i atlas (przebudowa generatora, etap 4)
 
 - **Profil powierzchni = dane** (`src/data/profiles/`, typ `SurfaceProfile` w `core/types.ts`): wygląd (paleta, morze, atmosfera, chmury, lód, styl 3D — przeniesione 1:1 z typów planet), dozwolone metody terenu z wagami, kombinacje niezgodne z powodem, rodzaj cieczy (dla etapu 5), oczekiwany udział lądu, pasma materiałów lądu. Profile to kategorie **techniczne** (CANON_STATUS R-003), nazwy robocze.

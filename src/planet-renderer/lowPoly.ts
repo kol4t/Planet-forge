@@ -8,7 +8,12 @@ export interface LowPolyLand {
   /** Pozycje wierzchołków (3 na trójkąt — każda faseta ma własne wierzchołki i kolor). */
   positions: Float32Array;
   colors: Float32Array;
+  /** Fasety lawy (osobna, świecąca siatka tuż nad lądem): pozycje i jasność 0..1 na wierzchołek. */
+  lava: { positions: Float32Array; heat: Float32Array };
 }
+
+/** Siatka lawy wisi tyle nad lądem (ułamek promienia) — bez migotania z lądem pod spodem. */
+export const LAVA_LIFT = 1.0025;
 
 const smoothstep = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -67,12 +72,17 @@ export function buildLowPolyLand(planet: Planet, sampler: SurfaceSampler, unitTr
       const h = sampler.height(x, y, z);
       // Zamarznięte morze: płaska tafla lodu tuż nad wodą (inaczej lód chowa się pod oceanem).
       const frozen = h < sea && sampler.ice(h, x, y, z) > 0.5;
-      v = { h, r: frozen ? FROZEN_SEA_RADIUS : shapedRadius(planet, h) };
+      // Jezioro: płaskie lustro na poziomie przelewu (dno pod nim nie jest widoczne).
+      const level = h >= sea ? sampler.lakeLevel(x, y, z) : -1;
+      const r = frozen ? FROZEN_SEA_RADIUS : level > h ? shapedRadius(planet, level) : shapedRadius(planet, h);
+      v = { h, r };
       cache.set(key, v);
     }
     return v;
   };
   const p = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const lavaPositions: number[] = [];
+  const lavaHeat: number[] = [];
   for (let f = 0; f < faces; f++) {
     let hSum = 0;
     let cx = 0;
@@ -114,6 +124,11 @@ export function buildLowPolyLand(planet: Planet, sampler: SurfaceSampler, unitTr
     const slope = 1 - Math.abs(nx * cx + ny * cy + nz * cz);
     const h = hSum / 3;
     const [r, g, b] = sampler.color(bandHeight(planet, h), cx, cy, cz);
+    const heat = sampler.glow(cx, cy, cz);
+    if (heat > 0.05) {
+      for (let k = 0; k < 9; k++) lavaPositions.push(p[k]! * LAVA_LIFT);
+      lavaHeat.push(heat, heat, heat);
+    }
     const shade = (1 - style.cliffShade * smoothstep(0.02, 0.18, slope)) * (1 + style.facetJitter * jitter(f));
     for (let k = 0; k < 3; k++) {
       const o = f * 9 + k * 3;
@@ -125,5 +140,5 @@ export function buildLowPolyLand(planet: Planet, sampler: SurfaceSampler, unitTr
       colors[o + 2] = Math.min(1, b * shade);
     }
   }
-  return { positions, colors };
+  return { positions, colors, lava: { positions: new Float32Array(lavaPositions), heat: new Float32Array(lavaHeat) } };
 }

@@ -11,6 +11,8 @@ export const VOLCANIC: SurfaceProfile = {
     { id: 'erosion', weight: 1 },
   ],
   liquid: 'lava',
+  // Jeziora lawy tylko w wyraźnych kalderach.
+  hydrology: { lakeNodes: 6, lakeDepth: 0.015 },
   expect: { land: [0.5, 0.97] },
   bands: [
     { upTo: 0.06, material: 'ash' },

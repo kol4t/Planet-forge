@@ -33,6 +33,12 @@ export function classifyPoint(
     if (icy) return { liquid: LIQUID.frozenSea, material: 'seaIce' };
     return { liquid: LIQUID.ocean, material: h > sea - 0.07 ? 'shallowWater' : 'deepWater' };
   }
+  const inland = field.inland;
+  if (inland) {
+    if (inland.lava(x, y, z) >= 0.5) return { liquid: LIQUID.lava, material: 'lava' };
+    if (inland.lakeLevel(x, y, z) >= 0) return { liquid: LIQUID.lake, material: icy ? 'seaIce' : 'shallowWater' };
+    if (inland.river(x, y, z) >= 0.5) return { liquid: LIQUID.river, material: icy ? 'glacier' : 'shallowWater' };
+  }
   if (icy) return { liquid: LIQUID.none, material: 'glacier' };
   const t = (h - sea) / (1 - sea);
   for (const band of bands) if (t < band.upTo) return { liquid: LIQUID.none, material: band.material };
@@ -51,6 +57,9 @@ export function buildSurface(planet: Planet, detail = MODEL_DETAIL): SurfaceMode
   let land = 0;
   let ocean = 0;
   let frozenSea = 0;
+  let lake = 0;
+  let river = 0;
+  let lava = 0;
   let minHeight = Infinity;
   let maxHeight = -Infinity;
   for (let i = 0; i < count; i++) {
@@ -65,6 +74,9 @@ export function buildSurface(planet: Planet, detail = MODEL_DETAIL): SurfaceMode
     if (c.liquid === LIQUID.ocean) ocean++;
     else if (c.liquid === LIQUID.frozenSea) frozenSea++;
     else land++;
+    if (c.liquid === LIQUID.lake) lake++;
+    else if (c.liquid === LIQUID.river) river++;
+    else if (c.liquid === LIQUID.lava) lava++;
     if (h < minHeight) minHeight = h;
     if (h > maxHeight) maxHeight = h;
   }
@@ -80,6 +92,9 @@ export function buildSurface(planet: Planet, detail = MODEL_DETAIL): SurfaceMode
       land: land / count,
       ocean: ocean / count,
       frozenSea: frozenSea / count,
+      lake: lake / count,
+      river: river / count,
+      lava: lava / count,
       minHeight,
       maxHeight,
       buildMs: performance.now() - started,
@@ -108,9 +123,10 @@ export function validateSurface(model: SurfaceModel): string[] {
     if (!codes.has(liquid)) report(`węzeł ${i}: nieznana ciecz ${liquid}`);
     if (!material) report(`węzeł ${i}: nieznany materiał ${model.material[i]}`);
     const below = h < model.seaLevel;
-    // Morze tylko poniżej poziomu morza, ląd tylko powyżej (spójne granice).
-    if (liquid !== LIQUID.none && !below) report(`węzeł ${i}: ciecz powyżej poziomu morza`);
-    if (liquid === LIQUID.none && below) report(`węzeł ${i}: suchy ląd poniżej poziomu morza`);
+    // Morze tylko poniżej poziomu morza; ląd, jeziora, rzeki i lawa tylko powyżej (spójne granice).
+    const sea = liquid === LIQUID.ocean || liquid === LIQUID.frozenSea;
+    if (sea && !below) report(`węzeł ${i}: morze powyżej poziomu morza`);
+    if (!sea && below) report(`węzeł ${i}: ląd lub woda śródlądowa poniżej poziomu morza`);
   }
   return problems;
 }

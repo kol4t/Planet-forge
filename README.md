@@ -201,4 +201,13 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 114. Ustawienia → „Włącz 3D”: po przeładowaniu planeta jest obrócona tak samo jak w 2D (i odwrotnie przy „Wróć do 2D”).
 115. Atlas: na GitHubie otwórz `docs/atlas/metryki.md` — obrazek wszystkich profili i metod oraz tabela liczb.
 
+### Od 0.24: woda i lawa (przebudowa generatora, etap 5)
+
+116. Planety z wodą (umiarkowana, lodowa, oceaniczna, pustynna) mają **jeziora** w zagłębieniach lądu (na lodowej — zamarznięte) i **rzeki** — cienkie wstęgi wody spływające do morza albo jeziora. Na pustyni jezior i rzek jest mało.
+117. Planeta wulkaniczna: **jeziora lawy** w kraterach i jasne **strumienie lawy** schodzące ze szczytów; świecą także po nocnej stronie. W 3D lawa lekko „oddycha” (pulsuje jasnością).
+118. Planeta jałowa: bez wody i lawy na lądzie.
+119. 3D: jezioro ma płaską taflę; budowle nie stoją w jeziorach, rzekach ani w lawie.
+120. „Mapa” i „Imperium”: miniatury rysują się tak szybko jak w 0.23.
+121. Płynność: Ustawienia → „Diagnostyka” — porównaj z 0.23 (3D: średnio 60, najsłabsza sekunda 53). Ważne: także na planecie wulkanicznej w 3D (jedna dodatkowa siatka lawy).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

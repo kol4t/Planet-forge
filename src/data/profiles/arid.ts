@@ -11,6 +11,8 @@ export const ARID: SurfaceProfile = {
     { id: 'fractured', weight: 1 },
   ],
   liquid: 'water',
+  // Rzadkie, głębokie jeziora i tylko największe rzeki.
+  hydrology: { lakeNodes: 30, lakeDepth: 0.025, riverFlow: 160 },
   expect: { land: [0.8, 1] },
   bands: [
     { upTo: 0.35, material: 'sand' },

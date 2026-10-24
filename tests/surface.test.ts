@@ -136,7 +136,7 @@ test('model powierzchni: pełna siatka planety i czas budowy', () => {
   assert.ok(model.stats.buildMs < 2000, `budowa trwała ${model.stats.buildMs} ms`);
 });
 
-test('walidacja modelu wykrywa NaN i ciecz powyżej poziomu morza', () => {
+test('walidacja modelu wykrywa NaN i morze powyżej poziomu morza', () => {
   const model = buildSurface(generatePlanet(PLANET_DEFINITIONS[0]!, 'PF-BAD'), 4);
   const land = model.liquid.findIndex((l) => l === LIQUID.none);
   const broken = { ...model, height: model.height.slice(), liquid: model.liquid.slice() };
@@ -144,7 +144,7 @@ test('walidacja modelu wykrywa NaN i ciecz powyżej poziomu morza', () => {
   broken.liquid[land] = LIQUID.ocean;
   const problems = validateSurface(broken);
   assert.ok(problems.some((p) => p.includes('wysokość NaN')), problems.join('; '));
-  assert.ok(problems.some((p) => p.includes('ciecz powyżej')), problems.join('; '));
+  assert.ok(problems.some((p) => p.includes('morze powyżej')), problems.join('; '));
 });
 
 test('planeta jałowa: skały i pył, prawie bez wody', () => {

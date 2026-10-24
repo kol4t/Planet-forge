@@ -80,10 +80,10 @@ function landScore(sampler: SurfaceSampler, dir: Vec3): number {
   const probes = 12;
   for (let i = 0; i < probes; i++) {
     const p = offsetOnSphere(dir, (i / probes) * Math.PI * 2, i % 2 ? 0.09 : 0.17);
-    if (sampler.isLand(sampler.height(...p))) land++;
+    if (sampler.isLand(sampler.height(...p), ...p)) land++;
   }
   const h = sampler.height(...dir);
-  return sampler.isLand(h) ? land / probes : -1;
+  return sampler.isLand(h, ...dir) ? land / probes : -1;
 }
 
 export function layoutColony(planet: Planet, sampler: SurfaceSampler, ids: readonly BuildingId[]): ColonyLayout {
@@ -122,17 +122,19 @@ export function layoutColony(planet: Planet, sampler: SurfaceSampler, ids: reado
     }
     const list: ColonySlot[] = [];
     for (let attempt = 0; attempt < 600 && list.length < MAX_STRUCTURES; attempt++) {
-      const ring = 0.02 + 0.05 * list.length ** 0.6 + rng.range(0, 0.05);
+      // Po 300 nieudanych próbach krąg poszukiwań się poszerza (dzielnica otoczona wodą albo sąsiadami).
+      const ring = 0.02 + 0.05 * list.length ** 0.6 + rng.range(0, 0.05) + Math.max(0, attempt - 300) * 0.001;
       const dir = list.length === 0 && attempt === 0 ? site : offsetOnSphere(site, rng.range(0, Math.PI * 2), ring);
       const h = sampler.height(...dir);
-      const onLand = sampler.isLand(h);
+      const onLand = sampler.isLand(h, ...dir);
       // Po wielu próbach dopuszczamy platformy na wodzie (planety oceaniczne).
       if (!onLand && attempt < 300) continue;
       if (taken.some((other) => angleBetween(other, dir) < MIN_SPACING)) continue;
       taken.push(dir);
       list.push({
         dir,
-        surface: onLand ? sampler.radius(h) : 1.001,
+        // Platforma: na morzu tuż nad wodą, na jeziorze — na jego lustrze (rzeka, lawa: na gruncie).
+        surface: onLand ? sampler.radius(h) : sampler.isLand(h) ? sampler.radius(Math.max(h, sampler.lakeLevel(...dir))) : 1.001,
         spin: rng.range(0, Math.PI * 2),
         size: rng.range(0.85, 1.15),
         onLand,

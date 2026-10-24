@@ -14,10 +14,10 @@ export interface DiscLook {
 }
 
 /** Wygląd tarczy 2D z danych planety (planeta 2D, miniatury, sąsiedzi w tle). */
-export function discLook(planet: Planet): DiscLook {
+export function discLook(planet: Planet, options: { inland?: boolean } = {}): DiscLook {
   const v = planet.visual;
   return {
-    sampler: createSurfaceSampler(planet),
+    sampler: createSurfaceSampler(planet, options),
     seaLevel: v.seaLevel,
     atmosphere: hexToRgb(v.atmosphereColor),
     seaGlow: v.ocean.emissive ? Math.min(1, (v.ocean.emissiveIntensity ?? 1) * 1.4) : 0,
@@ -56,6 +56,9 @@ export function renderDisc(data: Uint8ClampedArray, size: number, look: DiscLook
       const day = smoothstep(-0.12, 0.35, dot);
       let shade = 0.07 + day * (0.4 + 0.72 * light) + (height < seaLevel ? 0.25 * light ** 24 : 0);
       if (glow > 0 && height < seaLevel) shade = Math.max(shade, glow);
+      // Lawa na lądzie świeci także nocą.
+      const lava = sampler.glow(px, py, pz);
+      if (lava > 0) shade = Math.max(shade, 0.55 + 0.6 * lava);
       // Cienka poświata przy krawędzi, słabsza po nocnej stronie (bez „mleka” na tarczy).
       const haze = (1 - sz) ** 4 * 0.5 * (0.12 + 0.88 * day);
       const i = (row * size + col) * 4;

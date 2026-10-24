@@ -1,4 +1,5 @@
 // Wspólne typy gry. Czysty TypeScript — bez importów z phaser/three/DOM.
+import type { HydrologyParams } from './surface/hydrology.ts';
 import type { MaterialId, TerrainMethodId } from './surface/types.ts';
 
 export type ResourceId = 'metal' | 'crystal';
@@ -114,8 +115,10 @@ export interface SurfaceProfile {
   methods: readonly MethodWeight[];
   /** Kombinacje świadomie wyłączone, z powodem (atlas pokazuje je osobno). */
   incompatible?: readonly { method: TerrainMethodId; reason: string }[];
-  /** Ciecz w zagłębieniach (woda; lawa i jej rzeki — etap 5; brak = suche kotliny). */
+  /** Ciecz na lądzie: jeziora i rzeki z wody, jeziora i strumienie lawy, albo nic (suche kotliny). */
   liquid: 'water' | 'lava' | 'none';
+  /** Strojenie wód śródlądowych (brak = `DEFAULT_HYDROLOGY`). */
+  hydrology?: Partial<Omit<HydrologyParams, 'liquid'>>;
   /** Oczekiwane granice metryk (testy i atlas). */
   expect: { land: Range };
   /** Materiały lądu od brzegu do szczytów (rosnące `upTo`, ostatnie ≥ 1). */
@@ -163,6 +166,8 @@ export interface PlanetVisual {
   profile: string;
   /** Materiały lądu z profilu (klasyfikacja modelu powierzchni). */
   bands: readonly MaterialBand[];
+  /** Wody śródlądowe i lawa z profilu. */
+  hydrology: HydrologyParams;
   /** Metoda terenu (`core/surface/field.ts`). */
   terrainMethod: TerrainMethodId;
   /** Wersja wyglądu terenu (`SURFACE_VERSION`) — niezależna od rozgrywki. */

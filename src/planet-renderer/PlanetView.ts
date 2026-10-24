@@ -56,6 +56,8 @@ export class PlanetView implements PlanetDisplay {
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
   private clouds: THREE.Object3D | undefined;
+  private lava: THREE.Mesh | undefined;
+  private time = 0;
   /** Rozmieszczenie i poziomy kolonii — do wyboru budowli dotknięciem. */
   private layout: ColonyLayout | undefined;
   private levels: BuildingLevels | undefined;
@@ -111,6 +113,7 @@ export class PlanetView implements PlanetDisplay {
     this.sun.intensity = planet.visual.style.sunIntensity;
     this.ambient.intensity = planet.visual.style.ambient;
     this.clouds = this.planetObjects.find((o) => o.name === 'clouds');
+    this.lava = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'lava' && o instanceof THREE.Mesh);
     for (const object of this.planetObjects) {
       // Atmosfera nie musi się obracać z planetą (jest symetryczna).
       if (object.name === 'atmosphere' || object.name === 'haze') this.tiltGroup.add(object);
@@ -213,6 +216,9 @@ export class PlanetView implements PlanetDisplay {
     this.spinGroup.rotation.y = this.rotator.yaw;
     this.tiltGroup.rotation.x = this.rotator.pitch;
     if (this.clouds) this.clouds.rotation.y += dt * 0.012;
+    this.time += dt;
+    // Lawa „oddycha”: animowany tylko kolor materiału (bez przeliczania geometrii).
+    if (this.lava) (this.lava.material as THREE.MeshBasicMaterial).color.setScalar(0.85 + 0.15 * Math.sin(this.time * 1.6));
     this.colony.update(dt);
     this.renderer.render(this.scene, this.camera);
   }
@@ -244,6 +250,27 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
   );
   land.name = 'land';
 
+  // Lawa na lądzie: osobna siatka bez cieniowania (świeci także nocą); jasność pulsuje w `loop`.
+  const objects: THREE.Object3D[] = [land];
+  if (built.lava.heat.length > 0) {
+    const lavaGeometry = new THREE.BufferGeometry();
+    lavaGeometry.setAttribute('position', new THREE.BufferAttribute(built.lava.positions, 3));
+    const lavaColors = new Float32Array(built.lava.heat.length * 3);
+    const cool = new THREE.Color(v.ocean.emissive ?? v.palette.shallowWater);
+    const hot = new THREE.Color(1, 0.82, 0.45);
+    built.lava.heat.forEach((heat, i) => {
+      const c = cool.clone().lerp(hot, Math.max(0, heat - 0.5) * 1.2);
+      lavaColors.set([c.r, c.g, c.b], i * 3);
+    });
+    lavaGeometry.setAttribute('color', new THREE.BufferAttribute(lavaColors, 3));
+    const lava = new THREE.Mesh(
+      lavaGeometry,
+      new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.92, polygonOffset: true, polygonOffsetFactor: -2 }),
+    );
+    lava.name = 'lava';
+    objects.push(lava);
+  }
+
   // Woda: fasetowana tafla; dno pod nią ma własne kolory (głębina → płycizna), więc prześwit jest ostry.
   const ocean = new THREE.Mesh(
     new THREE.IcosahedronGeometry(1.001, 18),
@@ -272,7 +299,7 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
   clouds.name = 'clouds';
 
   const atmosphere = createAtmosphere(v.atmosphereColor, v.atmosphereIntensity, LIGHT_POSITION, 1 + v.style.atmosphereWidth);
-  return [land, ocean, clouds, ...atmosphere];
+  return [...objects, ocean, clouds, ...atmosphere];
 }
 
 function createCloudTexture(noiseSeed: number, look: Planet['visual']['clouds']): THREE.CanvasTexture {

@@ -14,6 +14,12 @@ export const LIQUID = {
   ocean: 1,
   /** Zamarznięte morze: tafla lodu nad wodą (poniżej poziomu morza). */
   frozenSea: 2,
+  /** Jezioro na lądzie (lustro powyżej poziomu morza; zamarznięte — materiał `seaIce`). */
+  lake: 3,
+  /** Rzeka (koryto na lądzie). */
+  river: 4,
+  /** Lawa na lądzie (jezioro lawy w kalderze albo strumień). */
+  lava: 5,
 } as const;
 export type LiquidCode = (typeof LIQUID)[keyof typeof LIQUID];
 
@@ -37,6 +43,8 @@ export const MATERIALS = [
   'ash',
   'basalt',
   'regolith',
+  // v0.24:
+  'lava',
 ] as const;
 export type MaterialId = (typeof MATERIALS)[number];
 
@@ -48,6 +56,21 @@ export interface SurfaceField {
   height(x: number, y: number, z: number): number;
   /** Pokrycie lodem 0..1 (czapy polarne, lodowce, zamarznięte morze). */
   ice(height: number, x: number, y: number, z: number): number;
+  /** Wody śródlądowe i lawa (`hydrology.ts`); brak = tylko morze. */
+  inland?: InlandField;
+}
+
+/** Jeziora, rzeki i lawa jako ciągłe pole (wartości z siatki hydrologii, interpolowane). */
+export interface InlandField {
+  /** Lustro jeziora w punkcie (−1 = brak jeziora). */
+  lakeLevel(x: number, y: number, z: number): number;
+  /** Rzeka 0..1 (≥ 0,5 = koryto). */
+  river(x: number, y: number, z: number): number;
+  /** Lawa 0..1 (≥ 0,5 = lawa; 1 = najgorętsza). */
+  lava(x: number, y: number, z: number): number;
+  /** Statystyki (atlas, testy). */
+  lakes: number;
+  riverNodes: number;
 }
 
 /** Siatka geodezyjna sfery: węzły ikosfery (te same co siatka lądu 3D), trójkąty i sąsiedzi. */
@@ -68,10 +91,14 @@ export interface SphereGrid {
 }
 
 export interface SurfaceStats {
-  /** Udziały węzłów 0..1. */
+  /** Udziały węzłów 0..1 (`land` = wszystko powyżej poziomu morza). */
   land: number;
   ocean: number;
   frozenSea: number;
+  /** Udziały wód śródlądowych i lawy (wliczone w `land`). */
+  lake: number;
+  river: number;
+  lava: number;
   minHeight: number;
   maxHeight: number;
   /** Czas budowy modelu w ms (tylko informacyjnie — nie wpływa na wynik). */

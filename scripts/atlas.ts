@@ -37,7 +37,8 @@ for (const [r, profile] of SURFACE_PROFILES.entries()) {
       const base = generatePlanet(def, seed);
       const planet: Planet = { ...base, visual: { ...base.visual, terrainMethod: method } };
       const started = performance.now();
-      TERRAIN_METHODS[method](planet.visual);
+      const field = TERRAIN_METHODS[method](planet.visual);
+      void field.inland; // hydrologia liczy się przy pierwszym użyciu — wliczona w czas
       const bakeMs = performance.now() - started;
       const disc = new Uint8ClampedArray(CELL * CELL * 4);
       renderDisc(disc, CELL, discLook(planet), 0.8, 0.3);
@@ -54,10 +55,12 @@ for (const [r, profile] of SURFACE_PROFILES.entries()) {
           if (incompatible && (Math.abs(x - y) < 2 || Math.abs(x + y - CELL) < 2)) image.set([200, 60, 50], dst);
         }
       }
-      const metrics = surfaceMetrics(buildSurface(planet, 24));
+      const model = buildSurface(planet, 24);
+      const metrics = surfaceMetrics(model);
+      const pct = (v: number) => `${(v * 100).toFixed(1).replace('.', ',')}%`;
       const f = (v: number, d = 3) => v.toFixed(d).replace('.', ',');
       rows.push(
-        `| ${profile.id} | ${method}${method === profile.methods[0]?.id ? ' (preferowana)' : ''}${incompatible ? ' ✗' : ''} | ${seed} | ${f(metrics.land, 2)} | ${f(metrics.chaos)} | ${f(metrics.roughness, 4)} | ${f(metrics.flat)} | ${f(metrics.spike)} | ${bakeMs.toFixed(0)} |`,
+        `| ${profile.id} | ${method}${method === profile.methods[0]?.id ? ' (preferowana)' : ''}${incompatible ? ' ✗' : ''} | ${seed} | ${f(metrics.land, 2)} | ${f(metrics.chaos)} | ${f(metrics.roughness, 4)} | ${f(metrics.flat)} | ${f(metrics.spike)} | ${field.inland?.lakes ?? 0} | ${pct(model.stats.river)} | ${pct(model.stats.lava)} | ${bakeMs.toFixed(0)} |`,
       );
     }
   }
@@ -81,10 +84,10 @@ Widok 2D jak w grze. Kombinacja niezgodna z profilem jest przygaszona i przekre�
 **Kombinacje niezgodne:**
 ${notes.join('\n') || '- brak'}
 
-**Metryki** (model na siatce detail 24): ląd — udział lądu; chaos — udział drobnych nierówności; stromość — średnia różnica wysokości z sąsiadem; płaskie — udział prawie płaskiego lądu; igła — największe odchylenie od sąsiadów; pieczenie — czas liczenia kształtu (ms, komputer, nie iPad).
+**Metryki** (model na siatce detail 24): ląd — udział lądu; chaos — udział drobnych nierówności; stromość — średnia różnica wysokości z sąsiadem; płaskie — udział prawie płaskiego lądu; igła — największe odchylenie od sąsiadów; jeziora — liczba jezior (woda albo lawa); rzeki, lawa — udział powierzchni; pieczenie — czas liczenia kształtu i hydrologii (ms, komputer, nie iPad).
 
-| Profil | Metoda | Seed | Ląd | Chaos | Stromość | Płaskie | Igła | Pieczenie (ms) |
-|---|---|---|---|---|---|---|---|---|
+| Profil | Metoda | Seed | Ląd | Chaos | Stromość | Płaskie | Igła | Jeziora | Rzeki | Lawa | Pieczenie (ms) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
 ${rows.join('\n')}
 `,
 );
