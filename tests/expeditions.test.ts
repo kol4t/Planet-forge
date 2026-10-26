@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { GameController } from '../src/app/GameController.ts';
-import { DISCOVERY, discoveryOf, initialDiscoveries } from '../src/core/galaxy/discovery.ts';
+import { DISCOVERY, discoveryOf, initialDiscoveries, type Discoveries } from '../src/core/galaxy/discovery.ts';
 import { expeditionStats, parseExpeditions, planExpedition, resolveExpedition } from '../src/core/galaxy/expeditions.ts';
 import { generateGalaxy } from '../src/core/galaxy/galaxy.ts';
 import type { Expedition } from '../src/core/types.ts';
@@ -57,7 +57,7 @@ test('ekspedycje: plan — badanie, cel znany, w zasięgu, bez powtórek, limit 
   const busy = Array.from({ length: EXPEDITION_RULES.maxActive }, (_, i) => ({ ...flying, target: 1000 + i }));
   assert.match(planExpedition(galaxy, known, [HOME], busy, target, stats).reason!, /najwyżej/);
   // Daleki cel poza zasięgiem; po badaniu sond — w zasięgu.
-  const far = { ...known, [unknown]: DISCOVERY.signal as const };
+  const far = { ...known, [unknown]: DISCOVERY.signal } as Discoveries;
   const farPlan = planExpedition(galaxy, far, [HOME], [], unknown, stats);
   if (farPlan.distance > farPlan.range) {
     assert.match(farPlan.reason!, /Poza zasięgiem/);
