@@ -185,7 +185,8 @@ export function completeResearch(state: ResearchState, now: number): { research:
 export function applyResearch(base: Balance, done: readonly string[]): Balance {
   const sum = new Map<string, number>();
   const add = (key: string, v: number) => sum.set(key, (sum.get(key) ?? 0) + v);
-  for (const id of done) {
+  // Każde badanie liczy się raz, nawet gdyby trafiło na listę dwukrotnie (ochrona przed podwójnym efektem).
+  for (const id of new Set(done)) {
     for (const e of findResearch(id)?.effects ?? []) {
       if (e.kind === 'output') add(`output:${e.resource}`, e.percent);
       else if (e.kind === 'offlineHours') add(e.kind, e.hours);

@@ -4,7 +4,8 @@ import { createRng } from '../../core/random/rng.ts';
 import { armProgress, describeEffects, labLevelFor, researchableCount, researchLeadsTo, researchPath, type ResearchStatus } from '../../core/research/research.ts';
 import type { ResearchNodeDef } from '../../core/types.ts';
 import { findArm, findResearch, RESEARCH_ARMS, RESEARCH_NODES, RESEARCH_RULES } from '../../data/research.ts';
-import type { ButtonStyle } from '../ui/Button.ts';
+import type { Button, ButtonStyle } from '../ui/Button.ts';
+import { prefersReducedMotion } from '../ui/motion.ts';
 import { armPoint, GALAXY_RADIUS, galaxyLayout, hitTest, nodeIcon, ringRadius, type NodeIcon, type Point } from '../ui/galaxy.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
@@ -29,6 +30,10 @@ export class ResearchScene extends OverlayScene {
   private view = { cx: 0, cy: 0, unit: 1 };
   private selected: string | null = null;
   private cancelArmedUntil = 0;
+  /** Filtr ramienia (przygaszone pozostałe) i przyciski filtrów. */
+  private armFilter: string | null = null;
+  private readonly chips = new Map<string, Button>();
+  private cameraTween: Phaser.Tweens.Tween | undefined;
 
   constructor(deps: OverlaySceneDeps) {
     super('research', deps, { min: 0.7, max: 3.5 });
@@ -67,7 +72,7 @@ export class ResearchScene extends OverlayScene {
     this.buildLabels();
     this.beginUi();
     this.buildTopBar(bar);
-    this.panel(this.panelRect);
+    this.buildFilters();
     this.applyTransform();
     this.refresh(true);
   }
@@ -118,7 +123,7 @@ export class ResearchScene extends OverlayScene {
           letterSpacing: 1,
         })
         .setOrigin(0.5)
-        .setAlpha(arm.active ? 0.95 : 0.55);
+        .setAlpha(arm.active ? 1 : 0.75);
       this.labels.push({ text, at, node: false, arm: arm.id });
     }
     for (const node of RESEARCH_NODES) {
@@ -126,13 +131,13 @@ export class ResearchScene extends OverlayScene {
       const text = this.add
         .text(0, 0, node.name, {
           fontFamily: FONTS.body,
-          fontSize: `${this.px(9.5 * this.u)}px`,
-          color: COLORS.muted,
+          fontSize: `${this.px(10.5 * this.u)}px`,
+          color: COLORS.text,
           align: 'center',
-          wordWrap: { width: this.px(84 * this.u) },
+          wordWrap: { width: this.px(92 * this.u) },
         })
         .setOrigin(0.5, 0);
-      this.labels.push({ text, at: p, node: true });
+      this.labels.push({ text, at: p, node: true, arm: node.arm });
     }
   }
 
@@ -158,7 +163,8 @@ export class ResearchScene extends OverlayScene {
       const y = cy + label.at.y * scale + (label.node ? 0.3 * scale : 0);
       const inside =
         x > this.px(area.x) && x < this.px(area.x + area.w) && y > this.px(area.y) && y < this.px(area.y + area.h);
-      label.text.setPosition(x, y).setVisible(inside && (!label.node || showNames));
+      const filtered = label.node && this.armFilter !== null && label.arm !== this.armFilter;
+      label.text.setPosition(x, y).setVisible(inside && (!label.node || (showNames && !filtered)));
     }
   }
 
@@ -174,7 +180,7 @@ export class ResearchScene extends OverlayScene {
     );
     // Nazwy ramion z postępem („PRODUKTYWNOŚĆ 5/21”).
     for (const label of this.labels) {
-      const arm = label.arm ? findArm(label.arm) : undefined;
+      const arm = !label.node && label.arm ? findArm(label.arm) : undefined;
       if (!arm?.active) continue;
       const p = armProgress(arm.id, controller.research.done);
       label.text.setText(`${arm.name.toUpperCase()} ${p.done}/${p.total}`);
@@ -209,9 +215,11 @@ export class ResearchScene extends OverlayScene {
       const froms = node.requires.length > 0 ? node.requires.map((id) => POSITIONS.get(id)!) : [{ x: 0, y: 0 }];
       // Gwiazdy „wkrótce” daleko od poprzedniej (np. mistrzowskie) — bez długich linii przez mapę.
       if (status === 'soon' && node.requires.some((id) => (findResearch(id)?.ring ?? 0) < node.ring - 1)) continue;
+      // Filtr ramienia: połączenia innych ramion ledwo widoczne.
+      const dim = this.armFilter !== null && node.arm !== this.armFilter ? 0.25 : 1;
       for (const from of froms) {
         const lit = status === 'done' || status === 'running' || status === 'available' || status === 'needs-lab';
-        g.lineStyle(line * (lit ? 1.6 : 1), status === 'soon' ? COLORS.divider : arm.color, status === 'done' ? 0.75 : lit ? 0.45 : 0.22);
+        g.lineStyle(line * (lit ? 1.6 : 1), status === 'soon' ? COLORS.panelBorder : arm.color, (status === 'done' ? 0.75 : lit ? 0.5 : 0.34) * dim);
         g.lineBetween(from.x * U, from.y * U, p.x * U, p.y * U);
       }
     }
@@ -232,6 +240,11 @@ export class ResearchScene extends OverlayScene {
       const x = p.x * U;
       const y = p.y * U;
       const r = (node.master ? 0.3 : 0.2) * U;
+      if (this.armFilter !== null && node.arm !== this.armFilter) {
+        // Poza filtrem: mała, przygaszona kropka (zbadane — w kolorze ramienia).
+        g.fillStyle(status === 'done' ? arm.color : COLORS.panelBorder, 0.45).fillCircle(x, y, r * 0.45);
+        continue;
+      }
       // Kolor ikony: ciemna na pełnej gwieździe, w kolorze ramienia na pustej.
       let icon: number = arm.color;
       let iconAlpha = 1;
@@ -243,6 +256,7 @@ export class ResearchScene extends OverlayScene {
         g.fillStyle(arm.color, 1).fillCircle(x, y, r);
         icon = COLORS.panel;
       } else if (status === 'running') {
+        g.fillStyle(COLORS.goldHex, 0.14 + 0.08 * Math.sin(now / 500)).fillCircle(x, y, r * 1.6);
         g.fillStyle(COLORS.panel, 1).fillCircle(x, y, r);
         g.lineStyle(line * 1.2, arm.color, 0.4).strokeCircle(x, y, r);
         const progress = controller.researchProgress(now);
@@ -260,13 +274,13 @@ export class ResearchScene extends OverlayScene {
         iconAlpha = 0.7;
       } else if (status === 'needs-research') {
         g.fillStyle(COLORS.panel, 1).fillCircle(x, y, r * 0.85);
-        this.dashedCircle(g, x, y, r * 0.85, line, arm.color, path.has(node.id) ? 0.9 : 0.45);
-        iconAlpha = path.has(node.id) ? 0.8 : 0.4;
+        this.dashedCircle(g, x, y, r * 0.85, line * 1.2, arm.color, path.has(node.id) ? 0.95 : 0.7);
+        iconAlpha = path.has(node.id) ? 0.9 : 0.65;
       } else {
         g.fillStyle(COLORS.panel, 1).fillCircle(x, y, r * 0.8);
-        g.lineStyle(line, COLORS.panelBorder, 0.8).strokeCircle(x, y, r * 0.8);
-        icon = 0x5f7873;
-        iconAlpha = 0.7;
+        g.lineStyle(line, 0x4f6a66, 1).strokeCircle(x, y, r * 0.8);
+        icon = 0x7f9690;
+        iconAlpha = 0.9;
       }
       if (iconAlpha > 0) this.drawIcon(g, nodeIcon(node), x, y, r * 0.5, icon, iconAlpha, line);
       if (node.id === this.selected) {
@@ -374,17 +388,26 @@ export class ResearchScene extends OverlayScene {
     return [this.selected, node ? this.statusOf(node) : '', c.research.current?.id ?? '', c.research.done.length, c.labLevel, armed].join('|');
   }
 
-  /** Szczegóły zaznaczonego badania albo podpowiedź, gdy nic nie zaznaczono. */
+  /**
+   * Panel szczegółów jako karta dopasowana do treści (od v0.31.2): szeroki ekran — u góry po prawej,
+   * wąski — dolny arkusz. Miejsce pod kartą należy do mapy (przesuwanie, przybliżanie).
+   */
   private buildDetails(): void {
     this.details?.destroy(true);
     this.detailsLive = {};
     const items: Phaser.GameObjects.GameObject[] = [];
     this.details = this.add.container(0, 0).setDepth(11);
-    const rect = this.panelRect;
+    const wide = this.panelRect.x > this.area.x + 1;
+    const node = this.selected ? findResearch(this.selected) : undefined;
+    // Wąski ekran: szczegóły badania jako wyższy dolny arkusz (do filtrów u góry mapy); w spoczynku — niski.
+    const top = this.area.y + TOUCH + this.s(16);
+    const rect: Rect =
+      wide || !node ? this.panelRect : { ...this.panelRect, y: top, h: this.panelRect.y + this.panelRect.h - top };
     const pad = 14 * this.u;
     const w = rect.w - 2 * pad;
     const x = rect.x + pad;
     let y = rect.y + pad - this.s(2);
+    const maxBottom = rect.y + rect.h - pad;
     const controller = this.deps.controller;
     const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
       items.push(o);
@@ -395,15 +418,15 @@ export class ResearchScene extends OverlayScene {
       y += t.height / this.dpr + this.s(after);
       return t;
     };
-    const buttonY = rect.y + rect.h - pad - TOUCH;
+    const heading = (label: string) => line(label, 9.5, COLORS.muted, { fontStyle: '600', letterSpacing: 1.5 }, 5);
+    // Miejsce na treść nad przyciskami (opcjonalne części tylko, gdy się mieszczą).
+    const fits = (h: number, buttons = 1) => y + h + buttons * (TOUCH + this.s(8)) <= maxBottom;
+    const gap = this.s(8);
+    const half = (w - gap) / 2;
     const current = controller.research.current;
-    const node = this.selected ? findResearch(this.selected) : undefined;
+    let buttonsRow: ((at: number) => void) | null = null;
 
     if (!node) {
-      // Panel w spoczynku: Laboratorium, trwające badanie, postęp ramion i badania dostępne teraz
-      // (każda część tylko wtedy, gdy się mieści — telefon ma niski panel).
-      const bottom = (current ? buttonY : rect.y + rect.h - pad) - this.s(8);
-      const fits = (h: number) => y + h <= bottom;
       line('Galaktyka badań', 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
       line(
         controller.labLevel === 0
@@ -419,11 +442,10 @@ export class ResearchScene extends OverlayScene {
         this.detailsLive.countdown = line(`Trwa: ${running?.name ?? ''}`, 12, COLORS.gold, { fontStyle: '600' }, 4);
         this.detailsLive.bar = { g: add(this.add.graphics()), rect: { x, y, w, h: this.s(4) } };
         y += this.s(14);
-        add(this.button(x, buttonY, w, 'Pokaż trwające badanie', 'secondary', () => this.select(current.id)));
       }
       const arms = RESEARCH_ARMS.filter((a) => a.active);
-      if (fits(this.s(18) + arms.length * this.s(24))) {
-        line('RAMIONA', 9.5, COLORS.muted, { fontStyle: '600', letterSpacing: 1.5 }, 6);
+      if (fits(this.s(18) + arms.length * this.s(24), current ? 1 : 0)) {
+        heading('RAMIONA');
         const bars = add(this.add.graphics());
         for (const arm of arms) {
           const p = armProgress(arm.id, controller.research.done);
@@ -442,105 +464,155 @@ export class ResearchScene extends OverlayScene {
         .map((n) => ({ n, cost: controller.researchCost(n.id)! }))
         .sort((p, q) => p.cost.metal + p.cost.crystal - (q.cost.metal + q.cost.crystal))
         .slice(0, 3);
-      const gap = this.s(8);
-      if (available.length > 0 && fits(this.s(18) + TOUCH)) {
-        line('DOSTĘPNE TERAZ', 9.5, COLORS.muted, { fontStyle: '600', letterSpacing: 1.5 }, 6);
+      if (available.length > 0 && fits(this.s(18) + TOUCH, current ? 1 : 0)) {
+        heading('DOSTĘPNE TERAZ');
         for (const { n } of available) {
-          if (!fits(TOUCH)) break;
-          add(this.button(x, y, w, n.name, 'secondary', () => this.select(n.id)));
+          if (!fits(TOUCH, current ? 1 : 0)) break;
+          add(this.button(x, y, w, n.name, 'secondary', () => this.select(n.id, true)));
           y += TOUCH + gap;
         }
+        y += this.s(2);
       }
-      if (fits(this.s(32))) line('Dotknij gwiazdy, aby zobaczyć badanie. Szczypnij, by przybliżyć — pojawią się nazwy.', 10.5, COLORS.faint);
-      this.details.add(items);
-      return;
-    }
-
-    const arm = findArm(node.arm)!;
-    const status = this.statusOf(node);
-    line(node.name, 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
-    line(
-      node.master ? `${arm.name} · gwiazda mistrzowska` : `${arm.name} · pierścień ${node.ring}`,
-      10.5,
-      Phaser.Display.Color.IntegerToColor(arm.color).rgba,
-      { fontStyle: '600' },
-    );
-    line(node.description, 11.5, COLORS.muted);
-    if (node.master) {
-      line('Bardzo mocne badanie na krawędzi ramienia. Zbadasz wszystkie, ale aktywne będą maks. 2 naraz — to specjalizacje imperium. Wkrótce.', 11.5, COLORS.text);
-    } else if (status === 'soon') {
-      line(
-        arm.active ? 'To badanie będzie dostępne w kolejnym etapie.' : `Ramię „${arm.name}” będzie dostępne w kolejnym etapie. ${arm.description}`,
-        11.5,
-        COLORS.text,
-      );
+      if (fits(this.s(56), current ? 1 : 0)) this.legend(add, x, y, w, (h) => (y += h));
+      if (current) buttonsRow = (at) => add(this.button(x, at, w, 'Pokaż trwające badanie', 'secondary', () => this.select(current.id, true)));
     } else {
-      // Od v0.15 efekty działają na planecie, która zbadała; odblokowania i miejsca — w całym imperium.
-      const empireWide = node.effects.every((e) => e.kind === 'unlock' || e.kind === 'planetSlots');
-      line(`Efekt (${empireWide ? 'całe imperium' : 'ta planeta'}): ${describeEffects(node)}`, 12, COLORS.teal, { fontStyle: '600' }, 4);
-      if (status !== 'done') {
-        for (const p of controller.researchPreview(node.id)) {
-          line(`${p.label}: ${formatRate(p.before)}${p.unit} → ${formatRate(p.after)}${p.unit}`, 11.5, COLORS.text, {}, 2);
+      const arm = findArm(node.arm)!;
+      const status = this.statusOf(node);
+      const armColor = Phaser.Display.Color.IntegerToColor(arm.color).rgba;
+      // Tytuł i „Wyśrodkuj” w jednym wierszu.
+      const centerW = this.s(104);
+      const titleY = y;
+      line(node.name, 18, COLORS.gold, { fontFamily: FONTS.serif, wordWrap: { width: this.px(w - centerW - gap) } }, 2);
+      add(this.button(x + w - centerW, titleY - this.s(2), centerW, 'Wyśrodkuj', 'secondary', () => this.centerOn(node.id)));
+      line(
+        node.master ? `${arm.name} · gwiazda mistrzowska (przełom)` : `${arm.name} · pierścień ${node.ring} · Laboratorium ${labLevelFor(node.ring, RESEARCH_RULES)}`,
+        10.5,
+        armColor,
+        { fontStyle: '600', wordWrap: { width: this.px(w - centerW - gap) } },
+      );
+      y = Math.max(y, titleY + TOUCH + this.s(4));
+      line(node.description, 11.5, COLORS.muted, {}, 10);
+      if (node.master) {
+        line('Przełom na krawędzi ramienia. Zbadasz wszystkie, ale aktywne będą najwyżej 2 naraz — to specjalizacje imperium. Wkrótce.', 11.5, COLORS.text);
+      } else if (status === 'soon') {
+        line(
+          arm.active ? 'To badanie będzie dostępne w kolejnym etapie.' : `Ramię „${arm.name}” będzie dostępne w kolejnym etapie. ${arm.description}`,
+          11.5,
+          COLORS.text,
+        );
+      } else {
+        // Od v0.15 efekty działają na planecie, która zbadała; odblokowania i miejsca — w całym imperium.
+        const empireWide = node.effects.every((e) => e.kind === 'unlock' || e.kind === 'planetSlots');
+        heading(empireWide ? 'EFEKT · CAŁE IMPERIUM' : `EFEKT · ${controller.planet.displayName.toUpperCase()}`);
+        line(describeEffects(node), 12, COLORS.teal, { fontStyle: '600' }, 4);
+        if (status !== 'done') {
+          for (const p of controller.researchPreview(node.id)) {
+            line(`${p.label}: ${formatRate(p.before)}${p.unit} → ${formatRate(p.after)}${p.unit}`, 11.5, COLORS.text, {}, 2);
+          }
         }
-        y += this.s(4);
+        y += this.s(8);
+        if (status !== 'done') {
+          const cost = controller.researchCost(node.id)!;
+          if (status === 'running') {
+            heading('POSTĘP');
+            this.detailsLive.countdown = line('', 12, COLORS.gold, { fontStyle: '600' }, 4);
+            this.detailsLive.bar = { g: add(this.add.graphics()), rect: { x, y, w, h: this.s(4) } };
+            y += this.s(14);
+          } else {
+            heading('KOSZT I CZAS');
+            const parts = [`${formatInt(cost.metal)} metalu`, `${formatInt(cost.crystal)} kryształów`];
+            if (cost.antimatter > 0) parts.push(antimatterAmount(cost.antimatter));
+            line(`${parts.join(' · ')} · ${formatDuration(controller.researchSeconds(node.id))}`, 11.5, COLORS.text, {}, 2);
+            const stock = controller.economy.stock;
+            const missing: string[] = [];
+            if (stock.metal < cost.metal) missing.push(`${formatInt(cost.metal - stock.metal)} metalu`);
+            if (stock.crystal < cost.crystal) missing.push(`${formatInt(cost.crystal - stock.crystal)} kryształów`);
+            if (Math.floor(controller.economy.antimatter) < cost.antimatter) missing.push(antimatterAmount(cost.antimatter - Math.floor(controller.economy.antimatter)));
+            line(missing.length > 0 ? `Brakuje: ${missing.join(', ')}` : 'Masz wszystkie surowce.', 10.5, missing.length > 0 ? COLORS.danger : COLORS.teal, {}, 8);
+          }
+          // Wymagania: każde z ✓ albo ✗ (badania wcześniej i poziom Laboratorium).
+          heading('WYMAGANIA');
+          const done = controller.research.done;
+          const needLab = labLevelFor(node.ring, RESEARCH_RULES);
+          const rows: [boolean, string][] = [
+            ...node.requires.map((id): [boolean, string] => [done.includes(id), findResearch(id)?.name ?? id]),
+            [controller.labLevel >= needLab, `Laboratorium poz. ${needLab} (masz ${controller.labLevel})`],
+          ];
+          for (const [ok, label] of rows) line(`${ok ? '✓' : '✗'}  ${label}`, 11, ok ? COLORS.teal : COLORS.danger, {}, 2);
+          const steps = researchPath(node.id, done).length - 1;
+          if (steps > node.requires.filter((id) => !done.includes(id)).length) line(`Do celu brakuje ${steps} badań — jasny szlak na mapie.`, 10.5, COLORS.gold, {}, 2);
+          y += this.s(6);
+        }
+        const next = researchLeadsTo(node.id).filter((n) => !n.master);
+        if (next.length > 0 && fits(this.s(30))) line(`Prowadzi do: ${next.map((n) => n.name).join(', ')}.`, 10.5, COLORS.faint, {}, 8);
       }
-      if (status !== 'done') {
-        const cost = controller.researchCost(node.id)!;
-        const parts = [`${formatInt(cost.metal)} metalu`, `${formatInt(cost.crystal)} kryształów`];
-        if (cost.antimatter > 0) parts.push(antimatterAmount(cost.antimatter));
-        if (status === 'running') {
-          this.detailsLive.countdown = line('', 12, COLORS.gold, { fontStyle: '600' }, 4);
-          this.detailsLive.bar = { g: add(this.add.graphics()), rect: { x, y, w, h: this.s(4) } };
-          y += this.s(10);
+      // Przyciski: [akcja albo powód blokady] [Odznacz]
+      let label = 'Zbadane';
+      let style: ButtonStyle = 'disabled';
+      let action: () => void = () => undefined;
+      if (status === 'running') {
+        const armed = Date.now() <= this.cancelArmedUntil;
+        label = armed ? 'Na pewno?' : 'Anuluj';
+        style = armed ? 'danger' : 'secondary';
+        action = () => this.onCancel();
+      } else if (status === 'available') {
+        if (current) {
+          label = 'Trwa inne badanie';
         } else {
-          line(`Koszt: ${parts.join(' · ')} · czas ${formatDuration(controller.researchSeconds(node.id))}`, 11, COLORS.text);
-          const stock = controller.economy.stock;
-          line(
-            `Masz: ${formatInt(stock.metal)} metalu · ${formatInt(stock.crystal)} kryształów · ${formatInt(controller.economy.antimatter)} antymaterii`,
-            10.5,
-            COLORS.faint,
-          );
+          label = 'Badaj';
+          style = 'primary';
+          action = () => this.onStart(node.id);
         }
-      }
-      if (status === 'needs-lab') {
-        line(`Wymaga Laboratorium poz. ${labLevelFor(node.ring, RESEARCH_RULES)} (masz ${controller.labLevel}).`, 11.5, COLORS.danger);
-      } else if (status === 'needs-research') {
-        const missing = node.requires.filter((id) => !controller.research.done.includes(id)).map((id) => findResearch(id)?.name ?? id);
-        line(`Najpierw zbadaj: ${missing.join(', ')}.`, 11.5, COLORS.danger);
-        const steps = researchPath(node.id, controller.research.done).length - 1;
-        if (steps > missing.length) line(`Do celu brakuje ${steps} badań — jasny szlak na mapie.`, 11, COLORS.gold);
-      }
-      const next = researchLeadsTo(node.id).filter((n) => !n.master);
-      if (next.length > 0 && y < rect.y + rect.h - pad - TOUCH - this.s(30)) {
-        line(`Prowadzi do: ${next.map((n) => n.name).join(', ')}.`, 10.5, COLORS.faint);
-      }
+      } else if (status === 'needs-lab') label = `Laboratorium ${labLevelFor(node.ring, RESEARCH_RULES)}`;
+      else if (status === 'needs-research') label = 'Najpierw wymagania';
+      else if (status === 'soon') label = 'Wkrótce';
+      buttonsRow = (at) => {
+        add(this.button(x, at, half, label, style, action));
+        add(this.button(x + half + gap, at, half, 'Odznacz', 'secondary', () => this.select(null)));
+      };
     }
 
-    // Przyciski: [akcja] [Zamknij szczegóły]
-    const gap = this.s(8);
-    const half = (w - gap) / 2;
-    let label = 'Zbadane';
-    let style: ButtonStyle = 'disabled';
-    let action: () => void = () => undefined;
-    if (status === 'running') {
-      const armed = Date.now() <= this.cancelArmedUntil;
-      label = armed ? 'Na pewno?' : 'Anuluj';
-      style = armed ? 'danger' : 'secondary';
-      action = () => this.onCancel();
-    } else if (status === 'available') {
-      if (current) {
-        label = 'Trwa inne badanie';
-      } else {
-        label = 'Badaj';
-        style = 'primary';
-        action = () => this.onStart(node.id);
-      }
-    } else if (status === 'needs-lab') label = `Laboratorium ${labLevelFor(node.ring, RESEARCH_RULES)}`;
-    else if (status === 'needs-research') label = 'Zablokowane';
-    else if (status === 'soon') label = 'Wkrótce';
-    add(this.button(x, buttonY, half, label, style, action));
-    add(this.button(x + half + gap, buttonY, half, 'Odznacz', 'secondary', () => this.select(null)));
-    this.details.add(items);
+    // Przyciski pod treścią (albo przy dolnej krawędzi, gdy treść jest długa), tło karty pod wszystkim.
+    if (buttonsRow) {
+      const at = Math.min(y + this.s(4), maxBottom - TOUCH);
+      buttonsRow(at);
+      y = at + TOUCH;
+    }
+    const height = Math.min(rect.h, y + pad - rect.y);
+    const bg = this.add.graphics();
+    const radius = this.px(this.s(14));
+    bg.fillStyle(COLORS.panel, 0.94).fillRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(height), radius);
+    bg.lineStyle(this.px(1), COLORS.panelBorder, 1).strokeRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(height), radius);
+    const blocker = this.add.zone(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(height)).setOrigin(0).setInteractive();
+    this.details.add([bg, blocker, ...items]);
+    // Wąski ekran: dolny arkusz przyklejony do dołu.
+    if (!wide) this.details.setY(this.px(rect.h - height));
+  }
+
+  /** Legenda stanów gwiazd (panel w spoczynku). */
+  private legend(add: <T extends Phaser.GameObjects.GameObject>(o: T) => T, x: number, y: number, w: number, advance: (h: number) => void): void {
+    const g = add(this.add.graphics());
+    const r = this.s(5);
+    const line = Math.max(1, this.dpr);
+    const entries: [string, (cx: number, cy: number) => void][] = [
+      ['zbadane', (cx, cy) => g.fillStyle(COLORS.goldHex, 1).fillCircle(cx, cy, this.px(r))],
+      ['dostępne', (cx, cy) => g.lineStyle(line * 1.8, COLORS.goldHex, 1).strokeCircle(cx, cy, this.px(r))],
+      ['trwa', (cx, cy) => {
+        g.lineStyle(line * 1.2, COLORS.goldHex, 0.4).strokeCircle(cx, cy, this.px(r));
+        g.lineStyle(line * 2.4, COLORS.goldHex, 1).beginPath();
+        g.arc(cx, cy, this.px(r), -Math.PI / 2, Math.PI / 3, false);
+        g.strokePath();
+      }],
+      ['zablokowane', (cx, cy) => this.dashedCircle(g, cx, cy, this.px(r), line * 1.2, COLORS.goldHex, 0.8)],
+    ];
+    const col = w / 2;
+    entries.forEach(([label, draw], i) => {
+      const ex = x + (i % 2) * col;
+      const ey = y + Math.floor(i / 2) * this.s(22);
+      draw(this.px(ex + r), this.px(ey + this.s(8)));
+      add(this.text(ex + 2 * r + this.s(8), ey, label, 11, COLORS.muted, {}, false));
+    });
+    advance(this.s(48));
   }
 
   /** Odliczanie i pasek trwającego badania (co 250 ms, bez przebudowy panelu). */
@@ -576,10 +648,75 @@ export class ResearchScene extends OverlayScene {
     this.select(hitTest(POSITIONS, gx, gy, reach));
   }
 
-  private select(id: string | null): void {
+  /** `center` — mapa płynnie podjeżdża do badania (wybór z listy w panelu). */
+  private select(id: string | null, center = false): void {
     this.selected = id;
     this.cancelArmedUntil = 0;
     this.refresh(true);
+    if (id && center) this.centerOn(id);
+  }
+
+  /** Środek mapy na badaniu, z przybliżeniem co najmniej 1,6× (nazwy gwiazd widoczne). */
+  private centerOn(id: string): void {
+    const p = POSITIONS.get(id);
+    if (p) this.moveCamera(p, Math.max(this.zoom, 1.6));
+  }
+
+  /** Filtr ramienia: przygasza pozostałe i pokazuje całe ramię; `null` — całe drzewo. */
+  private focusArm(arm: string | null): void {
+    this.armFilter = arm;
+    for (const [id, chip] of this.chips) chip.setStyle(id === (arm ?? 'all') ? 'primary' : 'secondary');
+    if (!arm) {
+      this.moveCamera({ x: 0, y: 0 }, 1);
+    } else {
+      const points = RESEARCH_NODES.filter((n) => n.arm === arm && !n.master).map((n) => POSITIONS.get(n.id)!);
+      const xs = points.map((q) => q.x);
+      const ys = points.map((q) => q.y);
+      const center = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+      const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 2);
+      // Ramię mieści się w obszarze mapy z marginesem.
+      const fit = (Math.min(this.area.w, this.area.h) * this.dpr * 0.8) / (span * this.view.unit);
+      this.moveCamera(center, Math.max(1, Math.min(2.4, fit)));
+    }
+    this.refresh(true);
+  }
+
+  /** Płynny przejazd mapy: punkt galaktyki na środek obszaru mapy, przybliżenie `zoom`. */
+  private moveCamera(target: Point, zoom: number): void {
+    this.cameraTween?.stop();
+    const from = { zoom: this.zoom, x: this.pan.x, y: this.pan.y };
+    const to = { zoom, x: -target.x * this.view.unit * zoom, y: -target.y * this.view.unit * zoom };
+    const apply = (t: number) => {
+      this.zoom = from.zoom + (to.zoom - from.zoom) * t;
+      this.pan.x = from.x + (to.x - from.x) * t;
+      this.pan.y = from.y + (to.y - from.y) * t;
+      this.gestures.zoom = this.zoom;
+      this.applyTransform();
+    };
+    if (prefersReducedMotion()) {
+      apply(1);
+      return;
+    }
+    this.cameraTween = this.tweens.addCounter({ from: 0, to: 1, duration: 420, ease: 'Cubic.InOut', onUpdate: (tw) => apply(tw.getValue() ?? 1) });
+  }
+
+  /** Filtry ramion u góry mapy: „Całe drzewo” i aktywne ramiona (tyle, ile się zmieści). */
+  private buildFilters(): void {
+    this.chips.clear();
+    const gap = this.s(6);
+    let x = this.area.x + gap;
+    const y = this.area.y + gap;
+    const right = this.area.x + this.area.w - gap;
+    const entries: [string, string][] = [['all', 'Całe drzewo'], ...RESEARCH_ARMS.filter((a) => a.active).map((a): [string, string] => [a.id, a.name])];
+    for (const [id, label] of entries) {
+      const w = this.s(label.length * 7.6 + 30);
+      if (x + w > right) break;
+      const chip = this.addButton(x, y, w, TOUCH, label, id === (this.armFilter ?? 'all') ? 'primary' : 'secondary', () =>
+        this.focusArm(id === 'all' ? null : id),
+      );
+      this.chips.set(id, chip);
+      x += w + gap;
+    }
   }
 
   private onStart(id: string): void {

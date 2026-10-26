@@ -300,4 +300,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 165. Panel po prawej (albo na dole) bez zaznaczenia: postęp każdego ramienia i do 3 badań „dostępne teraz” — dotknięcie przenosi do badania.
 166. Dotknij odległej gwiazdy: jasna linia pokazuje, co trzeba zbadać po drodze; panel pisze, ile badań brakuje, i pokazuje efekt w liczbach (np. „Metal: 18/min → 20/min”).
 
+### Od 0.31.2: badania — panel i nawigacja
+
+167. U góry mapy badań: „Całe drzewo” i ramiona — dotknięcie ramienia pokazuje je w całości, reszta przygasa.
+168. Panel to karta tak wysoka jak treść; pod nią można przesuwać mapę. Szczegóły badania: wymagania z ✓/✗, „Brakuje: …” przy koszcie, przycisk „Wyśrodkuj”.
+169. Na telefonie szczegóły badania wysuwają się jako wyższy arkusz od dołu.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

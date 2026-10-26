@@ -2,6 +2,28 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.31.2: badania jako system strategiczny — czytelność, panel, nawigacja, logika
+
+Prośba właściciela (wytyczne „audyt i rozwój interfejsu badań”, kroki 1–5). Zakres zgodny z kolejnością z wytycznych: czytelność i model badania teraz, nowe systemy — po decyzji.
+
+**Audyt (krok 1).** Dane: `data/research.ts` (31 węzłów, 6 ramion; koszty z `RESEARCH_RULES`), reguły `core/research/research.ts` (status, koszt, czas, start, ukończenie, `applyResearch` → balans planety), stan w `SlotSave.research` (od v0.15 na planetę), integracja: `GameController.balanceFor` (produkcja, magazyn, budowa), odblokowania imperium. Koszt pobierany na starcie z aktywnej planety, anulowanie zwraca, ukończenie także offline; zapis waliduje i usuwa duplikaty. Efekty pokazywane w grze = efekty realizowane przez silnik (każdy rodzaj ma obsługę w `applyResearch`). Słabe strony: niski kontrast zablokowanych, pusty wysoki panel, brak orientacji przy przybliżeniu, brak listy wymagań.
+
+**Interfejs (krok 2).**
+- Kontrast: zablokowane i „wkrótce” jaśniejsze (obrys, ikona, połączenia), nazwy gwiazd jaśniejsze i większe (10,5 pt), nazwy ramion „wkrótce” 75%. Trwające badanie z pulsującą złotą poświatą. Legenda stanów w panelu (zbadane / dostępne / trwa / zablokowane); gwiazdy mistrzowskie = „przełom”.
+- **Panel jako karta dopasowana do treści**: szeroki ekran — u góry po prawej, reszta miejsca należy do mapy; wąski — dolny arkusz (szczegóły badania mogą sięgać do filtrów u góry). Przyciski pod treścią.
+- **Szczegóły:** nazwa, ramię · pierścień · wymagane Laboratorium, opis, EFEKT (na której planecie), liczby „przed → po”, KOSZT I CZAS z „Brakuje: …” na czerwono, WYMAGANIA z ✓/✗ (badania i Laboratorium), szlak, „Prowadzi do”, przycisk akcji albo powód blokady („Najpierw wymagania”, „Laboratorium N”).
+- **Nawigacja:** filtry „Całe drzewo” i aktywne ramiona (tyle, ile się mieści; filtr przygasza resztę i dopasowuje widok), „Wyśrodkuj” w szczegółach, wybór z listy „dostępne teraz” / „Pokaż trwające” płynnie podjeżdża do gwiazdy (420 ms; „Ogranicz ruch” — od razu). Wyszukiwarki nie dodano: przy 31 badaniach filtry ramion wystarczą, a pole tekstowe na iPadzie zasłania pół ekranu klawiaturą — do rozważenia przy większym drzewie.
+
+**Logika (krok 3).** `applyResearch` liczy każde badanie raz (zbiór) — test: ponowne ukończenie i powtórzony wpis nie dublują premii, zbadanego nie da się zacząć. Koszty energii i „materii” z wytycznych pominięte: energia nie jest zapasem w modelu gry, materii nie ma (decyzja z etapu 1 — osobny etap).
+
+**Architektura na później (krok 4, propozycja — bez wdrożenia).**
+- *Alternatywne ścieżki*: pole `exclusive?: string` (grupa wyboru) w `ResearchNodeDef`; `researchStatus` → nowy stan „wykluczone”, gdy zbadano inne z grupy.
+- *Kolejka*: `ResearchState.queue: string[]` (1 następne, więcej z poziomem Laboratorium); `completeResearch` startuje następne, gdy stać.
+- *Poziomy technologii*: węzeł z `levels: number` i efektem na poziom (`done` jako mapa id → poziom; migracja z listy).
+- *Warunki planetarne*: `ResearchEffect.only?: { planetType?: string }` sprawdzane w `applyResearch(base, done, planet)`.
+- *Odblokowania kolonizacji / budowy*: nowy rodzaj efektu `buildRule` (`BuildRules.ice/water` już istnieją w `fieldGrid.ts`).
+- *Anomalie i przełomy*: osobne węzły poza galaktyką (`source: 'discovery'`), odblokowywane zdarzeniem ekspedycji — wymaga lore (K-011, K-012).
+
 ## 2026-10-26 — v0.31.1: łagodniejsza siatka pól
 
 Właściciel: siatka z v0.30.1 ma za duży kontrast i „razi po oczach”. `FIELD_LINE`: linia 1,6 → 1,2 pt, krycie 95% → 70%, obwódka 4 → 2,8 pt i 60% → 32%. Nadal widoczna na lodzie i jasnym lądzie (zrzuty 2D i 3D), ale spokojniejsza.

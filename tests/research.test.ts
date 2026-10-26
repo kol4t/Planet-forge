@@ -257,3 +257,18 @@ test('badania przypisane do planety: efekty tylko tam; odblokowania (statek, SI,
     assert.equal(game.research.current?.id, 'planet-1');
   });
 });
+
+test('badania bez podwójnych efektów: ponowne ukończenie i powtórzony wpis nie dublują premii; zbadane nie da się zacząć', () => {
+  const economy = rich(createEconomy(0));
+  const r = startResearch(EMPTY_RESEARCH, economy, 'prod-core', 1, 'SEED', 0);
+  assert.ok(r.ok);
+  const done = completeResearch(r.research, r.research.current!.finishesAt).research;
+  // Drugie ukończenie nic nie robi (brak trwającego badania).
+  assert.deepEqual(completeResearch(done, Number.MAX_SAFE_INTEGER).research, done);
+  const again = startResearch(done, economy, 'prod-core', 1, 'SEED', 0);
+  assert.ok(!again.ok && again.reason === 'done');
+  // Nawet gdyby badanie trafiło na listę dwa razy, efekt liczy się raz.
+  const once = applyResearch(BALANCE, ['prod-core']);
+  const twice = applyResearch(BALANCE, ['prod-core', 'prod-core']);
+  assert.deepEqual(twice.buildings.map((b) => b.baseOutput), once.buildings.map((b) => b.baseOutput));
+});
