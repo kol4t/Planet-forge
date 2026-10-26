@@ -44,3 +44,22 @@ test('badania — każda gwiazda (poza mistrzowskimi) ma ikonę rodzaju', () => 
   assert.equal(nodeIcon(findResearch('energy-2')!), 'energy');
   assert.equal(nodeIcon(findResearch('explore-1')!), 'ship');
 });
+
+test('badania — łuki połączeń po spirali i zaczepy mostów (v0.36.1)', async () => {
+  const { isBridge, linkCurve, polylinePrefix } = await import('../src/game/ui/galaxy.ts');
+  // Łuk między punktami po przeciwnych stronach jądra nie przechodzi przez jądro.
+  const curve = linkCurve({ x: 3, y: 0 }, { x: -3, y: 0.01 });
+  assert.deepEqual(curve[0], { x: 3, y: 0 });
+  for (const p of curve) assert.ok(Math.hypot(p.x, p.y) > 2.9);
+  // Z jądra — prosto na zewnątrz.
+  const out = linkCurve({ x: 0, y: 0 }, { x: 0, y: 2 });
+  assert.ok(out.every((p) => Math.abs(p.x) < 1e-9));
+  // Zaczep ma zadaną długość.
+  const stub = polylinePrefix(curve, 0.42);
+  let length = 0;
+  for (let i = 1; i < stub.length; i++) length += Math.hypot(stub[i]!.x - stub[i - 1]!.x, stub[i]!.y - stub[i - 1]!.y);
+  assert.ok(Math.abs(length - 0.42) < 1e-9);
+  // Mosty: wymaganie z innego ramienia.
+  assert.equal(isBridge(findResearch('log-4')!, findResearch('ai-3')), true);
+  assert.equal(isBridge(findResearch('log-4')!, findResearch('log-3')), false);
+});

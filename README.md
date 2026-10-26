@@ -390,4 +390,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 213. Przesuń suwaki Metal i Kryształy (albo „Połowa” / „Ile się zmieści”) → „Wyślij”: zapas aktywnej planety maleje od razu, nad alertami w „Imperium” pojawia się „Transportowiec: … → …” z odliczaniem.
 214. Po przylocie: komunikat „Transportowiec dotarł…”, zapas planety odbiorcy rośnie (karta w „Imperium”), wpis w „Dzienniku”. Działa też przy zamkniętej grze — komunikat po powrocie.
 
+### Od 0.36.1: czytelne połączenia w „Badaniach”
+
+215. Badania → „Całe drzewo”: linie biegną łukami wzdłuż ramion, żadna nie przecina galaktyki przez środek.
+216. Badania wymagające wiedzy z innego ramienia mają tylko krótki „zaczep” z kropką w kolorze tamtego ramienia (np. fioletowa = SI).
+217. Dotknij takie badanie (np. „Ciągłość produkcji” w Produktywności): pojawia się cały most — przerywana linia do badania w innym ramieniu; pozostałe linie przygasają. W „Wymaganiach” przy moście stoi nazwa ramienia („Autonomia · SI”).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

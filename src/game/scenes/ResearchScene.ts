@@ -6,7 +6,7 @@ import type { ResearchNodeDef } from '../../core/types.ts';
 import { findArm, findResearch, RESEARCH_ARMS, RESEARCH_NODES, RESEARCH_RULES } from '../../data/research.ts';
 import type { Button, ButtonStyle } from '../ui/Button.ts';
 import { prefersReducedMotion } from '../ui/motion.ts';
-import { armPoint, GALAXY_RADIUS, galaxyLayout, hitTest, nodeIcon, ringRadius, type NodeIcon, type Point } from '../ui/galaxy.ts';
+import { armPoint, GALAXY_RADIUS, galaxyLayout, hitTest, isBridge, linkCurve, nodeIcon, polylinePrefix, ringRadius, type NodeIcon, type Point } from '../ui/galaxy.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
 import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
@@ -208,29 +208,56 @@ export class ResearchScene extends OverlayScene {
     // Szlak do zaznaczonego celu: ono i wszystkie niezbadane badania przed nim.
     const path = new Set(this.selected ? researchPath(this.selected, controller.research.done) : []);
     // Połączenia (od wymaganego badania do następnego); pierścień 1 łączy się z jądrem.
+    // v0.36.1: łuki po spirali; mosty z innych ramion w spoczynku tylko jako krótki zaczep z kropką
+    // w kolorze ramienia źródła — cały most widać po zaznaczeniu jednego z jego końców.
+    const sel = this.selected;
+    const touches = (a: string, b: string) => sel === a || sel === b;
+    const related = new Set<string>(sel ? [sel, ...(findResearch(sel)?.requires ?? []), ...researchLeadsTo(sel).map((n) => n.id)] : []);
     for (const node of RESEARCH_NODES) {
       const p = POSITIONS.get(node.id)!;
       const arm = findArm(node.arm)!;
       const status = this.statusOf(node);
-      const froms = node.requires.length > 0 ? node.requires.map((id) => POSITIONS.get(id)!) : [{ x: 0, y: 0 }];
+      const reqs = node.requires.length > 0 ? node.requires : [null];
       // Gwiazdy „wkrótce” daleko od poprzedniej (np. mistrzowskie) — bez długich linii przez mapę.
       if (status === 'soon' && node.requires.some((id) => (findResearch(id)?.ring ?? 0) < node.ring - 1)) continue;
       // Filtr ramienia: połączenia innych ramion ledwo widoczne.
       const dim = this.armFilter !== null && node.arm !== this.armFilter ? 0.25 : 1;
-      for (const from of froms) {
-        const lit = status === 'done' || status === 'running' || status === 'available' || status === 'needs-lab';
-        g.lineStyle(line * (lit ? 1.6 : 1), status === 'soon' ? COLORS.panelBorder : arm.color, (status === 'done' ? 0.75 : lit ? 0.5 : 0.34) * dim);
-        g.lineBetween(from.x * U, from.y * U, p.x * U, p.y * U);
+      const lit = status === 'done' || status === 'running' || status === 'available' || status === 'needs-lab';
+      for (const id of reqs) {
+        const required = id ? findResearch(id) : undefined;
+        const from = id ? POSITIONS.get(id)! : { x: 0, y: 0 };
+        // Zaznaczenie: połączenia niezwiązane z nim przygasają.
+        const focus = sel && !(related.has(node.id) && (id === null || related.has(id))) ? 0.4 : 1;
+        const alpha = (status === 'done' ? 0.75 : lit ? 0.5 : 0.34) * dim * focus;
+        const width = line * (lit ? 1.6 : 1);
+        if (id && isBridge(node, required)) {
+          const source = findArm(required!.arm)!;
+          const curve = linkCurve(p, from);
+          if (touches(node.id, id)) {
+            this.dashedPolyline(g, curve, U, width * 1.2, source.color, Math.min(1, alpha + 0.4));
+          } else {
+            const stub = polylinePrefix(curve, 0.42);
+            const end = stub[stub.length - 1]!;
+            this.polyline(g, stub, U, width, source.color, alpha);
+            g.fillStyle(source.color, Math.min(1, alpha + 0.25) * (status === 'soon' ? 0.5 : 1)).fillCircle(end.x * U, end.y * U, 0.055 * U);
+          }
+          continue;
+        }
+        this.polyline(g, linkCurve(from, p), U, width, status === 'soon' ? COLORS.panelBorder : arm.color, alpha);
       }
     }
-    if (path.size > 1 || (path.size === 1 && this.selected && this.statusOf(findResearch(this.selected)!) !== 'available')) {
-      // Jasny szlak (złoto zlewałoby się z ramieniem Produktywności).
-      g.lineStyle(line * 2.6, 0xdfe7e1, 0.85);
+    if (path.size > 1 || (path.size === 1 && sel && this.statusOf(findResearch(sel)!) !== 'available')) {
+      // Jasny szlak (złoto zlewałoby się z ramieniem Produktywności) — także przez mosty.
       for (const id of path) {
         const node = findResearch(id)!;
         const p = POSITIONS.get(id)!;
-        const froms = node.requires.length > 0 ? node.requires.map((r) => POSITIONS.get(r)!) : [{ x: 0, y: 0 }];
-        for (const from of froms) g.lineBetween(from.x * U, from.y * U, p.x * U, p.y * U);
+        if (node.requires.length === 0) this.polyline(g, linkCurve({ x: 0, y: 0 }, p), U, line * 2.6, 0xdfe7e1, 0.85);
+        for (const r of node.requires) {
+          const curve = linkCurve(POSITIONS.get(r)!, p);
+          // Most zostaje przerywany także na szlaku — widać, że prowadzi przez inne ramię.
+          if (isBridge(node, findResearch(r))) this.dashedPolyline(g, curve, U, line * 2.6, 0xdfe7e1, 0.85);
+          else this.polyline(g, curve, U, line * 2.6, 0xdfe7e1, 0.85);
+        }
       }
     }
     for (const node of RESEARCH_NODES) {
@@ -287,6 +314,48 @@ export class ResearchScene extends OverlayScene {
         g.lineStyle(line * 1.4, 0xffffff, 0.9).strokeCircle(x, y, r * 1.75);
       }
     }
+  }
+
+  /** Łamana w jednostkach galaktyki. */
+  private polyline(g: Phaser.GameObjects.Graphics, points: readonly Point[], U: number, width: number, color: number, alpha: number): void {
+    g.lineStyle(width, color, alpha);
+    g.beginPath();
+    g.moveTo(points[0]!.x * U, points[0]!.y * U);
+    for (let i = 1; i < points.length; i++) g.lineTo(points[i]!.x * U, points[i]!.y * U);
+    g.strokePath();
+  }
+
+  /** Łamana z kresek (most z innego ramienia, gdy zaznaczony). */
+  private dashedPolyline(g: Phaser.GameObjects.Graphics, points: readonly Point[], U: number, width: number, color: number, alpha: number): void {
+    const dash = 0.16;
+    const gap = 0.1;
+    g.lineStyle(width, color, alpha);
+    let on = true;
+    let left = dash;
+    let a = points[0]!;
+    g.beginPath();
+    g.moveTo(a.x * U, a.y * U);
+    for (let i = 1; i < points.length; i++) {
+      const b = points[i]!;
+      let seg = Math.hypot(b.x - a.x, b.y - a.y);
+      let cx = a.x;
+      let cy = a.y;
+      while (seg > 0) {
+        const step = Math.min(seg, left);
+        cx += ((b.x - cx) * step) / seg;
+        cy += ((b.y - cy) * step) / seg;
+        if (on) g.lineTo(cx * U, cy * U);
+        else g.moveTo(cx * U, cy * U);
+        seg -= step;
+        left -= step;
+        if (left <= 1e-9) {
+          on = !on;
+          left = on ? dash : gap;
+        }
+      }
+      a = b;
+    }
+    g.strokePath();
   }
 
   /** Okrąg z kresek (badanie zablokowane). */
@@ -535,7 +604,12 @@ export class ResearchScene extends OverlayScene {
           const done = controller.research.done;
           const needLab = labLevelFor(node.ring, RESEARCH_RULES);
           const rows: [boolean, string][] = [
-            ...node.requires.map((id): [boolean, string] => [done.includes(id), findResearch(id)?.name ?? id]),
+            // Most z innego ramienia — z nazwą ramienia, żeby było wiadomo, gdzie go szukać.
+            ...node.requires.map((id): [boolean, string] => {
+              const req = findResearch(id);
+              const other = req && req.arm !== node.arm ? ` · ${findArm(req.arm)?.name ?? ''}` : '';
+              return [done.includes(id), `${req?.name ?? id}${other}`];
+            }),
             [controller.labLevel >= needLab, `Laboratorium poz. ${needLab} (masz ${controller.labLevel})`],
           ];
           for (const [ok, label] of rows) line(`${ok ? '✓' : '✗'}  ${label}`, 11, ok ? COLORS.teal : COLORS.danger, {}, 2);

@@ -2,6 +2,10 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.36.1: połączenia w „Badaniach” bez chaosu
+
+Właściciel (zrzut z iPada): mosty dają ciekawe zależności, ale długie linie przez całą galaktykę gubią gracza. Zasady rysowania: (1) każde połączenie to łuk „po spirali” (interpolacja kąta i promienia), więc biegnie wzdłuż pierścieni, a nie na skos przez jądro; (2) most z innego ramienia w spoczynku = krótki zaczep z kropką w kolorze ramienia źródła — informacja „zależy od innej dziedziny” bez linii przez mapę; (3) pełny most (przerywany) dopiero po zaznaczeniu jednego z jego końców, a pozostałe połączenia wtedy przygasają; (4) szlak do celu przez most też przerywany. Dane badań i zależności bez zmian.
+
 ## 2026-10-26 — v0.36: Transportowce
 
 - **Flota jako flota cywilna** (K-005: walka nie jest sercem gry): ramię aktywne z badaniami Transportowce → Ładownie modułowe, Lżejsze kadłuby (most z Eksploracji, skraca też lot statku kolonizacyjnego), Szlaki konwojów (stałe trasy, połączenie z SI) — wkrótce.
