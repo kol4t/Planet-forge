@@ -290,4 +290,8 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 161. Z kilkoma planetami gra startuje szybciej (także po przełączeniu grafiki 2D ↔ 3D, które uruchamia grę od nowa).
 162. ☰ → dotknij innej planety: najpierw pojawia się komunikat „Ładowanie: …”, po chwili nowa planeta. Pierwsze wejście na planetę w danej sesji trwa dłużej, kolejne — krócej.
 
+### Od 0.30.1: siatka pól
+
+163. Ustawienia → Widok → włącz siatkę pól. Granice pól mają ciemną obwódkę i są widoczne także na lodzie (bieguny), jasnym lądzie i po nocnej stronie — w 2D i 3D.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -3,7 +3,7 @@ import { BALANCE } from '../data/balance.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import { layoutFromPlots, plotsKey, visibleStructures, type ColonyLayout } from './colony.ts';
-import { borderStates, FIELD_COLORS } from './fieldOverlay.ts';
+import { borderChains, borderStates, FIELD_COLORS, FIELD_LINE, type BorderChain } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
@@ -44,6 +44,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private grid: FieldGrid | null = null;
   private plotsKey = '';
   private plots: Plots | null = null;
+  /** Granice pól połączone w linie (dla danej siatki i zajętości). */
+  private chains: BorderChain[] | null = null;
+  private chainsKey = '';
+  private chainsGrid: FieldGrid | null = null;
   private gridVisible = false;
   private spinHeld = false;
   private readonly reducedMotion = prefersReducedMotion();
@@ -176,28 +180,50 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const cp = Math.cos(pitch);
     const sp = Math.sin(pitch);
     const ctx = this.ctx;
-    const states = borderStates(this.grid, this.plots);
+    // Linie liczone raz na siatkę i zajętość pól (nie co klatkę).
+    const chainsKey = this.plotsKey;
+    if (!this.chains || this.chainsKey !== chainsKey || this.chainsGrid !== this.grid) {
+      this.chains = borderChains(this.grid, borderStates(this.grid, this.plots));
+      this.chainsKey = chainsKey;
+      this.chainsGrid = this.grid;
+    }
+    const chains = this.chains;
     const project = ([px, py, pz]: readonly number[]): [number, number] | null => {
       const sx = px! * cy + pz! * sy;
       const hz = -px! * sy + pz! * cy;
       if (py! * sp + hz * cp < 0.02) return null;
       return [cx + sx * r, centerY - (py! * cp - hz * sp) * r];
     };
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.75;
-    // Jedna ścieżka na kolor (zajęte rysowane na końcu — na wierzchu).
-    for (const state of ['ice', 'free', 'taken'] as const) {
-      ctx.strokeStyle = FIELD_COLORS[state];
+    // Rzut raz na klatkę; niewidoczne punkty (druga strona planety) przerywają linię.
+    const projected = chains.map((chain) => chain.points.map(project));
+    const path = (keep: (chain: BorderChain) => boolean) => {
       ctx.beginPath();
-      this.grid.borders.forEach((border, i) => {
-        if (states[i] !== state) return;
-        const a = project(border.from);
-        const b = project(border.to);
-        if (!a || !b) return;
-        ctx.moveTo(a[0], a[1]);
-        ctx.lineTo(b[0], b[1]);
+      projected.forEach((points, c) => {
+        if (!keep(chains[c]!)) return;
+        let pen = false;
+        for (const p of points) {
+          if (!p) {
+            pen = false;
+            continue;
+          }
+          if (pen) ctx.lineTo(p[0], p[1]);
+          else ctx.moveTo(p[0], p[1]);
+          pen = true;
+        }
       });
       ctx.stroke();
+    };
+    // Najpierw ciemna obwódka pod wszystkimi liniami, potem kolor (zajęte na końcu — na wierzchu).
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = FIELD_LINE.haloAlpha;
+    ctx.strokeStyle = FIELD_LINE.haloColor;
+    ctx.lineWidth = FIELD_LINE.halo;
+    path(() => true);
+    ctx.globalAlpha = FIELD_LINE.alpha;
+    ctx.lineWidth = FIELD_LINE.width;
+    for (const state of ['ice', 'free', 'taken'] as const) {
+      ctx.strokeStyle = FIELD_COLORS[state];
+      path((chain) => chain.state === state);
     }
     ctx.globalAlpha = 1;
   }

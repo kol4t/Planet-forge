@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.30.1: lepiej widoczna siatka pól
+
+Uwaga właściciela: na lodzie i na większości terenów granic siatki nie widać.
+- Przyczyny: linie 1 px (na Retinie pół punktu), jasny błękit lodu na białym lodzie, turkus na jasnym lądzie; w 3D zwykłe linie WebGL mają zawsze 1 piksel, a część chowała się pod fasetami terenu.
+- **Wspólny wygląd** (`FIELD_LINE` w `fieldOverlay.ts`): linia 1,6 pt + ciemna obwódka 4 pt (60%) pod nią — widoczna na lodzie, piasku, zieleni i w nocy. Kolory pól bez zmian (turkus wolne, złoto zajęte, błękit lód).
+- **3D:** grube linie z three.js (`LineSegments2` + `LineMaterial`, grubość w punktach ekranu, dwie warstwy: obwódka i kolor — 2 dodatkowe wywołania rysowania tylko przy włączonej siatce), uniesione wyżej nad terenem (+0,009 zamiast +0,004).
+- **2D:** ~11 tys. odcinków granic łączonych raz w kilkaset ciągłych linii (`borderChains`, liczone przy zmianie siatki lub zajętości) — grubsze linie z obwódką rysują się szybciej niż dawne cienkie (pomiar: 79 ms zamiast 115 ms na 60 klatek).
+
 ## 2026-10-26 — v0.30: zgłoszenie #1 — zacięcia przy starcie, zmianie planety i grafiki
 
 Zgłoszenie testera: spadki klatek przy zmianie grafiki 2D→3D (to przeładowanie gry, czyli pełny start) i przy zmianie planety (diagnostyka: średnio 49 kl./s, najsłabsza sekunda 4 kl./s, 4 planety). Pomiar (profil CPU w Chromium, zapis z 4 planetami):

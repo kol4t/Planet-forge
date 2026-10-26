@@ -6,7 +6,10 @@ import { createAtmosphere } from './atmosphere.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import { layoutFromPlots, plotsKey, type ColonyLayout } from './colony.ts';
-import { borderStates, FIELD_COLORS } from './fieldOverlay.ts';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
+import { borderStates, FIELD_COLORS, FIELD_LINE } from './fieldOverlay.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { ZoomSmoother } from './input/zoom.ts';
@@ -76,7 +79,10 @@ export class PlanetView implements PlanetDisplay {
   private grid: FieldGrid | null = null;
   private shaped: SurfaceSampler | null = null;
   private plotsKey = '';
-  private fieldLines: THREE.LineSegments | null = null;
+  /** Siatka pól: ciemna obwódka + kolorowe linie (grube linie — zwykłe mają w WebGL zawsze 1 piksel). */
+  private fieldLines: THREE.Group | null = null;
+  private fieldColors: LineSegmentsGeometry | null = null;
+  private readonly lineMaterials: LineMaterial[] = [];
   private gridVisible = false;
   private spinHeld = false;
   private readonly resolution = new AdaptiveResolution();
@@ -159,20 +165,37 @@ export class PlanetView implements PlanetDisplay {
     }
     const grid = this.grid!;
     const positions: number[] = [];
+    // Nad terenem z zapasem: płaskie fasety low-poly bywają wyżej niż teren w punkcie granicy.
     const lift = (p: readonly [number, number, number]) => {
       const h = sampler.height(...p);
-      const r = Math.max(1.003, shapedRadius(planet, Math.max(h, sampler.lakeLevel(...p))) + 0.004);
+      const r = Math.max(1.004, shapedRadius(planet, Math.max(h, sampler.lakeLevel(...p))) + 0.009);
       return [p[0] * r, p[1] * r, p[2] * r];
     };
     // Granice pól lądu i lodu (wzdłuż brzegów) — woda i lawa nie mają pól.
     for (const border of grid.borders) positions.push(...lift(border.from), ...lift(border.to));
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(positions.length), 3));
-    this.fieldLines = new THREE.LineSegments(
-      geometry,
-      new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.75, toneMapped: false }),
-    );
+    this.lineMaterials.length = 0;
+    const line = (width: number, color: string | null, opacity: number, order: number) => {
+      const geometry = new LineSegmentsGeometry();
+      geometry.setPositions(positions);
+      const material = new LineMaterial({
+        linewidth: width,
+        color: color ?? '#ffffff',
+        vertexColors: color === null,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+        toneMapped: false,
+      });
+      material.resolution.set(this.width, this.height);
+      this.lineMaterials.push(material);
+      const object = new LineSegments2(geometry, material);
+      object.renderOrder = order;
+      return object;
+    };
+    const halo = line(FIELD_LINE.halo, FIELD_LINE.haloColor, FIELD_LINE.haloAlpha, 1);
+    const colored = line(FIELD_LINE.width, null, FIELD_LINE.alpha, 2);
+    this.fieldColors = colored.geometry;
+    this.fieldLines = new THREE.Group().add(halo, colored);
     this.fieldLines.name = 'fields';
     this.fieldLines.visible = this.gridVisible;
     this.spinGroup.add(this.fieldLines);
@@ -181,16 +204,15 @@ export class PlanetView implements PlanetDisplay {
 
   /** Kolory obrysów według zajętości (wołane, gdy zmieniają się zajęte pola). */
   private colorFieldLines(plots: Plots): void {
-    if (!this.fieldLines || !this.grid) return;
-    const colors = this.fieldLines.geometry.getAttribute('color') as THREE.BufferAttribute;
+    if (!this.fieldColors || !this.grid) return;
     const states = borderStates(this.grid, plots);
     const palette = Object.fromEntries(Object.entries(FIELD_COLORS).map(([k, hex]) => [k, new THREE.Color(hex)])) as Record<string, THREE.Color>;
+    const colors = new Float32Array(states.length * 6);
     states.forEach((state, i) => {
       const c = palette[state]!;
-      colors.setXYZ(i * 2, c.r, c.g, c.b);
-      colors.setXYZ(i * 2 + 1, c.r, c.g, c.b);
+      colors.set([c.r, c.g, c.b, c.r, c.g, c.b], i * 6);
     });
-    colors.needsUpdate = true;
+    this.fieldColors.setColors(colors);
   }
 
   setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots): void {
@@ -287,6 +309,8 @@ export class PlanetView implements PlanetDisplay {
   resize(width: number, height: number): void {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
+    // Grube linie siatki liczą grubość w pikselach ekranu.
+    for (const material of this.lineMaterials) material.resolution.set(this.width, this.height);
     this.applyPixelRatio();
     this.updateCamera();
   }

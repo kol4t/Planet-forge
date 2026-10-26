@@ -7,6 +7,12 @@ export const FIELD_COLORS = { free: '#5fd3c4', taken: '#d8b463', ice: '#b9d4e6' 
 
 export type FieldState = keyof typeof FIELD_COLORS;
 
+/**
+ * Grubość linii siatki (pt ekranu) i ciemna obwódka pod nią — linia jest widoczna na każdym tle:
+ * jasnym lodzie, piasku, zieleni i nocnej stronie (od v0.30.1; wcześniej 1 px bez obwódki).
+ */
+export const FIELD_LINE = { width: 1.6, halo: 4, haloColor: '#041012', haloAlpha: 0.6, alpha: 0.95 } as const;
+
 /** Stan każdego pola: zajęte (przez budowlę), wolne (ląd) albo lód. */
 export function fieldStates(grid: FieldGrid, plots: Plots | null): FieldState[] {
   const taken = new Set<number>();
@@ -27,4 +33,61 @@ export function borderStates(grid: FieldGrid, plots: Plots | null): FieldState[]
     const sb = cells[b]!;
     return rank[sa] >= rank[sb] ? sa : sb;
   });
+}
+
+type Point3 = readonly [number, number, number];
+
+/** Ciągła linia granicy w jednym kolorze (kolejne punkty na sferze). */
+export interface BorderChain {
+  state: FieldState;
+  points: Point3[];
+}
+
+/**
+ * Łączy odcinki granic (`grid.borders`) o tym samym kolorze w ciągłe linie — zamiast ~10 tys. osobnych
+ * odcinków kilkaset linii, które rysuje się dużo szybciej (grubsze linie z obwódką w 2D).
+ * Każdy odcinek trafia do dokładnie jednej linii.
+ */
+export function borderChains(grid: FieldGrid, states: readonly FieldState[]): BorderChain[] {
+  const key = (p: Point3) => `${p[0].toFixed(6)},${p[1].toFixed(6)},${p[2].toFixed(6)}`;
+  const chains: BorderChain[] = [];
+  for (const state of ['ice', 'free', 'taken'] as const) {
+    const ends = new Map<string, number[]>();
+    const segments: number[] = [];
+    grid.borders.forEach((border, i) => {
+      if (states[i] !== state) return;
+      segments.push(i);
+      for (const p of [border.from, border.to]) {
+        const k = key(p);
+        const list = ends.get(k);
+        if (list) list.push(i);
+        else ends.set(k, [i]);
+      }
+    });
+    const used = new Set<number>();
+    const next = (at: Point3): { seg: number; to: Point3 } | null => {
+      for (const seg of ends.get(key(at)) ?? []) {
+        if (used.has(seg)) continue;
+        const b = grid.borders[seg]!;
+        return { seg, to: key(b.from) === key(at) ? b.to : b.from };
+      }
+      return null;
+    };
+    for (const start of segments) {
+      if (used.has(start)) continue;
+      used.add(start);
+      const b = grid.borders[start]!;
+      const points: Point3[] = [b.from, b.to];
+      for (let step = next(b.to); step; step = next(points[points.length - 1]!)) {
+        used.add(step.seg);
+        points.push(step.to);
+      }
+      for (let step = next(b.from); step; step = next(points[0]!)) {
+        used.add(step.seg);
+        points.unshift(step.to);
+      }
+      chains.push({ state, points });
+    }
+  }
+  return chains;
 }
