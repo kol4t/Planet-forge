@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.29: mikroanimacje interfejsu (etap 7, krok 1)
+
+Decyzja właściciela: etap 7 (dokończenie UI) małymi krokami, najpierw animacje; nazwy sekcji dolnego paska zostają (Produkcja, Badania, Mapa, Imperium, Planeta, SI).
+- **Panel** (Produkcja / Planeta / SI / Planety) przy otwarciu wjeżdża z dołu i rozjaśnia się (180 ms, `PANEL_IN_MS`); tylko nowo otwarty panel — zmiana rozmiaru ekranu, odświeżenie i przełączenie planety bez animacji.
+- **Liczniki** metalu, kryształów i antymaterii w pasku dochodzą do nowej wartości płynnie co klatkę (`approach`, stała czasu 120 ms; różnica < 0,5 od razu), np. po zapłaceniu za budowę. Zmiana planety — od razu nowa wartość.
+- **Błysk karty** (złota obwódka i poświata, 650 ms) po rozpoczęciu budowy, obok istniejącego komunikatu.
+- **„Ogranicz ruch”** w systemie (`prefers-reduced-motion`, `game/ui/motion.ts`) wyłącza wszystkie trzy. Logika gry bez zmian.
+
 ## 2026-10-24 — v0.28: informacja geologiczna na mapie
 
 Etap 2 planu gameplayu. Decyzja właściciela: **dokładne wartości złóż** od razu (bez szacunków i skanowania — to ewentualnie osobny etap później).

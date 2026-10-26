@@ -279,4 +279,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 156. **Mapa** → układ → dotknij wolnej planety: pod typem planety są linijki „Bogactwo złóż: …”, „Pola: … · Złoże: metal … · kryształy …” i „Względem <Twoja planeta>: metal +…% · kryształy −…% · pola +…”.
 157. Dotknij swojej planety na mapie: zamiast „Złoże” jest „Zostało: metal … z … · kryształy … z …”.
 
+### Od 0.29: animacje
+
+158. Dotknij **Planeta** albo **Produkcja** na dolnym pasku: panel krótko wjeżdża od dołu.
+159. Rozpocznij budowę: karta budynku błyska na złoto, a liczby metalu i kryształów w górnym pasku zmniejszają się płynnie.
+160. Z włączonym „Ogranicz ruch” (Ustawienia iPada → Dostępność → Ruch) wszystko dzieje się od razu, bez animacji.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

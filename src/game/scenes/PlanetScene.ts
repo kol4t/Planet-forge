@@ -27,6 +27,7 @@ import {
   type Rect,
 } from '../ui/layout.ts';
 import { loadPanels, savePanels, FOCUS_ZOOMS, loadFocusZoom, loadGridVisible, saveFocusZoom, saveGridVisible } from '../ui/uiPrefs.ts';
+import { approach, BUILD_FLASH_MS, PANEL_IN_MS, PANEL_IN_OFFSET, prefersReducedMotion } from '../ui/motion.ts';
 import { COLORS, FONTS, formatAmount, formatDuration, formatInt, formatRate, formatSpan } from '../ui/theme.ts';
 import { OVERLAY_CLOSED } from './OverlayScene.ts';
 
@@ -72,6 +73,8 @@ interface BuildingCard {
   /** Pasek postępu budowy (rysowany nad przyciskiem). */
   progress: Phaser.GameObjects.Graphics;
   bar: { x: number; y: number; w: number };
+  /** Miejsce karty (do błysku po rozpoczęciu budowy). */
+  rect: Rect;
 }
 
 /** Jak długo drugie dotknięcie „Anuluj” potwierdza anulowanie (ms). */
@@ -137,6 +140,12 @@ export class PlanetScene extends Phaser.Scene {
   private toast: Phaser.GameObjects.Container | undefined;
   private cards: BuildingCard[] = [];
   private res: ResourceTexts | undefined;
+  /** Wartości liczników w pasku (płynnie doganiają stan gry) i planeta, do której należą. */
+  private counters: { metal?: number; crystal?: number; antimatter?: number } = {};
+  private counterPlanet = '';
+  /** Panel pokazany w ostatnim układzie (animujemy tylko nowo otwarty). */
+  private shownPanel: PanelId | null = null;
+  private readonly reducedMotion = prefersReducedMotion();
   private layoutState: Layout | undefined;
   private dpr = 1;
   private readonly gestures = new GestureTracker();
@@ -294,6 +303,7 @@ export class PlanetScene extends Phaser.Scene {
 
 
   update(_time: number, delta: number): void {
+    this.stepCounters(delta);
     this.refreshTimer -= delta;
     if (this.refreshTimer > 0) return;
     this.refreshTimer = 250;
@@ -348,7 +358,12 @@ export class PlanetScene extends Phaser.Scene {
     this.dockProgress = null;
     this.aiPanelShape = '';
     this.buildTopBar(layout);
+    const before = this.ui.length;
     this.buildPanel(layout);
+    // Nowo otwarty panel wysuwa się krótko znad dolnego paska (zmiana rozmiaru ekranu — bez animacji).
+    const opened = layout.panel?.id ?? null;
+    if (animate && opened && opened !== this.shownPanel) this.slideIn(this.ui.list.slice(before));
+    this.shownPanel = opened;
     this.buildSelected(layout);
     this.buildDock(layout);
     this.buildCamera(layout);
@@ -356,6 +371,61 @@ export class PlanetScene extends Phaser.Scene {
     this.aiBubble = null;
     this.refreshValues();
     if (this.overlay) this.children.bringToTop(this.overlay);
+  }
+
+  /** Panel wjeżdża z dołu i rozjaśnia się (krótko; „Ogranicz ruch” — bez animacji). */
+  private slideIn(objects: Phaser.GameObjects.GameObject[]): void {
+    if (this.reducedMotion) return;
+    const dy = this.px(this.s(PANEL_IN_OFFSET));
+    for (const o of objects) {
+      const t = o as Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform & Phaser.GameObjects.Components.AlphaSingle;
+      if (typeof t.y !== 'number' || typeof t.alpha !== 'number' || typeof t.setAlpha !== 'function') continue;
+      const y = t.y;
+      const alpha = t.alpha;
+      t.y = y + dy;
+      t.setAlpha(0);
+      this.tweens.add({ targets: t, y, alpha, duration: PANEL_IN_MS, ease: 'Cubic.Out' });
+    }
+  }
+
+  /** Błysk karty budynku po rozpoczęciu budowy. */
+  private flashCard(id: BuildingId): void {
+    const card = this.cards.find((c) => c.id === id);
+    if (!card || this.reducedMotion) return;
+    const r = card.rect;
+    const [x, y, w, h, radius] = [this.px(r.x), this.px(r.y), this.px(r.w), this.px(r.h), this.px(this.s(10))];
+    const g = this.add
+      .graphics()
+      .fillStyle(COLORS.goldHex, 0.3)
+      .fillRoundedRect(x, y, w, h, radius)
+      .lineStyle(this.px(2), COLORS.goldHex, 1)
+      .strokeRoundedRect(x, y, w, h, radius);
+    this.ui!.add(g);
+    this.tweens.add({ targets: g, alpha: 0, duration: BUILD_FLASH_MS, ease: 'Sine.In', onComplete: () => g.destroy() });
+  }
+
+  /**
+   * Liczniki metalu, kryształów i antymaterii w pasku dochodzą płynnie do nowej wartości
+   * (np. po zapłaceniu za budowę). Zmiana planety — od razu nowa wartość.
+   */
+  private stepCounters(delta: number): void {
+    const controller = this.deps.controller;
+    const res = this.res;
+    if (!res) return;
+    const planet = controller.planet.seed;
+    const instant = this.reducedMotion || planet !== this.counterPlanet;
+    this.counterPlanet = planet;
+    const targets = { metal: controller.economy.stock.metal, crystal: controller.economy.stock.crystal, antimatter: controller.economy.antimatter };
+    for (const key of ['metal', 'crystal', 'antimatter'] as const) {
+      const before = this.counters[key];
+      const next = instant ? targets[key] : approach(before, targets[key], delta);
+      this.counters[key] = next;
+      if (before === undefined || Math.floor(before) === Math.floor(next)) continue;
+      const value = res[key];
+      const note = key === 'metal' ? res.metalRate : key === 'crystal' ? res.crystalRate : res.antimatterNote;
+      value.setText(formatInt(next));
+      note.setX(value.x + value.width + this.px(this.s(6)));
+    }
   }
 
   private moveFocus(target: { cx: number; cy: number; r: number }, animate: boolean): void {
@@ -921,7 +991,7 @@ export class PlanetScene extends Phaser.Scene {
         : null;
     if (narrow) level.setVisible(false);
     const buttons = { x: this.px(card.x + pad), w: this.px(card.w - 2 * pad), gap: this.px(this.s(6)) };
-    this.cards.push({ id: def.id, level, effect, cost, button, finish, extra, buttons, progress, bar });
+    this.cards.push({ id: def.id, level, effect, cost, button, finish, extra, buttons, progress, bar, rect: card });
   }
 
   /**
@@ -996,7 +1066,10 @@ export class PlanetScene extends Phaser.Scene {
     const result = controller.upgrade(id);
     this.showToast(result.message, result.ok ? 'ok' : 'error');
     this.refreshValues();
-    if (result.ok) this.deps.display.showBuilding(id);
+    if (result.ok) {
+      this.deps.display.showBuilding(id);
+      this.flashCard(id);
+    }
   }
 
   private onFinish(): void {
@@ -1072,8 +1145,9 @@ export class PlanetScene extends Phaser.Scene {
       const capacity = controller.capacity;
       const stock = controller.economy.stock;
       const rateNote = (have: number, perMinute: number) => (have >= capacity ? 'magazyn pełny' : `+${formatRate(perMinute)}/min`);
-      pair(this.res.metal, this.res.metalRate, formatInt(stock.metal), rateNote(stock.metal, rates.metal));
-      pair(this.res.crystal, this.res.crystalRate, formatInt(stock.crystal), rateNote(stock.crystal, rates.crystal));
+      const shown = (key: keyof typeof this.counters, actual: number) => formatInt(this.counters[key] ?? actual);
+      pair(this.res.metal, this.res.metalRate, shown('metal', stock.metal), rateNote(stock.metal, rates.metal));
+      pair(this.res.crystal, this.res.crystalRate, shown('crystal', stock.crystal), rateNote(stock.crystal, rates.crystal));
       this.res.metalRate.setColor(stock.metal >= capacity ? COLORS.danger : COLORS.teal);
       this.res.crystalRate.setColor(stock.crystal >= capacity ? COLORS.danger : COLORS.teal);
       this.drawStorageFill(stock.metal / capacity, stock.crystal / capacity);
@@ -1088,7 +1162,7 @@ export class PlanetScene extends Phaser.Scene {
       );
       this.res.energy.setColor(balance >= 0 ? COLORS.text : COLORS.danger);
       this.res.energyNote.setColor(rates.efficiency < 1 ? COLORS.danger : COLORS.muted);
-      pair(this.res.antimatter, this.res.antimatterNote, formatInt(controller.economy.antimatter), `+${formatRate(rates.antimatterPerHour)}/h`);
+      pair(this.res.antimatter, this.res.antimatterNote, shown('antimatter', controller.economy.antimatter), `+${formatRate(rates.antimatterPerHour)}/h`);
       this.res.antimatterNote.setColor(COLORS.antimatter);
       const f = controller.fields;
       const full = f.used >= f.buildable;
