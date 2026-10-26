@@ -320,11 +320,16 @@ export type ResearchEffect =
   | { kind: 'environment'; percent: number }
   | { kind: 'planetSlots'; add: number }
   | { kind: 'buildQueue'; add: number }
+  /** Ekspedycje (v0.34.3): zasięg, jakość danych, szansa powodzenia, szybkość, zasięg sygnałów. */
+  | { kind: 'expedition'; stat: ExpeditionStat; add: number }
   /** Odblokowanie funkcji gry (np. statek kolonizacyjny). */
   | { kind: 'unlock'; feature: UnlockFeature };
 
 /** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
-export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change';
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions';
+
+/** Parametry ekspedycji rozwijane badaniami Eksploracji. */
+export type ExpeditionStat = 'range' | 'quality' | 'success' | 'speed' | 'scan';
 
 export interface ResearchArmDef {
   id: ResearchArmId;
@@ -452,6 +457,45 @@ export interface DiscoveryRules {
   signalRange: number;
 }
 
+/** Ekspedycje (v0.34.3, wartości robocze). */
+export interface ExpeditionRules {
+  /** Zasięg bez badań (jednostki mapy od najbliższego własnego układu). */
+  baseRange: number;
+  /** Jakość danych: o ile poziomów (ponad 1) rośnie wiedza o celu po udanej wyprawie. */
+  baseQuality: number;
+  /** Szansa powodzenia; od `easyDistance` maleje o `successPerUnit` na jednostkę; granice `successRange`. */
+  baseSuccess: number;
+  easyDistance: number;
+  successPerUnit: number;
+  successRange: Range;
+  /** Czas: base + odległość × perUnit (s), skracany badaniami (procent). */
+  baseSeconds: number;
+  secondsPerUnit: number;
+  /** Koszt: base + odległość × perUnit. */
+  cost: Resources;
+  costPerUnit: Resources;
+  /** Ile wypraw naraz. */
+  maxActive: number;
+  /** Promień, w którym udana wyprawa łapie nowe sygnały wokół celu. */
+  scanRadius: number;
+}
+
+/** Ekspedycja w drodze (parametry ustalone przy wysłaniu — późniejsze badania nie zmieniają wyniku). */
+export interface Expedition {
+  /** Indeks układu docelowego. */
+  target: number;
+  /** Adres planety, która wysłała i zapłaciła. */
+  from: string;
+  departedAt: number;
+  returnsAt: number;
+  cost: Resources;
+  /** Szansa powodzenia 0..1 i jakość danych (poziomy wiedzy ponad 1). */
+  chance: number;
+  quality: number;
+  /** Promień łapania sygnałów wokół celu. */
+  scan: number;
+}
+
 /** Adres w galaktyce: galaktyka : układ : orbita (np. 1:42:7). */
 export interface GalaxyAddress {
   galaxy: number;
@@ -472,7 +516,7 @@ export interface ColonyMission {
   cost: Resources;
 }
 
-export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai';
+export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai' | 'expedition';
 
 /** Wpis w dzienniku ekspedycji. */
 export interface JournalEntry {

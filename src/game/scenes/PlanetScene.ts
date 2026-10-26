@@ -248,6 +248,10 @@ export class PlanetScene extends Phaser.Scene {
       this.refreshValues();
     });
 
+    controller.onExpeditionReturn((report) => {
+      this.showToast(report.text, report.success ? 'ok' : 'info', 5000);
+    });
+
     controller.onColonyArrived((name) => {
       this.showToast(`Statek dotarł — skolonizowano ${name}. Znajdziesz ją w „Imperium”.`, 'ok', 4000);
       this.refreshValues();
@@ -270,7 +274,8 @@ export class PlanetScene extends Phaser.Scene {
       controller.offlineGain ||
       controller.completedWhileAway ||
       controller.researchedWhileAway.length > 0 ||
-      controller.arrivedWhileAway.length > 0
+      controller.arrivedWhileAway.length > 0 ||
+      controller.expeditionsWhileAway.length > 0
     ) {
       const lines: string[] = [];
       const gain = controller.offlineGain;
@@ -287,11 +292,13 @@ export class PlanetScene extends Phaser.Scene {
       }
       for (const id of controller.researchedWhileAway) lines.push(`Zbadano: ${findResearch(id)?.name ?? id}.`);
       for (const name of controller.arrivedWhileAway) lines.push(`Statek dotarł — nowa kolonia: ${name}.`);
+      for (const report of controller.expeditionsWhileAway) lines.push(report.text);
       this.showToast(lines.join('\n'), 'info', 5000);
       controller.offlineGain = null;
       controller.completedWhileAway = null;
       controller.researchedWhileAway = [];
       controller.arrivedWhileAway = [];
+      controller.expeditionsWhileAway = [];
     }
   }
 

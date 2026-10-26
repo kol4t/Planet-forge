@@ -5,7 +5,8 @@ import { parseAiLevels, type AiLevel, type AiRuleId } from '../ai/advisor.ts';
 import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
 import { parseSpecialization } from '../economy/specialization.ts';
 import { parseDiscoveries, type Discoveries } from '../galaxy/discovery.ts';
-import type { ColonyMission, EconomyState, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import { parseExpeditions } from '../galaxy/expeditions.ts';
+import type { ColonyMission, EconomyState, Expedition, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 
@@ -58,10 +59,12 @@ export interface EmpireSave {
   ai?: Record<AiRuleId, AiLevel>;
   /** Wiedza o galaktyce: indeks układu → poziom 1–4 (od v0.34.2; brak = wyliczana na start). */
   discoveries?: Discoveries;
+  /** Ekspedycje w drodze (od v0.34.3; brak = żadnych). */
+  expeditions?: Expedition[];
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
-const JOURNAL_KINDS: readonly JournalKind[] = ['build', 'research', 'colony', 'ship', 'away', 'empire', 'ai'];
+const JOURNAL_KINDS: readonly JournalKind[] = ['build', 'research', 'colony', 'ship', 'away', 'empire', 'ai', 'expedition'];
 /** Ile wpisów dziennika trzymamy (starsze wypadają). */
 export const JOURNAL_LIMIT = 80;
 
@@ -158,6 +161,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     journal: parseJournal(data.journal),
     ai: parseAiLevels(data.ai),
     ...(parseDiscoveries(data.discoveries) ? { discoveries: parseDiscoveries(data.discoveries)! } : {}),
+    ...(parseExpeditions(data.expeditions).length > 0 ? { expeditions: parseExpeditions(data.expeditions) } : {}),
   };
 }
 

@@ -60,6 +60,8 @@ export class MapScene extends OverlayScene {
   private planetSpots: { position: number; x: number; y: number }[] = [];
   /** Pas asteroid w widoku układu (promień i pół szerokości, px urządzenia). */
   private beltRing: { r: number; half: number } | null = null;
+  /** Odliczanie powrotu ekspedycji w szczegółach układu. */
+  private expCountdown: { text: Phaser.GameObjects.Text; target: number } | null = null;
   /** Odliczanie lotu statku w szczegółach planety. */
   private countdown: { text: Phaser.GameObjects.Text; target: string } | null = null;
   /** Komety przelatujące przez galaktykę (tylko wygląd; jednostki mapy na sekundę). */
@@ -241,7 +243,39 @@ export class MapScene extends OverlayScene {
         g.lineBetween(hx + dx * r * 1.25, hy + dy * r * 1.25, hx + dx * r * 1.75, hy + dy * r * 1.75);
       }
     }
-    const selected = this.selected ? this.deps.controller.galaxy.systems[this.selected - 1] : undefined;
+    // Ekspedycje: zasięg wokół własnych układów (gdy zaznaczony jest układ niezbadany) i trasy wypraw.
+    const controller = this.deps.controller;
+    const systems = controller.galaxy.systems;
+    const chosen = this.selected ? systems[this.selected - 1] : undefined;
+    const stats = controller.expeditionStats;
+    if (stats.unlocked && chosen && controller.discoveryLevel(chosen.index) < DISCOVERY.explored) {
+      const range = controller.expeditionPlan(chosen.index).range;
+      for (const index of controller.ownSystemIndexes()) {
+        const o = systems[index - 1];
+        if (o) dashedCircle(g, o.x * U, o.y * U, range * U, line * 1.2, COLORS.tealHex, 0.45);
+      }
+    }
+    for (const e of controller.expeditionsView()) {
+      const t = systems[e.target - 1];
+      const from = controller.expeditionOrigin(e.target);
+      const o = from ? systems[from - 1] : undefined;
+      if (!t || !o) continue;
+      const steps = 12;
+      for (let i = 0; i < steps; i += 2) {
+        const t0 = i / steps;
+        const t1 = (i + 1) / steps;
+        g.lineStyle(line * 1.2, COLORS.tealHex, 0.6).lineBetween(
+          (o.x + (t.x - o.x) * t0) * U,
+          (o.y + (t.y - o.y) * t0) * U,
+          (o.x + (t.x - o.x) * t1) * U,
+          (o.y + (t.y - o.y) * t1) * U,
+        );
+      }
+      // Sonda: tam (pierwsza połowa czasu) i z powrotem (druga).
+      const k = e.progress < 0.5 ? e.progress * 2 : 2 - e.progress * 2;
+      g.fillStyle(COLORS.tealHex, 1).fillCircle((o.x + (t.x - o.x) * k) * U, (o.y + (t.y - o.y) * k) * U, line * 2.6);
+    }
+    const selected = chosen;
     if (selected && selected !== home) g.lineStyle(line * 1.6, 0xffffff, 0.9).strokeCircle(selected.x * U, selected.y * U, this.px(this.s(13)) / this.zoom);
     else if (selected) g.lineStyle(line * 1.2, 0xffffff, 0.7).strokeCircle(selected.x * U, selected.y * U, this.px(this.s(22)) / this.zoom);
   }
@@ -555,6 +589,17 @@ export class MapScene extends OverlayScene {
 
   protected refresh(): void {
     this.drawGalaxyMarks();
+    const exp = this.expCountdown;
+    if (exp) {
+      const flying = this.deps.controller.expeditionsView().find((e) => e.target === exp.target);
+      if (flying) exp.text.setText(`Ekspedycja w drodze — powrót za ${formatDuration(flying.secondsLeft)}`);
+      else {
+        // Wróciła: wiedza się zmieniła — mapa i szczegóły od nowa.
+        this.expCountdown = null;
+        this.relayout();
+        return;
+      }
+    }
     this.drawSystemMarks();
     const live = this.countdown;
     if (live) {
@@ -731,6 +776,7 @@ export class MapScene extends OverlayScene {
 
   private buildDetails(): void {
     this.countdown = null;
+    this.expCountdown = null;
     this.details?.destroy(true);
     this.details = this.add.container(0, 0).setDepth(11);
     const items: Phaser.GameObjects.GameObject[] = [];
@@ -780,8 +826,26 @@ export class MapScene extends OverlayScene {
             line('Znamy położenie i nazwę. Rodzaj gwiazdy i planety — nieznane.', 11.5, COLORS.muted);
           }
         }
-        line('Układ poznasz dzięki ekspedycjom (wkrótce).', 11, COLORS.faint);
-        buttons(['Nie zbadany', 'disabled', () => undefined], ['Odznacz', 'secondary', () => this.onTap(-1e6, -1e6)]);
+        // Ekspedycja (v0.34.3): plan albo powód, czemu się nie da; w drodze — odliczanie.
+        const flying = controller.expeditionsView().find((e) => e.target === s.index);
+        const plan = controller.expeditionPlan(s.index);
+        let action: [string, ButtonStyle, () => void] = ['Ekspedycja', 'disabled', () => undefined];
+        if (flying) {
+          const t = line(`Ekspedycja w drodze — powrót za ${formatDuration(flying.secondsLeft)}`, 11.5, COLORS.teal, { fontStyle: '600' });
+          this.expCountdown = { text: t, target: s.index };
+          action = ['W drodze', 'disabled', () => undefined];
+        } else if (plan.ok) {
+          line(
+            `Ekspedycja: ok. ${Math.max(1, Math.round(plan.seconds / 60))} min · ${formatInt(plan.cost.metal)} metalu, ${formatInt(plan.cost.crystal)} kryształów · szansa ${Math.round(plan.chance * 100)}%`,
+            11.5,
+            COLORS.text,
+          );
+          line('Wyprawa może wrócić bez wyników — koszt przepada.', 10.5, COLORS.faint);
+          action = ['Wyślij ekspedycję', 'primary', () => this.afterShip(controller.sendExpedition(s.index))];
+        } else {
+          line(plan.reason ?? '', 11, COLORS.faint);
+        }
+        buttons(action, ['Odznacz', 'secondary', () => this.onTap(-1e6, -1e6)]);
       } else {
         const star = findStar(s.star);
         const system = controller.system(s.index)!;
@@ -1043,6 +1107,17 @@ export class MapScene extends OverlayScene {
       return;
     }
     this.close(result.message);
+  }
+}
+
+/** Przerywany okrąg (zasięg ekspedycji). */
+function dashedCircle(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, width: number, color: number, alpha: number): void {
+  const parts = Math.max(24, Math.round(r / 4));
+  g.lineStyle(width, color, alpha);
+  for (let i = 0; i < parts; i += 2) {
+    g.beginPath();
+    g.arc(x, y, r, (i / parts) * Math.PI * 2, ((i + 1) / parts) * Math.PI * 2, false);
+    g.strokePath();
   }
 }
 

@@ -68,11 +68,12 @@ import {
 } from '../core/economy/specialization.ts';
 import { findSpecialization, SPECIALIZATION_RULES, SPECIALIZATIONS } from '../data/specializations.ts';
 import { ZONE_LABELS } from '../data/galaxy.ts';
+import { expeditionStats, planExpedition, resolveExpedition, type ExpeditionPlan, type ExpeditionStats } from '../core/galaxy/expeditions.ts';
 import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, knownCount, raiseDiscovery, type Discoveries, type DiscoveryLevel } from '../core/galaxy/discovery.ts';
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, JournalEntry, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, JournalEntry, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -175,6 +176,21 @@ export interface PlanetSummary {
 
 export type ActionMessage = { ok: boolean; message: string };
 
+/** Ekspedycja w drodze (do mapy i „Imperium”). */
+export interface ExpeditionView {
+  target: number;
+  name: string;
+  progress: number;
+  secondsLeft: number;
+}
+
+/** Raport z powrotu ekspedycji. */
+export interface ExpeditionReport {
+  target: number;
+  success: boolean;
+  text: string;
+}
+
 /** Pozycja kolejki budowy: budynek i poziom, który osiągnie. */
 export interface QueuedBuild {
   building: BuildingId;
@@ -261,6 +277,11 @@ export class GameController {
   /** Balans z efektami badań — osobno dla każdej listy zbadanych (planety). */
   /** Wiedza o galaktyce (v0.34.2): poziom odkrycia każdego układu — osobno od danych galaktyki. */
   private discoveries: Discoveries = {};
+  /** Ekspedycje w drodze (v0.34.3). */
+  private expeditions: Expedition[] = [];
+  private readonly expeditionListeners = new Set<(report: ExpeditionReport) => void>();
+  /** Raporty ekspedycji rozliczonych podczas nieobecności (do pokazania po starcie). */
+  expeditionsWhileAway: ExpeditionReport[] = [];
   private readonly balanceCache = new WeakMap<Slot, { done: readonly string[]; spec: string; balance: Balance }>();
   private readonly siteCache = new Map<string, SpecializationSite | null>();
   private slots: Slot[];
@@ -281,6 +302,7 @@ export class GameController {
       this.unlockedSlots = saved.unlockedSlots;
       this.home = saved.home ?? '';
       this.missions = saved.missions ?? [];
+      this.expeditions = saved.expeditions ?? [];
       this.journal = saved.journal ?? [];
       this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
@@ -293,6 +315,7 @@ export class GameController {
       this.researchedWhileAway = this.advanceActive(now);
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
+      this.expeditionsWhileAway = this.processExpeditions(now);
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -484,8 +507,10 @@ export class GameController {
     const done = finishedBuild(before, this.economy);
     if (done) this.logBuild(done, before.construction!.finishesAt);
     const arrived = this.processMissions(now);
+    const returned = this.processExpeditions(now);
     const aiDone = this.runAutoAi(now);
-    if (done || researched.length > 0 || arrived.length > 0 || aiDone) this.save();
+    if (done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || aiDone) this.save();
+    for (const report of returned) for (const listener of this.expeditionListeners) listener(report);
     if (aiDone) for (const listener of this.aiListeners) listener(aiDone);
     if (done) for (const listener of this.completeListeners) listener(done);
     for (const id of researched) for (const listener of this.researchListeners) listener(id);
@@ -1132,6 +1157,115 @@ export class GameController {
     this.emit();
   }
 
+  // ——— ekspedycje (v0.34.3) ———
+
+  /** Możliwości ekspedycji z badań (odblokowanie — dowolna planeta, parametry — najlepsza). */
+  get expeditionStats(): ExpeditionStats {
+    return expeditionStats(this.slots.map((slot) => slot.research.done));
+  }
+
+  /** Plan wyprawy do układu (zasięg, czas, koszt, szansa albo powód, czemu się nie da). */
+  expeditionPlan(index: number): ExpeditionPlan {
+    return planExpedition(this.galaxy, this.discoveries, this.ownSystems(), this.expeditions, index, this.expeditionStats);
+  }
+
+  /** Wysłanie ekspedycji (koszt płaci aktywna planeta). Wynik — po powrocie (też przy zamkniętej grze). */
+  sendExpedition(index: number, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const plan = this.expeditionPlan(index);
+    if (!plan.ok) return { ok: false, message: plan.reason ?? 'Nie można wysłać ekspedycji.' };
+    const cost = plan.cost;
+    if (!fitsInStorage(this.economy, cost, this.balance)) {
+      return { ok: false, message: `Za mały magazyn (${this.capacity}). Najpierw rozbuduj Magazyn.` };
+    }
+    const stock = this.economy.stock;
+    if (stock.metal < cost.metal || stock.crystal < cost.crystal) {
+      const missing: string[] = [];
+      if (stock.metal < cost.metal) missing.push(`${Math.ceil(cost.metal - stock.metal)} metalu`);
+      if (stock.crystal < cost.crystal) missing.push(`${Math.ceil(cost.crystal - stock.crystal)} kryształów`);
+      return { ok: false, message: `Ekspedycja — brakuje: ${missing.join(', ')}.` };
+    }
+    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
+    this.expeditions.push({
+      target: index,
+      from: this.address,
+      departedAt: now,
+      returnsAt: now + plan.seconds * 1000,
+      cost: { ...cost },
+      chance: plan.chance,
+      quality: plan.quality,
+      scan: plan.scan,
+    });
+    const name = this.knownName(index);
+    this.log('expedition', `Ekspedycja wyruszyła z ${this.planet.displayName}: ${name} (szansa ${Math.round(plan.chance * 100)}%).`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Ekspedycja wyruszyła: ${name}. Powrót za ${Math.round(plan.seconds / 60)} min.` };
+  }
+
+  /** Ekspedycje w drodze: cel (tak, jak go znamy), postęp i czas do powrotu. */
+  expeditionsView(now = Date.now()): ExpeditionView[] {
+    return this.expeditions.map((e) => ({
+      target: e.target,
+      name: this.knownName(e.target),
+      progress: Math.min(1, Math.max(0, (now - e.departedAt) / Math.max(1, e.returnsAt - e.departedAt))),
+      secondsLeft: Math.max(0, (e.returnsAt - now) / 1000),
+    }));
+  }
+
+  onExpeditionReturn(listener: (report: ExpeditionReport) => void): () => void {
+    this.expeditionListeners.add(listener);
+    return () => this.expeditionListeners.delete(listener);
+  }
+
+  /** Układy gracza (startowy, z planetami, cele statków) — do rysowania zasięgu ekspedycji. */
+  ownSystemIndexes(): number[] {
+    return this.ownSystems();
+  }
+
+  /** Z którego własnego układu (najbliższego) leci ekspedycja do celu — do rysowania trasy. */
+  expeditionOrigin(target: number): number | null {
+    const e = this.expeditions.find((x) => x.target === target);
+    return e ? (parseAddress(e.from)?.system ?? null) : null;
+  }
+
+  /** Nazwa układu taka, jaką gracz zna (sygnał — bez nazwy). */
+  private knownName(index: number): string {
+    return this.discoveryLevel(index) >= DISCOVERY.detected ? (this.galaxy.systems[index - 1]?.name ?? `układ 1:${index}`) : 'nieznany sygnał';
+  }
+
+  /**
+   * Rozliczenie wypraw, które już wróciły (w kolejności powrotów): wiedza rośnie, wpis w dzienniku,
+   * wyprawa znika z listy — każda rozliczana dokładnie raz, także po nieobecności.
+   */
+  private processExpeditions(now: number): ExpeditionReport[] {
+    const reports: ExpeditionReport[] = [];
+    for (const expedition of [...this.expeditions].sort((a, b) => a.returnsAt - b.returnsAt)) {
+      if (expedition.returnsAt > now) continue;
+      this.expeditions = this.expeditions.filter((e) => e !== expedition);
+      const before = this.knownName(expedition.target);
+      const outcome = resolveExpedition(this.galaxy, this.discoveries, expedition);
+      this.discoveries = outcome.known;
+      const system = this.galaxy.systems[expedition.target - 1]!;
+      let text: string;
+      if (!outcome.success) {
+        text = `Ekspedycja (${before}) wróciła bez wyników — sygnał się urwał. Szansa była ${Math.round(expedition.chance * 100)}%.`;
+      } else {
+        const what =
+          outcome.after >= DISCOVERY.explored
+            ? `${system.name} zbadany — ${findStar(system.star).label.toLowerCase()}, planet: ${system.planetCount}. Widok układu i kolonizacja dostępne.`
+            : outcome.after >= DISCOVERY.recognized
+              ? `${system.name} rozpoznany — ${findStar(system.star).label.toLowerCase()}, planet: ${system.planetCount}.`
+              : `${system.name} wykryty.`;
+        const extra = outcome.revealed.length > 0 ? ` Nowe sygnały w pobliżu: ${outcome.revealed.length}.` : '';
+        text = `Ekspedycja (${before}): ${what}${extra}`;
+      }
+      this.log('expedition', text, expedition.returnsAt);
+      reports.push({ target: expedition.target, success: outcome.success, text });
+    }
+    return reports;
+  }
+
   /** Ile układów gracz zna (co najmniej wykrytych). */
   get knownSystems(): number {
     return knownCount(this.discoveries);
@@ -1273,6 +1407,7 @@ export class GameController {
     this.unlockedSlots = result.data.unlockedSlots;
     this.home = result.data.home ?? '';
     this.missions = result.data.missions ?? [];
+    this.expeditions = result.data.expeditions ?? [];
     this.journal = result.data.journal ?? [];
     this.aiLevels = result.data.ai ?? { ...DEFAULT_AI_LEVELS };
     this.active = result.data.active;
@@ -1282,6 +1417,7 @@ export class GameController {
     this.economy = { ...this.economy, antimatter: result.data.antimatter };
     this.advanceActive(now);
     this.processMissions(now);
+    this.processExpeditions(now);
     this.offlineGain = null;
     this.completedWhileAway = null;
     this.log('empire', 'Wczytano zapis gry.', now);
@@ -1302,6 +1438,7 @@ export class GameController {
       home: this.home,
       missions: this.missions,
       discoveries: this.discoveries,
+      expeditions: this.expeditions,
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,

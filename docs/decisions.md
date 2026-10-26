@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.34.3: ekspedycje i badania Eksploracji
+
+- Pętla: badanie „Sondy zwiadowcze” → cel na mapie (sygnał, wykryty albo rozpoznany układ w zasięgu) → koszt i czas → powrót z raportem → wiedza rośnie (i nowe sygnały wokół celu) → kolejna wyprawa albo kolonizacja zbadanego układu.
+- Parametry (`EXPEDITION_RULES`, robocze): zasięg 40 jedn. (= zasięg sygnałów na start, więc każdy widoczny sygnał jest osiągalny), czas 150 s + 8 s/jedn. (~5–8 min), koszt 300/200 + 12/8 za jedn., szansa 88% do 15 jedn., potem −0,4 pkt/jedn. (50–97%), maks. 2 wyprawy naraz, sygnały w promieniu 14 jedn. wokół celu. Właściciel: wyprawa może się nie udać — wtedy koszt przepada, wiedza bez zmian.
+- Badania nie ujawniają układów same — dają możliwości: zasięg (sondy), szybkość, jakość danych (ile poziomów wiedzy z jednej wyprawy), szansę, promień wykrywania sygnałów. Odblokowanie działa w imperium, gdy zbadała je którakolwiek planeta; parametry — najlepsza planeta. Gałąź ekspedycji zaczyna się od pierścienia 2 (przy jądrze brakowało miejsca między ramionami); dawne „wkrótce: Ekspedycje” (`explore-3`) zastąpione nowymi badaniami, „Astrofizyka ekstremalna” — wkrótce (v0.34.4).
+- Jednoznaczność: szansa, jakość i zasięg wykrywania zapisane przy wysłaniu; wynik losowany deterministycznie z celu i chwili wysłania; wyprawa usuwana z listy przy rozliczeniu (w `tick`, przy starcie i imporcie) — ponowne otwarcie gry nie powtarza ani nie zmienia wyniku. Czas wypraw liczony jak reszta gospodarki (znaczniki czasu), więc działa przy zamkniętej grze.
+
 ## 2026-10-26 — v0.34.2: wiedza o galaktyce
 
 - Trzy rzeczy rozdzielone: istnienie układu (generator, bez zmian), wiedza gracza (`EmpireSave.discoveries`, tylko poziomy 1–4 dla układów, które zna) i — w v0.34.3 — ekspedycje, które tę wiedzę podnoszą. Poziomy: 0 nieznany obszar (niewidoczny), 1 sygnał (punkt bez nazwy i rodzaju), 2 wykryty (nazwa i położenie), 3 rozpoznany (gwiazda, liczba planet), 4 zbadany (planety, złoża, widok układu, kolonizacja). Wiedza nigdy nie maleje.

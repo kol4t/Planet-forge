@@ -21,6 +21,7 @@ const KIND_COLOR: Record<JournalKind, number> = {
   away: COLORS.stoneHex,
   empire: COLORS.antimatterHex,
   ai: 0xb9a8f0,
+  expedition: 0x8fd0c8,
 };
 
 interface CardLive {
@@ -152,7 +153,7 @@ export class EmpireScene extends OverlayScene {
     let y = area.y + this.s(4);
     const overview = c.overview();
     const missions = c.missionsView();
-    this.shape = this.planetsShape(overview, missions.length);
+    this.shape = this.planetsShape(overview, missions.length + c.expeditionsView().length);
     this.hits = [];
     this.tiles.clear();
 
@@ -181,7 +182,8 @@ export class EmpireScene extends OverlayScene {
     y += Math.ceil(tiles.length / tileCols) * (tileH + gap);
     this.ships = this.text(area.x + this.s(4), y, '', 12, COLORS.gold, { fontStyle: '600', wordWrap: { width: this.px(area.w - this.s(8)) } }, false);
     items.push(this.ships);
-    if (missions.length > 0) y += this.s(18) * missions.length + this.s(8);
+    const travelling = missions.length + c.expeditionsView().length;
+    if (travelling > 0) y += this.s(18) * travelling + this.s(8);
 
     // Sytuacja imperium: co wymaga uwagi (dotknięcie prowadzi na miejsce).
     const free = Math.max(0, c.slotInfo.unlocked - overview.length);
@@ -577,7 +579,7 @@ export class EmpireScene extends OverlayScene {
     }
     const overview = c.overview();
     const missions = c.missionsView();
-    if (this.planetsShape(overview, missions.length) !== this.shape) {
+    if (this.planetsShape(overview, missions.length + c.expeditionsView().length) !== this.shape) {
       this.relayout();
       return;
     }
@@ -599,7 +601,12 @@ export class EmpireScene extends OverlayScene {
     const alerts = empireAlerts(overview, Math.max(0, c.slotInfo.unlocked - overview.length));
     this.alertRows.forEach((row, i) => row.setText(alerts[i]?.text ?? ''));
     tile('antimatter', formatInt(totals.antimatter), `+${formatRate(totals.antimatterPerHour)}/h`, COLORS.antimatter);
-    this.ships?.setText(missions.map((m) => `Statek kolonizacyjny: ${m.fromName} → ${m.targetName} · ${formatDuration(m.secondsLeft)}`).join('\n'));
+    this.ships?.setText(
+      [
+        ...missions.map((m) => `Statek kolonizacyjny: ${m.fromName} → ${m.targetName} · ${formatDuration(m.secondsLeft)}`),
+        ...c.expeditionsView().map((e) => `Ekspedycja: ${e.name} · powrót za ${formatDuration(e.secondsLeft)}`),
+      ].join('\n'),
+    );
     for (const card of this.cards) {
       const p = overview.find((o) => o.index === card.index);
       if (!p) continue;
