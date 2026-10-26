@@ -438,6 +438,12 @@ export interface GalaxyRules {
   beltChance: number;
 }
 
+/** Ruch orbitalny planet w widoku układu (v0.34). */
+export interface OrbitRules {
+  /** Okres obiegu najbliższej i najdalszej planety układu (s czasu rzeczywistego). */
+  periodSeconds: Range;
+}
+
 /** Adres w galaktyce: galaktyka : układ : orbita (np. 1:42:7). */
 export interface GalaxyAddress {
   galaxy: number;

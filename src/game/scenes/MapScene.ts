@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import type { MapOccupant } from '../../app/GameController.ts';
 import { findStar, parseAddress, SPIRAL, spiralPoint, type GasGiantLook, type StarSystem, type SystemPlanet, type SystemSummary } from '../../core/galaxy/galaxy.ts';
 import { createRng } from '../../core/random/rng.ts';
+import { orbitAngle, systemPeriods } from '../../core/galaxy/orbits.ts';
+import { worldNow } from '../../core/time/worldClock.ts';
 import { compareGeology } from '../../core/economy/geology.ts';
 import { generatePlanet } from '../../core/generation/generatePlanet.ts';
 import { GALAXY_RULES, STAR_KINDS, ZONE_LABELS } from '../../data/galaxy.ts';
@@ -66,6 +68,22 @@ export class MapScene extends OverlayScene {
   private filter: MapFilter = 'all';
   /** Dane wierszy tabeli złóż układu (liczone raz przy budowie widoku). */
   private rowInputs: SystemRowInput[] = [];
+  /** Planety w ruchu (widok układu, v0.34): obiekt, orbita i okres obiegu. */
+  private orbiters: {
+    position: number;
+    body: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
+    baseScale: number;
+    label: { text: Phaser.GameObjects.Text; x: number; y: number; always: boolean };
+    labelDrop: number;
+    r: number;
+    phase: number;
+    period: number;
+    behind: boolean | null;
+  }[] = [];
+  /** Spłaszczenie orbit (widok pod kątem) dobrane do kształtu obszaru mapy. */
+  private tilt: number = TILT_RANGE[0];
+  /** Gwiazda układu — planety za nią rysowane są pod nią. */
+  private starLayer: Phaser.GameObjects.Graphics | undefined;
   /** Promień miniatury planety (px urządzenia) — do przygaszania przez filtr. */
   private thumbR = 0;
   /** Planety z galaktyki (miniatury i tabela liczą je raz). */
@@ -85,6 +103,12 @@ export class MapScene extends OverlayScene {
   update(time: number, delta: number): void {
     super.update(time, delta);
     if (this.mode === 'galaxy') this.animateComets(delta / 1000);
+    else if (this.orbiters.length > 0) {
+      // Ruch planet: położenie z czasu świata (nie z liczby klatek), znaczniki i podpisy za nimi.
+      this.placeOrbiters(worldNow());
+      this.drawSystemMarks();
+      this.applyTransform();
+    }
   }
 
   create(): void {
@@ -171,18 +195,24 @@ export class MapScene extends OverlayScene {
     const controller = this.deps.controller;
     const system = controller.system(this.systemIndex);
     this.system = system;
+    this.orbiters = [];
     if (!system) return;
     const cx = this.px(this.area.x + this.area.w / 2);
     const cy = this.px(this.area.y + this.area.h / 2);
     this.view = { cx, cy, unit: 1 };
-    const maxR = this.px(Math.min(this.area.w, this.area.h) / 2) - this.px(this.s(30));
-    const minR = Math.max(this.px(this.s(46)), maxR * 0.2);
     const n = system.planets.length;
-    const g = this.add.graphics();
-    this.drawStar(g, system);
-    this.planetSpots = [];
     const thumbD = this.px(this.s(n > 7 ? 26 : 30));
-    const items: Phaser.GameObjects.GameObject[] = [g];
+    // Widok pod kątem (v0.34): orbity jako spłaszczone elipsy — szerokość z ekranu, wysokość × this.tilt.
+    this.tilt = Math.min(TILT_RANGE[1], Math.max(TILT_RANGE[0], (this.area.h / this.area.w) * 0.55));
+    const margin = this.px(this.s(30));
+    const maxR = Math.min(this.px(this.area.w / 2) - margin, (this.px(this.area.h / 2) - margin) / this.tilt);
+    const minR = Math.max(this.px(this.s(60)), maxR * 0.2);
+    const orbitG = this.add.graphics();
+    const starG = this.add.graphics();
+    this.drawStar(starG, system);
+    this.starLayer = starG;
+    this.planetSpots = [];
+    const planets: Phaser.GameObjects.GameObject[] = [];
     // Orbity w równych odstępach (czytelniej niż w prawdziwej skali); kolejność jak od gwiazdy.
     const orbit = (i: number) => (n === 1 ? minR : minR + ((maxR - minR) * i) / (n - 1));
     this.beltRing = null;
@@ -190,12 +220,12 @@ export class MapScene extends OverlayScene {
       const inner = orbit(system.belt.after - 1);
       const outer = orbit(system.belt.after);
       this.beltRing = { r: (inner + outer) / 2, half: (outer - inner) * 0.3 };
-      drawBelt(g, this.beltRing.r, this.beltRing.half, `${system.index}`, this.dpr);
+      drawBelt(orbitG, this.beltRing.r, this.beltRing.half, `${system.index}`, this.dpr, this.tilt);
       const beltText = this.add
         .text(0, 0, 'pas asteroid · wkrótce', { fontFamily: FONTS.body, fontSize: `${this.px(this.s(9))}px`, color: COLORS.stone })
         .setOrigin(0.5, 0.5)
         .setAlpha(0.8);
-      this.labels.push({ text: beltText, x: 0, y: this.beltRing.r + this.beltRing.half + this.px(this.s(8)), always: true });
+      this.labels.push({ text: beltText, x: 0, y: (this.beltRing.r + this.beltRing.half) * this.tilt + this.px(this.s(8)), always: true });
     }
     this.rowInputs = system.planets.map((p) => {
       const gas = p.body === 'gas-giant' && controller.slotAt(p.address) < 0;
@@ -211,21 +241,21 @@ export class MapScene extends OverlayScene {
       };
     });
     this.thumbR = thumbD / 2;
+    const periods = systemPeriods(system.planets.map((p) => p.orbit));
     // Strefy temperatury: orbita w barwie strefy z miękką poświatą (nazwy — w legendzie panelu).
     system.planets.forEach((p, i) => {
       const r = orbit(i);
       const zone = ZONE_COLORS[p.zone];
-      g.lineStyle(this.px(this.s(10)), zone, 0.05).strokeCircle(0, 0, r);
-      g.lineStyle(Math.max(1, this.dpr * 0.8), zone, 0.5).strokeCircle(0, 0, r);
-      const x = Math.cos(p.angle) * r;
-      const y = Math.sin(p.angle) * r;
-      this.planetSpots.push({ position: p.position, x: cx + x, y: cy + y });
+      orbitG.lineStyle(this.px(this.s(8)), zone, 0.05).strokeEllipse(0, 0, 2 * r, 2 * r * this.tilt, 128);
+      orbitG.lineStyle(Math.max(1, this.dpr * 0.8), zone, 0.5).strokeEllipse(0, 0, 2 * r, 2 * r * this.tilt, 128);
       const own = controller.slotAt(p.address) >= 0;
-      if (p.body === 'gas-giant' && p.gas && !own) {
+      const gas = p.body === 'gas-giant' && !!p.gas && !own;
+      let body: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
+      if (gas) {
         // Gazowy olbrzym: większa tarcza w pikselowe pasy, czasem z pierścieniem.
         const giant = this.add.graphics();
-        drawGasGiant(giant, x, y, thumbD * 0.8, p.gas, this.dpr);
-        items.push(giant);
+        drawGasGiant(giant, 0, 0, thumbD * 0.8, p.gas!, this.dpr);
+        body = giant;
       } else {
         const key = `map-thumb-${p.address}-${Date.now()}`;
         const texture = this.textures.createCanvas(key, THUMBNAIL_SIZE, THUMBNAIL_SIZE)!;
@@ -233,8 +263,9 @@ export class MapScene extends OverlayScene {
         new PlanetThumbnail(this.planetFor(p)).draw(texture.context, p.position * 1.3);
         texture.refresh();
         this.thumbs.push(key);
-        items.push(this.add.image(x, y, key).setDisplaySize(thumbD, thumbD));
+        body = this.add.image(0, 0, key).setDisplaySize(thumbD, thumbD);
       }
+      planets.push(body);
       const text = this.add
         .text(0, 0, `${String.fromCharCode(97 + p.position)}`, {
           fontFamily: FONTS.body,
@@ -243,11 +274,49 @@ export class MapScene extends OverlayScene {
           color: COLORS.muted,
         })
         .setOrigin(0.5, 0);
-      this.labels.push({ text, x: x / this.view.unit, y: y / this.view.unit + thumbD * (p.body === 'gas-giant' ? 0.85 : 0.62), always: true });
+      const label = { text, x: 0, y: 0, always: true };
+      this.labels.push(label);
+      this.orbiters.push({
+        position: p.position,
+        body,
+        baseScale: body.scaleX,
+        label,
+        labelDrop: thumbD * (gas ? 0.85 : 0.62),
+        r,
+        phase: p.angle,
+        period: periods[i]!,
+        behind: null,
+      });
     });
     this.marks = this.add.graphics();
-    items.push(this.marks);
-    this.world!.add(items);
+    this.world!.add([orbitG, starG, ...planets, this.marks]);
+    this.placeOrbiters(worldNow());
+  }
+
+  /**
+   * Położenia planet z czasu świata (v0.34): kąt = faza + 2π · czas / okres. Planety po dalszej stronie
+   * orbity chowają się za gwiazdą i są odrobinę mniejsze — głębia widoku pod kątem.
+   */
+  private placeOrbiters(now: number): void {
+    const star = this.starLayer;
+    if (!star || this.orbiters.length === 0) return;
+    this.planetSpots = [];
+    for (const o of this.orbiters) {
+      const a = orbitAngle(o.phase, o.period, now);
+      const x = Math.cos(a) * o.r;
+      const y = Math.sin(a) * o.r * this.tilt;
+      const depth = Math.sin(a);
+      o.body.setPosition(x, y).setScale(o.baseScale * (1 + 0.1 * depth));
+      const behind = depth < 0;
+      if (behind !== o.behind) {
+        if (behind) this.world?.moveBelow(o.body, star);
+        else this.world?.moveAbove(o.body, star);
+        o.behind = behind;
+      }
+      o.label.x = x;
+      o.label.y = y + o.labelDrop * (1 + 0.1 * depth);
+      this.planetSpots.push({ position: o.position, x: this.view.cx + x, y: this.view.cy + y });
+    }
   }
 
   /** Planeta do miniatury: Twoja (z prawdziwym wyglądem) albo z galaktyki. */
@@ -336,8 +405,10 @@ export class MapScene extends OverlayScene {
     }
     if (this.selected === BELT && this.beltRing) {
       g.lineStyle(Math.max(1, this.dpr), 0xffffff, 0.5);
-      g.strokeCircle(0, 0, this.beltRing.r - this.beltRing.half);
-      g.strokeCircle(0, 0, this.beltRing.r + this.beltRing.half);
+      const inner = this.beltRing.r - this.beltRing.half;
+      const outer = this.beltRing.r + this.beltRing.half;
+      g.strokeEllipse(0, 0, 2 * inner, 2 * inner * this.tilt, 128);
+      g.strokeEllipse(0, 0, 2 * outer, 2 * outer * this.tilt, 128);
     }
   }
 
@@ -475,7 +546,8 @@ export class MapScene extends OverlayScene {
         }
       }
       if (best === null && this.beltRing) {
-        const d = Math.hypot(px - this.view.cx, py - this.view.cy);
+        // Odległość „na orbicie” — z odwróconym spłaszczeniem widoku pod kątem.
+        const d = Math.hypot(px - this.view.cx, (py - this.view.cy) / this.tilt);
         if (Math.abs(d - this.beltRing.r) <= Math.max(this.beltRing.half, this.px(14))) best = BELT;
       }
       this.selected = best;
@@ -620,7 +692,7 @@ export class MapScene extends OverlayScene {
     line(occupant === 'you' ? planet.displayName : p.name, 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
     line(`${p.address} · ${OCCUPANT_LABEL[occupant]}`, 10.5, Phaser.Display.Color.IntegerToColor(OCCUPANT_COLOR[occupant]).rgba, { fontStyle: '600' });
     line(
-      `${planet.category} · ${planet.gameplay.sizeClass.label} · ${formatInt(planet.gameplay.radiusKm)} km · strefa ${ZONE_LABELS[p.zone]} (${String(p.orbit).replace('.', ',')} j.a.)`,
+      `${planet.category} · ${planet.gameplay.sizeClass.label} · ${formatInt(planet.gameplay.radiusKm)} km · strefa ${ZONE_LABELS[p.zone]} (${String(p.orbit).replace('.', ',')} j.a.) · obieg ${formatPeriod(this.orbiters.find((o) => o.position === p.position)?.period ?? 0)}`,
       11.5,
       COLORS.text,
     );
@@ -823,16 +895,20 @@ export class MapScene extends OverlayScene {
 
 /** Zaznaczenie pasa asteroid (zamiast numeru orbity). */
 const BELT = -1;
+/** Okres obiegu po polsku: „2 min”, „12,5 min”. */
+const formatPeriod = (seconds: number) => `${String(Math.round((seconds / 60) * 2) / 2).replace('.', ',')} min`;
+/** Spłaszczenie orbit w widoku układu pod kątem (1 = z góry): szeroki ekran 0,42, wąski (pion) — mniej, do 0,7. */
+const TILT_RANGE = [0.42, 0.7] as const;
 const letter = (position: number) => String.fromCharCode(97 + position);
 
 /** Pas asteroid: pierścień drobnych, nieregularnych okruchów (stałe położenie z adresu układu). */
-function drawBelt(g: Phaser.GameObjects.Graphics, r: number, half: number, seed: string, dpr: number): void {
+function drawBelt(g: Phaser.GameObjects.Graphics, r: number, half: number, seed: string, dpr: number, tilt: number): void {
   const rng = createRng(`pas-${seed}`);
   for (let i = 0; i < 480; i++) {
     const a = rng.range(0, Math.PI * 2);
     const d = r + (rng.next() + rng.next() - 1) * half;
     const size = rng.range(0.6, 1.8) * dpr;
-    g.fillStyle(rng.next() < 0.7 ? COLORS.stoneHex : 0x8a7f6c, rng.range(0.35, 0.8)).fillRect(Math.cos(a) * d, Math.sin(a) * d, size, size);
+    g.fillStyle(rng.next() < 0.7 ? COLORS.stoneHex : 0x8a7f6c, rng.range(0.35, 0.8)).fillRect(Math.cos(a) * d, Math.sin(a) * d * tilt, size, size);
   }
 }
 
