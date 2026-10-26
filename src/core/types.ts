@@ -321,7 +321,10 @@ export type ResearchEffect =
   | { kind: 'planetSlots'; add: number }
   | { kind: 'buildQueue'; add: number }
   /** Odblokowanie funkcji gry (np. statek kolonizacyjny). */
-  | { kind: 'unlock'; feature: 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' };
+  | { kind: 'unlock'; feature: UnlockFeature };
+
+/** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change';
 
 export interface ResearchArmDef {
   id: ResearchArmId;
@@ -462,4 +465,38 @@ export interface JournalEntry {
   at: number;
   kind: JournalKind;
   text: string;
+}
+
+// ——— specjalizacje kolonii (v0.32.3) ———
+
+export type SpecializationId = 'mining' | 'energy' | 'science' | 'industry';
+
+export interface SpecializationDef {
+  id: SpecializationId;
+  name: string;
+  description: string;
+  /** Efekty przy zwykłym dopasowaniu (×1); położenie planety je wzmacnia albo osłabia. */
+  effects: readonly ResearchEffect[];
+  /** Mnożniki dopasowania: gwiazda (ciało w środku układu) i strefa orbity; brak = 1. */
+  affinity: { star: Partial<Record<StarKind, number>>; zone: Partial<Record<OrbitZone, number>> };
+  status: DataStatus;
+}
+
+export interface SpecializationRules {
+  /** Czas zmiany specjalizacji (s) — w tym czasie planeta nie ma premii. */
+  changeSeconds: number;
+  /** Granice mnożnika dopasowania. */
+  affinityRange: Range;
+}
+
+/** Specjalizacja planety w zapisie: działa od `readyAt` (pierwszy wybór — od razu, zmiana trwa). */
+export interface PlanetSpecialization {
+  id: SpecializationId;
+  readyAt: number;
+}
+
+/** Położenie planety, od którego zależy dopasowanie specjalizacji. */
+export interface SpecializationSite {
+  star: StarKind;
+  zone: OrbitZone;
 }

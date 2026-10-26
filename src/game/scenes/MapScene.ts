@@ -594,6 +594,9 @@ export class MapScene extends OverlayScene {
     const here = p.address === controller.address;
     const compare = here ? null : { name: controller.planet.displayName, diff: compareGeology(geology, controller.geologyAt(controller.planet, controller.address)) };
     for (const text of geologyLines(geology, compare)) line(text, 11, COLORS.stone, {}, 2);
+    // Specjalizacja kolonii zależy od gwiazdy i strefy orbity — podpowiedź przy wyborze planety.
+    const best = controller.bestSpecializationAt(p.address);
+    if (best) line(`Najlepsza specjalizacja tutaj: ${best.name} (dopasowanie ${best.label})`, 11, COLORS.teal, {}, 2);
     y += this.s(4);
     let action: [string, ButtonStyle, () => void];
     if (occupant === 'you') {

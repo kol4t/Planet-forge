@@ -3,7 +3,7 @@
 import { BALANCE } from '../../data/balance.ts';
 import { findArm, findResearch, RESEARCH_NODES, RESEARCH_RULES } from '../../data/research.ts';
 import { fitsInStorage, productionRates, storageCapacity } from '../economy/economy.ts';
-import type { Balance, EconomyState, Planet, ResearchNodeDef, ResearchProject, ResearchRules, ResearchState, Resources } from '../types.ts';
+import type { Balance, EconomyState, Planet, ResearchEffect, ResearchNodeDef, ResearchProject, ResearchRules, ResearchState, Resources } from '../types.ts';
 
 export const EMPTY_RESEARCH: ResearchState = { done: [], current: null };
 
@@ -182,20 +182,20 @@ export function completeResearch(state: ResearchState, now: number): { research:
  * Balans po uwzględnieniu zbadanych efektów. Procenty jednego rodzaju sumują się,
  * a gospodarka liczy dalej zwykłymi funkcjami z `economy.ts`.
  */
-export function applyResearch(base: Balance, done: readonly string[]): Balance {
+export function applyResearch(base: Balance, done: readonly string[], extra: readonly ResearchEffect[] = []): Balance {
   const sum = new Map<string, number>();
   const add = (key: string, v: number) => sum.set(key, (sum.get(key) ?? 0) + v);
   // Każde badanie liczy się raz, nawet gdyby trafiło na listę dwukrotnie (ochrona przed podwójnym efektem).
-  for (const id of new Set(done)) {
-    for (const e of findResearch(id)?.effects ?? []) {
-      if (e.kind === 'output') add(`output:${e.resource}`, e.percent);
-      else if (e.kind === 'offlineHours') add(e.kind, e.hours);
-      else if (e.kind === 'antimatterPassive') add(e.kind, e.perHour);
-      else if (e.kind === 'freeFinish') add(e.kind, e.levels);
-      else if (e.kind === 'planetSlots' || e.kind === 'buildQueue') add(e.kind, e.add);
-      else if (e.kind === 'unlock') continue;
-      else add(e.kind, e.percent);
-    }
+  // `extra` — efekty spoza badań (specjalizacja planety) sumowane tak samo.
+  const effects = [...[...new Set(done)].flatMap((id) => findResearch(id)?.effects ?? []), ...extra];
+  for (const e of effects) {
+    if (e.kind === 'output') add(`output:${e.resource}`, e.percent);
+    else if (e.kind === 'offlineHours') add(e.kind, e.hours);
+    else if (e.kind === 'antimatterPassive') add(e.kind, e.perHour);
+    else if (e.kind === 'freeFinish') add(e.kind, e.levels);
+    else if (e.kind === 'planetSlots' || e.kind === 'buildQueue') add(e.kind, e.add);
+    else if (e.kind === 'unlock') continue;
+    else add(e.kind, e.percent);
   }
   if (sum.size === 0) return base;
   const mult = (key: string) => Math.max(0, 1 + (sum.get(key) ?? 0) / 100);
@@ -231,9 +231,14 @@ export function applyResearch(base: Balance, done: readonly string[]): Balance {
 
 /** Czytelny opis efektów badania („+10% metalu · −10% zużycia energii”). */
 export function describeEffects(node: ResearchNodeDef): string {
+  return describeEffectList(node.effects);
+}
+
+/** Opis listy efektów (badanie albo specjalizacja). */
+export function describeEffectList(effects: readonly ResearchEffect[]): string {
   const pct = (v: number) => `${v > 0 ? '+' : '−'}${Math.abs(v)}%`;
   const names = { metal: 'metalu', crystal: 'kryształów', energy: 'energii', antimatter: 'antymaterii z Kolektora' } as const;
-  const parts = node.effects.map((e) => {
+  const parts = effects.map((e) => {
     switch (e.kind) {
       case 'output':
         return `${pct(e.percent)} ${names[e.resource]}`;
@@ -267,6 +272,7 @@ export function describeEffects(node: ResearchNodeDef): string {
           'ai-mother': 'SI Matka — propozycje działań',
           'ai-executors': 'SI działa sama (poziom „działa samo”)',
           'ai-offline': 'SI buduje przy zamkniętej grze (budowy o 50% dłuższe)',
+          'specialization-change': 'zmiana specjalizacji kolonii (trwa 1 h)',
         }[e.feature];
     }
   });

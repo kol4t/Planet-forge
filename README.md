@@ -325,4 +325,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 178. Po ukończeniu budowy następna z kolejki rusza sama (koszt pobrany wtedy). Gdy brakuje surowców, kolejka czeka i rusza, gdy się uzbierają — także przy zamkniętej grze.
 179. Badania SI „Plan budowy” i „Harmonogram” dodają po jednym miejscu w kolejce. Karta planety w „Imperium” pokazuje „… · potem X”.
 
+### Od 0.32.3: specjalizacje kolonii
+
+180. Panel „Planeta” ma wiersz SPECJALIZACJA. „Wybierz” otwiera okno z czterema specjalizacjami, ich dopasowaniem do położenia (gwiazda i strefa orbity) i efektami na tej planecie.
+181. Pierwszy wybór działa od razu. Później przyciski pokazują „Zablokowane”, dopóki planeta nie zbada „Przebudowy kolonii” (Planetologia).
+182. Po badaniu „Zmień (1 h)” → „Na pewno?” → zmiana trwa godzinę, w tym czasie bez premii.
+183. Na mapie, po dotknięciu planety, jest „Najlepsza specjalizacja tutaj”. W „Imperium” karta ma znaczek specjalizacji, a planeta bez niej — podpowiedź w „Sytuacji imperium”.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

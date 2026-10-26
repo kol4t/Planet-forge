@@ -170,6 +170,16 @@ export const RESEARCH_NODES: readonly ResearchNodeDef[] = [
     ['planet-4', 'Geologia głębinowa', 'Złoża głęboko pod powierzchnią.', [output('metal', 15), output('crystal', 15)]],
     ['planet-5', 'Terraformacja', 'Planety bez kar środowiska.', [{ kind: 'environment', percent: -50 }]],
   ]).map((node) => (node.ring === 1 ? { ...node, requires: [] } : node)),
+  {
+    id: 'planet-spec',
+    arm: 'planetology',
+    ring: 2,
+    lane: 1,
+    name: 'Przebudowa kolonii',
+    description: 'Planetę można przestawić na inną specjalizację (zmiana trwa 1 godzinę).',
+    requires: ['planet-1'],
+    effects: [{ kind: 'unlock', feature: 'specialization-change' }],
+  },
   master('planetology', 'planet-master', 'Architekt światów', 'Gwiazda mistrzowska Planetologii.', ['planet-5']),
 
   // ——— ramiona „wkrótce” ———
