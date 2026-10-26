@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.35: nowe badania (plan) i pierwszy krok — Planetologia, mosty, burzenie
+
+Decyzje właściciela do propozycji badań: (1) **bez odnawiania złóż** (Rekultywacja odpada) — po wyczerpaniu planeta dalej rozwija badania i Laboratorium, gracz może **zburzyć** budowle produkcyjne, a surowce sprowadzać **transportowcami** z innych planet albo pozyskiwać z przestrzeni (pasy asteroid, komety); (2) Moduł orbitalny — do wyjaśnienia; (3) **wszystkie** pozostałe nowe badania, i **więcej połączeń między kategoriami** (jak Astrofizyka ekstremalna z dwóch gałęzi).
+- Planetologia z jednej linii w trzy ścieżki (pozycje istniejących badań zmienione, id i zbadane bez zmian; Geologia głębinowa z pierścienia 4 na 3 i z „+15% wydobycia” na „+20% złóż”): Geologia, Środowisko, Osadnictwo. „Budowa na lodzie” korzysta z gotowego `BuildRules.ice` — pola lodu przyjmują wszystkie budynki i liczą się do pól (na lodowej planecie testowej 71 → 271 pól). „Platformy przybrzeżne” wymagają pól na wodzie, których siatka pól jeszcze nie ma — osobny krok.
+- Mosty (`BRIDGES`): dodatkowe wymagania z innych ramion i gałęzi, zawsze z niższego pierścienia; rysowane jak zwykłe wymagania (szlak do celu prowadzi przez oba ramiona).
+- Burzenie: od razu, bez kosztu i bez zwrotu (robocze); nie dla budowy w toku/kolejki, Magazyn min. 1, Laboratorium nie w trakcie badania; przydział pól kurczy się sam (`reconcilePlots`).
+
 ## 2026-10-26 — v0.34.5: wyszukiwarka i filtry galaktyki
 
 - Spis znanych układów liczony z wiedzy (`knownSystemsList`) — bez nowego zapisu. Filtry: Zbadane (poziom 4), Rzadkie (rzadki obiekt, o którym gracz już wie), W zasięgu (można teraz wysłać ekspedycję). Na mapie filtr podświetla pasujące i przygasza resztę znanych; wybór pamiętany do zamknięcia mapy.

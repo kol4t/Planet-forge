@@ -376,4 +376,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 205. „Szukaj układu”: okno z polem tekstowym (klawiatura iPada), filtrami i listą znanych układów (Twój pierwszy, potem od najbliższych). Wpisz część nazwy (bez polskich znaków też działa) albo numer, np. 1:42.
 206. Dotknięcie wyniku zamyka okno, przewozi mapę do układu i pokazuje jego szczegóły. Sygnały na liście nie mają nazwy ani numeru.
 
+### Od 0.35: Planetologia, mosty, burzenie
+
+207. Badania → Planetologia: trzy ścieżki — Geologia (środek), Środowisko i Osadnictwo; nowe „Budowa na lodzie” i „Platformy przybrzeżne” (wkrótce). Linie łączą też badania z innych ramion (np. Geologia głębinowa wymaga Wierteł diamentowych, Głębokie szyby — Geologii głębinowej).
+208. Po „Budowie na lodzie” na lodowej planecie liczba POLA w pasku rośnie (pola lodu przyjmują wszystkie budynki).
+209. „Geologia głębinowa” i „Głębokie szyby”: w panelu „Planeta” złoże całkowite jest większe.
+210. Produkcja → ikonka „Zarządzanie” na karcie → „Zburz poz. N” → „Na pewno?”: poziom spada o 1 (bez zwrotu), przy grupie 3 poziomów zwalnia się pole (POLA w pasku maleje). Nie działa, gdy budynek się buduje albo jest w kolejce.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

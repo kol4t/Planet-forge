@@ -33,10 +33,18 @@ export function canStand(id: BuildingId, cell: FieldCell, rules: BuildRules = {}
   return isBuildable(cell.kind, rules) || (id === 'crystalMine' && cell.kind === 'ice');
 }
 
-/** Zajęte pola lądu (liczą się do limitu z seeda; kryształy na lodzie — nie). */
-export function usedLandFields(grid: FieldGrid, plots: Plots): number {
+/**
+ * Zajęte pola, które liczą się do limitu: ląd, a po „Budowie na lodzie” także lód
+ * (bez niej kryształy na lodzie stoją poza limitem).
+ */
+export function usedLandFields(grid: FieldGrid, plots: Plots, rules: BuildRules = {}): number {
   let used = 0;
-  for (const list of Object.values(plots)) for (const cell of list ?? []) if (grid.cells[cell]?.kind === 'land') used++;
+  for (const list of Object.values(plots)) {
+    for (const cell of list ?? []) {
+      const kind = grid.cells[cell]?.kind;
+      if (kind && isBuildable(kind, rules)) used++;
+    }
+  }
   return used;
 }
 
