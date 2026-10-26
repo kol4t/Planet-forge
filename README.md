@@ -370,4 +370,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 202. Po badaniu „Astrofizyka ekstremalna” (Eksploracja, pierścień 5): wyprawy rozpoznają i badają te obiekty; zbadany — pełny fioletowy pierścień, w panelu „Rzadki obiekt · dane naukowe”, w panelu galaktyki „Dane naukowe”.
 203. Premie dla całego imperium: każdy zbadany pulsar +0,25 antymaterii/h, każda czarna dziura −5% czasu badań (do 4 obiektów każdego rodzaju).
 
+### Od 0.34.5: wyszukiwarka i filtry galaktyki
+
+204. Panel galaktyki (bez zaznaczenia): „Wszystkie / Zbadane / Rzadkie / W zasięgu” z liczbami — na mapie pasujące w turkusowej obwódce, reszta przygaszona; drugie dotknięcie wyłącza filtr.
+205. „Szukaj układu”: okno z polem tekstowym (klawiatura iPada), filtrami i listą znanych układów (Twój pierwszy, potem od najbliższych). Wpisz część nazwy (bez polskich znaków też działa) albo numer, np. 1:42.
+206. Dotknięcie wyniku zamyka okno, przewozi mapę do układu i pokazuje jego szczegóły. Sygnały na liście nie mają nazwy ani numeru.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

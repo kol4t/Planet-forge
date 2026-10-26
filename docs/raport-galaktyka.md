@@ -45,6 +45,6 @@ Nowe: `src/core/time/worldClock.ts`, `src/core/galaxy/orbits.ts`, `src/core/gala
 
 **Wdrożone w pełni:** ruch planet z czasu świata, widok pod kątem, nowy wygląd galaktyki, „Mój układ” i strzałka, stany wiedzy, ekspedycje z badaniami, rzadkie obiekty z premiami.
 
-**Częściowo:** wspólny zegar używają orbity; gospodarka i wyprawy liczą się dalej ze znaczników czasu (`Date.now()`) — przejście całości na `worldNow` przy backendzie. Wyszukiwarka znanych układów i osobna lista raportów (punkt 9.1 planu) — nie zrobione; raporty są w dzienniku „Imperium”.
+**Częściowo:** wspólny zegar używają orbity; gospodarka i wyprawy liczą się dalej ze znaczników czasu (`Date.now()`) — przejście całości na `worldNow` przy backendzie. Osobna lista raportów (punkt 9.1 planu) — nie zrobiona; raporty są w dzienniku „Imperium”. Wyszukiwarka i filtry — dodane w v0.34.5.
 
-**Propozycje na przyszłość:** wyszukiwarka i filtry mapy galaktyki, zwijany panel, specjalistyczne misje do rzadkich obiektów, anomalie (po lore), ruch flot na tym samym zegarze, autorytatywny zegar serwera.
+**Propozycje na przyszłość:** zwijany panel, specjalistyczne misje do rzadkich obiektów, anomalie (po lore), ruch flot na tym samym zegarze, autorytatywny zegar serwera.
