@@ -72,6 +72,9 @@ export function nodeIcon(node: ResearchNodeDef): NodeIcon {
       return 'build';
     case 'deposits':
       return 'mining';
+    case 'transportCapacity':
+    case 'travelTime':
+      return 'fleet';
     case 'storage':
     case 'offlineHours':
       return 'storage';
@@ -85,7 +88,7 @@ export function nodeIcon(node: ResearchNodeDef): NodeIcon {
     case 'expedition':
       return 'ship';
     case 'unlock':
-      return first.feature === 'colony-ship' ? 'ship' : first.feature === 'specialization-change' || first.feature === 'build-ice' || first.feature === 'build-water' ? 'planet' : 'ai';
+      return first.feature === 'colony-ship' ? 'ship' : first.feature === 'transport' ? 'fleet' : first.feature === 'specialization-change' || first.feature === 'build-ice' || first.feature === 'build-water' ? 'planet' : 'ai';
     default:
       return 'none';
   }

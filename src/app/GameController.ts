@@ -69,13 +69,14 @@ import {
 } from '../core/economy/specialization.ts';
 import { findSpecialization, SPECIALIZATION_RULES, SPECIALIZATIONS } from '../data/specializations.ts';
 import { RARE_OBJECTS, ZONE_LABELS } from '../data/galaxy.ts';
+import { checkShipment, transportSeconds } from '../core/economy/transport.ts';
 import { distanceFrom, expeditionStats, planExpedition, resolveExpedition, type ExpeditionPlan, type ExpeditionStats } from '../core/galaxy/expeditions.ts';
 import type { KnownSystem } from '../core/galaxy/galaxyIndex.ts';
 import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownCount, raiseDiscovery, rareBonuses, type Discoveries, type DiscoveryLevel } from '../core/galaxy/discovery.ts';
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -244,6 +245,22 @@ export interface MissionView extends ColonyMission {
   progress: number;
 }
 
+/** Transportowiec w drodze (do „Imperium”). */
+export interface ShipmentView extends Shipment {
+  fromName: string;
+  toName: string;
+  secondsLeft: number;
+  progress: number;
+}
+
+/** Zasady transportu z najlepszych badań w imperium (v0.36). */
+export interface TransportView {
+  unlocked: boolean;
+  capacity: number;
+  maxActive: number;
+  active: number;
+}
+
 /**
  * Nieaktywne planety „doganiają” czas bez przyrostu pasywnego antymaterii —
  * ten liczy się raz, na aktywnej planecie (portfel jest wspólny).
@@ -282,6 +299,11 @@ export class GameController {
   private rareCache: { known: Discoveries; effects: ResearchEffect[]; key: string } | null = null;
   /** Ekspedycje w drodze (v0.34.3). */
   private expeditions: Expedition[] = [];
+  /** Transportowce w drodze (v0.36). */
+  private shipments: Shipment[] = [];
+  private readonly shipmentListeners = new Set<(text: string) => void>();
+  /** Dostawy rozliczone podczas nieobecności (do jednorazowego komunikatu). */
+  shipmentsWhileAway: string[] = [];
   private readonly expeditionListeners = new Set<(report: ExpeditionReport) => void>();
   /** Raporty ekspedycji rozliczonych podczas nieobecności (do pokazania po starcie). */
   expeditionsWhileAway: ExpeditionReport[] = [];
@@ -307,6 +329,7 @@ export class GameController {
       this.home = saved.home ?? '';
       this.missions = saved.missions ?? [];
       this.expeditions = saved.expeditions ?? [];
+      this.shipments = saved.shipments ?? [];
       this.journal = saved.journal ?? [];
       this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
@@ -320,6 +343,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
+      this.shipmentsWhileAway = this.processShipments(now);
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -515,8 +539,10 @@ export class GameController {
     if (done) this.logBuild(done, before.construction!.finishesAt);
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
+    const delivered = this.processShipments(now);
     const aiDone = this.runAutoAi(now);
-    if (done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || aiDone) this.save();
+    if (done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
+    for (const text of delivered) for (const listener of this.shipmentListeners) listener(text);
     for (const report of returned) for (const listener of this.expeditionListeners) listener(report);
     if (aiDone) for (const listener of this.aiListeners) listener(aiDone);
     if (done) for (const listener of this.completeListeners) listener(done);
@@ -1032,6 +1058,114 @@ export class GameController {
     return arrived;
   }
 
+  // ——— transportowce (v0.36) ———
+
+  /** Ładowność i czas lotu z najlepszych badań w imperium (badania są przy planetach). */
+  private transportBalance(): Balance {
+    const balance = this.balance;
+    const all = this.slots.map((slot) => this.balanceFor(slot).transport);
+    return {
+      ...balance,
+      transport: {
+        ...balance.transport,
+        capacity: Math.max(...all.map((t) => t.capacity)),
+        baseSeconds: Math.min(...all.map((t) => t.baseSeconds)),
+        secondsPerUnit: Math.min(...all.map((t) => t.secondsPerUnit)),
+      },
+    };
+  }
+
+  transportView(): TransportView {
+    const t = this.transportBalance().transport;
+    return { unlocked: this.unlocked('transport'), capacity: t.capacity, maxActive: t.maxActive, active: this.shipments.length };
+  }
+
+  /** Odległość na mapie galaktyki między planetami (ten sam układ = 0). */
+  private distanceBetween(a: string, b: string): number {
+    const from = this.galaxy.systems[(parseAddress(a)?.system ?? 1) - 1];
+    const to = this.galaxy.systems[(parseAddress(b)?.system ?? 1) - 1];
+    return from && to ? Math.hypot(to.x - from.x, to.y - from.y) : 0;
+  }
+
+  /** Czas lotu transportowca (s) z aktywnej planety do planety `to`. */
+  transportSecondsTo(to: string): number {
+    return transportSeconds(this.distanceBetween(this.address, to), this.transportBalance());
+  }
+
+  private slotName(address: string): string {
+    return this.slots.find((s) => s.address === address)?.planet.displayName ?? address;
+  }
+
+  /** Wysłanie metalu i kryształów z aktywnej planety do innej planety gracza (ładunek schodzi od razu). */
+  sendResources(to: string, cargo: Resources, now = Date.now()): ActionMessage {
+    this.tick(now);
+    if (!this.unlocked('transport')) return { ok: false, message: 'Najpierw zbadaj „Transportowce” (Badania → Flota).' };
+    if (this.slotAt(to) < 0) return { ok: false, message: 'Transportowce latają tylko między Twoimi planetami.' };
+    const balance = this.transportBalance();
+    const check = checkShipment(cargo, this.economy.stock, this.shipments.length, balance, to === this.address);
+    if (!check.ok) return check;
+    const load = check.cargo;
+    const seconds = transportSeconds(this.distanceBetween(this.address, to), balance);
+    this.economy = { ...this.economy, stock: { metal: this.economy.stock.metal - load.metal, crystal: this.economy.stock.crystal - load.crystal } };
+    this.shipments.push({ from: this.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load });
+    const toName = this.slotName(to);
+    this.log('ship', `Transportowiec wyruszył z ${this.planet.displayName} do ${toName}: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Transportowiec leci do ${toName} — dotrze za ${seconds >= 60 ? `${Math.ceil(seconds / 60)} min` : `${seconds} s`}.` };
+  }
+
+  /** Transportowce w drodze (z nazwami i postępem lotu). */
+  shipmentsView(now = Date.now()): ShipmentView[] {
+    return this.shipments.map((s) => {
+      const total = s.arrivesAt - s.departedAt;
+      return {
+        ...s,
+        fromName: this.slotName(s.from),
+        toName: this.slotName(s.to),
+        secondsLeft: Math.max(0, (s.arrivesAt - now) / 1000),
+        progress: total <= 0 ? 1 : Math.min(1, Math.max(0, (now - s.departedAt) / total)),
+      };
+    });
+  }
+
+  onShipmentArrived(listener: (text: string) => void): () => void {
+    this.shipmentListeners.add(listener);
+    return () => this.shipmentListeners.delete(listener);
+  }
+
+  /**
+   * Przyloty transportowców do `now`: ładunek trafia do magazynu odbiorcy (nieaktywna planeta najpierw
+   * nadrabia czas do chwili przylotu). Gdy odbiorcy już nie ma — wraca do nadawcy; gdy i jego — przepada.
+   */
+  private processShipments(now: number): string[] {
+    const texts: string[] = [];
+    for (const shipment of [...this.shipments].sort((a, b) => a.arrivesAt - b.arrivesAt)) {
+      if (shipment.arrivesAt > now) continue;
+      this.shipments = this.shipments.filter((s) => s !== shipment);
+      let index = this.slotAt(shipment.to);
+      const returned = index < 0;
+      if (returned) index = this.slotAt(shipment.from);
+      const { metal, crystal } = shipment.cargo;
+      if (index < 0) {
+        this.log('ship', `Transportowiec nie miał dokąd wrócić — ładunek przepadł (${metal} metalu, ${crystal} kryształów).`, shipment.arrivesAt);
+        continue;
+      }
+      const slot = this.slots[index]!;
+      const economy =
+        index === this.active || slot.economy.lastUpdate >= shipment.arrivesAt
+          ? slot.economy
+          : this.advanceSlot(slot, slot.economy, shipment.arrivesAt, catchUpBalance);
+      slot.economy = { ...economy, stock: { metal: economy.stock.metal + metal, crystal: economy.stock.crystal + crystal } };
+      const text = returned
+        ? `Transportowiec wrócił na ${slot.planet.displayName} — odbiorcy już nie ma. Ładunek rozładowany.`
+        : `Transportowiec dotarł na ${slot.planet.displayName}: +${metal} metalu, +${crystal} kryształów.`;
+      this.log('ship', text, shipment.arrivesAt);
+      texts.push(text);
+    }
+    return texts;
+  }
+
   /** Powód, dla którego nie da się zająć planety (albo null). Wspólne dla kolonizacji i statków. */
   private colonizeBlocker(target: SystemPlanet): string | null {
     const occupant = this.occupantAt(target);
@@ -1489,6 +1623,7 @@ export class GameController {
     this.home = result.data.home ?? '';
     this.missions = result.data.missions ?? [];
     this.expeditions = result.data.expeditions ?? [];
+    this.shipments = result.data.shipments ?? [];
     this.journal = result.data.journal ?? [];
     this.aiLevels = result.data.ai ?? { ...DEFAULT_AI_LEVELS };
     this.active = result.data.active;
@@ -1499,6 +1634,7 @@ export class GameController {
     this.advanceActive(now);
     this.processMissions(now);
     this.processExpeditions(now);
+    this.processShipments(now);
     this.offlineGain = null;
     this.completedWhileAway = null;
     this.log('empire', 'Wczytano zapis gry.', now);
@@ -1520,6 +1656,7 @@ export class GameController {
       missions: this.missions,
       discoveries: this.discoveries,
       expeditions: this.expeditions,
+      shipments: this.shipments,
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,
