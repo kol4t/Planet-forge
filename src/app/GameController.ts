@@ -68,6 +68,7 @@ import {
 } from '../core/economy/specialization.ts';
 import { findSpecialization, SPECIALIZATION_RULES, SPECIALIZATIONS } from '../data/specializations.ts';
 import { ZONE_LABELS } from '../data/galaxy.ts';
+import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, knownCount, raiseDiscovery, type Discoveries, type DiscoveryLevel } from '../core/galaxy/discovery.ts';
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
@@ -258,6 +259,8 @@ export class GameController {
   private readonly aiSnooze = new Map<AiRuleId, number>();
   private readonly aiListeners = new Set<(text: string) => void>();
   /** Balans z efektami badań — osobno dla każdej listy zbadanych (planety). */
+  /** Wiedza o galaktyce (v0.34.2): poziom odkrycia każdego układu — osobno od danych galaktyki. */
+  private discoveries: Discoveries = {};
   private readonly balanceCache = new WeakMap<Slot, { done: readonly string[]; spec: string; balance: Balance }>();
   private readonly siteCache = new Map<string, SpecializationSite | null>();
   private slots: Slot[];
@@ -283,6 +286,7 @@ export class GameController {
       this.active = Math.min(saved.active, slots.length - 1);
       migrateResearch(this.slots, saved.slots, saved.research, this.active);
       this.placeOnMap();
+      this.restoreDiscoveries(saved.discoveries);
       const before = { ...this.slots[this.active]!.economy, antimatter: saved.antimatter };
       this.economy = before;
       this.runAwayAi(this.slots[this.active]!, now, this.balance);
@@ -298,6 +302,7 @@ export class GameController {
         { planet: generatePlanet(STARTER.definition, STARTER.seed), economy: createEconomy(now), address: '', research: EMPTY_RESEARCH, plots: {} },
       ];
       this.placeOnMap();
+      this.restoreDiscoveries(undefined);
       this.log('empire', `Początek ekspedycji: ${this.planet.displayName} (${this.address}).`, now);
     }
   }
@@ -903,6 +908,9 @@ export class GameController {
     if (!this.colonyShipUnlocked) {
       return { ok: false, message: 'Najpierw zbadaj „Napęd międzygwiezdny” (Badania → Eksploracja).' };
     }
+    if (this.discoveryLevel(where.system) < DISCOVERY.explored) {
+      return { ok: false, message: 'Ten układ nie jest zbadany — najpierw trzeba go poznać (ekspedycje — wkrótce).' };
+    }
     if (this.missionTo(address)) return { ok: false, message: 'Statek już leci do tej planety.' };
     const blocked = this.colonizeBlocker(target);
     if (blocked) return { ok: false, message: blocked };
@@ -1094,6 +1102,41 @@ export class GameController {
     return this.slots[this.active]!.address;
   }
 
+  // ——— wiedza o galaktyce (v0.34.2) ———
+
+  /** Układy, w których gracz jest: startowy, z jego planetami i celami statków (zawsze zbadane). */
+  private ownSystems(): number[] {
+    const systems = [this.home, ...this.slots.map((s) => s.address), ...this.missions.map((m) => m.target)]
+      .map((a) => parseAddress(a)?.system)
+      .filter((i): i is number => i !== undefined);
+    return [...new Set(systems)];
+  }
+
+  /** Wiedza z zapisu (uzupełniona o własne układy) albo — dla starszych zapisów i nowej gry — na start. */
+  private restoreDiscoveries(saved: Discoveries | undefined): void {
+    const own = this.ownSystems();
+    this.discoveries = saved ? ensureKnown(saved, own) : initialDiscoveries(this.galaxy, own);
+  }
+
+  /** Poziom wiedzy o układzie (0 nieznany … 4 zbadany). */
+  discoveryLevel(index: number): DiscoveryLevel {
+    return discoveryOf(this.discoveries, index);
+  }
+
+  /** Zapis odkrycia (ekspedycje, v0.34.3): wiedza tylko rośnie i trafia do zapisu. */
+  markDiscovered(index: number, level: DiscoveryLevel): void {
+    const next = raiseDiscovery(this.discoveries, index, level);
+    if (next === this.discoveries) return;
+    this.discoveries = next;
+    this.save();
+    this.emit();
+  }
+
+  /** Ile układów gracz zna (co najmniej wykrytych). */
+  get knownSystems(): number {
+    return knownCount(this.discoveries);
+  }
+
   /** Numer układu startowego gracza. */
   get homeSystem(): number {
     return parseAddress(this.home)?.system ?? 1;
@@ -1235,6 +1278,7 @@ export class GameController {
     this.active = result.data.active;
     migrateResearch(this.slots, result.data.slots, result.data.research, this.active);
     this.placeOnMap();
+    this.restoreDiscoveries(result.data.discoveries);
     this.economy = { ...this.economy, antimatter: result.data.antimatter };
     this.advanceActive(now);
     this.processMissions(now);
@@ -1257,6 +1301,7 @@ export class GameController {
       research: EMPTY_RESEARCH,
       home: this.home,
       missions: this.missions,
+      discoveries: this.discoveries,
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,

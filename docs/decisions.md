@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.34.2: wiedza o galaktyce
+
+- Trzy rzeczy rozdzielone: istnienie układu (generator, bez zmian), wiedza gracza (`EmpireSave.discoveries`, tylko poziomy 1–4 dla układów, które zna) i — w v0.34.3 — ekspedycje, które tę wiedzę podnoszą. Poziomy: 0 nieznany obszar (niewidoczny), 1 sygnał (punkt bez nazwy i rodzaju), 2 wykryty (nazwa i położenie), 3 rozpoznany (gwiazda, liczba planet), 4 zbadany (planety, złoża, widok układu, kolonizacja). Wiedza nigdy nie maleje.
+- Na start (decyzja właściciela): układ startowy, układy z planetami i statkami gracza — zbadane (także przy każdym wczytaniu, więc żaden zapis nie traci dostępu do swoich kolonii); 4 najbliższych sąsiadów — rozpoznani; pozostałe do 40 jedn. — sygnały (`DISCOVERY_RULES`, robocze). Zapisy sprzed v0.34.2 dostają to samo co nowa gra.
+- Mapa nie zdradza nieodkrytych danych: nieznane niewidoczne, sygnał bez nazwy, wykryty bez barwy gwiazdy, rozpoznany bez planet; widok układu (`openSystem`) i statek kolonizacyjny (`sendColonyShip`) tylko do zbadanych. Do czasu ekspedycji (v0.34.3) kolonizacja innych układów jest więc wstrzymana poza już posiadanymi.
+
 ## 2026-10-26 — v0.34.1: wygląd galaktyki i „Mój układ”
 
 - Tło galaktyki (`galaxyArt` v4, rysowane raz na rozmiar): realizm z gęstości i kompozycji, nie z neonu — miękka poświata ramion (ciepła przy jądrze, chłodna dalej), 16 tys. gwiazd ramion, 160 gromad, 90 obłoków wodoru (różowe/niebieskie, po zewnętrznej stronie ramion), pasma pyłu po wewnętrznej, gęste ciepłe zgrubienie. Rozdzielczość tekstury z wielkości galaktyki na ekranie (×1,25, 768–1536 px): duże pomniejszenie dawało na telefonie wzór szachownicy. Bez nowych efektów na klatkę (koszt tylko przy pierwszym rysowaniu).

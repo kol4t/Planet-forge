@@ -4,6 +4,7 @@ import { BALANCE } from '../../data/balance.ts';
 import { parseAiLevels, type AiLevel, type AiRuleId } from '../ai/advisor.ts';
 import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
 import { parseSpecialization } from '../economy/specialization.ts';
+import { parseDiscoveries, type Discoveries } from '../galaxy/discovery.ts';
 import type { ColonyMission, EconomyState, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
@@ -55,6 +56,8 @@ export interface EmpireSave {
   journal?: JournalEntry[];
   /** Samodzielność SI Matki dla każdej reguły (od v0.14; brak = „pyta”). */
   ai?: Record<AiRuleId, AiLevel>;
+  /** Wiedza o galaktyce: indeks układu → poziom 1–4 (od v0.34.2; brak = wyliczana na start). */
+  discoveries?: Discoveries;
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -154,6 +157,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     missions: parseMissions(data.missions),
     journal: parseJournal(data.journal),
     ai: parseAiLevels(data.ai),
+    ...(parseDiscoveries(data.discoveries) ? { discoveries: parseDiscoveries(data.discoveries)! } : {}),
   };
 }
 

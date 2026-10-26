@@ -444,6 +444,14 @@ export interface OrbitRules {
   periodSeconds: Range;
 }
 
+/** Wiedza o galaktyce na start (v0.34.2, wartości robocze). */
+export interface DiscoveryRules {
+  /** Tylu najbliższych sąsiadów jest od razu rozpoznanych (gwiazda i liczba planet). */
+  telescopeNeighbors: number;
+  /** W tym zasięgu (jednostki mapy) od układów gracza widać sygnały. */
+  signalRange: number;
+}
+
 /** Adres w galaktyce: galaktyka : układ : orbita (np. 1:42:7). */
 export interface GalaxyAddress {
   galaxy: number;
