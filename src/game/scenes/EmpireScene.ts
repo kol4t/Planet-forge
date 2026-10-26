@@ -5,6 +5,7 @@ import type { JournalKind } from '../../core/types.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
 import { empireAlerts, planetBadges, planetBars, sortPlanets, type AlertTarget, type CardTone, type EmpireAlert, type PlanetSort } from '../ui/empireCards.ts';
+import { openTransportPanel } from '../ui/transportPanel.ts';
 import { COLORS, FONTS, formatClock, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
@@ -72,10 +73,22 @@ export class EmpireScene extends OverlayScene {
     this.tab = data?.tab ?? 'planets';
   }
 
+  private closeTransport: (() => void) | null = null;
+
+  /** Statki w drodze: kolonizacyjne, ekspedycje i transportowce (wiersze nad alertami). */
+  private travelling(): number {
+    const c = this.deps.controller;
+    return c.missionsView().length + c.expeditionsView().length + c.shipmentsView().length;
+  }
+
   create(): void {
     this.setupInput();
     this.relayout();
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clearThumbs());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.clearThumbs();
+      this.closeTransport?.();
+      this.closeTransport = null;
+    });
   }
 
   relayout(): void {
@@ -152,8 +165,7 @@ export class EmpireScene extends OverlayScene {
     const gap = this.s(10);
     let y = area.y + this.s(4);
     const overview = c.overview();
-    const missions = c.missionsView();
-    this.shape = this.planetsShape(overview, missions.length + c.expeditionsView().length);
+    this.shape = this.planetsShape(overview, this.travelling());
     this.hits = [];
     this.tiles.clear();
 
@@ -182,7 +194,7 @@ export class EmpireScene extends OverlayScene {
     y += Math.ceil(tiles.length / tileCols) * (tileH + gap);
     this.ships = this.text(area.x + this.s(4), y, '', 12, COLORS.gold, { fontStyle: '600', wordWrap: { width: this.px(area.w - this.s(8)) } }, false);
     items.push(this.ships);
-    const travelling = missions.length + c.expeditionsView().length;
+    const travelling = this.travelling();
     if (travelling > 0) y += this.s(18) * travelling + this.s(8);
 
     // Sytuacja imperium: co wymaga uwagi (dotknięcie prowadzi na miejsce).
@@ -415,14 +427,20 @@ export class EmpireScene extends OverlayScene {
     this.cards.push({ index: p.index, resources, build, graphics, bars, buildBar: { x: rect.x + pad, y: y + this.s(19), w: rect.w - 2 * pad, h: this.s(3) } });
 
     if (this.menuIndex === p.index && !p.active) {
-      // Menu ⋯: usunięcie z potwierdzeniem drugim dotknięciem.
+      // Menu ⋯: transport z aktywnej planety (v0.36), usunięcie z potwierdzeniem drugim dotknięciem.
       const by = rect.y + rect.h - pad - TOUCH;
       const cover = this.add.graphics().fillStyle(COLORS.panel, 1).fillRect(this.px(rect.x + this.s(2)), this.px(by - this.s(8)), this.px(rect.w - this.s(4)), this.px(TOUCH + this.s(8) + pad - this.s(2)));
-      const half = (rect.w - 2 * pad - this.s(8)) / 2;
+      const third = (rect.w - 2 * pad - 2 * this.s(8)) / 3;
       const armed = this.removeArmed?.index === p.index && Date.now() <= this.removeArmed.until;
       items.push(
         cover,
-        this.button(rect.x + pad, by, half, armed ? 'Na pewno?' : 'Usuń planetę', armed ? 'danger' : 'secondary', () => {
+        this.button(rect.x + pad, by, third, 'Wyślij tu', 'primary', () => {
+          this.menuIndex = null;
+          this.removeArmed = null;
+          this.openTransport(p);
+          this.relayout();
+        }),
+        this.button(rect.x + pad + third + this.s(8), by, third, armed ? 'Na pewno?' : 'Usuń', armed ? 'danger' : 'secondary', () => {
           if (!armed) {
             // Pierwsze dotknięcie tylko pyta — postęp usuniętej planety przepada.
             this.removeArmed = { index: p.index, until: Date.now() + 3000 };
@@ -434,7 +452,7 @@ export class EmpireScene extends OverlayScene {
           }
           this.relayout();
         }),
-        this.button(rect.x + pad + half + this.s(8), by, half, 'Anuluj', 'secondary', () => {
+        this.button(rect.x + pad + 2 * (third + this.s(8)), by, third, 'Anuluj', 'secondary', () => {
           this.menuIndex = null;
           this.removeArmed = null;
           this.relayout();
@@ -455,6 +473,26 @@ export class EmpireScene extends OverlayScene {
       });
     }
     return items;
+  }
+
+  /** Okno „Wyślij surowce” z aktywnej planety do planety z karty. */
+  private openTransport(target: PlanetOverview): void {
+    const c = this.deps.controller;
+    const address = target.address;
+    this.closeTransport?.();
+    this.closeTransport = openTransportPanel({
+      fromName: c.planet.displayName,
+      toName: target.name,
+      stock: c.economy.stock,
+      transport: c.transportView(),
+      seconds: c.transportSecondsTo(address),
+      send: (cargo) => c.sendResources(address, cargo),
+      onSent: (message) => {
+        this.closeTransport = null;
+        this.showToast(message, 'info');
+        this.relayout();
+      },
+    });
   }
 
   // ——— zakładka „Dziennik” ———
@@ -579,7 +617,7 @@ export class EmpireScene extends OverlayScene {
     }
     const overview = c.overview();
     const missions = c.missionsView();
-    if (this.planetsShape(overview, missions.length + c.expeditionsView().length) !== this.shape) {
+    if (this.planetsShape(overview, this.travelling()) !== this.shape) {
       this.relayout();
       return;
     }
@@ -605,6 +643,7 @@ export class EmpireScene extends OverlayScene {
       [
         ...missions.map((m) => `Statek kolonizacyjny: ${m.fromName} → ${m.targetName} · ${formatDuration(m.secondsLeft)}`),
         ...c.expeditionsView().map((e) => `Ekspedycja: ${e.name} · powrót za ${formatDuration(e.secondsLeft)}`),
+        ...c.shipmentsView().map((t) => `Transportowiec: ${t.fromName} → ${t.toName} · ${formatInt(t.cargo.metal + t.cargo.crystal)} · ${formatDuration(t.secondsLeft)}`),
       ].join('\n'),
     );
     for (const card of this.cards) {

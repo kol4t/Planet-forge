@@ -215,6 +215,17 @@ export function applyResearch(base: Balance, done: readonly string[], extra: rea
       finishSecondsPerUnit: base.antimatter.finishSecondsPerUnit / Math.max(0.1, mult('finishPrice')),
     },
     environmentPenalty: base.environmentPenalty * mult('environment'),
+    transport: {
+      ...base.transport,
+      capacity: Math.round(base.transport.capacity * mult('transportCapacity')),
+      baseSeconds: base.transport.baseSeconds * mult('travelTime'),
+      secondsPerUnit: base.transport.secondsPerUnit * mult('travelTime'),
+    },
+    colonyShip: {
+      ...base.colonyShip,
+      baseSeconds: base.colonyShip.baseSeconds * mult('travelTime'),
+      secondsPerUnit: base.colonyShip.secondsPerUnit * mult('travelTime'),
+    },
     deposits: {
       perHundredFields: {
         metal: base.deposits.perHundredFields.metal * mult('deposits'),
@@ -274,6 +285,10 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
         return `+${e.add} miejsce w kolejce budowy`;
       case 'deposits':
         return `złoża planety ${pct(e.percent)}`;
+      case 'transportCapacity':
+        return `ładowność transportowca ${pct(e.percent)}`;
+      case 'travelTime':
+        return `czas lotu statków ${pct(e.percent)}`;
       case 'expedition':
         return {
           range: `+${e.add} jedn. zasięgu ekspedycji`,
@@ -292,6 +307,7 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
           expeditions: 'ekspedycje — wyprawy do sygnałów i nieznanych układów',
           'build-ice': 'wszystkie budynki także na polach lodu',
           'build-water': 'pola na płytkiej wodzie przy brzegu',
+          transport: 'transportowce — przesyłanie metalu i kryształów między Twoimi planetami',
           'extreme-astrophysics': 'odczyt pulsarów i czarnych dziur — ich zbadanie daje premie z danych naukowych',
         }[e.feature];
     }
@@ -399,6 +415,7 @@ export function researchPreview(node: ResearchNodeDef, economy: EconomyState, pl
     else if (e.kind === 'energyUse') add('Zużycie energii', rb.energyUsed, ra.energyUsed, '');
     else if (e.kind === 'storage') add('Magazyn', storageCapacity(economy, before), storageCapacity(economy, after), '');
     else if (e.kind === 'buildTime') add('Czas budowy na poziom', before.buildSecondsPerLevel, after.buildSecondsPerLevel, ' s');
+    else if (e.kind === 'transportCapacity') add('Ładowność transportowca', before.transport.capacity, after.transport.capacity, '');
     else if (e.kind === 'deposits') add('Złoże metalu', depositTotal(planet, before).metal, depositTotal(planet, after).metal, '');
     else if (e.kind === 'buildQueue') add('Kolejka budowy', before.buildQueue, after.buildQueue, '');
     else if (e.kind === 'offlineHours') add('Praca podczas nieobecności', before.maxOfflineSeconds / 3600, after.maxOfflineSeconds / 3600, ' h');

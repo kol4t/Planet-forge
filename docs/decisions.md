@@ -2,6 +2,17 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.36.1: połączenia w „Badaniach” bez chaosu
+
+Właściciel (zrzut z iPada): mosty dają ciekawe zależności, ale długie linie przez całą galaktykę gubią gracza. Zasady rysowania: (1) każde połączenie to łuk „po spirali” (interpolacja kąta i promienia), więc biegnie wzdłuż pierścieni, a nie na skos przez jądro; (2) most z innego ramienia w spoczynku = krótki zaczep z kropką w kolorze ramienia źródła — informacja „zależy od innej dziedziny” bez linii przez mapę; (3) pełny most (przerywany) dopiero po zaznaczeniu jednego z jego końców, a pozostałe połączenia wtedy przygasają; (4) szlak do celu przez most też przerywany. Dane badań i zależności bez zmian.
+
+## 2026-10-26 — v0.36: Transportowce
+
+- **Flota jako flota cywilna** (K-005: walka nie jest sercem gry): ramię aktywne z badaniami Transportowce → Ładownie modułowe, Lżejsze kadłuby (most z Eksploracji, skraca też lot statku kolonizacyjnego), Szlaki konwojów (stałe trasy, połączenie z SI) — wkrótce.
+- **Model przesyłki** jak statki kolonizacyjne: ładunek pobierany z aktywnej planety przy wysłaniu (bez anulowania — robocze), dodawany raz w chwili przylotu; nieaktywny odbiorca najpierw nadrabia czas do chwili przylotu (bez antymaterii pasywnej, jak przy przełączaniu), więc produkcja i limit magazynu liczą się tak, jakby ładunek przyszedł o czasie. Ładunek może przekroczyć magazyn (jak zwrot przy anulowaniu — nadwyżka nie przepada, tylko zatrzymuje przyrost). Usunięty odbiorca → ładunek wraca do nadawcy; brak obu → przepada (wpis w dzienniku).
+- **Parametry z najlepszej planety** (ładowność, czas lotu) — badania Floty działają w całym imperium jak parametry ekspedycji. Czas lotu: 60 s + 5 s × odległość na mapie galaktyki (ten sam układ = 60 s); ładowność 5000 (metal + kryształy), maks. 3 naraz — robocze.
+- **Moduł orbitalny** (Stacja i handel, później): bez warunku 3 planet (decyzja właściciela).
+
 ## 2026-10-26 — v0.35: nowe badania (plan) i pierwszy krok — Planetologia, mosty, burzenie
 
 Decyzje właściciela do propozycji badań: (1) **bez odnawiania złóż** (Rekultywacja odpada) — po wyczerpaniu planeta dalej rozwija badania i Laboratorium, gracz może **zburzyć** budowle produkcyjne, a surowce sprowadzać **transportowcami** z innych planet albo pozyskiwać z przestrzeni (pasy asteroid, komety); (2) Moduł orbitalny — do wyjaśnienia; (3) **wszystkie** pozostałe nowe badania, i **więcej połączeń między kategoriami** (jak Astrofizyka ekstremalna z dwóch gałęzi).

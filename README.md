@@ -383,4 +383,17 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 209. „Geologia głębinowa” i „Głębokie szyby”: w panelu „Planeta” złoże całkowite jest większe.
 210. Produkcja → ikonka „Zarządzanie” na karcie → „Zburz poz. N” → „Na pewno?”: poziom spada o 1 (bez zwrotu), przy grupie 3 poziomów zwalnia się pole (POLA w pasku maleje). Nie działa, gdy budynek się buduje albo jest w kolejce.
 
+### Od 0.36: Transportowce
+
+211. Badania → Flota (ramię jest teraz aktywne): „Transportowce”, potem „Ładownie modułowe” (dwa razy większy ładunek) i „Lżejsze kadłuby” (krótszy lot; wymagają też badania z Eksploracji).
+212. Po zbadaniu „Transportowców”: Imperium → ⋯ na karcie innej planety → „Wyślij tu”. Okno pokazuje trasę, czas lotu i ile transportowców jest w drodze.
+213. Przesuń suwaki Metal i Kryształy (albo „Połowa” / „Ile się zmieści”) → „Wyślij”: zapas aktywnej planety maleje od razu, nad alertami w „Imperium” pojawia się „Transportowiec: … → …” z odliczaniem.
+214. Po przylocie: komunikat „Transportowiec dotarł…”, zapas planety odbiorcy rośnie (karta w „Imperium”), wpis w „Dzienniku”. Działa też przy zamkniętej grze — komunikat po powrocie.
+
+### Od 0.36.1: czytelne połączenia w „Badaniach”
+
+215. Badania → „Całe drzewo”: linie biegną łukami wzdłuż ramion, żadna nie przecina galaktyki przez środek.
+216. Badania wymagające wiedzy z innego ramienia mają tylko krótki „zaczep” z kropką w kolorze tamtego ramienia (np. fioletowa = SI).
+217. Dotknij takie badanie (np. „Ciągłość produkcji” w Produktywności): pojawia się cały most — przerywana linia do badania w innym ramieniu; pozostałe linie przygasają. W „Wymaganiach” przy moście stoi nazwa ramienia („Autonomia · SI”).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -64,10 +64,10 @@ export const RESEARCH_ARMS: readonly ResearchArmDef[] = [
   {
     id: 'fleet',
     name: 'Flota',
-    description: 'Flota cywilna: transportowce i statki ekspedycyjne. Walka w kolejnym etapie.',
+    description: 'Flota cywilna (bez walki): transportowce wożą surowce między Twoimi planetami.',
     angleDeg: 190,
     color: 0xe08a6d,
-    active: false,
+    active: true,
     status: 'robocza',
   },
 ];
@@ -301,10 +301,16 @@ const NODES: readonly ResearchNodeDef[] = [
     effects: [{ kind: 'buildQueue', add: 1 }],
   },
   master('ai', 'ai-master', 'Świadoma Matka', 'Gwiazda mistrzowska SI.', ['ai-3']),
-  soon('fleet', 1, 'fleet-1', 'Transportowce', 'Przewóz surowców między planetami.'),
-  soon('fleet', 2, 'fleet-2', 'Statki ekspedycyjne', 'Statki dla Eksploracji.', ['fleet-1']),
-  soon('fleet', 3, 'fleet-3', 'Szlaki konwojów', 'Stałe trasy transportowe.', ['fleet-2']),
-  master('fleet', 'fleet-master', 'Admiralicja', 'Gwiazda mistrzowska Floty.', ['fleet-3']),
+  // Flota cywilna (v0.36, nazwy robocze; bez walki — K-005): transport surowców między planetami.
+  node('fleet', 1, 0, 'fleet-1', 'Transportowce', 'Statki towarowe przewożą metal i kryształy między Twoimi planetami.', [], [
+    { kind: 'unlock', feature: 'transport' },
+  ]),
+  node('fleet', 2, 0, 'fleet-2', 'Ładownie modułowe', 'Transportowiec zabiera dwa razy więcej.', ['fleet-1'], [{ kind: 'transportCapacity', percent: 100 }]),
+  node('fleet', 2, 1, 'fleet-light', 'Lżejsze kadłuby', 'Statki — transportowce i kolonizacyjny — lecą krócej.', ['fleet-1', 'explore-1'], [
+    { kind: 'travelTime', percent: -30 },
+  ]),
+  { ...node('fleet', 3, 0, 'fleet-3', 'Szlaki konwojów', 'Stałe trasy: nadwyżka z kolonii płynie sama.', ['fleet-2', 'ai-2'], []), soon: true },
+  master('fleet', 'fleet-master', 'Admiralicja', 'Gwiazda mistrzowska Floty.', ['fleet-3', 'fleet-light']),
 ];
 
 /**

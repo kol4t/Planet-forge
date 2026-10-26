@@ -6,7 +6,8 @@ import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
 import { parseSpecialization } from '../economy/specialization.ts';
 import { parseDiscoveries, type Discoveries } from '../galaxy/discovery.ts';
 import { parseExpeditions } from '../galaxy/expeditions.ts';
-import type { ColonyMission, EconomyState, Expedition, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import { parseShipments } from '../economy/transport.ts';
+import type { ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 
@@ -61,6 +62,8 @@ export interface EmpireSave {
   discoveries?: Discoveries;
   /** Ekspedycje w drodze (od v0.34.3; brak = żadnych). */
   expeditions?: Expedition[];
+  /** Transportowce w drodze (od v0.36; brak = żadnych). */
+  shipments?: Shipment[];
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -162,6 +165,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ai: parseAiLevels(data.ai),
     ...(parseDiscoveries(data.discoveries) ? { discoveries: parseDiscoveries(data.discoveries)! } : {}),
     ...(parseExpeditions(data.expeditions).length > 0 ? { expeditions: parseExpeditions(data.expeditions) } : {}),
+    ...(parseShipments(data.shipments).length > 0 ? { shipments: parseShipments(data.shipments) } : {}),
   };
 }
 

@@ -296,6 +296,8 @@ export interface Balance {
    * Kopalnie je wyczerpują; przyrost podstawowy (`passiveIncome`) — nie (nigdy nie ma blokady).
    */
   deposits: { perHundredFields: Resources };
+  /** Transportowce (v0.36): ładowność jednego lotu (metal + kryształy), czas lotu = base + odległość × perUnit, ile naraz. */
+  transport: { capacity: number; baseSeconds: number; secondsPerUnit: number; maxActive: number };
   /** Statek kolonizacyjny (kolonizacja innych układów): koszt i czas lotu = base + odległość × perUnit. */
   colonyShip: { cost: Resources; baseSeconds: number; secondsPerUnit: number };
   buildings: readonly BuildingDef[];
@@ -322,13 +324,17 @@ export type ResearchEffect =
   | { kind: 'buildQueue'; add: number }
   /** Większe złoża planety (procent zasobu złóż metalu i kryształów, v0.35). */
   | { kind: 'deposits'; percent: number }
+  /** Ładowność transportowca (v0.36). */
+  | { kind: 'transportCapacity'; percent: number }
+  /** Czas lotu statków: kolonizacyjnego i transportowców (v0.36). */
+  | { kind: 'travelTime'; percent: number }
   /** Ekspedycje (v0.34.3): zasięg, jakość danych, szansa powodzenia, szybkość, zasięg sygnałów. */
   | { kind: 'expedition'; stat: ExpeditionStat; add: number }
   /** Odblokowanie funkcji gry (np. statek kolonizacyjny). */
   | { kind: 'unlock'; feature: UnlockFeature };
 
 /** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
-export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water';
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport';
 
 /**
  * Rzadki obiekt astronomiczny (v0.34.4): rodzaj gwiazdy, którego bez badania „Astrofizyka ekstremalna”
@@ -535,6 +541,16 @@ export interface ColonyMission {
 }
 
 export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai' | 'expedition';
+
+/** Transport surowców między planetami gracza (v0.36). */
+export interface Shipment {
+  /** Adres planety nadawcy i odbiorcy. */
+  from: string;
+  to: string;
+  departedAt: number;
+  arrivesAt: number;
+  cargo: Resources;
+}
 
 /** Wpis w dzienniku ekspedycji. */
 export interface JournalEntry {
