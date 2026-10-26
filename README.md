@@ -312,4 +312,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 171. Każda planeta ma paski Magazyn / Złoża / Pola i znaczki (np. „bogata w metal”, „magazyn pełny”). Dotknięcie karty przenosi na planetę.
 172. „Usuń planetę” jest w menu ⋯ na karcie (drugie dotknięcie potwierdza). Puste miejsce ma kartę „+ Wolne miejsce” — dotknięcie otwiera mapę.
 
+### Od 0.32.1: „Imperium” — sytuacja i kolejność
+
+173. Pod kafelkami „Sytuacja imperium”: co wymaga uwagi (czerwone, złote) i okazje (turkusowe). Dotknięcie wiersza przenosi na planetę albo do Badań / mapy. „Pokaż wszystkie” rozwija listę.
+174. Przyciski „Kolejno / Produkcja / Problemy / Wolne pola” zmieniają kolejność kart.
+175. Kafelek Energia pokazuje bilans całego imperium i ostrzega, gdy na którejś planecie brakuje energii.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

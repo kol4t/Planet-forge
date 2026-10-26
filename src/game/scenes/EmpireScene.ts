@@ -4,7 +4,7 @@ import { AI_RULES, type AiLevel } from '../../core/ai/advisor.ts';
 import type { JournalKind } from '../../core/types.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
-import { planetBadges, planetBars, type CardTone } from '../ui/empireCards.ts';
+import { empireAlerts, planetBadges, planetBars, sortPlanets, type AlertTarget, type CardTone, type EmpireAlert, type PlanetSort } from '../ui/empireCards.ts';
 import { COLORS, FONTS, formatClock, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
@@ -32,7 +32,7 @@ interface CardLive {
   buildBar: Rect;
 }
 
-type TileId = 'metal' | 'crystal' | 'fields' | 'antimatter';
+type TileId = 'metal' | 'crystal' | 'energy' | 'antimatter';
 
 /** Kolory znaczków i pasków. */
 const TONE: Record<CardTone, number> = { teal: COLORS.tealHex, gold: COLORS.goldHex, danger: COLORS.dangerHex };
@@ -52,6 +52,10 @@ export class EmpireScene extends OverlayScene {
   private hits: { rect: Rect; action: () => void }[] = [];
   /** Karta z otwartym menu ⋯. */
   private menuIndex: number | null = null;
+  /** Kolejność kart (zapamiętana do zamknięcia gry) i rozwinięta lista alertów. */
+  private static sort: PlanetSort = 'default';
+  private alertsOpen = false;
+  private alertRows: Phaser.GameObjects.Text[] = [];
   private thumbs: string[] = [];
   /** Liczba planet i statków przy ostatnim układzie (zmiana = przebudowa listy). */
   private shape = '';
@@ -74,7 +78,7 @@ export class EmpireScene extends OverlayScene {
   }
 
   relayout(): void {
-    const { bar } = this.frame(0, 0, false);
+    const { bar } = this.frame(0, 0, false, 0.45);
     this.content?.destroy(true);
     this.clearThumbs();
     this.cards = [];
@@ -101,7 +105,8 @@ export class EmpireScene extends OverlayScene {
     // Na wąskim ekranie (telefon) tytuł ustępuje miejsca zakładkom.
     if (titleW >= this.s(70)) {
       this.text(bar.x + pad, bar.y + this.s(8), 'IMPERIUM', 15, COLORS.gold, { fontFamily: FONTS.serif, letterSpacing: 2, fixedWidth: this.px(titleW) });
-      this.text(bar.x + pad, bar.y + this.s(30), `Planet: ${c.slotInfo.used} z ${c.slotInfo.unlocked}`, 10.5, COLORS.muted, { fixedWidth: this.px(titleW) });
+      const f = c.empireTotals();
+      this.text(bar.x + pad, bar.y + this.s(30), `Planet: ${c.slotInfo.used} z ${c.slotInfo.unlocked} · pola ${formatInt(f.fieldsUsed)}/${formatInt(f.fieldsBuildable)}`, 10.5, COLORS.muted, { fixedWidth: this.px(titleW) });
     }
     const tabs: [string, 'planets' | 'journal' | 'ai' | null][] = [
       ['Planety', 'planets'],
@@ -126,7 +131,16 @@ export class EmpireScene extends OverlayScene {
 
   /** Kształt listy: zmiana (planety, statki, znaczki, menu karty) = przebudowa. */
   private planetsShape(overview: PlanetOverview[], missions: number): string {
-    return [overview.length, missions, this.menuIndex, ...overview.map((p) => `${p.index}${p.active ? '*' : ''}:${planetBadges(p).map((b) => b.label).join(',')}`)].join('|');
+    const alerts = empireAlerts(overview, Math.max(0, this.deps.controller.slotInfo.unlocked - overview.length));
+    return [
+      overview.length,
+      missions,
+      this.menuIndex,
+      EmpireScene.sort,
+      this.alertsOpen,
+      alerts.map((a) => `${a.level}${a.target.kind}${a.index}`).join(','),
+      ...overview.map((p) => `${p.index}${p.active ? '*' : ''}:${planetBadges(p).map((b) => b.label).join(',')}`),
+    ].join('|');
   }
 
   /** Buduje kafelki sumy i karty planet; zwraca wysokość treści (pt). */
@@ -149,7 +163,7 @@ export class EmpireScene extends OverlayScene {
     const tiles: [TileId, string][] = [
       ['metal', 'METAL / H'],
       ['crystal', 'KRYSZTAŁY / H'],
-      ['fields', 'POLA'],
+      ['energy', 'ENERGIA'],
       ['antimatter', 'ANTYMATERIA'],
     ];
     tiles.forEach(([id, label], i) => {
@@ -169,13 +183,20 @@ export class EmpireScene extends OverlayScene {
     items.push(this.ships);
     if (missions.length > 0) y += this.s(18) * missions.length + this.s(8);
 
+    // Sytuacja imperium: co wymaga uwagi (dotknięcie prowadzi na miejsce).
+    const free = Math.max(0, c.slotInfo.unlocked - overview.length);
+    const alerts = empireAlerts(overview, free);
+    y = this.buildAlerts(items, alerts, y);
+
+    // Kolejność kart.
+    y = this.buildSort(items, y);
+
     // Karty planet.
     const cols = Math.max(1, Math.min(3, Math.floor((area.w + gap) / (this.s(300) + gap))));
     const cardW = (area.w - gap * (cols - 1)) / cols;
     const cardH = this.s(206);
-    const free = Math.max(0, c.slotInfo.unlocked - overview.length);
     const count = overview.length + Math.min(1, free);
-    overview.forEach((p, i) => {
+    sortPlanets(overview, EmpireScene.sort, alerts).forEach((p, i) => {
       const x = area.x + (i % cols) * (cardW + gap);
       const top = y + Math.floor(i / cols) * (cardH + gap);
       items.push(...this.planetCard(p, { x, y: top, w: cardW, h: cardH }));
@@ -192,6 +213,102 @@ export class EmpireScene extends OverlayScene {
     }
     this.content!.add(items);
     return y - area.y;
+  }
+
+  /** Sekcja „Sytuacja imperium”: do 3 alertów (rozwijane), każdy prowadzi do miejsca problemu. */
+  private buildAlerts(items: Phaser.GameObjects.GameObject[], alerts: EmpireAlert[], top: number): number {
+    const area = this.area;
+    const pad = this.s(12);
+    const rowH = TOUCH;
+    const shown = this.alertsOpen ? alerts : alerts.slice(0, 3);
+    const more = alerts.length - shown.length;
+    const h = pad + this.s(22) + Math.max(1, shown.length) * rowH + (more > 0 || this.alertsOpen ? rowH : 0) + pad / 2;
+    const urgent = alerts.some((a) => a.level === 0);
+    const g = this.add.graphics();
+    g.fillStyle(COLORS.panel, 0.92).fillRoundedRect(this.px(area.x), this.px(top), this.px(area.w), this.px(h), this.px(this.s(12)));
+    g.lineStyle(this.px(1), urgent ? COLORS.dangerHex : alerts.length > 0 ? COLORS.goldHex : COLORS.panelBorder, urgent || alerts.length > 0 ? 0.7 : 1)
+      .strokeRoundedRect(this.px(area.x), this.px(top), this.px(area.w), this.px(h), this.px(this.s(12)));
+    items.push(g);
+    // Problemy (czerwone i złote) osobno od okazji (turkusowe: wolne pola, Laboratorium bez badania…).
+    const problems = alerts.filter((a) => a.level < 2).length;
+    const chances = alerts.length - problems;
+    const parts = ['SYTUACJA IMPERIUM'];
+    if (problems > 0) parts.push(`WYMAGA UWAGI: ${problems}`);
+    if (chances > 0) parts.push(`OKAZJE: ${chances}`);
+    items.push(this.text(area.x + pad, top + pad, parts.join(' · '), 9.5, urgent ? COLORS.danger : problems > 0 ? COLORS.gold : COLORS.teal, { fontStyle: '600', letterSpacing: 1.3 }, false));
+    let y = top + pad + this.s(22);
+    this.alertRows = [];
+    if (alerts.length === 0) {
+      items.push(this.text(area.x + pad, y + this.s(12), 'Wszystko działa — nic nie wymaga uwagi.', 12, COLORS.teal, {}, false));
+      return top + h + this.s(10);
+    }
+    const tone = [COLORS.dangerHex, COLORS.goldHex, COLORS.tealHex] as const;
+    for (const alert of shown) {
+      const dot = this.add.graphics().fillStyle(tone[alert.level], 1).fillCircle(this.px(area.x + pad + this.s(4)), this.px(y + rowH / 2), this.px(this.s(4)));
+      const text = this.text(area.x + pad + this.s(16), y + rowH / 2 - this.s(8), alert.text, 12, COLORS.text, { fixedWidth: this.px(area.w - 2 * pad - this.s(36)) }, false);
+      const arrow = this.text(area.x + area.w - pad, y + rowH / 2 - this.s(9), '›', 16, COLORS.muted, {}, false).setOrigin(1, 0);
+      items.push(dot, text, arrow);
+      this.alertRows.push(text);
+      const target = alert.target;
+      this.hits.push({ rect: { x: area.x, y, w: area.w, h: rowH }, action: () => this.goTo(target) });
+      y += rowH;
+    }
+    if (more > 0 || this.alertsOpen) {
+      items.push(this.text(area.x + pad + this.s(16), y + rowH / 2 - this.s(8), this.alertsOpen ? 'Pokaż mniej' : `Pokaż wszystkie (${alerts.length})`, 12, COLORS.teal, { fontStyle: '600' }, false));
+      this.hits.push({
+        rect: { x: area.x, y, w: area.w, h: rowH },
+        action: () => {
+          this.alertsOpen = !this.alertsOpen;
+          this.relayout();
+        },
+      });
+    }
+    return top + h + this.s(10);
+  }
+
+  /** Przyciski kolejności kart. */
+  private buildSort(items: Phaser.GameObjects.GameObject[], top: number): number {
+    const area = this.area;
+    const gap = this.s(6);
+    const options: [PlanetSort, string][] = [
+      ['default', 'Kolejno'],
+      ['production', 'Produkcja'],
+      ['problems', 'Problemy'],
+      ['free', 'Wolne pola'],
+    ];
+    let x = area.x;
+    // Wąski ekran: bez podpisu, żeby zmieściły się wszystkie przyciski.
+    if (area.w >= this.s(480)) {
+      const label = this.text(area.x + this.s(2), top + TOUCH / 2 - this.s(8), 'Kolejność:', 11, COLORS.muted, {}, false);
+      items.push(label);
+      x += label.width / this.dpr + this.s(10);
+    }
+    const widths = options.map(([, name]) => this.s(name.length * 7.4 + 26));
+    const fit = Math.min(1, (area.x + area.w - x - gap * (options.length - 1)) / widths.reduce((a, b) => a + b, 0));
+    for (const [i, [sort, name]] of options.entries()) {
+      const w = widths[i]! * fit;
+      items.push(
+        this.button(x, top, w, name, sort === EmpireScene.sort ? 'primary' : 'secondary', () => {
+          EmpireScene.sort = sort;
+          this.relayout();
+        }),
+      );
+      x += w + gap;
+    }
+    return top + TOUCH + this.s(10);
+  }
+
+  /** Dotknięcie alertu: planeta (przejście), jej badania albo mapa. */
+  private goTo(target: AlertTarget): void {
+    const c = this.deps.controller;
+    if (target.kind === 'map') {
+      this.scene.start('map', { system: c.homeSystem });
+      return;
+    }
+    const active = c.planets().find((p) => p.active)?.index;
+    const message = target.index !== active ? c.switchPlanet(target.index).message : undefined;
+    if (target.kind === 'research') this.scene.start('research');
+    else this.close(message);
   }
 
   /** Puste miejsce na planetę: przerywana ramka, dotknięcie otwiera mapę układu. */
@@ -279,13 +396,13 @@ export class EmpireScene extends OverlayScene {
     y += this.s(28);
     // Paski: magazyn, złoża, pola (rysowane w `refresh`).
     const labelW = this.s(64);
-    const valueW = this.s(58);
+    const valueW = Math.min(this.s(150), (rect.w - 2 * pad - labelW) * 0.55);
     const bars: CardLive['bars'] = [];
     for (const bar of planetBars(p)) {
       const label = this.text(rect.x + pad, y, bar.label, 10.5, COLORS.muted, {}, false);
       const value = this.text(rect.x + rect.w - pad, y, '', 10.5, COLORS.text, {}, false).setOrigin(1, 0);
       items.push(label, value);
-      bars.push({ value, rect: { x: rect.x + pad + labelW, y: y + this.s(6), w: rect.w - 2 * pad - labelW - valueW, h: this.s(4) } });
+      bars.push({ value, rect: { x: rect.x + pad + labelW, y: y + this.s(6), w: rect.w - 2 * pad - labelW - valueW - this.s(8), h: this.s(4) } });
       y += this.s(20);
     }
     const resources = this.text(rect.x + pad, y + this.s(2), '', 11, COLORS.stone, { fixedWidth: this.px(rect.w - 2 * pad) }, false);
@@ -471,9 +588,16 @@ export class EmpireScene extends OverlayScene {
       t.value.setText(value).setColor(color);
       t.note.setText(note).setX(t.value.x + t.value.width + this.px(this.s(6)));
     };
-    tile('metal', formatInt(totals.metalPerHour), 'na godzinę');
-    tile('crystal', formatInt(totals.crystalPerHour), 'na godzinę');
-    tile('fields', `${formatInt(totals.fieldsUsed)}/${formatInt(totals.fieldsBuildable)}`, 'zajęte');
+    tile('metal', formatInt(totals.metalPerHour), `+${formatRate(totals.metalPerHour / 60)}/min`);
+    tile('crystal', formatInt(totals.crystalPerHour), `+${formatRate(totals.crystalPerHour / 60)}/min`);
+    const energy = totals.energyUsed > 0 ? totals.energyProduced / totals.energyUsed : 1;
+    // Suma imperium może ukryć niedobór na jednej planecie (energii nie da się przesłać).
+    const short = overview.filter((p) => p.rates.efficiency < 1).length;
+    const energyNote = energy < 1 ? 'niedobór' : short > 0 ? `niedobór na ${short} z ${overview.length}` : 'nadwyżka';
+    tile('energy', `${Math.round(energy * 100)}%`, energyNote, energy >= 1 && short === 0 ? COLORS.text : COLORS.danger);
+    // Teksty alertów (czasy się zmieniają; układ — tylko gdy zmieni się lista).
+    const alerts = empireAlerts(overview, Math.max(0, c.slotInfo.unlocked - overview.length));
+    this.alertRows.forEach((row, i) => row.setText(alerts[i]?.text ?? ''));
     tile('antimatter', formatInt(totals.antimatter), `+${formatRate(totals.antimatterPerHour)}/h`, COLORS.antimatter);
     this.ships?.setText(missions.map((m) => `Statek kolonizacyjny: ${m.fromName} → ${m.targetName} · ${formatDuration(m.secondsLeft)}`).join('\n'));
     for (const card of this.cards) {

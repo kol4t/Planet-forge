@@ -158,6 +158,9 @@ export interface PlanetOverview extends PlanetSummary {
   deposits: { left: Resources; total: Resources };
   /** Antymateria z Kolektora tej planety (na godzinę, bez przyrostu pasywnego). */
   collectorPerHour: number;
+  /** Laboratorium planety i czy coś teraz bada (do alertów „Imperium”, od v0.32.1). */
+  labLevel: number;
+  researching: boolean;
 }
 
 /** Suma imperium do kafelków „Imperium” (produkcja na godzinę, pola, antymateria). */
@@ -168,6 +171,9 @@ export interface EmpireTotals {
   fieldsBuildable: number;
   antimatter: number;
   antimatterPerHour: number;
+  /** Energia całego imperium: wytwarzana i zużywana. */
+  energyProduced: number;
+  energyUsed: number;
 }
 
 /** Statek kolonizacyjny w drodze (do mapy i zestawienia). */
@@ -494,6 +500,8 @@ export class GameController {
         fields: fieldsOf(slot, summary.active),
         deposits: { left: depositsLeft(economy, slot.planet, balance), total: depositTotal(slot.planet, balance) },
         collectorPerHour: productionRates(economy, slot.planet, balance).antimatterPerHour - balance.antimatter.passivePerHour,
+        labLevel: economy.levels.laboratory ?? 0,
+        researching: (summary.active ? this.research : slot.research).current !== null,
       };
     });
   }
@@ -508,6 +516,8 @@ export class GameController {
       fieldsBuildable: sum((p) => p.fields.buildable),
       antimatter: this.economy.antimatter,
       antimatterPerHour: this.balance.antimatter.passivePerHour + sum((p) => p.collectorPerHour),
+      energyProduced: sum((p) => p.rates.energyProduced),
+      energyUsed: sum((p) => p.rates.energyUsed),
     };
   }
 

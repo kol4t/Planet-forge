@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.32.1: „Imperium” — warstwa strategiczna (alerty, sortowanie, energia)
+
+Właściciel: kolejne kroki „Imperium” jako v0.32.x; kierunek — centrum dowodzenia (co wymaga uwagi, jaka decyzja da najwięcej). Plan: v0.32.1 warstwa strategiczna (bez zmian zasad gry), v0.32.2 kolejka budowy, v0.32.3 specjalizacje kolonii — oba ostatnie zmieniają zasady gry, więc po decyzjach właściciela.
+- **„Sytuacja imperium”** (`empireAlerts` w `game/ui/empireCards.ts`): pilne (czerwone — pełny magazyn, brak energii, wyczerpane złoże), ostrzeżenia (złote — magazyn pełny w < 30 min, złoże < 10%), okazje (turkus — nic się nie buduje przy wolnych polach, Laboratorium bez badania, wolne miejsce na planetę). Do 3 widoczne, „Pokaż wszystkie”. Dotknięcie: planeta → przejście, badania → przejście i ekran Badań, wolne miejsce → mapa. Tytuł liczy osobno problemy i okazje.
+- **Sortowanie kart** (`sortPlanets`): kolejno, produkcja, problemy (waga alertów), wolne pola; wybór pamiętany do zamknięcia gry.
+- **Kafelek Energia** zamiast Pola (pola — w podtytule „Planet: 4 z 5 · pola 5/425”): produkcja/zużycie całego imperium, z dopiskiem „niedobór na N z M”, gdy suma ukrywa brak na pojedynczej planecie (energii nie da się przesłać). Kafelki metalu/kryształów: na godzinę i „+X/min”.
+- **Paski z konkretami**: magazyn „62% · pełny za 18 min” (`storageFullIn`), złoża „3,8 mln · 100%”, pola „5/100 · 95 wolnych”. Gwiazdy tła Imperium przygaszone (`frame(…, stars)`), by nie konkurowały z tekstem. `PlanetOverview.labLevel`, `researching`; `EmpireTotals.energyProduced/Used`.
+
 ## 2026-10-26 — v0.32: nowy wygląd ekranu „Imperium” (krok 2 odnowy ekranów)
 
 Według propozycji (https://claude.ai/artifact/Ku54wCdmoJ3qFpe5UEAwi8); właściciel: „przejdźmy do v0.32”. Zasady gry bez zmian.

@@ -139,7 +139,8 @@ export abstract class OverlayScene extends Phaser.Scene {
    * Ramka ekranu: pasek u góry, panel szczegółów (szeroki ekran — po prawej, wąski — na dole)
    * i obszar mapy. Czyści poprzedni widok i rysuje tło.
    */
-  protected frame(narrowPanelH: number, phonePanelH: number, withPanel = true): OverlayFrame {
+  /** `stars` — jasność gwiazd tła (Imperium: przyciemnione, by nie konkurowały z tekstem). */
+  protected frame(narrowPanelH: number, phonePanelH: number, withPanel = true, stars = 1): OverlayFrame {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
     const { width, height, safe } = viewport;
@@ -172,7 +173,7 @@ export abstract class OverlayScene extends Phaser.Scene {
     const g = this.add.graphics();
     for (let i = 0; i < 160; i++) {
       const size = rng.range(0.5, 1.4) * this.dpr;
-      g.fillStyle(0xdfe7e1, rng.range(0.15, 0.55)).fillRect(rng.range(0, this.px(width)), rng.range(0, this.px(height)), size, size);
+      g.fillStyle(0xdfe7e1, rng.range(0.15, 0.55) * stars).fillRect(rng.range(0, this.px(width)), rng.range(0, this.px(height)), size, size);
     }
     this.backdrop = g;
     return { bar, width, height };
