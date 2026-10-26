@@ -4,12 +4,14 @@ import { findStar, parseAddress, SPIRAL, spiralPoint, type GasGiantLook, type St
 import { createRng } from '../../core/random/rng.ts';
 import { compareGeology } from '../../core/economy/geology.ts';
 import { generatePlanet } from '../../core/generation/generatePlanet.ts';
-import { GALAXY_RULES, ZONE_LABELS } from '../../data/galaxy.ts';
+import { GALAXY_RULES, STAR_KINDS, ZONE_LABELS } from '../../data/galaxy.ts';
+import type { Planet } from '../../core/types.ts';
 import { findDefinition, STARTER } from '../../data/planets.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
-import type { ButtonStyle } from '../ui/Button.ts';
+import { Button, type ButtonStyle } from '../ui/Button.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
 import { geologyLines } from '../ui/geologyText.ts';
+import { filterCount, MAP_FILTERS, systemRows, ZONE_COLORS, type MapFilter, type SystemRowInput } from '../ui/systemTable.ts';
 import { COLORS, FONTS, formatDuration, formatInt } from '../ui/theme.ts';
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
@@ -60,6 +62,14 @@ export class MapScene extends OverlayScene {
   private cometList: { x: number; y: number; vx: number; vy: number; age: number; life: number }[] = [];
   private nextComet = 0;
   private readonly cometRng = createRng(`komety-${Date.now()}`);
+  /** Filtr podświetlania planet w widoku układu (v0.33). */
+  private filter: MapFilter = 'all';
+  /** Dane wierszy tabeli złóż układu (liczone raz przy budowie widoku). */
+  private rowInputs: SystemRowInput[] = [];
+  /** Promień miniatury planety (px urządzenia) — do przygaszania przez filtr. */
+  private thumbR = 0;
+  /** Planety z galaktyki (miniatury i tabela liczą je raz). */
+  private readonly planetCache = new Map<string, Planet>();
 
   constructor(deps: OverlaySceneDeps) {
     super('map', deps, { min: 0.8, max: 4 });
@@ -84,7 +94,8 @@ export class MapScene extends OverlayScene {
   }
 
   relayout(): void {
-    const { bar } = this.frame(226, 256);
+    // Widok układu na telefonie: wyższy panel na tabelę złóż.
+    const { bar } = this.frame(this.mode === 'system' ? 440 : 226, this.mode === 'system' ? 450 : 256);
     this.panZoom = this.mode === 'galaxy';
     this.world?.destroy(true);
     this.details?.destroy(true);
@@ -180,10 +191,32 @@ export class MapScene extends OverlayScene {
       const outer = orbit(system.belt.after);
       this.beltRing = { r: (inner + outer) / 2, half: (outer - inner) * 0.3 };
       drawBelt(g, this.beltRing.r, this.beltRing.half, `${system.index}`, this.dpr);
+      const beltText = this.add
+        .text(0, 0, 'pas asteroid · wkrótce', { fontFamily: FONTS.body, fontSize: `${this.px(this.s(9))}px`, color: COLORS.stone })
+        .setOrigin(0.5, 0.5)
+        .setAlpha(0.8);
+      this.labels.push({ text: beltText, x: 0, y: this.beltRing.r + this.beltRing.half + this.px(this.s(8)), always: true });
     }
+    this.rowInputs = system.planets.map((p) => {
+      const gas = p.body === 'gas-giant' && controller.slotAt(p.address) < 0;
+      const planet = gas ? null : this.planetFor(p);
+      const total = planet ? controller.geologyAt(planet, p.address).total : { metal: 0, crystal: 0 };
+      return {
+        position: p.position,
+        gas,
+        occupant: controller.occupantAt(p),
+        kind: gas ? 'gazowy olbrzym' : planet!.category.split(', ')[0]!,
+        richness: planet ? planet.gameplay.richness : { metal: 0, crystal: 0 },
+        total,
+      };
+    });
+    this.thumbR = thumbD / 2;
+    // Strefy temperatury: orbita w barwie strefy z miękką poświatą (nazwy — w legendzie panelu).
     system.planets.forEach((p, i) => {
       const r = orbit(i);
-      g.lineStyle(Math.max(1, this.dpr * 0.7), COLORS.panelBorder, 0.9).strokeCircle(0, 0, r);
+      const zone = ZONE_COLORS[p.zone];
+      g.lineStyle(this.px(this.s(10)), zone, 0.05).strokeCircle(0, 0, r);
+      g.lineStyle(Math.max(1, this.dpr * 0.8), zone, 0.5).strokeCircle(0, 0, r);
       const x = Math.cos(p.angle) * r;
       const y = Math.sin(p.angle) * r;
       this.planetSpots.push({ position: p.position, x: cx + x, y: cy + y });
@@ -222,7 +255,12 @@ export class MapScene extends OverlayScene {
     const controller = this.deps.controller;
     const own = controller.planetAtSlot(controller.slotAt(p.address));
     if (own) return own;
-    return generatePlanet(findDefinition(p.definitionId) ?? STARTER.definition, p.address);
+    let planet = this.planetCache.get(p.address);
+    if (!planet) {
+      planet = generatePlanet(findDefinition(p.definitionId) ?? STARTER.definition, p.address);
+      this.planetCache.set(p.address, planet);
+    }
+    return planet;
   }
 
   private drawStar(g: Phaser.GameObjects.Graphics, system: StarSystem): void {
@@ -265,11 +303,18 @@ export class MapScene extends OverlayScene {
     g.clear();
     const controller = this.deps.controller;
     const ring = this.px(this.s(system.planets.length > 7 ? 18 : 20));
+    const rows = systemRows(this.rowInputs, this.filter);
     for (const p of system.planets) {
       const spot = this.planetSpots.find((s) => s.position === p.position)!;
       const x = spot.x - this.view.cx;
       const y = spot.y - this.view.cy;
       const occupant = controller.occupantAt(p);
+      // Filtr: pasujące planety w turkusowej obwódce, pozostałe przygaszone.
+      if (this.filter !== 'all') {
+        const match = rows.find((r) => r.position === p.position)?.match;
+        if (match) g.lineStyle(Math.max(2, this.dpr * 1.6), COLORS.tealHex, 1).strokeCircle(x, y, ring * 1.12);
+        else g.fillStyle(0x05080a, 0.68).fillCircle(x, y, this.thumbR * (p.body === 'gas-giant' ? 1.7 : 1.05));
+      }
       if (occupant !== 'free') {
         g.lineStyle(Math.max(1.5, this.dpr * 1.3), OCCUPANT_COLOR[occupant], occupant === 'you' ? 1 : 0.75).strokeCircle(x, y, ring);
       }
@@ -511,7 +556,7 @@ export class MapScene extends OverlayScene {
       if (!s) {
         line('Galaktyka', 18, COLORS.gold, { fontFamily: FONTS.serif });
         line('Każdy punkt to układ gwiezdny. Przesuń palcem, szczypnij, aby przybliżyć; dotknij układu, aby zobaczyć szczegóły.', 11.5, COLORS.muted);
-        line('Puste miejsca między układami zostaną na stacje kosmiczne, porty handlowe i planety gildii (wkrótce).', 11, COLORS.faint);
+        y = this.buildStarLegend(items, x, y, w, buttonY - this.s(10));
         buttons(['Twój układ', 'primary', () => this.openSystem(controller.homeSystem)], ['Zamknij', 'secondary', () => this.close()]);
       } else {
         const star = findStar(s.star);
@@ -546,10 +591,7 @@ export class MapScene extends OverlayScene {
     }
     const p = system && this.selected && this.selected > 0 ? system.planets[this.selected - 1] : undefined;
     if (!system || !p) {
-      const star = system ? findStar(system.star) : null;
-      line(system?.name ?? '', 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
-      if (star) line(`${star.label} — ${star.description}`, 11.5, COLORS.muted);
-      line('Dotknij planety: typ, odległość od gwiazdy i kto ją zajmuje. Złoty pierścień — Twoja, czerwony — inny gracz, fioletowy — forma obca, bez pierścienia — wolna.', 11, COLORS.faint);
+      if (system) y = this.buildSystemTable(system, items, x, y, w, buttonY - this.s(10));
       buttons(['Galaktyka', 'secondary', () => this.openGalaxy()], ['Zamknij', 'secondary', () => this.close()]);
       this.details.add(items);
       return;
@@ -633,6 +675,143 @@ export class MapScene extends OverlayScene {
   }
 
   /** Przejście albo kolonizacja udana → zamknij mapę i pokaż planetę. */
+  /**
+   * Panel układu w spoczynku (v0.33): filtry podświetlania i tabela złóż — każda planeta w wierszu
+   * z właścicielem i paskami metalu i kryształów (względem najbogatszej w układzie). Dotknięcie wiersza
+   * = jak dotknięcie planety. Zwraca y pod tabelą.
+   */
+  private buildSystemTable(system: StarSystem, items: Phaser.GameObjects.GameObject[], x: number, top: number, w: number, bottom: number): number {
+    let y = top;
+    const star = findStar(system.star);
+    const add = (content: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}) => {
+      const t = this.text(x, y, content, size, color, { wordWrap: { width: this.px(w) }, ...extra }, false);
+      items.push(t);
+      return t;
+    };
+    const mine = this.rowInputs.filter((r) => r.occupant === 'you').length;
+    y += add(system.name, 18, COLORS.gold, { fontFamily: FONTS.serif }).height / this.dpr + this.s(1);
+    y += add(`${star.label} · planet ${system.planets.length}${mine ? ` · Twoich ${mine}` : ''}`, 11, COLORS.muted).height / this.dpr + this.s(6);
+    // Legenda stref temperatury (barwy orbit) — tylko strefy obecne w układzie.
+    const zones = [...new Set(system.planets.map((p) => p.zone))];
+    const legend = this.add.graphics();
+    items.push(legend);
+    let lx = x;
+    for (const zone of zones) {
+      const t = this.text(lx + this.s(12), y, ZONE_LABELS[zone], 10, COLORS.stone, {}, false);
+      if (lx + this.s(12) + t.width / this.dpr > x + w) {
+        lx = x;
+        y += this.s(15);
+        t.setPosition(this.px(lx + this.s(12)), this.px(y));
+      }
+      legend.lineStyle(this.px(2), ZONE_COLORS[zone], 0.9).strokeCircle(this.px(lx + this.s(4)), this.px(y + this.s(7)), this.px(this.s(3.5)));
+      items.push(t);
+      lx += this.s(12) + t.width / this.dpr + this.s(12);
+    }
+    y += this.s(22);
+    // Filtry podświetlania — jeden wiersz krótkich przycisków.
+    add('PODŚWIETL', 9.5, COLORS.muted, { fontStyle: '600' });
+    y += this.s(14);
+    const gap = this.s(6);
+    const chipW = (w - gap * (MAP_FILTERS.length - 1)) / MAP_FILTERS.length;
+    const short: Record<MapFilter, string> = { all: 'Wszystkie', free: 'Wolne', metal: 'Metal', crystal: 'Kryształy' };
+    MAP_FILTERS.forEach((f, i) => {
+      const count = f.id === 'all' ? null : filterCount(this.rowInputs, f.id);
+      const label = count === null ? short[f.id] : `${short[f.id]} ${count}`;
+      const style: ButtonStyle = this.filter === f.id ? 'primary' : count === 0 ? 'disabled' : 'secondary';
+      const chip = new Button(this, this.px(x + i * (chipW + gap)), this.px(y), this.px(chipW), this.px(TOUCH), label, this.dpr, () => {
+        this.filter = this.filter === f.id ? 'all' : f.id;
+        this.refresh();
+        this.buildDetails();
+      }, this.s(chipW < 80 ? 11.5 : 12.5)).setStyle(style);
+      items.push(chip);
+    });
+    y += TOUCH + this.s(4);
+    if (this.filter === 'metal' || this.filter === 'crystal') {
+      y += add('Bogate złoża: bogactwo co najmniej 120%.', 10, COLORS.faint).height / this.dpr + this.s(2);
+    }
+    y += this.s(6);
+    // Nagłówek tabeli.
+    const nameW = Math.min(this.s(150), w * 0.44);
+    const barGap = this.s(10);
+    const barW = (w - nameW - barGap * 2) / 2;
+    const header = (text: string, hx: number) => {
+      const t = this.text(hx, y, text, 9.5, COLORS.muted, { fontStyle: '600' }, false);
+      items.push(t);
+    };
+    header('PLANETA', x);
+    header('METAL', x + nameW + barGap);
+    header('KRYSZTAŁY', x + nameW + barGap * 2 + barW);
+    y += this.s(16);
+    const rows = systemRows(this.rowInputs, this.filter);
+    const rowH = Math.max(this.s(20), Math.min(this.s(30), (bottom - y) / Math.max(1, rows.length)));
+    const fit = Math.max(0, Math.floor((bottom - y) / rowH));
+    const g = this.add.graphics();
+    items.push(g);
+    for (const row of rows.slice(0, fit)) {
+      const cy = y + rowH / 2;
+      const alpha = row.match ? 1 : 0.35;
+      const selected = row.position === this.selected;
+      if (selected) g.fillStyle(COLORS.tealHex, 0.12).fillRect(this.px(x - this.s(4)), this.px(y), this.px(w + this.s(8)), this.px(rowH));
+      g.fillStyle(OCCUPANT_COLOR[row.occupant], alpha).fillCircle(this.px(x + this.s(4)), this.px(cy), this.px(this.s(3.5)));
+      const own = row.occupant === 'you' ? ' · Twoja' : row.occupant === 'free' && !row.gas ? ' · wolna' : '';
+      const label = this.text(x + this.s(13), cy, `${row.letter}  ${row.kind}${own}`, 11, row.occupant === 'you' ? COLORS.gold : COLORS.text, {
+        fixedWidth: this.px(nameW - this.s(13)),
+      }, false).setOrigin(0, 0.5).setAlpha(alpha);
+      items.push(label);
+      const bar = (bx: number, value: number, color: number) => {
+        const bh = this.s(5);
+        g.fillStyle(COLORS.divider, alpha).fillRoundedRect(this.px(bx), this.px(cy - bh / 2), this.px(barW), this.px(bh), this.px(bh / 2));
+        if (value > 0) g.fillStyle(color, alpha).fillRoundedRect(this.px(bx), this.px(cy - bh / 2), this.px(Math.max(bh, barW * value)), this.px(bh), this.px(bh / 2));
+      };
+      if (row.gas) {
+        const t = this.text(x + nameW + barGap, cy, 'nie do kolonizacji', 10, COLORS.faint, {}, false).setOrigin(0, 0.5).setAlpha(alpha);
+        items.push(t);
+      } else {
+        bar(x + nameW + barGap, row.metal, COLORS.stoneHex);
+        bar(x + nameW + barGap * 2 + barW, row.crystal, COLORS.tealHex);
+      }
+      // Cały wiersz to cel dotykowy (jak dotknięcie planety na mapie).
+      const hit = this.add.zone(this.px(x), this.px(y), this.px(w), this.px(rowH)).setOrigin(0).setInteractive();
+      hit.on('pointerup', () => {
+        this.selected = row.position;
+        this.refresh();
+        this.buildDetails();
+      });
+      items.push(hit);
+      y += rowH;
+    }
+    if (fit < rows.length) {
+      const more = this.text(x, y + this.s(2), `+${rows.length - fit} — dotknij planety na mapie`, 10, COLORS.faint, {}, false);
+      items.push(more);
+      y += this.s(16);
+    }
+    return y;
+  }
+
+  /** Legenda galaktyki: rodzaje gwiazd z barwą i liczbą układów (dwie kolumny). Zwraca y pod legendą. */
+  private buildStarLegend(items: Phaser.GameObjects.GameObject[], x: number, top: number, w: number, bottom: number): number {
+    let y = top + this.s(2);
+    const systems = this.deps.controller.galaxy.systems;
+    const title = this.text(x, y, 'RODZAJE GWIAZD', 9.5, COLORS.muted, { fontStyle: '600' }, false);
+    items.push(title);
+    y += this.s(16);
+    const rowH = this.s(19);
+    const rows = Math.ceil(STAR_KINDS.length / 2);
+    if (y + rows * rowH > bottom) return top;
+    const g = this.add.graphics();
+    items.push(g);
+    const colW = w / 2;
+    STAR_KINDS.forEach((star, i) => {
+      const cx = x + (i % 2) * colW;
+      const cy = y + Math.floor(i / 2) * rowH + rowH / 2;
+      g.fillStyle(hex(star.color), 1).fillCircle(this.px(cx + this.s(4)), this.px(cy), this.px(this.s(4)));
+      const count = systems.filter((s) => s.star === star.id).length;
+      const t = this.text(cx + this.s(13), cy, `${star.label} · ${count}`, 10.5, COLORS.stone, { fixedWidth: this.px(colW - this.s(14)) }, false).setOrigin(0, 0.5);
+      items.push(t);
+    });
+    return y + rows * rowH + this.s(6);
+  }
+
   private finish(result: { ok: boolean; message: string }): void {
     if (!result.ok) {
       this.showToast(result.message, 'error', 3200);
