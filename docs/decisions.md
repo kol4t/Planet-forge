@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.32.3: specjalizacje kolonii
+
+Właściciel: specjalizacje zależne od położenia w układzie i od ciała w środku układu (gwiazda, pulsar, czarna dziura…); zmiana po odblokowaniu w Planetologii, na razie trwa 1 h (do zmiany w przyszłości).
+- Cztery robocze: Górnicza (+15% metalu i kryształów), Energetyczna (+25% energii), Naukowa (−20% czasu badań, +20% antymaterii z Kolektora), Przemysłowa (−15% czasu i −10% kosztu budowy). Dane w `src/data/specializations.ts`, bez kar (wybór jednej to już koszt).
+- Siła = procent × dopasowanie; dopasowanie = mnożnik gwiazdy układu × mnożnik strefy orbity (granice 0,5–2, `SPECIALIZATION_RULES`). Przykłady: Energetyczna przy niebieskim olbrzymie w strefie gorącej ×1,95, przy czarnej dziurze w mroźnej ×0,5; Naukowa przy pulsarze/czarnej dziurze; Przemysłowa w umiarkowanych przy żółtej gwieździe. Ocena słowna: świetne / dobre / zwykłe / słabe.
+- Efekty jak efekty badań: `applyResearch(base, done, extra)` — jedna ścieżka liczenia, efekty sumują się z badaniami. Specjalizacja działa tylko na swojej planecie.
+- Pierwszy wybór — od razu i za darmo. Zmiana — po badaniu „Przebudowa kolonii” (Planetologia, pierścień 2, odblokowanie dla całego imperium), trwa `changeSeconds` = 3600 s; w tym czasie brak premii. Czas zmiany naliczany dokładnie (`advanceSlot` dzieli produkcję w chwili `readyAt`, także offline i dla nieaktywnych planet).
+- Zapis: `SlotSave.specialization = { id, readyAt }` (opcjonalne; błędne = brak). Stare zapisy — planety bez specjalizacji.
+
 ## 2026-10-26 — v0.32.2: kolejka budowy
 
 Właściciel: kolejka z 1 miejscem na start, rozbudowa badaniami SI; koszt pobierany dopiero przy starcie budowy.

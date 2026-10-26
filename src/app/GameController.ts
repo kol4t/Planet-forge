@@ -31,6 +31,7 @@ import { simulateAwayAi } from '../core/ai/offline.ts';
 import { DEFAULT_AI_LEVELS, suggest, type AiAction, type AiLevel, type AiRuleId, type AiSuggestion } from '../core/ai/advisor.ts';
 import {
   applyResearch,
+  describeEffectList,
   completeResearch,
   EMPTY_RESEARCH,
   researchCost,
@@ -47,6 +48,7 @@ import {
 import {
   formatAddress,
   generateGalaxy,
+  findStar,
   generateSystem,
   isColonizable,
   parseAddress,
@@ -56,10 +58,20 @@ import {
   type StarSystem,
   type SystemPlanet,
 } from '../core/galaxy/galaxy.ts';
+import {
+  activeSpecializationEffects,
+  affinity,
+  affinityLabel,
+  chooseSpecialization,
+  isSpecializationActive,
+  specializationEffects,
+} from '../core/economy/specialization.ts';
+import { findSpecialization, SPECIALIZATION_RULES, SPECIALIZATIONS } from '../data/specializations.ts';
+import { ZONE_LABELS } from '../data/galaxy.ts';
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, JournalEntry, JournalKind, Planet, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, JournalEntry, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -87,6 +99,19 @@ interface Slot {
   plots: Plots;
   /** Pola z ostatniego przeliczenia siatki (lista planet bez liczenia siatek nieaktywnych planet). */
   fields?: { used: number; buildable: number };
+  /** Specjalizacja kolonii (od v0.32.3; brak = bez specjalizacji). */
+  specialization?: PlanetSpecialization;
+}
+
+/** Specjalizacja planety do panelu: obecna, położenie i możliwe wybory z dopasowaniem. */
+export interface SpecializationView {
+  current: { id: SpecializationId; name: string; active: boolean; secondsLeft: number } | null;
+  /** Zmiana odblokowana badaniem z Planetologii. */
+  canChange: boolean;
+  changeSeconds: number;
+  /** „Żółta gwiazda · strefa umiarkowana” (pusty, gdy planeta nie ma adresu). */
+  siteText: string;
+  options: { id: SpecializationId; name: string; description: string; affinity: number; label: string; effects: string }[];
 }
 
 /** Kto jest na planecie — z punktu widzenia gracza. */
@@ -166,6 +191,8 @@ export interface PlanetOverview extends PlanetSummary {
   construction: { name: string; level: number; secondsLeft: number; progress: number } | null;
   /** Kolejka budowy (od v0.32.2). */
   queue: QueuedBuild[];
+  /** Specjalizacja kolonii (od v0.32.3); `pending` — zmiana jeszcze trwa. */
+  specialization: { name: string; pending: boolean } | null;
   /** Pola lądu: zajęte / do zabudowy. */
   fields: { used: number; buildable: number };
   /** Złoża planety: ile zostało i ile było (od v0.32 — do kart „Imperium”). */
@@ -202,6 +229,8 @@ export interface MissionView extends ColonyMission {
  * Nieaktywne planety „doganiają” czas bez przyrostu pasywnego antymaterii —
  * ten liczy się raz, na aktywnej planecie (portfel jest wspólny).
  */
+const SPECIALIZATION_CHANGE_SECONDS = SPECIALIZATION_RULES.changeSeconds;
+
 const catchUpBalance = (balance: Balance): Balance => ({ ...balance, antimatter: { ...balance.antimatter, passivePerHour: 0 } });
 
 /**
@@ -229,7 +258,8 @@ export class GameController {
   private readonly aiSnooze = new Map<AiRuleId, number>();
   private readonly aiListeners = new Set<(text: string) => void>();
   /** Balans z efektami badań — osobno dla każdej listy zbadanych (planety). */
-  private readonly balanceCache = new WeakMap<readonly string[], Balance>();
+  private readonly balanceCache = new WeakMap<Slot, { done: readonly string[]; spec: string; balance: Balance }>();
+  private readonly siteCache = new Map<string, SpecializationSite | null>();
   private slots: Slot[];
   private active = 0;
   private unlockedSlots: number = BALANCE.planetSlots.base;
@@ -298,13 +328,87 @@ export class GameController {
     return this.balanceFor(this.slots[this.active]!);
   }
 
-  private balanceFor(slot: Slot): Balance {
-    let balance = this.balanceCache.get(slot.research.done);
-    if (!balance) {
-      balance = applyResearch(BALANCE, slot.research.done);
-      this.balanceCache.set(slot.research.done, balance);
-    }
+  /**
+   * Balans planety z efektami jej badań i specjalizacji działającej w chwili `at`
+   * (domyślnie: ostatnie naliczenie planety). Liczony ponownie tylko po zmianie.
+   */
+  private balanceFor(slot: Slot, at = slot.economy.lastUpdate): Balance {
+    const effects = activeSpecializationEffects(slot.specialization, this.siteOf(slot.address), at);
+    const spec = effects.length > 0 ? slot.specialization!.id : '';
+    const hit = this.balanceCache.get(slot);
+    if (hit && hit.done === slot.research.done && hit.spec === spec) return hit.balance;
+    const balance = applyResearch(BALANCE, slot.research.done, effects);
+    this.balanceCache.set(slot, { done: slot.research.done, spec, balance });
     return balance;
+  }
+
+  /** Położenie planety (gwiazda układu i strefa orbity) — od niego zależy dopasowanie specjalizacji. */
+  private siteOf(address: string): SpecializationSite | null {
+    if (this.siteCache.has(address)) return this.siteCache.get(address)!;
+    const where = parseAddress(address);
+    const galaxy = where ? this.galaxy : null;
+    const body = galaxy && where ? planetAt(galaxy, where) : null;
+    const star = galaxy && where ? galaxy.systems[where.system - 1]?.star : undefined;
+    const site = body && star ? { star, zone: body.zone } : null;
+    this.siteCache.set(address, site);
+    return site;
+  }
+
+  /**
+   * Naliczenie planety do `now` z podziałem w chwili końca zmiany specjalizacji
+   * (do tej chwili bez premii, potem z nową).
+   */
+  private advanceSlot(slot: Slot, economy: EconomyState, now: number, adjust: (b: Balance) => Balance = (b) => b): EconomyState {
+    let e = economy;
+    const ready = slot.specialization?.readyAt;
+    if (ready !== undefined && ready > e.lastUpdate && ready <= now) {
+      e = advance(e, slot.planet, ready, adjust(this.balanceFor(slot, e.lastUpdate)));
+    }
+    return advance(e, slot.planet, now, adjust(this.balanceFor(slot, e.lastUpdate)));
+  }
+
+  // ——— specjalizacje kolonii ———
+
+  /** Specjalizacja planety (domyślnie aktywnej) do panelu „Planeta”. */
+  specialization(index = this.active, now = Date.now()): SpecializationView {
+    const slot = this.slots[index]!;
+    const site = this.siteOf(slot.address);
+    const spec = slot.specialization;
+    const def = spec ? findSpecialization(spec.id) : undefined;
+    return {
+      current:
+        spec && def
+          ? { id: spec.id, name: def.name, active: isSpecializationActive(spec, now), secondsLeft: Math.max(0, (spec.readyAt - now) / 1000) }
+          : null,
+      canChange: this.unlocked('specialization-change'),
+      changeSeconds: SPECIALIZATION_CHANGE_SECONDS,
+      siteText: site ? `${findStar(site.star).label} · strefa ${ZONE_LABELS[site.zone]}` : '',
+      options: SPECIALIZATIONS.map((d) => {
+        const f = affinity(d, site);
+        return { id: d.id, name: d.name, description: d.description, affinity: f, label: affinityLabel(f), effects: describeEffectList(specializationEffects(d, site)) };
+      }),
+    };
+  }
+
+  /** Najlepiej dopasowana specjalizacja dla miejsca w galaktyce (podpowiedź na mapie). */
+  bestSpecializationAt(address: string): { name: string; label: string } | null {
+    const site = this.siteOf(address);
+    if (!site) return null;
+    const best = SPECIALIZATIONS.map((d) => ({ d, f: affinity(d, site) })).sort((a, b) => b.f - a.f)[0]!;
+    return { name: best.d.name, label: affinityLabel(best.f) };
+  }
+
+  /** Wybór (pierwszy — od razu) albo zmiana specjalizacji aktywnej planety (po badaniu, trwa 1 h). */
+  chooseSpecialization(id: SpecializationId, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    const result = chooseSpecialization(slot.specialization, id, now, this.unlocked('specialization-change'));
+    if (!result.ok) return { ok: false, message: result.message };
+    slot.specialization = result.spec;
+    this.log('empire', `${this.planet.displayName}: ${result.message}`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: result.message };
   }
 
   /** Zmiana produktywności / pierwszeństwa budynku (panel „Zarządzanie”). */
@@ -401,7 +505,14 @@ export class GameController {
       completed.push(result.completed);
       this.log('research', `${this.planet.displayName}: zbadano ${findResearch(result.completed)?.name ?? result.completed}.`, c!.finishesAt);
     }
-    this.economy = advance(this.economy, this.planet, now, this.balance);
+    const slot = this.slots[this.active]!;
+    const ready = slot.specialization?.readyAt;
+    const wasPending = ready !== undefined && ready > this.economy.lastUpdate && ready <= now;
+    this.economy = this.advanceSlot(slot, this.economy, now);
+    if (wasPending) {
+      const name = findSpecialization(slot.specialization!.id)?.name ?? '';
+      this.log('empire', `${this.planet.displayName}: specjalizacja ${name} działa.`, ready);
+    }
     return completed;
   }
 
@@ -523,9 +634,10 @@ export class GameController {
   overview(now = Date.now()): PlanetOverview[] {
     return this.planets().map((summary) => {
       const slot = this.slots[summary.index]!;
-      const balance = this.balanceFor(slot);
-      const economy = summary.active ? this.economy : advance(slot.economy, slot.planet, now, catchUpBalance(balance));
+      const economy = summary.active ? this.economy : this.advanceSlot(slot, slot.economy, now, catchUpBalance);
+      const balance = this.balanceFor(slot, economy.lastUpdate);
       const c = economy.construction;
+      const spec = slot.specialization;
       return {
         ...summary,
         stock: economy.stock,
@@ -540,6 +652,9 @@ export class GameController {
             }
           : null,
         queue: queueOf(economy, balance),
+        specialization: spec
+          ? { name: findSpecialization(spec.id)?.name ?? '', pending: !isSpecializationActive(spec, now) }
+          : null,
         fields: fieldsOf(slot, summary.active),
         deposits: { left: depositsLeft(economy, slot.planet, balance), total: depositTotal(slot.planet, balance) },
         collectorPerHour: productionRates(economy, slot.planet, balance).antimatterPerHour - balance.antimatter.passivePerHour,
@@ -584,7 +699,7 @@ export class GameController {
   }
 
   /** Czy funkcję gry odblokowało badanie na którejkolwiek planecie (funkcje działają na całe imperium). */
-  private unlocked(feature: 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline'): boolean {
+  private unlocked(feature: UnlockFeature): boolean {
     return this.slots.some((slot) =>
       slot.research.done.some((id) => findResearch(id)?.effects.some((e) => e.kind === 'unlock' && e.feature === feature)),
     );
@@ -957,7 +1072,7 @@ export class GameController {
     // SI może dalej budować podczas nieobecności (po badaniu „Autonomia”), wolniej o 50%.
     target.economy = before;
     this.runAwayAi(target, now, catchUpBalance(this.balanceFor(target)));
-    const caughtUp = advance(target.economy, target.planet, now, catchUpBalance(this.balanceFor(target)));
+    const caughtUp = this.advanceSlot(target, target.economy, now, catchUpBalance);
     // Antymateria wyprodukowana przez kolektor tej planety trafia do wspólnego portfela.
     this.economy = { ...caughtUp, antimatter: wallet + caughtUp.antimatter };
     this.reportAway(before, now);
@@ -1006,7 +1121,7 @@ export class GameController {
     const index = this.slotAt(address);
     const slot = this.slots[index];
     if (!slot) return geologyOf(planet, null, this.balance);
-    const economy = index === this.active ? this.economy : advance(slot.economy, slot.planet, now, catchUpBalance(this.balanceFor(slot)));
+    const economy = index === this.active ? this.economy : this.advanceSlot(slot, slot.economy, now, catchUpBalance);
     return geologyOf(slot.planet, economy, this.balanceFor(slot));
   }
 
@@ -1159,6 +1274,7 @@ export class GameController {
         plots: slot.plots,
         plotsGrid: FIELD_GRID_VERSION,
         ...(slot.fields ? { fields: slot.fields } : {}),
+        ...(slot.specialization ? { specialization: slot.specialization } : {}),
       })),
     };
   }
@@ -1258,6 +1374,7 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       // Przydział z innej wersji siatki wskazywałby inne pola — budowle dostają pola od nowa.
       plots: slot.plotsGrid === FIELD_GRID_VERSION ? (slot.plots ?? {}) : {},
       ...(slot.plotsGrid === FIELD_GRID_VERSION && slot.fields ? { fields: slot.fields } : {}),
+      ...(slot.specialization ? { specialization: slot.specialization } : {}),
     });
   }
   return slots;

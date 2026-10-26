@@ -28,6 +28,7 @@ export const STORAGE_SOON_S = 30 * 60;
 export function planetBadges(p: PlanetOverview): CardBadge[] {
   const badges: CardBadge[] = [];
   if (p.active) badges.push({ label: 'Tu jesteś', tone: 'teal' });
+  if (p.specialization) badges.push({ label: p.specialization.pending ? `→ ${p.specialization.name.toLowerCase()}` : p.specialization.name.toLowerCase(), tone: 'teal' });
   const rich = p.planet.gameplay.richness;
   if (rich.metal >= RICH_FROM) badges.push({ label: 'bogata w metal', tone: 'gold' });
   if (rich.crystal >= RICH_FROM) badges.push({ label: 'bogata w kryształy', tone: 'gold' });
@@ -102,6 +103,9 @@ export function empireAlerts(overview: readonly PlanetOverview[], freeSlots: num
       alerts.push({ level: 1, text: `${p.name}: kolejka czeka na surowce — ${q.name} poz. ${q.level}.`, target: planet, index: p.index });
     } else if (!p.construction && p.fields.used < p.fields.buildable) {
       alerts.push({ level: 2, text: `${p.name}: nic się nie buduje, ${p.fields.buildable - p.fields.used} wolnych pól.`, target: planet, index: p.index });
+    }
+    if (!p.specialization) {
+      alerts.push({ level: 2, text: `${p.name}: bez specjalizacji — wybierz ją w panelu „Planeta”.`, target: planet, index: p.index });
     }
     if (p.labLevel > 0 && !p.researching) {
       alerts.push({ level: 2, text: `Laboratorium na ${p.name} nic nie bada — wybierz projekt.`, target: { kind: 'research', index: p.index }, index: p.index });

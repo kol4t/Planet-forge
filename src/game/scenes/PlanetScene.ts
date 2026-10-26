@@ -3,7 +3,7 @@ import type { DepositInfo, GameController, PlanetOverview } from '../../app/Game
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled, secondsUntilAffordable } from '../../core/economy/economy.ts';
 import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
 import { ringLimit } from '../../core/research/research.ts';
-import type { BuildingId, BuildingSettings, ResourceId, YieldId } from '../../core/types.ts';
+import type { BuildingId, BuildingSettings, ResourceId, SpecializationId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import { findResearch } from '../../data/research.ts';
 import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
@@ -137,6 +137,8 @@ export class PlanetScene extends Phaser.Scene {
   private readonly deps: SceneDeps;
   private ui: Phaser.GameObjects.Container | undefined;
   private overlay: Phaser.GameObjects.Container | undefined;
+  /** Specjalizacja czekająca na potwierdzenie zmiany (drugie dotknięcie). */
+  private specArmed: SpecializationId | null = null;
   private toast: Phaser.GameObjects.Container | undefined;
   private cards: BuildingCard[] = [];
   private res: ResourceTexts | undefined;
@@ -842,6 +844,21 @@ export class PlanetScene extends Phaser.Scene {
       wordWrap: { width: this.px(w) },
     });
     y += this.s(21);
+    // Specjalizacja kolonii (od v0.32.3): nazwa i przycisk okna wyboru.
+    const spec = this.deps.controller.specialization();
+    const specText = spec.current
+      ? spec.current.active
+        ? spec.current.name
+        : `→ ${spec.current.name} · ${formatDuration(spec.current.secondsLeft)}`
+      : 'brak — wybierz';
+    const specW = this.s(96);
+    this.text(box.x + pad, y + this.s(4), 'SPECJALIZACJA', 9.5, COLORS.muted, { fontStyle: '600' });
+    this.text(box.x + pad, y + this.s(18), specText, 13, spec.current ? COLORS.text : COLORS.gold, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
+    this.addButton(box.x + pad + w - specW, y, specW, TOUCH, spec.current ? 'Szczegóły' : 'Wybierz', spec.current ? 'secondary' : 'primary', () => {
+      this.specArmed = null;
+      this.openSpecialization();
+    }, 12.5);
+    y += TOUCH + this.s(10);
     this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
     y += this.s(15);
     for (const [id, label, color] of RICHNESS_ROWS) {
@@ -1587,6 +1604,108 @@ export class PlanetScene extends Phaser.Scene {
     const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
     const dialog = this.add.container(x, top, [box, blocker, ...items]);
     this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+  }
+
+  /**
+   * Okno „Specjalizacja kolonii”: położenie planety (gwiazda, strefa), cztery specjalizacje z dopasowaniem
+   * i efektami na tej planecie. Pierwszy wybór od razu; zmiana po badaniu „Przebudowa kolonii”, trwa 1 h
+   * (drugie dotknięcie potwierdza — przez ten czas planeta nie ma premii).
+   */
+  private openSpecialization(): void {
+    if (this.overlay) this.closeOverlay();
+    const c = this.deps.controller;
+    const view = c.specialization();
+    const viewport = this.deps.getViewport();
+    const W = this.px(viewport.width);
+    const H = this.px(viewport.height);
+    const shade = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0).setInteractive();
+    shade.on('pointerup', () => this.closeOverlay());
+    const w = this.px(Math.min(viewport.width - 32, this.s(460)));
+    const pad = this.px(this.s(20));
+    const buttonH = this.px(Math.max(44, this.s(44)));
+    const buttonW = this.px(this.s(118));
+    const gap = this.px(this.s(10));
+    const font = (size: number, color: string, width: number, extra: Phaser.Types.GameObjects.Text.TextStyle = {}) => ({
+      fontFamily: FONTS.body,
+      fontSize: `${this.px(this.s(size))}px`,
+      color,
+      wordWrap: { width },
+      lineSpacing: this.px(2),
+      ...extra,
+    });
+    const items: Phaser.GameObjects.GameObject[] = [];
+    let y = pad;
+    const add = (text: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}, after = gap) => {
+      const t = this.add.text(pad, y, text, font(size, color, w - 2 * pad, extra));
+      items.push(t);
+      y += t.height + after;
+      return t;
+    };
+    add('Specjalizacja kolonii', 11, COLORS.muted, { fontStyle: '600' }, this.px(2));
+    add(c.planet.displayName, 20, COLORS.gold, { fontFamily: FONTS.serif }, this.px(4));
+    if (view.siteText) add(`${view.siteText} — od położenia zależy, jak mocno działa każda specjalizacja.`, 11, COLORS.stone);
+    const cur = view.current;
+    const hours = view.changeSeconds / 3600;
+    const status = !cur
+      ? 'Bez specjalizacji. Pierwszy wybór działa od razu i jest darmowy.'
+      : cur.active
+        ? `Obecna: ${cur.name}.${view.canChange ? ` Zmiana trwa ${hours === 1 ? '1 godzinę' : `${hours} h`} — w tym czasie planeta nie ma premii.` : ' Zmianę odblokowuje badanie „Przebudowa kolonii” (Planetologia).'}`
+        : `Trwa zmiana na: ${cur.name} — zostało ${formatDuration(cur.secondsLeft)}.`;
+    add(status, 12, cur && !cur.active ? COLORS.gold : COLORS.text, {}, gap * 1.2);
+    const tones: Record<string, string> = { świetne: COLORS.gold, dobre: COLORS.teal, zwykłe: COLORS.stone, słabe: COLORS.danger };
+    for (const option of view.options) {
+      const textW = w - 2 * pad - buttonW - gap;
+      const top = y;
+      const title = this.add.text(pad, y, option.name, font(14, COLORS.text, textW, { fontStyle: '600' }));
+      const fit = this.add.text(pad + title.width + this.px(this.s(8)), y + this.px(this.s(2)), `dopasowanie ${option.label} ×${String(option.affinity).replace('.', ',')}`, font(10.5, tones[option.label] ?? COLORS.stone, textW));
+      const effects = this.add.text(pad, y + title.height + this.px(2), option.effects, font(11, COLORS.muted, textW));
+      items.push(title, fit, effects);
+      // Etykieta „dopasowanie …” w nowej linii, gdy nie mieści się obok nazwy.
+      if (title.width + fit.width + this.px(this.s(8)) > textW) {
+        fit.setPosition(pad, effects.y);
+        effects.setY(fit.y + fit.height + this.px(2));
+      }
+      const blockH = effects.y + effects.height - top;
+      const current = cur?.id === option.id;
+      const armed = this.specArmed === option.id;
+      const label = current ? (cur!.active ? 'Obecna' : 'Trwa zmiana') : !cur ? 'Wybierz' : !view.canChange ? 'Zablokowane' : armed ? 'Na pewno?' : `Zmień (${hours} h)`;
+      const style = current || (cur && !view.canChange) ? 'disabled' : armed ? 'danger' : !cur ? 'primary' : 'secondary';
+      const by = top + Math.max(0, (blockH - buttonH) / 2);
+      const button = new Button(this, w - pad - buttonW, by, buttonW, buttonH, label, this.dpr, () => this.onSpecialization(option.id), this.s(13.5)).setStyle(style);
+      items.push(button);
+      y = top + Math.max(blockH, buttonH) + gap * 1.2;
+    }
+    const closeBtn = new Button(this, w - pad - this.px(this.s(150)), y, this.px(this.s(150)), buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle('secondary');
+    items.push(closeBtn);
+    y += buttonH + pad;
+    const h = y;
+    const x = (W - w) / 2;
+    const top = Math.max(this.px(8), (H - h) / 2);
+    const box = this.add
+      .graphics()
+      .fillStyle(COLORS.panel, 0.98)
+      .fillRoundedRect(0, 0, w, h, this.px(16))
+      .lineStyle(this.px(1), COLORS.goldHex, 0.7)
+      .strokeRoundedRect(0, 0, w, h, this.px(16));
+    const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
+    const dialog = this.add.container(x, top, [box, blocker, ...items]);
+    this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+  }
+
+  /** Dotknięcie specjalizacji: wybór od razu; zmiana — najpierw „Na pewno?”, drugie dotknięcie zmienia. */
+  private onSpecialization(id: SpecializationId): void {
+    const view = this.deps.controller.specialization();
+    if (view.current?.id === id) return;
+    if (view.current && view.canChange && this.specArmed !== id) {
+      this.specArmed = id;
+      this.time.delayedCall(0, () => this.openSpecialization());
+      return;
+    }
+    this.specArmed = null;
+    const result = this.deps.controller.chooseSpecialization(id);
+    this.showToast(result.message, result.ok ? 'ok' : 'error', 3200);
+    this.relayout();
+    this.time.delayedCall(0, () => this.openSpecialization());
   }
 
   /** Zapis ustawienia budynku i odświeżenie okna (nowa wydajność energii, produkcja w pasku). */

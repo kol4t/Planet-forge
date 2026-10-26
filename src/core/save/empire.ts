@@ -3,7 +3,8 @@
 import { BALANCE } from '../../data/balance.ts';
 import { parseAiLevels, type AiLevel, type AiRuleId } from '../ai/advisor.ts';
 import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
-import type { ColonyMission, EconomyState, JournalEntry, JournalKind, ResearchState } from '../types.ts';
+import { parseSpecialization } from '../economy/specialization.ts';
+import type { ColonyMission, EconomyState, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 
@@ -31,6 +32,8 @@ export interface SlotSave {
    * nieaktywnych planet przy starcie. Ważne tylko z tą samą wersją siatki (`plotsGrid`).
    */
   fields?: { used: number; buildable: number };
+  /** Specjalizacja kolonii (od v0.32.3; brak albo błędna = bez specjalizacji). */
+  specialization?: PlanetSpecialization;
 }
 
 export interface EmpireSave {
@@ -135,6 +138,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(raw.plots ? { plots: parsePlots(raw.plots) } : {}),
       ...(isNum(raw.plotsGrid) ? { plotsGrid: raw.plotsGrid } : {}),
       ...(isFieldCount(raw.fields?.used) && isFieldCount(raw.fields?.buildable) ? { fields: { used: raw.fields.used, buildable: raw.fields.buildable } } : {}),
+      ...(parseSpecialization(raw.specialization) ? { specialization: parseSpecialization(raw.specialization) } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;
