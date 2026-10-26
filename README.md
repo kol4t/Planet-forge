@@ -351,4 +351,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 192. Twój układ: złoty celownik. Przesuń mapę tak, by zniknął — przy krawędzi pojawia się złota strzałka w jego stronę; dotknięcie strzałki albo „Mój układ” w pasku przewozi mapę do Twojego układu.
 193. Wejdź do układu i wróć przez „Galaktyka” — mapa jest w tym samym miejscu i przybliżeniu.
 
+### Od 0.34.2: wiedza o galaktyce
+
+194. W pasku mapy: „Znane układy: N z 100”. Widać tylko Twój układ (i układy z Twoimi planetami), kilku najbliższych sąsiadów (kolorowe gwiazdy) i blade obwódki — sygnały. Reszta galaktyki to nieznany obszar.
+195. Dotknij sygnału: „Nieznany sygnał” — bez nazwy i szczegółów. Dotknij sąsiada: nazwa, gwiazda, liczba planet, „rozpoznany”; przycisk „Nie zbadany” (widok układu — dopiero po zbadaniu).
+196. Twój układ i układy z Twoimi planetami działają jak dotąd (widok układu, kolonizacja).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

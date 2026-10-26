@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { MapOccupant } from '../../app/GameController.ts';
 import { findStar, parseAddress, SPIRAL, spiralPoint, type GasGiantLook, type StarSystem, type SystemPlanet, type SystemSummary } from '../../core/galaxy/galaxy.ts';
 import { createRng } from '../../core/random/rng.ts';
+import { DISCOVERY, DISCOVERY_LABELS } from '../../core/galaxy/discovery.ts';
 import { orbitAngle, systemPeriods } from '../../core/galaxy/orbits.ts';
 import { worldNow } from '../../core/time/worldClock.ts';
 import { compareGeology } from '../../core/economy/geology.ts';
@@ -102,7 +103,8 @@ export class MapScene extends OverlayScene {
   }
 
   init(data: MapSceneData): void {
-    const index = data?.system;
+    const requested = data?.system;
+    const index = requested && this.deps.controller.discoveryLevel(requested) >= DISCOVERY.explored ? requested : undefined;
     this.mode = index ? 'system' : 'galaxy';
     this.systemIndex = index ?? this.deps.controller.homeSystem;
     this.selected = this.mode === 'galaxy' ? this.systemIndex : null;
@@ -167,14 +169,26 @@ export class MapScene extends OverlayScene {
     // Układy jak gwiazdy na zdjęciu: małe, jasny środek, delikatna poświata w barwie gwiazdy;
     // wielkość z rodzaju gwiazdy (olbrzym większy, karzeł mniejszy), czarna dziura — ciemny środek z dyskiem.
     const g = this.add.graphics();
+    const controller = this.deps.controller;
     for (const s of galaxy.systems) {
-      const color = hex(findStar(s.star).color);
+      // Wiedza o układzie (v0.34.2): nieznanych nie widać, sygnał — blady punkt z obwódką,
+      // wykryty — szara gwiazda bez barwy, rozpoznany i zbadany — gwiazda w swoim kolorze.
+      const level = controller.discoveryLevel(s.index);
+      if (level === DISCOVERY.unknown) continue;
+      if (level === DISCOVERY.signal) {
+        const r = Math.max(1.4 * this.dpr, 0.5 * U);
+        g.fillStyle(SIGNAL_COLOR, 0.1).fillCircle(s.x * U, s.y * U, r * 3.4);
+        g.lineStyle(Math.max(1, this.dpr * 0.8), SIGNAL_COLOR, 0.45).strokeCircle(s.x * U, s.y * U, r * 2.2);
+        g.fillStyle(SIGNAL_COLOR, 0.6).fillCircle(s.x * U, s.y * U, r * 0.6);
+        continue;
+      }
+      const color = level === DISCOVERY.detected ? 0xc8ced4 : hex(findStar(s.star).color);
       const r = Math.max(1.1 * this.dpr, (STAR_DOT[s.star] ?? 0.5) * U);
       const x = s.x * U;
       const y = s.y * U;
       g.fillStyle(color, 0.07).fillCircle(x, y, r * 3.2);
       g.fillStyle(color, 0.16).fillCircle(x, y, r * 1.8);
-      if (s.star === 'black-hole') {
+      if (s.star === 'black-hole' && level >= DISCOVERY.recognized) {
         g.lineStyle(Math.max(1, r * 0.35), color, 0.85).strokeEllipse(x, y, r * 3, r * 1.1);
         g.fillStyle(0x000000, 1).fillCircle(x, y, r * 0.7);
         continue;
@@ -187,6 +201,8 @@ export class MapScene extends OverlayScene {
     this.world!.add([art, g, this.comets, this.marks]);
     const home = this.deps.controller.homeSystem;
     for (const s of galaxy.systems) {
+      // Nazwy tylko układów co najmniej wykrytych.
+      if (controller.discoveryLevel(s.index) < DISCOVERY.detected) continue;
       const own = s.index === home;
       const text = this.add
         .text(0, 0, own ? `${s.name}\nTwój układ` : s.name, {
@@ -574,6 +590,7 @@ export class MapScene extends OverlayScene {
       let best: SystemSummary | null = null;
       let bestD = reach;
       for (const s of this.deps.controller.galaxy.systems) {
+        if (this.deps.controller.discoveryLevel(s.index) === DISCOVERY.unknown) continue;
         const d = Math.hypot(s.x - gx, s.y - gy);
         if (d <= bestD) {
           best = s;
@@ -604,6 +621,8 @@ export class MapScene extends OverlayScene {
   }
 
   private openSystem(index: number): void {
+    // Widok układu (planety, złoża) — tylko dla zbadanych.
+    if (this.deps.controller.discoveryLevel(index) < DISCOVERY.explored) return;
     // Powrót do galaktyki wraca do tego samego miejsca i przybliżenia.
     if (this.mode === 'galaxy') this.galaxyCamera = { pan: { ...this.pan }, zoom: this.zoom };
     this.mode = 'system';
@@ -698,7 +717,7 @@ export class MapScene extends OverlayScene {
     const title = this.mode === 'galaxy' ? `MAPA · ${galaxy.name.toUpperCase()}` : `UKŁAD ${this.system?.name ?? ''}`;
     const sub =
       this.mode === 'galaxy'
-        ? `${galaxy.systems.length} układów · Twój układ: ${galaxy.systems[controller.homeSystem - 1]?.name ?? ''} (1:${controller.homeSystem})`
+        ? `Znane układy: ${controller.knownSystems} z ${galaxy.systems.length} · Twój: ${galaxy.systems[controller.homeSystem - 1]?.name ?? ''}`
         : `Adres 1:${this.systemIndex} · ${this.system ? findStar(this.system.star).label : ''}`;
     const backW = 112 * this.u;
     this.text(bar.x + pad, bar.y + this.s(8), title, 15, COLORS.gold, { fontFamily: FONTS.serif, letterSpacing: 2, fixedWidth: this.px(bar.w - 2 * pad - closeW - backW) });
@@ -738,16 +757,38 @@ export class MapScene extends OverlayScene {
       const s = this.selected ? controller.galaxy.systems[this.selected - 1] : undefined;
       if (!s) {
         line('Galaktyka', 18, COLORS.gold, { fontFamily: FONTS.serif });
-        line('Każdy punkt to układ gwiezdny. Przesuń palcem, szczypnij, aby przybliżyć; dotknij układu, aby zobaczyć szczegóły.', 11.5, COLORS.muted);
+        line('Widzisz tylko to, co poznałeś: kolorowe gwiazdy — znane układy, szare — wykryte bez szczegółów, blade obwódki — sygnały.', 11.5, COLORS.muted);
         y = this.buildStarLegend(items, x, y, w, buttonY - this.s(10));
         buttons(['Twój układ', 'primary', () => this.openSystem(controller.homeSystem)], ['Zamknij', 'secondary', () => this.close()]);
+      } else if (controller.discoveryLevel(s.index) < DISCOVERY.explored) {
+        // Wiedza niepełna: tylko to, co gracz już wie (bez planet, złóż i — przed rozpoznaniem — gwiazdy).
+        const level = controller.discoveryLevel(s.index);
+        const home = controller.galaxy.systems[controller.homeSystem - 1]!;
+        const distance = Math.round(Math.hypot(s.x - home.x, s.y - home.y));
+        if (level === DISCOVERY.signal) {
+          line('Nieznany sygnał', 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
+          line(`Sygnał · ${distance} jedn. od Twojego układu`, 10.5, COLORS.stone, { fontStyle: '600' });
+          line('Coś tu jest — gwiazda, a może coś rzadszego. Nie znamy ani nazwy, ani planet.', 11.5, COLORS.muted);
+        } else {
+          line(s.name, 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
+          line(`Układ 1:${s.index} · ${DISCOVERY_LABELS[level]} · ${distance} jedn. od Twojego układu`, 10.5, COLORS.teal, { fontStyle: '600' });
+          if (level === DISCOVERY.recognized) {
+            const star = findStar(s.star);
+            line(`${star.label} — ${star.description}`, 11.5, COLORS.muted);
+            line(`Planet: ${s.planetCount} · szczegóły planet i złóż nieznane.`, 11.5, COLORS.text);
+          } else {
+            line('Znamy położenie i nazwę. Rodzaj gwiazdy i planety — nieznane.', 11.5, COLORS.muted);
+          }
+        }
+        line('Układ poznasz dzięki ekspedycjom (wkrótce).', 11, COLORS.faint);
+        buttons(['Nie zbadany', 'disabled', () => undefined], ['Odznacz', 'secondary', () => this.onTap(-1e6, -1e6)]);
       } else {
         const star = findStar(s.star);
         const system = controller.system(s.index)!;
         const own = s.index === controller.homeSystem;
         const homes = system.planets.filter((p) => p.occupant === 'home').length;
         line(s.name, 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
-        line(`Układ 1:${s.index}${own ? ' · Twój układ' : ''}`, 10.5, own ? COLORS.gold : COLORS.teal, { fontStyle: '600' });
+        line(`Układ 1:${s.index} · ${own ? 'Twój układ' : 'zbadany'}`, 10.5, own ? COLORS.gold : COLORS.teal, { fontStyle: '600' });
         line(`${star.label} — ${star.description}`, 11.5, COLORS.muted);
         const giants = system.planets.filter((p) => p.body === 'gas-giant').length;
         line(
@@ -974,8 +1015,9 @@ export class MapScene extends OverlayScene {
   /** Legenda galaktyki: rodzaje gwiazd z barwą i liczbą układów (dwie kolumny). Zwraca y pod legendą. */
   private buildStarLegend(items: Phaser.GameObjects.GameObject[], x: number, top: number, w: number, bottom: number): number {
     let y = top + this.s(2);
-    const systems = this.deps.controller.galaxy.systems;
-    const title = this.text(x, y, 'RODZAJE GWIAZD', 9.5, COLORS.muted, { fontStyle: '600' }, false);
+    const controller = this.deps.controller;
+    const systems = controller.galaxy.systems.filter((s) => controller.discoveryLevel(s.index) >= DISCOVERY.recognized);
+    const title = this.text(x, y, 'RODZAJE GWIAZD — ZNANE UKŁADY', 9.5, COLORS.muted, { fontStyle: '600' }, false);
     items.push(title);
     y += this.s(16);
     const rowH = this.s(19);
@@ -1004,6 +1046,8 @@ export class MapScene extends OverlayScene {
   }
 }
 
+/** Barwa sygnałów (układy znane tylko jako sygnał) — chłodna, przygaszona. */
+const SIGNAL_COLOR = 0x9fb4c8;
 /** Promień kropki układu w galaktyce (jednostki mapy) według rodzaju gwiazdy. */
 const STAR_DOT: Partial<Record<string, number>> = {
   'red-dwarf': 0.42,

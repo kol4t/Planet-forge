@@ -1,4 +1,4 @@
-import type { GalaxyRules, OrbitRules, StarKindDef } from '../core/types.ts';
+import type { DiscoveryRules, GalaxyRules, OrbitRules, StarKindDef } from '../core/types.ts';
 
 // Galaktyka (v0.11). Nazwy gwiazd, wagi i liczby są ROBOCZE (do potwierdzenia w Lore Bible).
 
@@ -101,6 +101,12 @@ export const GALAXY_RULES: GalaxyRules = {
 /** Ruch planet w widoku układu (v0.34, wartości robocze): najbliższa ~2 min, najdalsza ~25 min na obieg. */
 export const ORBIT_RULES: OrbitRules = {
   periodSeconds: [2 * 60, 25 * 60],
+};
+
+/** Wiedza o galaktyce na start (v0.34.2, robocze): 4 najbliższych sąsiadów rozpoznanych, sygnały do 40 jednostek. */
+export const DISCOVERY_RULES: DiscoveryRules = {
+  telescopeNeighbors: 4,
+  signalRange: 40,
 };
 
 export const ZONE_LABELS = {

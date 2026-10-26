@@ -253,6 +253,11 @@ test('statek kolonizacyjny: wymaga badania, kosztuje, leci, zakłada kolonię (t
     const target = other.planets.find(isColonizable)!.address;
     assert.match(game.sendColonyShip(target, 0).message, /Napęd międzygwiezdny/);
     game.research = { done: ['explore-1'], current: null };
+    // Statek leci tylko do zbadanego układu (v0.34.2).
+    if (game.discoveryLevel(other.index) < 4) {
+      assert.match(game.sendColonyShip(target, 0).message, /nie jest zbadany/);
+      game.markDiscovered(other.index, 4);
+    }
     assert.ok(game.colonyShipUnlocked);
     assert.match(game.sendColonyShip(target, 0).message, /magazyn|brakuje/i);
     game.economy = { ...game.economy, levels: { ...game.economy.levels, storage: 6 }, stock: { metal: 9000, crystal: 9000 } };
