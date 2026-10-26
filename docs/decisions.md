@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.34.4: rzadkie obiekty
+
+- Klasy rzadkie = istniejące rodzaje gwiazd z generatora (pulsar, czarna dziura) — bez zmian w generatorze i zapisach; rzadkość wynika z dostępu: bez „Astrofizyki ekstremalnej” (pierścień 5 Eksploracji, wymaga Napędu jonowego sond i Analizy sygnałów) wyprawa kończy na „wykryty — niezwykły sygnał”, a teleskop na start też tylko wykrywa. Model rozszerzalny: `RARE_OBJECTS` (rodzaj, opis, efekty, limit) — kolejne klasy to nowy wpis.
+- Realna wartość: dane naukowe z każdego zbadanego obiektu — trwała premia dla imperium (pulsar +0,25 antymaterii/h, czarna dziura −5% czasu badań; do 4 każdego rodzaju, robocze). Liczone z wiedzy o galaktyce (nic nowego w zapisie), stosowane jak efekty badań (`applyResearch(…, extra)`); przyrost antymaterii liczy się tylko na aktywnej planecie (jak przyrost pasywny), więc nie dubluje się.
+- Na przyszłość (propozycje, niewdrożone): specjalistyczne misje do rzadkich obiektów, anomalie, wpływ na badania mistrzowskie.
+
 ## 2026-10-26 — v0.34.3: ekspedycje i badania Eksploracji
 
 - Pętla: badanie „Sondy zwiadowcze” → cel na mapie (sygnał, wykryty albo rozpoznany układ w zasięgu) → koszt i czas → powrót z raportem → wiedza rośnie (i nowe sygnały wokół celu) → kolejna wyprawa albo kolonizacja zbadanego układu.

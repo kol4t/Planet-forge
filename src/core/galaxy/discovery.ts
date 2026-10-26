@@ -1,7 +1,7 @@
 // Wiedza gracza o galaktyce (v0.34.2) — osobno od danych galaktyki: układ istnieje (generator),
 // a gracz wie o nim tyle, ile odkrył. Zapisywane są tylko poziomy wiedzy (indeks układu → poziom).
-import { DISCOVERY_RULES } from '../../data/galaxy.ts';
-import type { DiscoveryRules } from '../types.ts';
+import { DISCOVERY_RULES, RARE_OBJECTS } from '../../data/galaxy.ts';
+import type { DiscoveryRules, RareObjectDef, ResearchEffect } from '../types.ts';
 import type { Galaxy } from './galaxy.ts';
 
 /**
@@ -49,7 +49,8 @@ export function initialDiscoveries(galaxy: Galaxy, own: readonly number[], rules
   const others = galaxy.systems.filter((s) => !own.includes(s.index)).map((s) => ({ index: s.index, d: distance(s.index) }));
   others.sort((a, b) => a.d - b.d || a.index - b.index);
   others.forEach((o, i) => {
-    if (i < rules.telescopeNeighbors) known = raiseDiscovery(known, o.index, DISCOVERY.recognized);
+    // Rzadkie obiekty teleskop tylko wykrywa — rozpoznanie wymaga badania (v0.34.4).
+    if (i < rules.telescopeNeighbors) known = raiseDiscovery(known, o.index, isRare(galaxy, o.index) ? DISCOVERY.detected : DISCOVERY.recognized);
     else if (o.d <= rules.signalRange) known = raiseDiscovery(known, o.index, DISCOVERY.signal);
   });
   return ensureKnown(known, own);
@@ -77,4 +78,23 @@ export function parseDiscoveries(raw: unknown, systemCount = 10_000): Discoverie
 /** Ile układów gracz zna (co najmniej wykrytych). */
 export function knownCount(known: Discoveries): number {
   return Object.values(known).filter((level) => level >= DISCOVERY.detected).length;
+}
+
+/** Czy układ to rzadki obiekt (pulsar, czarna dziura…) — wtedy odczyt ponad „wykryty” wymaga badania. */
+export function isRare(galaxy: Galaxy, index: number): boolean {
+  const star = galaxy.systems[index - 1]?.star;
+  return star !== undefined && RARE_OBJECTS.some((r) => r.star === star);
+}
+
+/**
+ * Premie z danych naukowych zbadanych rzadkich obiektów (dla całego imperium): efekty każdego
+ * rodzaju razy liczba zbadanych obiektów (najwyżej `maxCount`).
+ */
+export function rareBonuses(galaxy: Galaxy, known: Discoveries): { def: RareObjectDef; count: number; effects: ResearchEffect[] }[] {
+  return RARE_OBJECTS.map((def) => {
+    const all = galaxy.systems.filter((s) => s.star === def.star && discoveryOf(known, s.index) >= DISCOVERY.explored).length;
+    const count = Math.min(all, def.maxCount);
+    const effects = def.effects.flatMap((e) => Array.from({ length: count }, () => e));
+    return { def, count, effects };
+  });
 }

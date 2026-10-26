@@ -217,7 +217,16 @@ export const RESEARCH_NODES: readonly ResearchNodeDef[] = [
   ...lane('exploration', -1, 4, 'astro-1', [
     ['anom-1', 'Analiza sygnałów', 'Anomalie: wyprawa wychwytuje sygnały dalej wokół celu.', [{ kind: 'expedition', stat: 'scan', add: 10 }]],
   ]),
-  { ...soon('exploration', 5, 'astro-x', 'Astrofizyka ekstremalna', 'Pulsary i czarne dziury: rozpoznawanie i wyprawy w ich pobliże.', ['probe-3', 'anom-1']), lane: -1, soon: true },
+  {
+    id: 'astro-x',
+    arm: 'exploration',
+    ring: 5,
+    lane: -1,
+    name: 'Astrofizyka ekstremalna',
+    description: 'Pulsary i czarne dziury: rozpoznawanie i badanie — dane z nich dają premie całemu imperium.',
+    requires: ['probe-3', 'anom-1'],
+    effects: [{ kind: 'unlock', feature: 'extreme-astrophysics' }],
+  },
   master('exploration', 'explore-master', 'Pionier', 'Gwiazda mistrzowska Eksploracji.', ['probe-3', 'astro-2']),
   soon('station', 1, 'station-1', 'Moduł orbitalny', 'Pierwszy moduł stacji kosmicznej.'),
   soon('station', 2, 'station-2', 'Dok handlowy', 'Stacja przyjmuje statki kupców.', ['station-1']),

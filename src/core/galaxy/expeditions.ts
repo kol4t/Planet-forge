@@ -5,12 +5,14 @@ import { findResearch } from '../../data/research.ts';
 import { EXPEDITION_RULES } from '../../data/galaxy.ts';
 import { createRng } from '../random/rng.ts';
 import type { Expedition, ExpeditionRules, ExpeditionStat, Resources } from '../types.ts';
-import { DISCOVERY, discoveryOf, raiseDiscovery, type Discoveries, type DiscoveryLevel } from './discovery.ts';
+import { DISCOVERY, discoveryOf, isRare, raiseDiscovery, type Discoveries, type DiscoveryLevel } from './discovery.ts';
 import type { Galaxy } from './galaxy.ts';
 
 /** Możliwości ekspedycji z badań (najlepsza planeta imperium dla każdego parametru). */
 export interface ExpeditionStats {
   unlocked: boolean;
+  /** „Astrofizyka ekstremalna”: odczyt rzadkich obiektów ponad „wykryty”. */
+  extreme: boolean;
   /** Dodatki do zasięgu (jedn.), jakości (poziomy), szansy (punkty procentowe), szybkości (%), sygnałów (jedn.). */
   range: number;
   quality: number;
@@ -19,23 +21,25 @@ export interface ExpeditionStats {
   scan: number;
 }
 
-const ZERO: Omit<ExpeditionStats, 'unlocked'> = { range: 0, quality: 0, success: 0, speed: 0, scan: 0 };
+const ZERO: Omit<ExpeditionStats, 'unlocked' | 'extreme'> = { range: 0, quality: 0, success: 0, speed: 0, scan: 0 };
 
 /** Możliwości z badań wszystkich planet: odblokowanie — wystarczy jedna, parametry — najlepsza. */
 export function expeditionStats(researchLists: readonly (readonly string[])[]): ExpeditionStats {
   const best = { ...ZERO };
   let unlocked = false;
+  let extreme = false;
   for (const done of researchLists) {
     const sum = { ...ZERO };
     for (const id of new Set(done)) {
       for (const e of findResearch(id)?.effects ?? []) {
         if (e.kind === 'unlock' && e.feature === 'expeditions') unlocked = true;
+        if (e.kind === 'unlock' && e.feature === 'extreme-astrophysics') extreme = true;
         if (e.kind === 'expedition') sum[e.stat] += e.add;
       }
     }
     for (const stat of Object.keys(best) as ExpeditionStat[]) best[stat] = Math.max(best[stat], sum[stat]);
   }
-  return { unlocked, ...best };
+  return { unlocked, extreme, ...best };
 }
 
 /** Odległość celu od najbliższego układu gracza (jednostki mapy). */
@@ -57,6 +61,7 @@ export interface ExpeditionPlan {
   chance: number;
   quality: number;
   scan: number;
+  extreme: boolean;
 }
 
 /** Plan wyprawy do układu: zasięg, czas, koszt, szansa i powód, jeśli się nie da. */
@@ -78,12 +83,15 @@ export function planExpedition(
     metal: Math.round(rules.cost.metal + distance * rules.costPerUnit.metal),
     crystal: Math.round(rules.cost.crystal + distance * rules.costPerUnit.crystal),
   };
-  const plan = { distance, range, seconds, cost, chance, quality: rules.baseQuality + stats.quality, scan: rules.scanRadius + stats.scan };
+  const plan = { distance, range, seconds, cost, chance, quality: rules.baseQuality + stats.quality, scan: rules.scanRadius + stats.scan, extreme: stats.extreme };
   const fail = (reason: string): ExpeditionPlan => ({ ok: false, reason, ...plan });
   if (!stats.unlocked) return fail('Najpierw zbadaj „Sondy zwiadowcze” (Badania → Eksploracja).');
   if (discoveryOf(known, target) >= DISCOVERY.explored) return fail('Ten układ jest już zbadany.');
   if (discoveryOf(known, target) === DISCOVERY.unknown) return fail('O tym miejscu nic nie wiadomo — najpierw musi pojawić się sygnał.');
   if (active.some((e) => e.target === target)) return fail('Ekspedycja już leci w to miejsce.');
+  if (isRare(galaxy, target) && !stats.extreme && discoveryOf(known, target) >= DISCOVERY.detected) {
+    return fail('Niezwykły obiekt — nie umiemy odczytać jego sygnału. Potrzebna „Astrofizyka ekstremalna” (Eksploracja).');
+  }
   if (active.length >= rules.maxActive) return fail(`Naraz najwyżej ${rules.maxActive} ekspedycje — poczekaj na powrót.`);
   if (distance > range) return fail(`Poza zasięgiem (${Math.round(distance)} z ${Math.round(range)} jedn.) — zasięg zwiększają badania sond.`);
   return { ok: true, reason: null, ...plan };
@@ -97,6 +105,8 @@ export interface ExpeditionOutcome {
   after: DiscoveryLevel;
   /** Nowe sygnały (i — przy wysokiej jakości — wykryte układy) wokół celu. */
   revealed: number[];
+  /** Rzadki obiekt, którego bez „Astrofizyki ekstremalnej” nie dało się odczytać ponad „wykryty”. */
+  unreadable: boolean;
 }
 
 /**
@@ -108,8 +118,11 @@ export function resolveExpedition(galaxy: Galaxy, known: Discoveries, expedition
   const rng = createRng(`ekspedycja|${expedition.target}|${expedition.departedAt}`);
   const before = discoveryOf(known, expedition.target);
   const success = rng.next() < expedition.chance;
-  if (!success) return { success, known, before, after: before, revealed: [] };
-  const after = Math.min(DISCOVERY.explored, before + 1 + expedition.quality) as DiscoveryLevel;
+  if (!success) return { success, known, before, after: before, revealed: [], unreadable: false };
+  const full = Math.min(DISCOVERY.explored, before + 1 + expedition.quality) as DiscoveryLevel;
+  // Rzadki obiekt bez „Astrofizyki ekstremalnej”: tylko położenie i nazwa (niezwykły sygnał).
+  const unreadable = isRare(galaxy, expedition.target) && !expedition.extreme;
+  const after = unreadable ? (Math.max(before, Math.min(full, DISCOVERY.detected)) as DiscoveryLevel) : full;
   let next = raiseDiscovery(known, expedition.target, after);
   const t = galaxy.systems[expedition.target - 1]!;
   const revealed: number[] = [];
@@ -117,10 +130,18 @@ export function resolveExpedition(galaxy: Galaxy, known: Discoveries, expedition
   for (const s of galaxy.systems) {
     if (s.index === expedition.target || Math.hypot(s.x - t.x, s.y - t.y) > expedition.scan) continue;
     if (discoveryOf(next, s.index) >= around) continue;
+    // Rzadkie obiekty wokół celu — tylko jako sygnał (szczegóły wymagają osobnej wyprawy).
+    if (isRare(galaxy, s.index) && around > DISCOVERY.signal && !expedition.extreme) {
+      if (discoveryOf(next, s.index) < DISCOVERY.signal) {
+        next = raiseDiscovery(next, s.index, DISCOVERY.signal);
+        revealed.push(s.index);
+      }
+      continue;
+    }
     next = raiseDiscovery(next, s.index, around);
     revealed.push(s.index);
   }
-  return { success, known: next, before, after, revealed };
+  return { success, known: next, before, after, revealed, unreadable };
 }
 
 /** Odczyt z zapisu (błędne wpisy pomijane). */
@@ -144,7 +165,19 @@ export function parseExpeditions(raw: unknown): Expedition[] {
     e.quality >= 0 &&
     num(e.scan) &&
     e.scan >= 0
-      ? [{ target: e.target, from: e.from, departedAt: e.departedAt, returnsAt: e.returnsAt, cost: { metal: e.cost.metal, crystal: e.cost.crystal }, chance: e.chance, quality: e.quality, scan: e.scan }]
+      ? [
+          {
+            target: e.target,
+            from: e.from,
+            departedAt: e.departedAt,
+            returnsAt: e.returnsAt,
+            cost: { metal: e.cost.metal, crystal: e.cost.crystal },
+            chance: e.chance,
+            quality: e.quality,
+            scan: e.scan,
+            ...(e.extreme === true ? { extreme: true } : {}),
+          },
+        ]
       : [],
   );
 }

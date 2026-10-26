@@ -326,7 +326,21 @@ export type ResearchEffect =
   | { kind: 'unlock'; feature: UnlockFeature };
 
 /** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
-export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions';
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics';
+
+/**
+ * Rzadki obiekt astronomiczny (v0.34.4): rodzaj gwiazdy, którego bez badania „Astrofizyka ekstremalna”
+ * nie da się odczytać ponad „wykryty”. Zbadany daje imperium trwałą premię z danych naukowych.
+ */
+export interface RareObjectDef {
+  star: StarKind;
+  label: string;
+  description: string;
+  /** Premia za każdy zbadany obiekt tego rodzaju (sumuje się do `maxCount` obiektów). */
+  effects: readonly ResearchEffect[];
+  maxCount: number;
+  status: DataStatus;
+}
 
 /** Parametry ekspedycji rozwijane badaniami Eksploracji. */
 export type ExpeditionStat = 'range' | 'quality' | 'success' | 'speed' | 'scan';
@@ -494,6 +508,8 @@ export interface Expedition {
   quality: number;
   /** Promień łapania sygnałów wokół celu. */
   scan: number;
+  /** Czy przy wysłaniu znano „Astrofizykę ekstremalną” (odczyt rzadkich obiektów; brak = nie). */
+  extreme?: boolean;
 }
 
 /** Adres w galaktyce: galaktyka : układ : orbita (np. 1:42:7). */
