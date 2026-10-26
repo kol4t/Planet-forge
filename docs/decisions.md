@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.31: wygląd ekranu „Badania” (krok 1 odnowy ekranów)
+
+Prośba właściciela: dopracować wizualnie Imperium, Badania i Mapę oraz zaproponować ścieżki badań. Propozycja ze szkicami i drzewem badań: https://claude.ai/artifact/Ku54wCdmoJ3qFpe5UEAwi8 (kolejność: v0.31 Badania, v0.32 Imperium, v0.33 Mapa; nowe badania — po decyzji właściciela, pytania w propozycji jeszcze otwarte). Właściciel: „przejdźmy dalej” → v0.31.
+- **Ikona w każdej gwieździe** z rodzaju efektu (`nodeIcon` w `game/ui/galaxy.ts`: metal, kryształy, wydobycie, energia, budowa, magazyn, antymateria, planeta, statek, SI, stacja, flota), rysowana w Phaserze.
+- **Stan kształtem:** zablokowane (`needs-research`, `needs-lab`) — przerywany obrys; reszta jak dotąd (zbadane pełne, dostępne pulsują, trwające z łukiem postępu).
+- **Szlak do celu:** zaznaczona gwiazda podświetla jasną linią wszystkie niezbadane badania przed nią (`researchPath`), panel pisze „Do celu brakuje N badań”.
+- **Panel w spoczynku:** Laboratorium, trwające badanie, postęp ramion (`armProgress`, też przy nazwach ramion na mapie: „PRODUKTYWNOŚĆ 3/21”), do 3 najtańszych badań „dostępne teraz” (dotknięcie zaznacza) — każda część tylko, gdy się mieści.
+- **Efekt w liczbach „przed → po”** na aktywnej planecie (`researchPreview`: wydobycie, energia, magazyn, czas budowy, praca podczas nieobecności), „Prowadzi do: …”. Poprawiony opis zasięgu: „ta planeta” (od v0.15 efekty działają na planecie, która zbadała); „całe imperium” tylko dla odblokowań i miejsc.
+
 ## 2026-10-26 — v0.30.1: lepiej widoczna siatka pól
 
 Uwaga właściciela: na lodzie i na większości terenów granic siatki nie widać.

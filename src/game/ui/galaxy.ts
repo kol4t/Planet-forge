@@ -50,3 +50,38 @@ export function hitTest(positions: ReadonlyMap<string, Point>, x: number, y: num
   }
   return best;
 }
+
+/** Ikona gwiazdy badań — rodzaj efektu (rysowana w grze, bez plików graficznych). */
+export type NodeIcon = 'metal' | 'crystal' | 'mining' | 'energy' | 'build' | 'storage' | 'antimatter' | 'planet' | 'ship' | 'ai' | 'station' | 'fleet' | 'none';
+
+export function nodeIcon(node: ResearchNodeDef): NodeIcon {
+  const outputs = node.effects.filter((e) => e.kind === 'output').map((e) => (e.kind === 'output' ? e.resource : ''));
+  const first = node.effects[0];
+  if (outputs.includes('metal') && outputs.includes('crystal')) return node.arm === 'planetology' ? 'planet' : 'mining';
+  if (outputs.includes('metal')) return 'metal';
+  if (outputs.includes('crystal')) return 'crystal';
+  if (!first) return node.arm === 'station' ? 'station' : node.arm === 'fleet' ? 'fleet' : node.arm === 'exploration' ? 'ship' : 'none';
+  switch (first.kind) {
+    case 'output':
+      return first.resource === 'energy' ? 'energy' : 'antimatter';
+    case 'energyUse':
+      return 'energy';
+    case 'buildTime':
+    case 'buildCost':
+      return 'build';
+    case 'storage':
+    case 'offlineHours':
+      return 'storage';
+    case 'antimatterPassive':
+    case 'finishPrice':
+    case 'freeFinish':
+      return 'antimatter';
+    case 'environment':
+    case 'planetSlots':
+      return 'planet';
+    case 'unlock':
+      return first.feature === 'colony-ship' ? 'ship' : 'ai';
+    default:
+      return 'none';
+  }
+}

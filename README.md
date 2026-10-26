@@ -294,4 +294,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 
 163. Ustawienia → Widok → włącz siatkę pól. Granice pól mają ciemną obwódkę i są widoczne także na lodzie (bieguny), jasnym lądzie i po nocnej stronie — w 2D i 3D.
 
+### Od 0.31: ekran „Badania”
+
+164. W każdej gwieździe jest ikona rodzaju badania; zablokowane mają przerywany obrys.
+165. Panel po prawej (albo na dole) bez zaznaczenia: postęp każdego ramienia i do 3 badań „dostępne teraz” — dotknięcie przenosi do badania.
+166. Dotknij odległej gwiazdy: jasna linia pokazuje, co trzeba zbadać po drodze; panel pisze, ile badań brakuje, i pokazuje efekt w liczbach (np. „Metal: 18/min → 20/min”).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

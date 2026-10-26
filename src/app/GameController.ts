@@ -31,12 +31,14 @@ import {
   completeResearch,
   EMPTY_RESEARCH,
   researchCost,
+  researchPreview,
   researchProgress,
   researchSeconds,
   researchStatus,
   ringLimit,
   startResearch,
   type ResearchCost,
+  type ResearchPreview,
   type ResearchStatus,
 } from '../core/research/research.ts';
 import {
@@ -805,6 +807,12 @@ export class GameController {
   researchSeconds(id: string): number {
     const node = findResearch(id);
     return node ? researchSeconds(node, this.labLevel, this.balance) : 0;
+  }
+
+  /** Efekt badania w liczbach „przed → po” na aktywnej planecie. */
+  researchPreview(id: string): ResearchPreview[] {
+    const node = findResearch(id);
+    return node ? researchPreview(node, this.economy, this.planet, this.research.done) : [];
   }
 
   researchProgress(now = Date.now()): number {

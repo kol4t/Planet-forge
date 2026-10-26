@@ -2,8 +2,8 @@
 // Badania są wspólne dla imperium; koszt płaci aktywna planeta, antymateria idzie ze wspólnego portfela.
 import { BALANCE } from '../../data/balance.ts';
 import { findArm, findResearch, RESEARCH_NODES, RESEARCH_RULES } from '../../data/research.ts';
-import { fitsInStorage, storageCapacity } from '../economy/economy.ts';
-import type { Balance, EconomyState, ResearchNodeDef, ResearchProject, ResearchRules, ResearchState, Resources } from '../types.ts';
+import { fitsInStorage, productionRates, storageCapacity } from '../economy/economy.ts';
+import type { Balance, EconomyState, Planet, ResearchNodeDef, ResearchProject, ResearchRules, ResearchState, Resources } from '../types.ts';
 
 export const EMPTY_RESEARCH: ResearchState = { done: [], current: null };
 
@@ -309,4 +309,67 @@ export function parseResearch(raw: any): ResearchState {
 /** Liczba badań możliwych w tym etapie (aktywne ramiona, bez gwiazd mistrzowskich). */
 export function researchableCount(): number {
   return RESEARCH_NODES.filter((n) => !n.master && !n.soon && findArm(n.arm)?.active).length;
+}
+
+/** Badania ramienia do policzenia postępu (bez „wkrótce” i gwiazd mistrzowskich). */
+export function armProgress(arm: string, done: readonly string[]): { done: number; total: number } {
+  const nodes = RESEARCH_NODES.filter((n) => n.arm === arm && !n.master && !n.soon && findArm(n.arm)?.active);
+  return { done: nodes.filter((n) => done.includes(n.id)).length, total: nodes.length };
+}
+
+/**
+ * Szlak do badania: ono samo i wszystkie jeszcze niezbadane badania, które trzeba zrobić wcześniej
+ * (po wymaganiach, aż do jądra). Pusty, gdy badanie jest już zbadane.
+ */
+export function researchPath(id: string, done: readonly string[]): string[] {
+  const path: string[] = [];
+  const visit = (nodeId: string) => {
+    if (done.includes(nodeId) || path.includes(nodeId)) return;
+    const node = findResearch(nodeId);
+    if (!node) return;
+    path.push(nodeId);
+    for (const req of node.requires) visit(req);
+  };
+  visit(id);
+  return path;
+}
+
+/** Badania, które wymagają danego (następne na ścieżce). */
+export function researchLeadsTo(id: string): ResearchNodeDef[] {
+  return RESEARCH_NODES.filter((n) => n.requires.includes(id));
+}
+
+/** Liczbowy efekt badania na tej planecie: wartość teraz i po zbadaniu. */
+export interface ResearchPreview {
+  label: string;
+  before: number;
+  after: number;
+  unit: string;
+}
+
+/**
+ * Efekt badania w liczbach „przed → po” dla aktywnej planety (produkcja, energia, magazyn, czas budowy,
+ * praca podczas nieobecności). Efekty bez prostej liczby (np. odblokowania) — brak wiersza.
+ */
+export function researchPreview(node: ResearchNodeDef, economy: EconomyState, planet: Planet, done: readonly string[], base: Balance = BALANCE): ResearchPreview[] {
+  const before = applyResearch(base, done);
+  const after = applyResearch(base, [...done, node.id]);
+  const rb = productionRates(economy, planet, before);
+  const ra = productionRates(economy, planet, after);
+  const lines: ResearchPreview[] = [];
+  const add = (label: string, b: number, a: number, unit: string) => {
+    if (Math.abs(a - b) > 1e-9 && !lines.some((l) => l.label === label)) lines.push({ label, before: b, after: a, unit });
+  };
+  for (const e of node.effects) {
+    if (e.kind === 'output' && e.resource === 'metal') add('Metal', rb.metal, ra.metal, '/min');
+    else if (e.kind === 'output' && e.resource === 'crystal') add('Kryształy', rb.crystal, ra.crystal, '/min');
+    else if (e.kind === 'output' && e.resource === 'energy') add('Energia', rb.energyProduced, ra.energyProduced, '');
+    else if (e.kind === 'output' && e.resource === 'antimatter') add('Antymateria', rb.antimatterPerHour, ra.antimatterPerHour, '/h');
+    else if (e.kind === 'antimatterPassive') add('Antymateria', rb.antimatterPerHour, ra.antimatterPerHour, '/h');
+    else if (e.kind === 'energyUse') add('Zużycie energii', rb.energyUsed, ra.energyUsed, '');
+    else if (e.kind === 'storage') add('Magazyn', storageCapacity(economy, before), storageCapacity(economy, after), '');
+    else if (e.kind === 'buildTime') add('Czas budowy na poziom', before.buildSecondsPerLevel, after.buildSecondsPerLevel, ' s');
+    else if (e.kind === 'offlineHours') add('Praca podczas nieobecności', before.maxOfflineSeconds / 3600, after.maxOfflineSeconds / 3600, ' h');
+  }
+  return lines;
 }

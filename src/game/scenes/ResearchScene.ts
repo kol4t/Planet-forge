@@ -1,13 +1,13 @@
 import Phaser from 'phaser';
 import { antimatterAmount } from '../../core/economy/economy.ts';
 import { createRng } from '../../core/random/rng.ts';
-import { describeEffects, labLevelFor, researchableCount, type ResearchStatus } from '../../core/research/research.ts';
+import { armProgress, describeEffects, labLevelFor, researchableCount, researchLeadsTo, researchPath, type ResearchStatus } from '../../core/research/research.ts';
 import type { ResearchNodeDef } from '../../core/types.ts';
 import { findArm, findResearch, RESEARCH_ARMS, RESEARCH_NODES, RESEARCH_RULES } from '../../data/research.ts';
 import type { ButtonStyle } from '../ui/Button.ts';
-import { armPoint, GALAXY_RADIUS, galaxyLayout, hitTest, ringRadius, type Point } from '../ui/galaxy.ts';
+import { armPoint, GALAXY_RADIUS, galaxyLayout, hitTest, nodeIcon, ringRadius, type NodeIcon, type Point } from '../ui/galaxy.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
-import { COLORS, FONTS, formatDuration, formatInt } from '../ui/theme.ts';
+import { COLORS, FONTS, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
 const CANCEL_CONFIRM_MS = 3000;
@@ -20,7 +20,7 @@ const POSITIONS = galaxyLayout(RESEARCH_ARMS, RESEARCH_NODES);
 export class ResearchScene extends OverlayScene {
   private world: Phaser.GameObjects.Container | undefined;
   private nodes: Phaser.GameObjects.Graphics | undefined;
-  private labels: { text: Phaser.GameObjects.Text; at: Point; node: boolean }[] = [];
+  private labels: { text: Phaser.GameObjects.Text; at: Point; node: boolean; arm?: string }[] = [];
   private details: Phaser.GameObjects.Container | undefined;
   private detailsKey = '';
   private detailsLive: { countdown?: Phaser.GameObjects.Text; bar?: { g: Phaser.GameObjects.Graphics; rect: Rect } } = {};
@@ -119,7 +119,7 @@ export class ResearchScene extends OverlayScene {
         })
         .setOrigin(0.5)
         .setAlpha(arm.active ? 0.95 : 0.55);
-      this.labels.push({ text, at, node: false });
+      this.labels.push({ text, at, node: false, arm: arm.id });
     }
     for (const node of RESEARCH_NODES) {
       const p = POSITIONS.get(node.id)!;
@@ -172,6 +172,13 @@ export class ResearchScene extends OverlayScene {
     this.header?.setText(
       `${controller.planet.displayName} · Laboratorium poz. ${lab} · pierścień ${controller.researchRing} z 5 · zbadano ${done} z ${researchableCount()}`,
     );
+    // Nazwy ramion z postępem („PRODUKTYWNOŚĆ 5/21”).
+    for (const label of this.labels) {
+      const arm = label.arm ? findArm(label.arm) : undefined;
+      if (!arm?.active) continue;
+      const p = armProgress(arm.id, controller.research.done);
+      label.text.setText(`${arm.name.toUpperCase()} ${p.done}/${p.total}`);
+    }
     const key = this.detailsSignature();
     if (force || key !== this.detailsKey) {
       this.detailsKey = key;
@@ -192,19 +199,30 @@ export class ResearchScene extends OverlayScene {
     const line = Math.max(1, this.dpr);
     const controller = this.deps.controller;
     const now = Date.now();
+    // Szlak do zaznaczonego celu: ono i wszystkie niezbadane badania przed nim.
+    const path = new Set(this.selected ? researchPath(this.selected, controller.research.done) : []);
     // Połączenia (od wymaganego badania do następnego); pierścień 1 łączy się z jądrem.
     for (const node of RESEARCH_NODES) {
       const p = POSITIONS.get(node.id)!;
       const arm = findArm(node.arm)!;
       const status = this.statusOf(node);
       const froms = node.requires.length > 0 ? node.requires.map((id) => POSITIONS.get(id)!) : [{ x: 0, y: 0 }];
-      // Gwiazdy mistrzowskie ramion „wkrótce” stoją daleko od ostatniej gwiazdy — bez długich linii przez mapę.
       // Gwiazdy „wkrótce” daleko od poprzedniej (np. mistrzowskie) — bez długich linii przez mapę.
       if (status === 'soon' && node.requires.some((id) => (findResearch(id)?.ring ?? 0) < node.ring - 1)) continue;
       for (const from of froms) {
         const lit = status === 'done' || status === 'running' || status === 'available' || status === 'needs-lab';
         g.lineStyle(line * (lit ? 1.6 : 1), status === 'soon' ? COLORS.divider : arm.color, status === 'done' ? 0.75 : lit ? 0.45 : 0.22);
         g.lineBetween(from.x * U, from.y * U, p.x * U, p.y * U);
+      }
+    }
+    if (path.size > 1 || (path.size === 1 && this.selected && this.statusOf(findResearch(this.selected)!) !== 'available')) {
+      // Jasny szlak (złoto zlewałoby się z ramieniem Produktywności).
+      g.lineStyle(line * 2.6, 0xdfe7e1, 0.85);
+      for (const id of path) {
+        const node = findResearch(id)!;
+        const p = POSITIONS.get(id)!;
+        const froms = node.requires.length > 0 ? node.requires.map((r) => POSITIONS.get(r)!) : [{ x: 0, y: 0 }];
+        for (const from of froms) g.lineBetween(from.x * U, from.y * U, p.x * U, p.y * U);
       }
     }
     for (const node of RESEARCH_NODES) {
@@ -214,11 +232,16 @@ export class ResearchScene extends OverlayScene {
       const x = p.x * U;
       const y = p.y * U;
       const r = (node.master ? 0.3 : 0.2) * U;
+      // Kolor ikony: ciemna na pełnej gwieździe, w kolorze ramienia na pustej.
+      let icon: number = arm.color;
+      let iconAlpha = 1;
       if (node.master) {
         this.star(g, x, y, r * 1.25, status === 'soon' ? 0x5f7873 : arm.color, status === 'soon' ? 0.5 : 1);
+        iconAlpha = 0;
       } else if (status === 'done') {
         g.fillStyle(arm.color, 0.3).fillCircle(x, y, r * 1.5);
         g.fillStyle(arm.color, 1).fillCircle(x, y, r);
+        icon = COLORS.panel;
       } else if (status === 'running') {
         g.fillStyle(COLORS.panel, 1).fillCircle(x, y, r);
         g.lineStyle(line * 1.2, arm.color, 0.4).strokeCircle(x, y, r);
@@ -227,21 +250,95 @@ export class ResearchScene extends OverlayScene {
         g.beginPath();
         g.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.03, progress), false);
         g.strokePath();
-        g.fillStyle(arm.color, 0.9).fillCircle(x, y, r * 0.35);
       } else if (status === 'available') {
         g.fillStyle(arm.color, 0.18 + 0.1 * Math.sin(now / 400)).fillCircle(x, y, r * 1.55);
         g.fillStyle(COLORS.panel, 1).fillCircle(x, y, r);
         g.lineStyle(line * 1.8, arm.color, 1).strokeCircle(x, y, r);
       } else if (status === 'needs-lab') {
         g.fillStyle(COLORS.panel, 1).fillCircle(x, y, r);
-        g.lineStyle(line * 1.4, arm.color, 0.55).strokeCircle(x, y, r);
+        this.dashedCircle(g, x, y, r, line * 1.4, arm.color, 0.7);
+        iconAlpha = 0.7;
+      } else if (status === 'needs-research') {
+        g.fillStyle(COLORS.panel, 1).fillCircle(x, y, r * 0.85);
+        this.dashedCircle(g, x, y, r * 0.85, line, arm.color, path.has(node.id) ? 0.9 : 0.45);
+        iconAlpha = path.has(node.id) ? 0.8 : 0.4;
       } else {
         g.fillStyle(COLORS.panel, 1).fillCircle(x, y, r * 0.8);
-        g.lineStyle(line, status === 'soon' ? COLORS.panelBorder : arm.color, status === 'soon' ? 0.8 : 0.3).strokeCircle(x, y, r * 0.8);
+        g.lineStyle(line, COLORS.panelBorder, 0.8).strokeCircle(x, y, r * 0.8);
+        icon = 0x5f7873;
+        iconAlpha = 0.7;
       }
+      if (iconAlpha > 0) this.drawIcon(g, nodeIcon(node), x, y, r * 0.5, icon, iconAlpha, line);
       if (node.id === this.selected) {
         g.lineStyle(line * 1.4, 0xffffff, 0.9).strokeCircle(x, y, r * 1.75);
       }
+    }
+  }
+
+  /** Okrąg z kresek (badanie zablokowane). */
+  private dashedCircle(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, width: number, color: number, alpha: number): void {
+    const parts = 10;
+    g.lineStyle(width, color, alpha);
+    for (let i = 0; i < parts; i++) {
+      const a = (i / parts) * Math.PI * 2;
+      g.beginPath();
+      g.arc(x, y, r, a, a + (Math.PI * 2) / parts / 1.8, false);
+      g.strokePath();
+    }
+  }
+
+  /** Mała ikona rodzaju badania w środku gwiazdy (`s` — połowa szerokości ikony). */
+  private drawIcon(g: Phaser.GameObjects.Graphics, kind: NodeIcon, x: number, y: number, s: number, color: number, alpha: number, line: number): void {
+    const V = Phaser.Math.Vector2;
+    const poly = (points: [number, number][]) => g.fillPoints(points.map(([px, py]) => new V(x + px * s, y + py * s)), true);
+    g.fillStyle(color, alpha);
+    g.lineStyle(Math.max(1, line * 1.2), color, alpha);
+    switch (kind) {
+      case 'metal':
+        poly([[0, -1], [0.87, -0.5], [0.87, 0.5], [0, 1], [-0.87, 0.5], [-0.87, -0.5]]);
+        break;
+      case 'crystal':
+        poly([[0, -1.05], [0.62, 0], [0, 1.05], [-0.62, 0]]);
+        break;
+      case 'mining':
+        // Wiertło: grot w dół.
+        poly([[-0.8, -0.8], [0.8, -0.8], [0, 1]]);
+        break;
+      case 'energy':
+        poly([[0.15, -1], [-0.6, 0.15], [-0.05, 0.15], [-0.25, 1], [0.6, -0.2], [0.05, -0.2]]);
+        break;
+      case 'build':
+        // Młotek: obuch i trzonek.
+        g.fillRect(x - s * 0.8, y - s * 0.85, s * 1.6, s * 0.55);
+        g.fillRect(x - s * 0.18, y - s * 0.3, s * 0.36, s * 1.25);
+        break;
+      case 'storage':
+        g.strokeRect(x - s * 0.8, y - s * 0.6, s * 1.6, s * 1.3);
+        g.lineBetween(x - s * 0.8, y - s * 0.15, x + s * 0.8, y - s * 0.15);
+        break;
+      case 'antimatter':
+        g.strokeCircle(x, y, s * 0.85);
+        g.fillCircle(x, y, s * 0.32);
+        break;
+      case 'planet':
+        g.strokeCircle(x, y, s * 0.7);
+        g.lineBetween(x - s * 1.05, y + s * 0.3, x + s * 1.05, y - s * 0.3);
+        break;
+      case 'ship':
+        poly([[0, -1], [0.7, 0.85], [0, 0.45], [-0.7, 0.85]]);
+        break;
+      case 'ai':
+        for (const dx of [-0.6, 0, 0.6]) g.fillCircle(x + dx * s, y, s * 0.26);
+        break;
+      case 'station':
+        g.strokeRect(x - s * 0.55, y - s * 0.55, s * 1.1, s * 1.1);
+        g.lineBetween(x - s, y, x + s, y);
+        break;
+      case 'fleet':
+        poly([[-0.8, -0.7], [0.9, 0], [-0.8, 0.7], [-0.4, 0]]);
+        break;
+      default:
+        break;
     }
   }
 
@@ -303,25 +400,58 @@ export class ResearchScene extends OverlayScene {
     const node = this.selected ? findResearch(this.selected) : undefined;
 
     if (!node) {
-      line('Galaktyka badań', 18, COLORS.gold, { fontFamily: FONTS.serif });
-      line(
-        'Dotknij gwiazdy, aby zobaczyć badanie. Przesuń palcem, by przesunąć mapę; szczypnij dwoma palcami, by przybliżyć.',
-        11.5,
-        COLORS.muted,
-      );
+      // Panel w spoczynku: Laboratorium, trwające badanie, postęp ramion i badania dostępne teraz
+      // (każda część tylko wtedy, gdy się mieści — telefon ma niski panel).
+      const bottom = (current ? buttonY : rect.y + rect.h - pad) - this.s(8);
+      const fits = (h: number) => y + h <= bottom;
+      line('Galaktyka badań', 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
       line(
         controller.labLevel === 0
           ? 'Zbuduj Laboratorium (panel Produkcja), aby zacząć badania.'
-          : `Laboratorium poz. ${controller.labLevel} sięga do pierścienia ${controller.researchRing}. Wyższe sięga dalej od jądra i bada szybciej.`,
+          : `Laboratorium poz. ${controller.labLevel} sięga do pierścienia ${controller.researchRing}.`,
         11.5,
-        controller.labLevel === 0 ? COLORS.danger : COLORS.text,
+        controller.labLevel === 0 ? COLORS.danger : COLORS.muted,
+        {},
+        8,
       );
       if (current) {
         const running = findResearch(current.id);
         this.detailsLive.countdown = line(`Trwa: ${running?.name ?? ''}`, 12, COLORS.gold, { fontStyle: '600' }, 4);
         this.detailsLive.bar = { g: add(this.add.graphics()), rect: { x, y, w, h: this.s(4) } };
+        y += this.s(14);
         add(this.button(x, buttonY, w, 'Pokaż trwające badanie', 'secondary', () => this.select(current.id)));
       }
+      const arms = RESEARCH_ARMS.filter((a) => a.active);
+      if (fits(this.s(18) + arms.length * this.s(24))) {
+        line('RAMIONA', 9.5, COLORS.muted, { fontStyle: '600', letterSpacing: 1.5 }, 6);
+        const bars = add(this.add.graphics());
+        for (const arm of arms) {
+          const p = armProgress(arm.id, controller.research.done);
+          add(this.text(x, y, arm.name, 11, COLORS.text, {}, false));
+          add(this.text(x + w, y, `${p.done}/${p.total}`, 11, COLORS.muted, {}, false).setOrigin(1, 0));
+          const by = y + this.s(16);
+          bars.fillStyle(COLORS.divider, 1).fillRoundedRect(this.px(x), this.px(by), this.px(w), this.px(this.s(3)), this.px(1.5));
+          if (p.done > 0) {
+            bars.fillStyle(arm.color, 1).fillRoundedRect(this.px(x), this.px(by), this.px(Math.max(this.s(3), (w * p.done) / p.total)), this.px(this.s(3)), this.px(1.5));
+          }
+          y += this.s(24);
+        }
+        y += this.s(6);
+      }
+      const available = RESEARCH_NODES.filter((n) => this.statusOf(n) === 'available')
+        .map((n) => ({ n, cost: controller.researchCost(n.id)! }))
+        .sort((p, q) => p.cost.metal + p.cost.crystal - (q.cost.metal + q.cost.crystal))
+        .slice(0, 3);
+      const gap = this.s(8);
+      if (available.length > 0 && fits(this.s(18) + TOUCH)) {
+        line('DOSTĘPNE TERAZ', 9.5, COLORS.muted, { fontStyle: '600', letterSpacing: 1.5 }, 6);
+        for (const { n } of available) {
+          if (!fits(TOUCH)) break;
+          add(this.button(x, y, w, n.name, 'secondary', () => this.select(n.id)));
+          y += TOUCH + gap;
+        }
+      }
+      if (fits(this.s(32))) line('Dotknij gwiazdy, aby zobaczyć badanie. Szczypnij, by przybliżyć — pojawią się nazwy.', 10.5, COLORS.faint);
       this.details.add(items);
       return;
     }
@@ -345,7 +475,15 @@ export class ResearchScene extends OverlayScene {
         COLORS.text,
       );
     } else {
-      line(`Efekt (całe imperium): ${describeEffects(node)}`, 12, COLORS.teal, { fontStyle: '600' });
+      // Od v0.15 efekty działają na planecie, która zbadała; odblokowania i miejsca — w całym imperium.
+      const empireWide = node.effects.every((e) => e.kind === 'unlock' || e.kind === 'planetSlots');
+      line(`Efekt (${empireWide ? 'całe imperium' : 'ta planeta'}): ${describeEffects(node)}`, 12, COLORS.teal, { fontStyle: '600' }, 4);
+      if (status !== 'done') {
+        for (const p of controller.researchPreview(node.id)) {
+          line(`${p.label}: ${formatRate(p.before)}${p.unit} → ${formatRate(p.after)}${p.unit}`, 11.5, COLORS.text, {}, 2);
+        }
+        y += this.s(4);
+      }
       if (status !== 'done') {
         const cost = controller.researchCost(node.id)!;
         const parts = [`${formatInt(cost.metal)} metalu`, `${formatInt(cost.crystal)} kryształów`];
@@ -369,6 +507,12 @@ export class ResearchScene extends OverlayScene {
       } else if (status === 'needs-research') {
         const missing = node.requires.filter((id) => !controller.research.done.includes(id)).map((id) => findResearch(id)?.name ?? id);
         line(`Najpierw zbadaj: ${missing.join(', ')}.`, 11.5, COLORS.danger);
+        const steps = researchPath(node.id, controller.research.done).length - 1;
+        if (steps > missing.length) line(`Do celu brakuje ${steps} badań — jasny szlak na mapie.`, 11, COLORS.gold);
+      }
+      const next = researchLeadsTo(node.id).filter((n) => !n.master);
+      if (next.length > 0 && y < rect.y + rect.h - pad - TOUCH - this.s(30)) {
+        line(`Prowadzi do: ${next.map((n) => n.name).join(', ')}.`, 10.5, COLORS.faint);
       }
     }
 
