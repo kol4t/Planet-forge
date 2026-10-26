@@ -10,16 +10,19 @@ import {
   constructionProgress,
   buildingSettings,
   createEconomy,
+  enqueueBuilding,
   finishConstructionNow,
   finishCost,
   storageCapacity,
   productionRates,
+  removeQueued,
   secondsUntilAffordable,
   setBuildingSettings,
   upgradeBuilding,
   upgradeCost,
   type CancelResult,
   type FinishResult,
+  type QueueResult,
   type Rates,
   type UpgradeResult,
 } from '../core/economy/economy.ts';
@@ -146,12 +149,23 @@ export interface PlanetSummary {
 
 export type ActionMessage = { ok: boolean; message: string };
 
+/** Pozycja kolejki budowy: budynek i poziom, który osiągnie. */
+export interface QueuedBuild {
+  building: BuildingId;
+  name: string;
+  level: number;
+  /** Koszt pobierany przy starcie. */
+  cost: Resources;
+}
+
 /** Planeta w zestawieniu „Imperium” (stan policzony na teraz, także dla nieaktywnych). */
 export interface PlanetOverview extends PlanetSummary {
   stock: Resources;
   capacity: number;
   rates: Rates;
   construction: { name: string; level: number; secondsLeft: number; progress: number } | null;
+  /** Kolejka budowy (od v0.32.2). */
+  queue: QueuedBuild[];
   /** Pola lądu: zajęte / do zabudowy. */
   fields: { used: number; buildable: number };
   /** Złoża planety: ile zostało i ile było (od v0.32 — do kart „Imperium”). */
@@ -401,6 +415,34 @@ export class GameController {
     return result;
   }
 
+  /** Dopisanie ulepszenia do kolejki budowy (koszt pobierany dopiero przy starcie). */
+  enqueue(id: BuildingId, now = Date.now()): QueueResult {
+    this.tick(now);
+    const result = enqueueBuilding(this.economy, id, this.balance, { hasRoom: this.roomCheck(this.slots[this.active]!) });
+    this.economy = result.state;
+    if (result.ok) this.save();
+    this.emit();
+    return result;
+  }
+
+  /** Usunięcie pozycji z kolejki (nic nie było pobrane). */
+  dequeue(index: number, now = Date.now()): void {
+    this.tick(now);
+    this.economy = removeQueued(this.economy, index);
+    this.save();
+    this.emit();
+  }
+
+  /** Kolejka budowy aktywnej planety: budynek i poziom, który osiągnie. */
+  get queue(): QueuedBuild[] {
+    return queueOf(this.economy, this.balance);
+  }
+
+  /** Miejsca w kolejce budowy aktywnej planety (z badań SI). */
+  get queueCapacity(): number {
+    return this.balance.buildQueue;
+  }
+
   cancelUpgrade(now = Date.now()): CancelResult {
     this.tick(now);
     const result = cancelConstruction(this.economy, this.balance);
@@ -497,6 +539,7 @@ export class GameController {
               progress: constructionProgress(economy, now),
             }
           : null,
+        queue: queueOf(economy, balance),
         fields: fieldsOf(slot, summary.active),
         deposits: { left: depositsLeft(economy, slot.planet, balance), total: depositTotal(slot.planet, balance) },
         collectorPerHour: productionRates(economy, slot.planet, balance).antimatterPerHour - balance.antimatter.passivePerHour,
@@ -1232,10 +1275,24 @@ function migrateResearch(slots: Slot[], saved: readonly SlotSave[], empire: Rese
   });
 }
 
+/** Kolejka budowy z poziomami docelowymi (po trwającej budowie i wcześniejszych pozycjach). */
+function queueOf(economy: EconomyState, balance: Balance): QueuedBuild[] {
+  const levels = { ...economy.levels };
+  if (economy.construction) levels[economy.construction.building] = economy.construction.targetLevel;
+  return (economy.queue ?? []).map((id) => {
+    levels[id] = (levels[id] ?? 0) + 1;
+    const name = balance.buildings.find((b) => b.id === id)?.name ?? id;
+    return { building: id, name, level: levels[id], cost: upgradeCost(id, levels[id] - 1, balance) };
+  });
+}
+
 function finishedBuild(before: EconomyState, after: EconomyState): CompletedBuild | null {
   const c = before.construction;
-  if (!c || after.construction) return null;
-  return after.levels[c.building] === c.targetLevel ? { building: c.building, level: c.targetLevel } : null;
+  if (!c) return null;
+  // Ta sama budowa wciąż trwa (po ukończeniu może już trwać następna — z kolejki).
+  const a = after.construction;
+  if (a && a.building === c.building && a.startedAt === c.startedAt) return null;
+  return (after.levels[c.building] ?? 0) >= c.targetLevel ? { building: c.building, level: c.targetLevel } : null;
 }
 
 /** Planeta z galaktyki: typ z układu, seed = adres, nazwa od układu (np. „HD-412 c”). */

@@ -260,15 +260,118 @@ export function advance(state: EconomyState, planet: Planet, now: number, balanc
     }
   };
 
-  const c = state.construction;
-  if (!c || c.finishesAt > now) return produce(state, now);
-  const atFinish = produce(state, Math.max(state.lastUpdate, c.finishesAt));
-  const built: EconomyState = {
-    ...atFinish,
-    levels: { ...atFinish.levels, [c.building]: c.targetLevel },
-    construction: null,
+  // Budowy po kolei: ukończenie w swojej chwili, potem start następnej z kolejki — także offline.
+  // Gdy brakuje surowców, kolejka czeka do chwili, w której produkcja je uzbiera.
+  let s = state;
+  for (let step = 0; step < 64; step++) {
+    const c = s.construction;
+    if (c) {
+      if (c.finishesAt > now) break;
+      const atFinish = produce(s, Math.max(s.lastUpdate, c.finishesAt));
+      s = { ...atFinish, levels: { ...atFinish.levels, [c.building]: c.targetLevel }, construction: null };
+      continue;
+    }
+    if (!s.queue?.length) break;
+    const started = startQueued(s, s.lastUpdate, balance);
+    if (started.state !== s) {
+      s = started.state;
+      continue;
+    }
+    // Czeka na surowce: przewiń produkcję do chwili, gdy będzie stać (z sekundą zapasu na zaokrąglenia).
+    const cost = upgradeCost(s.queue[0], s.levels[s.queue[0]] ?? 0, balance);
+    const wait = secondsUntilAffordable(s, cost, productionRates(s, planet, balance), balance);
+    const at = s.lastUpdate + (Math.ceil(wait) + 1) * 1000;
+    if (!Number.isFinite(wait) || at >= now || budget <= 0) break;
+    s = produce(s, at);
+  }
+  return produce(s, now);
+}
+
+/**
+ * Start pierwszej budowy z kolejki, jeśli nic się nie buduje. Koszt pobierany dopiero teraz.
+ * Brak surowców = kolejka czeka (stan bez zmian); pozycja, której nie da się już zbudować
+ * (maks. poziom, za mały magazyn, brak pól), wypada z kolejki z komunikatem.
+ */
+export function startQueued(
+  state: EconomyState,
+  now: number,
+  balance: Balance = BALANCE,
+  limits: BuildLimits = {},
+): { state: EconomyState; message: string | null } {
+  if (state.construction || !state.queue?.length) return { state, message: null };
+  const [next, ...rest] = state.queue;
+  const { queue: _all, ...without } = state;
+  const tried = upgradeBuilding(without, next, now, balance, limits);
+  const queue = rest.length ? { queue: rest } : {};
+  if (tried.ok) return { state: { ...tried.state, ...queue }, message: `Z kolejki — ${tried.message}` };
+  if (tried.reason === 'not-enough-resources') return { state, message: null };
+  return { state: { ...without, ...queue }, message: `Usunięto z kolejki — ${tried.message}` };
+}
+
+/** Poziomy budynków po ukończeniu trwającej budowy i całej kolejki. */
+export function plannedLevels(state: EconomyState): BuildingLevels {
+  const levels = { ...state.levels };
+  if (state.construction) levels[state.construction.building] = state.construction.targetLevel;
+  for (const id of state.queue ?? []) levels[id] = (levels[id] ?? 0) + 1;
+  return levels;
+}
+
+export type QueueFailure = 'unknown-building' | 'queue-full' | 'max-level' | 'storage-too-small' | 'no-fields';
+export type QueueResult = ActionResult<QueueFailure>;
+
+/**
+ * Dopisanie budynku do kolejki (gdy coś się już buduje). Nic nie pobiera — koszt przy starcie.
+ * Poziom, pola i magazyn sprawdzane względem stanu po wszystkich wcześniejszych budowach.
+ */
+export function enqueueBuilding(
+  state: EconomyState,
+  id: BuildingId,
+  balance: Balance = BALANCE,
+  limits: BuildLimits = {},
+): QueueResult {
+  const def = getBuilding(id, balance);
+  if (!def) return { ok: false, state, reason: 'unknown-building', message: 'Nieznany budynek.' };
+  const queue = state.queue ?? [];
+  if (queue.length >= balance.buildQueue) {
+    return {
+      ok: false,
+      state,
+      reason: 'queue-full',
+      message: `Kolejka pełna (${queue.length}/${balance.buildQueue}). Kolejne miejsca dają badania SI.`,
+    };
+  }
+  const levels = plannedLevels(state);
+  const level = levels[id] ?? 0;
+  if (level >= balance.maxLevel) {
+    return { ok: false, state, reason: 'max-level', message: `${def.name}: osiągnięto maksymalny poziom.` };
+  }
+  if (limits.hasRoom && !limits.hasRoom(id, levels)) {
+    return { ok: false, state, reason: 'no-fields', message: `${def.name}: brak wolnego pola na kolejny poziom.` };
+  }
+  const cost = upgradeCost(id, level, balance);
+  const cap = capacityAtLevel(levels.storage ?? 1, balance);
+  if (cost.metal > cap || cost.crystal > cap) {
+    return {
+      ok: false,
+      state,
+      reason: 'storage-too-small',
+      message: `Za mały magazyn (${cap}). Najpierw rozbuduj Magazyn.`,
+    };
+  }
+  return {
+    ok: true,
+    state: { ...state, queue: [...queue, id] },
+    message: `${def.name} (poz. ${level + 1}) w kolejce — koszt pobierzemy przy starcie budowy.`,
   };
-  return produce(built, now);
+}
+
+/** Usunięcie pozycji z kolejki (nic nie było pobrane, więc nic nie wraca). */
+export function removeQueued(state: EconomyState, index: number): EconomyState {
+  const queue = state.queue ?? [];
+  if (index < 0 || index >= queue.length) return state;
+  const rest = queue.filter((_, i) => i !== index);
+  const { queue: _drop, ...without } = state;
+  return rest.length ? { ...without, queue: rest } : without;
 }
 
 const canAfford = (state: EconomyState, cost: Resources) =>

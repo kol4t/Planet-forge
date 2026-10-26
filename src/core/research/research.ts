@@ -192,7 +192,7 @@ export function applyResearch(base: Balance, done: readonly string[]): Balance {
       else if (e.kind === 'offlineHours') add(e.kind, e.hours);
       else if (e.kind === 'antimatterPassive') add(e.kind, e.perHour);
       else if (e.kind === 'freeFinish') add(e.kind, e.levels);
-      else if (e.kind === 'planetSlots') add(e.kind, e.add);
+      else if (e.kind === 'planetSlots' || e.kind === 'buildQueue') add(e.kind, e.add);
       else if (e.kind === 'unlock') continue;
       else add(e.kind, e.percent);
     }
@@ -207,6 +207,7 @@ export function applyResearch(base: Balance, done: readonly string[]): Balance {
     freeFinishMaxLevel: base.freeFinishMaxLevel + plus('freeFinish'),
     storage: { ...base.storage, base: base.storage.base * mult('storage') },
     planetSlots: { ...base.planetSlots, base: Math.min(base.planetSlots.max, base.planetSlots.base + plus('planetSlots')) },
+    buildQueue: base.buildQueue + plus('buildQueue'),
     antimatter: {
       ...base.antimatter,
       passivePerHour: base.antimatter.passivePerHour + plus('antimatterPassive'),
@@ -258,6 +259,8 @@ export function describeEffects(node: ResearchNodeDef): string {
         return `kary środowiska ${pct(e.percent)}`;
       case 'planetSlots':
         return `+${e.add} miejsce na planetę`;
+      case 'buildQueue':
+        return `+${e.add} miejsce w kolejce budowy`;
       case 'unlock':
         return {
           'colony-ship': 'statek kolonizacyjny — kolonizacja innych układów',
@@ -370,6 +373,7 @@ export function researchPreview(node: ResearchNodeDef, economy: EconomyState, pl
     else if (e.kind === 'energyUse') add('Zużycie energii', rb.energyUsed, ra.energyUsed, '');
     else if (e.kind === 'storage') add('Magazyn', storageCapacity(economy, before), storageCapacity(economy, after), '');
     else if (e.kind === 'buildTime') add('Czas budowy na poziom', before.buildSecondsPerLevel, after.buildSecondsPerLevel, ' s');
+    else if (e.kind === 'buildQueue') add('Kolejka budowy', before.buildQueue, after.buildQueue, '');
     else if (e.kind === 'offlineHours') add('Praca podczas nieobecności', before.maxOfflineSeconds / 3600, after.maxOfflineSeconds / 3600, ' h');
   }
   return lines;

@@ -39,7 +39,7 @@ export function simulateAwayAi(input: AwayAiInput, until: number): AwayAiResult 
   const started: AwayAiResult['started'] = [];
   let economy = input.economy;
   for (let guard = 0; economy.lastUpdate < end && guard < 1000; guard++) {
-    if (!economy.construction) {
+    if (!economy.construction && !economy.queue?.length) {
       const pick = suggest({ economy, planet, balance, research, labLevel: economy.levels.laboratory ?? 0, hasRoom: input.hasRoom }).find(
         (s) => s.action.kind === 'build' && levels[s.rule] === 'auto',
       );

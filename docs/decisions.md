@@ -2,6 +2,16 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.32.2: kolejka budowy
+
+Właściciel: kolejka z 1 miejscem na start, rozbudowa badaniami SI; koszt pobierany dopiero przy starcie budowy.
+- `EconomyState.queue?: BuildingId[]` — pozycja to budynek, poziom wynika z kolejności (`plannedLevels`). Zapis opcjonalny, nieznane budynki pomijane, maks. 10 z zapisu; stare zapisy bez zmian.
+- Pojemność `Balance.buildQueue` = 1; badania „Plan budowy” (ring 2) i „Harmonogram” (ring 3) w ramieniu SI: efekt `{ kind: 'buildQueue', add: 1 }` (robocze nazwy). Jak inne badania — na planetę.
+- Dopisanie (`enqueueBuilding`) sprawdza od razu poziom maks., pola i pojemność magazynu względem stanu po wcześniejszych budowach, więc przy starcie zwykle nic nie odpada; jeśli jednak (np. maks. poziom), pozycja wypada z kolejki z komunikatem.
+- Start (`startQueued`) pobiera koszt; brak surowców = kolejka czeka (nie przeskakuje do następnej pozycji — kolejność gracza zostaje). `advance` przewija produkcję do chwili, gdy koszt jest uzbierany (+1 s zapasu) i startuje tam — offline daje to samo co gra na bieżąco.
+- Gdy kolejka nie jest pusta, nowe ulepszenie też trafia do kolejki (bez przeskakiwania). Anulowanie bieżącej budowy nie czyści kolejki — następna pozycja rusza.
+- SI (propozycje i SI przy zamkniętej grze) nie buduje, gdy kolejka gracza czeka.
+
 ## 2026-10-26 — v0.32.1: „Imperium” — warstwa strategiczna (alerty, sortowanie, energia)
 
 Właściciel: kolejne kroki „Imperium” jako v0.32.x; kierunek — centrum dowodzenia (co wymaga uwagi, jaka decyzja da najwięcej). Plan: v0.32.1 warstwa strategiczna (bez zmian zasad gry), v0.32.2 kolejka budowy, v0.32.3 specjalizacje kolonii — oba ostatnie zmieniają zasady gry, więc po decyzjach właściciela.
