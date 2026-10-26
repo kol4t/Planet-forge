@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.33: „Mapa” jako atlas złóż
+
+Według propozycji odnowy ekranów (Ekran 3): bez zmian w zasadach gry, generatorze i zapisie.
+- Widok układu: orbity w barwach stref temperatury (gorąca → mroźna, `ZONE_COLORS` w `game/ui/systemTable.ts`) z miękką poświatą; nazwy stref w legendzie panelu, nie na mapie (na mapie zasłaniały planety). Pas asteroid podpisany „pas asteroid · wkrótce”.
+- Panel układu w spoczynku = tabela złóż: wiersz na planetę (kolor właściciela, typ, „Twoja/wolna”, paski złoża całkowitego metalu i kryształów względem najbogatszej planety układu). Porównanie bez dotykania planet po kolei. Wiersz jest dodatkowym celem dotykowym (na telefonie ~20 pt — główny cel ≥ 44 pt to planeta na mapie).
+- Filtry podświetlania: Wolne (skaliste, niczyje), Metal / Kryształy (bogactwo ≥ 120%, jak znaczek „bogata w …” w Imperium); pasujące w turkusowej obwódce, reszta przygaszona na mapie i w tabeli. Filtr pamiętany do zamknięcia mapy.
+- Galaktyka w spoczynku: legenda rodzajów gwiazd z liczbą układów.
+- Panel układu wyższy na telefonie (450) i pionowym tablecie (440), żeby zmieściło się do 10 planet.
+
 ## 2026-10-26 — v0.32.3: specjalizacje kolonii
 
 Właściciel: specjalizacje zależne od położenia w układzie i od ciała w środku układu (gwiazda, pulsar, czarna dziura…); zmiana po odblokowaniu w Planetologii, na razie trwa 1 h (do zmiany w przyszłości).

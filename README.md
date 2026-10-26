@@ -332,4 +332,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 182. Po badaniu „Zmień (1 h)” → „Na pewno?” → zmiana trwa godzinę, w tym czasie bez premii.
 183. Na mapie, po dotknięciu planety, jest „Najlepsza specjalizacja tutaj”. W „Imperium” karta ma znaczek specjalizacji, a planeta bez niej — podpowiedź w „Sytuacji imperium”.
 
+### Od 0.33: „Mapa” — atlas złóż
+
+184. Galaktyka bez zaznaczenia („Odznacz”): w panelu legenda rodzajów gwiazd z liczbą układów.
+185. Widok układu: orbity w barwach stref temperatury (legenda pod nazwą układu), pas asteroid podpisany.
+186. Panel układu: tabela — każda planeta w wierszu z kropką właściciela i paskami metalu i kryształów. Dotknięcie wiersza pokazuje szczegóły planety.
+187. „Wolne / Metal / Kryształy” podświetlają pasujące planety (turkusowa obwódka), resztę przygaszają; drugie dotknięcie wyłącza filtr.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.
