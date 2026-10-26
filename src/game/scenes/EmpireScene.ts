@@ -614,8 +614,18 @@ export class EmpireScene extends OverlayScene {
       });
       card.resources.setText(`Metal ${formatInt(p.stock.metal)} · +${formatRate(p.rates.metal)}/min   Kryształy ${formatInt(p.stock.crystal)} · +${formatRate(p.rates.crystal)}/min`);
       const b = p.construction;
-      card.build.setText(b ? `Buduje: ${b.name} poz. ${b.level} · ${formatDuration(b.secondsLeft)}` : p.active ? 'Brak budowy' : 'Brak budowy · dotknij karty, by przejść');
-      card.build.setColor(b ? COLORS.gold : COLORS.faint);
+      const next = p.queue[0];
+      const queued = next ? ` · potem ${next.name} ${next.level}${p.queue.length > 1 ? ` (+${p.queue.length - 1})` : ''}` : '';
+      card.build.setText(
+        b
+          ? `Buduje: ${b.name} poz. ${b.level} · ${formatDuration(b.secondsLeft)}${queued}`
+          : next
+            ? `Kolejka czeka na surowce: ${next.name} poz. ${next.level}`
+            : p.active
+              ? 'Brak budowy'
+              : 'Brak budowy · dotknij karty, by przejść',
+      );
+      card.build.setColor(b || next ? COLORS.gold : COLORS.faint);
       if (b) {
         const { x, y, w, h } = card.buildBar;
         g.fillStyle(COLORS.divider, 1).fillRect(this.px(x), this.px(y), this.px(w), this.px(h));

@@ -59,7 +59,8 @@ export interface AdvisorInput {
 export function suggest(input: AdvisorInput): AiSuggestion[] {
   const { economy, planet, balance } = input;
   const out: AiSuggestion[] = [];
-  const builderFree = economy.construction === null;
+  // SI nie wpycha się przed kolejkę gracza.
+  const builderFree = economy.construction === null && !economy.queue?.length;
   const deposits = depositsLeft(economy, planet, balance);
   const canBuild = (id: BuildingId) => {
     const level = economy.levels[id] ?? 0;

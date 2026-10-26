@@ -72,7 +72,19 @@ export function parseEconomy(economy: any): EconomyState | null {
     antimatter: isNum(economy.antimatter) ? Math.max(0, economy.antimatter) : BALANCE.antimatter.startingStock,
     ...parseBuildingMaps(economy),
     ...parseMined(economy.mined),
+    ...parseQueue(economy.queue),
   };
+}
+
+/** Najdłuższa kolejka przyjmowana z zapisu (ochrona przed uszkodzonym tekstem). */
+const MAX_SAVED_QUEUE = 10;
+
+/** Kolejka budowy (od v0.32.2; brak = pusta). Nieznane budynki pomijane. */
+function parseQueue(raw: any): Pick<EconomyState, 'queue'> {
+  if (!Array.isArray(raw)) return {};
+  const ids = new Set<string>(BALANCE.buildings.map((b) => b.id));
+  const queue = raw.filter((id: unknown): id is BuildingId => typeof id === 'string' && ids.has(id)).slice(0, MAX_SAVED_QUEUE);
+  return queue.length ? { queue } : {};
 }
 
 /**

@@ -12,6 +12,7 @@ export const BALANCE: Balance = {
   freeFinishMaxLevel: 5,
   storage: { base: 1000, growth: 1.6 },
   planetSlots: { base: 5, max: 10 },
+  buildQueue: 1,
   antimatter: { passivePerHour: 1, startingStock: 5, finishSecondsPerUnit: 15 * 60 },
   environmentPenalty: 1,
   researchTimeFactor: 1,

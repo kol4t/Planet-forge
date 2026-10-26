@@ -97,7 +97,10 @@ export function empireAlerts(overview: readonly PlanetOverview[], freeSlots: num
       if (left <= 0) alerts.push({ level: 0, text: `Złoże ${name} na ${p.name} wyczerpane — kopalnia stoi.`, target: planet, index: p.index });
       else if (share < DEPOSIT_LOW) alerts.push({ level: 1, text: `Złoże ${name} na ${p.name} kończy się (${Math.round(share * 100)}%).`, target: planet, index: p.index });
     }
-    if (!p.construction && p.fields.used < p.fields.buildable) {
+    if (!p.construction && p.queue.length > 0) {
+      const q = p.queue[0]!;
+      alerts.push({ level: 1, text: `${p.name}: kolejka czeka na surowce — ${q.name} poz. ${q.level}.`, target: planet, index: p.index });
+    } else if (!p.construction && p.fields.used < p.fields.buildable) {
       alerts.push({ level: 2, text: `${p.name}: nic się nie buduje, ${p.fields.buildable - p.fields.used} wolnych pól.`, target: planet, index: p.index });
     }
     if (p.labLevel > 0 && !p.researching) {

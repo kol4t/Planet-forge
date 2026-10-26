@@ -232,6 +232,11 @@ export interface EconomyState {
    * Zasób złoża = `depositTotal(planet)` − `mined`; zgromadzony zapas (`stock`) to osobna rzecz.
    */
   mined?: Resources;
+  /**
+   * Kolejka budowy (od v0.32.2; brak = pusta): budynki czekające na swoją kolej. Koszt pobierany
+   * dopiero przy starcie; gdy wtedy brakuje surowców, kolejka czeka.
+   */
+  queue?: BuildingId[];
 }
 
 /** Ustawienia budynku z panelu „Zarządzanie” (0..1). */
@@ -269,6 +274,8 @@ export interface Balance {
   storage: { base: number; growth: number };
   /** Miejsca na własne planety: `base` na start, do `max` po odblokowaniu (przyszłe akcje/lokacje). */
   planetSlots: { base: number; max: number };
+  /** Miejsca w kolejce budowy (oprócz trwającej budowy); badania SI dodają kolejne. */
+  buildQueue: number;
   antimatter: {
     /** Przyrost bez budynku (także offline). */
     passivePerHour: number;
@@ -312,6 +319,7 @@ export type ResearchEffect =
   | { kind: 'researchTime'; percent: number }
   | { kind: 'environment'; percent: number }
   | { kind: 'planetSlots'; add: number }
+  | { kind: 'buildQueue'; add: number }
   /** Odblokowanie funkcji gry (np. statek kolonizacyjny). */
   | { kind: 'unlock'; feature: 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' };
 

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
-import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled } from '../../core/economy/economy.ts';
+import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled, secondsUntilAffordable } from '../../core/economy/economy.ts';
 import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
 import { ringLimit } from '../../core/research/research.ts';
 import type { BuildingId, BuildingSettings, ResourceId, YieldId } from '../../core/types.ts';
@@ -1074,6 +1074,23 @@ export class PlanetScene extends Phaser.Scene {
       this.onCancel();
       return;
     }
+    // Budynek w kolejce: dotknięcie zdejmuje go z kolejki (nic nie było pobrane).
+    const queued = controller.queue.map((q) => q.building).lastIndexOf(id);
+    if (queued >= 0) {
+      const item = controller.queue[queued]!;
+      controller.dequeue(queued);
+      this.showToast(`${item.name} (poz. ${item.level}) — usunięto z kolejki.`, 'info');
+      this.refreshValues();
+      return;
+    }
+    // Coś się buduje albo kolejka czeka na surowce → dopisz do kolejki (koszt przy starcie).
+    if (controller.economy.construction || controller.queue.length > 0) {
+      const queuedResult = controller.enqueue(id);
+      this.showToast(queuedResult.message, queuedResult.ok ? 'ok' : 'error', queuedResult.ok ? 2600 : 2200);
+      this.refreshValues();
+      if (queuedResult.ok) this.flashCard(id);
+      return;
+    }
     const result = controller.upgrade(id);
     this.showToast(result.message, result.ok ? 'ok' : 'error');
     this.refreshValues();
@@ -1270,8 +1287,25 @@ export class PlanetScene extends Phaser.Scene {
         card.button.setText(short ? 'Maks. poziom' : 'Maksymalny poziom').setStyle('disabled');
         continue;
       }
-      if (construction) {
-        card.button.setText(short ? 'Trwa budowa' : 'Trwa inna budowa').setStyle('disabled');
+      // Kolejka budowy (od v0.32.2): pozycja tego budynku albo miejsce na dopisanie.
+      const queue = controller.queue;
+      const mine = queue.filter((q) => q.building === card.id).pop();
+      if (mine) {
+        const waiting = !construction && queue[0]?.building === card.id;
+        const wait = waiting ? secondsUntilAffordable(controller.economy, mine.cost, rates, balance) : 0;
+        // Jedna linia — karta z dwuwierszową nazwą nie ma miejsca na więcej.
+        card.effect
+          .setText(`W kolejce: poz. ${mine.level} · ${waiting ? `czeka${Number.isFinite(wait) ? ` ${formatDuration(wait)}` : ''}` : 'koszt przy starcie'}`)
+          .setColor(COLORS.gold);
+        card.cost.setText('');
+        card.cost.setY(card.effect.y + card.effect.height + this.px(this.s(4)));
+        card.button.setText(short ? 'Z kolejki' : 'Usuń z kolejki').setStyle('secondary');
+        continue;
+      }
+      if (construction || queue.length > 0) {
+        const room = queue.length < controller.queueCapacity;
+        if (room) card.button.setText(short ? 'Do kolejki' : `Do kolejki (${queue.length}/${controller.queueCapacity})`).setStyle('secondary');
+        else card.button.setText(short ? 'Kolejka pełna' : `Kolejka pełna (${queue.length}/${controller.queueCapacity})`).setStyle('disabled');
         continue;
       }
       if (!fitsInStorage(controller.economy, controller.costOf(card.id), balance)) {

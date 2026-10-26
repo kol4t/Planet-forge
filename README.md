@@ -318,4 +318,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 174. Przyciski „Kolejno / Produkcja / Problemy / Wolne pola” zmieniają kolejność kart.
 175. Kafelek Energia pokazuje bilans całego imperium i ostrzega, gdy na którejś planecie brakuje energii.
 
+### Od 0.32.2: kolejka budowy
+
+176. Gdy coś się buduje, na innych kartach „Produkcji” jest „Do kolejki (0/1)”. Dotknięcie dopisuje budynek — surowce się nie zmieniają.
+177. Karta w kolejce pokazuje „W kolejce: poz. N”; „Usuń z kolejki” zdejmuje go bez straty. Gdy kolejka pełna — „Kolejka pełna (1/1)”.
+178. Po ukończeniu budowy następna z kolejki rusza sama (koszt pobrany wtedy). Gdy brakuje surowców, kolejka czeka i rusza, gdy się uzbierają — także przy zamkniętej grze.
+179. Badania SI „Plan budowy” i „Harmonogram” dodają po jednym miejscu w kolejce. Karta planety w „Imperium” pokazuje „… · potem X”.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

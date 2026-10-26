@@ -68,6 +68,7 @@ export function nodeIcon(node: ResearchNodeDef): NodeIcon {
       return 'energy';
     case 'buildTime':
     case 'buildCost':
+    case 'buildQueue':
       return 'build';
     case 'storage':
     case 'offlineHours':
