@@ -10,8 +10,9 @@ import { nodeIcon } from '../src/game/ui/galaxy.ts';
 const planet = generatePlanet(STARTER.definition, STARTER.seed);
 
 test('badania — szlak do celu: niezbadane wymagania aż do jądra, bez zbadanych', () => {
-  assert.deepEqual(researchPath('mining-3', []).sort(), ['mining-1', 'mining-2', 'mining-3', 'prod-core'].sort());
-  assert.deepEqual(researchPath('mining-3', ['prod-core', 'mining-1']).sort(), ['mining-2', 'mining-3'].sort());
+  // Głębokie szyby mają most do Geologii głębinowej (Planetologia, v0.35) — szlak przez dwa ramiona.
+  assert.deepEqual(researchPath('mining-3', []).sort(), ['mining-1', 'mining-2', 'mining-3', 'planet-1', 'planet-4', 'prod-core'].sort());
+  assert.deepEqual(researchPath('mining-3', ['prod-core', 'mining-1', 'planet-1', 'planet-4']).sort(), ['mining-2', 'mining-3'].sort());
   assert.deepEqual(researchPath('mining-3', ['prod-core', 'mining-1', 'mining-2', 'mining-3']), []);
   assert.deepEqual(researchLeadsTo('mining-2').map((n) => n.id), ['mining-3']);
 });

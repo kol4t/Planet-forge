@@ -1,4 +1,4 @@
-import { buildableCount, cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
+import { buildableCount, cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type BuildRules, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import { hasRoomFor, reconcilePlots, siteFactors, suits, usedLandFields, type Plots } from '../core/colony/plots.ts';
 import {
   advance,
@@ -10,6 +10,7 @@ import {
   constructionProgress,
   buildingSettings,
   createEconomy,
+  demolishBuilding,
   enqueueBuilding,
   finishConstructionNow,
   finishCost,
@@ -295,6 +296,7 @@ export class GameController {
   private readonly completeListeners = new Set<(done: CompletedBuild) => void>();
   private readonly planetListeners = new Set<() => void>();
   private readonly researchListeners = new Set<(id: string) => void>();
+  private readonly demolishListeners = new Set<(id: BuildingId) => void>();
 
   constructor(now = Date.now()) {
     const saved = loadEmpire();
@@ -456,7 +458,7 @@ export class GameController {
   buildingInfo(id: BuildingId): BuildingInfo {
     const slot = this.slots[this.active]!;
     const grid = fieldGrid(slot.planet);
-    const plots = syncPlots(slot);
+    const plots = syncPlots(slot, this.buildRules);
     const cells = (plots[id] ?? []).map((c) => grid.cells[c]!);
     const rates = this.rates;
     const def = this.balance.buildings.find((b) => b.id === id)!;
@@ -589,6 +591,32 @@ export class GameController {
     return this.balance.buildQueue;
   }
 
+  /**
+   * Zburzenie jednego poziomu budynku aktywnej planety (v0.35): zwalnia pole, gdy grupa budowli się kurczy.
+   * Laboratorium nie w trakcie badania (badanie potrzebuje jego poziomu).
+   */
+  demolish(id: BuildingId, now = Date.now()): ActionMessage {
+    this.tick(now);
+    if (id === 'laboratory' && this.research.current) {
+      return { ok: false, message: 'Laboratorium: najpierw poczekaj na koniec badania.' };
+    }
+    const result = demolishBuilding(this.economy, id, this.balance);
+    if (!result.ok) return { ok: false, message: result.message };
+    this.economy = result.state;
+    syncPlots(this.slots[this.active]!, this.buildRules);
+    this.log('build', `${this.planet.displayName}: ${result.message}`, now);
+    this.save();
+    for (const listener of this.demolishListeners) listener(id);
+    this.emit();
+    return { ok: true, message: result.message };
+  }
+
+  /** Po zburzeniu — do odświeżenia budowli na planecie. */
+  onDemolish(listener: (id: BuildingId) => void): () => void {
+    this.demolishListeners.add(listener);
+    return () => this.demolishListeners.delete(listener);
+  }
+
   cancelUpgrade(now = Date.now()): CancelResult {
     this.tick(now);
     const result = cancelConstruction(this.economy, this.balance);
@@ -690,7 +718,7 @@ export class GameController {
         specialization: spec
           ? { name: findSpecialization(spec.id)?.name ?? '', pending: !isSpecializationActive(spec, now) }
           : null,
-        fields: fieldsOf(slot, summary.active),
+        fields: fieldsOf(slot, summary.active, this.buildRules),
         deposits: { left: depositsLeft(economy, slot.planet, balance), total: depositTotal(slot.planet, balance) },
         collectorPerHour: productionRates(economy, slot.planet, balance).antimatterPerHour - balance.antimatter.passivePerHour,
         labLevel: economy.levels.laboratory ?? 0,
@@ -1534,18 +1562,24 @@ export class GameController {
    */
   get fields(): FieldsInfo {
     const slot = this.slots[this.active]!;
-    return { total: fieldGrid(slot.planet).cells.length, ...fieldsOf(slot, true) };
+    return { total: fieldGrid(slot.planet).cells.length, ...fieldsOf(slot, true, this.buildRules) };
   }
 
   /** Siatka pól i zajęte pola aktywnej planety (z budową w toku) — do rysowania kolonii. */
   colony(): { grid: FieldGrid; plots: Plots } {
     const slot = this.slots[this.active]!;
-    return { grid: fieldGrid(slot.planet), plots: syncPlots(slot) };
+    return { grid: fieldGrid(slot.planet), plots: syncPlots(slot, this.buildRules) };
   }
 
   /** Czy następny poziom budynku zmieści się na polach planety (grupy po 3 poziomy; siatka liczona raz na planetę). */
   private roomCheck(slot: Slot): (id: BuildingId, levels: BuildingLevels) => boolean {
-    return (id, levels) => hasRoomFor(fieldGrid(slot.planet), slot.plots, levels, id, BUILDING_ORDER);
+    const rules = this.buildRules;
+    return (id, levels) => hasRoomFor(fieldGrid(slot.planet), slot.plots, levels, id, BUILDING_ORDER, rules);
+  }
+
+  /** Gdzie wolno budować (v0.35): „Budowa na lodzie” — wszystkie budynki także na polach lodu (całe imperium). */
+  private get buildRules(): BuildRules {
+    return { ice: this.unlocked('build-ice') };
   }
 
   onBuildComplete(listener: (done: CompletedBuild) => void): () => void {
@@ -1570,19 +1604,19 @@ export class GameController {
  * bo siatka to kilkaset ms liczenia na planetę (przy starcie z kilkoma planetami gra by się zacinała).
  * Nieaktywna planeta i tak nie zmienia pól, dopóki nie stanie się aktywna.
  */
-function fieldsOf(slot: Slot, active: boolean): { used: number; buildable: number } {
+function fieldsOf(slot: Slot, active: boolean, rules: BuildRules): { used: number; buildable: number } {
   const grid = active ? fieldGrid(slot.planet) : cachedFieldGrid(slot.planet);
   if (!grid && slot.fields) return slot.fields;
   const ready = grid ?? fieldGrid(slot.planet);
-  slot.fields = { used: usedLandFields(ready, active ? syncPlots(slot) : slot.plots), buildable: buildableCount(ready) };
+  slot.fields = { used: usedLandFields(ready, active ? syncPlots(slot, rules) : slot.plots, rules), buildable: buildableCount(ready, rules) };
   return slot.fields;
 }
 
-function syncPlots(slot: Slot): Plots {
+function syncPlots(slot: Slot, rules: BuildRules): Plots {
   const c = slot.economy.construction;
   const levels = c ? { ...slot.economy.levels, [c.building]: Math.max(slot.economy.levels[c.building] ?? 0, c.targetLevel) } : slot.economy.levels;
   const grid = fieldGrid(slot.planet);
-  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER);
+  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules);
   // Dopasowanie do terenu (poziomy w grupach na niepasującym terenie produkują słabiej).
   const factors = siteFactors(grid, slot.plots, slot.economy.levels);
   if (JSON.stringify(factors) !== JSON.stringify(slot.economy.siteFactor ?? {})) slot.economy = { ...slot.economy, siteFactor: factors };

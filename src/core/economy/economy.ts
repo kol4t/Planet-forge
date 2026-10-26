@@ -522,3 +522,30 @@ export function secondsUntilAffordable(state: EconomyState, cost: Resources, rat
     have >= need ? 0 : perMinute <= 0 ? Infinity : ((need - have) / perMinute) * 60;
   return Math.max(wait(state.stock.metal, cost.metal, rates.metal), wait(state.stock.crystal, cost.crystal, rates.crystal));
 }
+
+export type DemolishFailure = 'unknown-building' | 'nothing-to-demolish' | 'busy';
+export type DemolishResult = ActionResult<DemolishFailure>;
+
+/**
+ * Zburzenie jednego poziomu budynku (v0.35, decyzja właściciela: po wyczerpaniu złóż gracz może
+ * zburzyć kopalnie i zwolnić pola, np. pod Laboratorium). Od razu i bez kosztu, bez zwrotu surowców.
+ * Nie wtedy, gdy ten budynek się buduje albo czeka w kolejce; Magazyn nie schodzi poniżej poziomu 1.
+ * Zapas ponad nową pojemność magazynu nie przepada.
+ */
+export function demolishBuilding(state: EconomyState, id: BuildingId, balance: Balance = BALANCE): DemolishResult {
+  const def = getBuilding(id, balance);
+  if (!def) return { ok: false, state, reason: 'unknown-building', message: 'Nieznany budynek.' };
+  const level = state.levels[id] ?? 0;
+  const floor = id === 'storage' ? 1 : 0;
+  if (level <= floor) {
+    return { ok: false, state, reason: 'nothing-to-demolish', message: `${def.name}: nie ma czego burzyć.` };
+  }
+  if (state.construction?.building === id || state.queue?.includes(id)) {
+    return { ok: false, state, reason: 'busy', message: `${def.name}: najpierw anuluj budowę albo usuń go z kolejki.` };
+  }
+  return {
+    ok: true,
+    state: { ...state, levels: { ...state.levels, [id]: level - 1 } },
+    message: `${def.name}: zburzono poziom ${level} — teraz poz. ${level - 1}.`,
+  };
+}

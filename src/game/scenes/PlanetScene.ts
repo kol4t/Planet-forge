@@ -137,6 +137,8 @@ export class PlanetScene extends Phaser.Scene {
   private readonly deps: SceneDeps;
   private ui: Phaser.GameObjects.Container | undefined;
   private overlay: Phaser.GameObjects.Container | undefined;
+  /** Budynek czekający na potwierdzenie zburzenia poziomu (drugie dotknięcie). */
+  private demolishArmed: BuildingId | null = null;
   /** Specjalizacja czekająca na potwierdzenie zmiany (drugie dotknięcie). */
   private specArmed: SpecializationId | null = null;
   private toast: Phaser.GameObjects.Container | undefined;
@@ -1533,7 +1535,10 @@ export class PlanetScene extends Phaser.Scene {
     const W = this.px(viewport.width);
     const H = this.px(viewport.height);
     const shade = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0).setInteractive();
-    shade.on('pointerup', () => this.closeOverlay());
+    shade.on('pointerup', () => {
+      this.demolishArmed = null;
+      this.closeOverlay();
+    });
     const w = this.px(Math.min(viewport.width - 32, this.s(420)));
     const pad = this.px(this.s(20));
     const buttonH = this.px(Math.max(44, this.s(44)));
@@ -1595,8 +1600,19 @@ export class PlanetScene extends Phaser.Scene {
     if (info.richness !== null) lines.push(`Złoża planety: ${pct(info.richness)}.`);
     if (info.deposit) lines.push(`${depositLine(def.produces === 'metal' ? 'metal' : 'crystal', info.deposit)}.`);
     if (id === 'storage') lines.push('Magazyn nie ma ustawień pracy — tu przybędą funkcje z badań.');
+    // Zburzenie poziomu (v0.35): zwalnia pole, gdy grupa budowli się zmniejsza — bez zwrotu surowców.
+    const canDemolish = info.level > (id === 'storage' ? 1 : 0);
+    if (canDemolish) lines.push('Zburzenie: −1 poziom od razu, bez zwrotu surowców; pole zwalnia się, gdy grupa 3 poziomów maleje.');
     add(lines.join('\n'), 12, COLORS.stone, {}, gap * 1.5);
-    const closeBtn = new Button(this, w - pad - this.px(this.s(150)), y, this.px(this.s(150)), buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle('primary');
+    if (canDemolish) {
+      const armed = this.demolishArmed === id;
+      const demolish = new Button(this, pad, y, this.px(this.s(170)), buttonH, armed ? 'Na pewno?' : `Zburz poz. ${info.level}`, this.dpr, () => this.onDemolish(id), this.s(14));
+      items.push(demolish.setStyle(armed ? 'danger' : 'secondary'));
+    }
+    const closeBtn = new Button(this, w - pad - this.px(this.s(150)), y, this.px(this.s(150)), buttonH, 'Zamknij', this.dpr, () => {
+      this.demolishArmed = null;
+      this.closeOverlay();
+    }, this.s(15)).setStyle('primary');
     items.push(closeBtn);
     y += buttonH + pad;
     const h = y;
@@ -1716,6 +1732,20 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   /** Zapis ustawienia budynku i odświeżenie okna (nowa wydajność energii, produkcja w pasku). */
+  /** Zburzenie poziomu: pierwsze dotknięcie pyta („Na pewno?”), drugie burzy. */
+  private onDemolish(id: BuildingId): void {
+    if (this.demolishArmed !== id) {
+      this.demolishArmed = id;
+      this.time.delayedCall(0, () => this.openManagement(id));
+      return;
+    }
+    this.demolishArmed = null;
+    const result = this.deps.controller.demolish(id);
+    this.showToast(result.message, result.ok ? 'info' : 'error', 3000);
+    this.refreshValues();
+    this.time.delayedCall(0, () => this.openManagement(id));
+  }
+
   private applySetting(id: BuildingId, change: Partial<BuildingSettings>): void {
     this.deps.controller.setBuildingSettings(id, change);
     this.refreshValues();

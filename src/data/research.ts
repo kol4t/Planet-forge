@@ -78,6 +78,20 @@ const output = (resource: 'metal' | 'crystal' | 'energy' | 'antimatter', percent
   percent,
 });
 
+/** Pojedyncze badanie z wymaganiami (także z innych ramion — „mosty”). */
+function node(
+  arm: ResearchNodeDef['arm'],
+  ring: number,
+  laneIndex: number,
+  id: string,
+  name: string,
+  description: string,
+  requires: string[],
+  effects: readonly ResearchEffect[],
+): ResearchNodeDef {
+  return { id, arm, ring, lane: laneIndex, name, description, requires, effects };
+}
+
 /** Gałąź szerokiego ramienia: kolejne pierścienie, każdy wymaga poprzedniego. */
 function lane(
   arm: ResearchNodeDef['arm'],
@@ -118,7 +132,7 @@ const master = (arm: ResearchNodeDef['arm'], id: string, name: string, descripti
   master: true,
 });
 
-export const RESEARCH_NODES: readonly ResearchNodeDef[] = [
+const NODES: readonly ResearchNodeDef[] = [
   // ——— Produktywność: pień i pięć gałęzi ———
   {
     id: 'prod-core',
@@ -133,7 +147,7 @@ export const RESEARCH_NODES: readonly ResearchNodeDef[] = [
   ...lane('productivity', -2, 2, 'prod-core', [
     ['mining-1', 'Wiertła diamentowe', 'Wydobycie: twardsze ostrza, szybsze szyby.', [output('metal', 10)]],
     ['mining-2', 'Rezonans kryształów', 'Wydobycie: kryształy pękają wzdłuż drgań.', [output('crystal', 10)]],
-    ['mining-3', 'Głębokie szyby', 'Wydobycie: złoża poniżej skorupy.', [output('metal', 15), output('crystal', 15)]],
+    ['mining-3', 'Głębokie szyby', 'Wydobycie: złoża poniżej skorupy — szybciej i więcej do wydobycia.', [output('metal', 15), output('crystal', 15), { kind: 'deposits', percent: 15 }]],
     ['mining-4', 'Automatyczne rafinerie', 'Wydobycie: urobek oczyszczany na miejscu.', [output('metal', 20), output('crystal', 20)]],
   ]),
   ...lane('productivity', -1, 2, 'prod-core', [
@@ -163,24 +177,28 @@ export const RESEARCH_NODES: readonly ResearchNodeDef[] = [
   master('productivity', 'prod-master', 'Przemysłowe imperium', 'Gwiazda mistrzowska Produktywności.', ['mining-4', 'energy-4', 'eng-4', 'log-4', 'am-4']),
 
   // ——— Planetologia ———
-  ...lane('planetology', 0, 1, '', [
-    ['planet-1', 'Badania geologiczne', 'Mapy złóż wszystkich planet.', [output('metal', 5), output('crystal', 5)]],
-    ['planet-2', 'Adaptacja do środowiska', 'Kary środowiska planet słabsze o połowę.', [{ kind: 'environment', percent: -50 }]],
-    ['planet-3', 'Osadnictwo', 'Miejsce na jeszcze jedną planetę.', [{ kind: 'planetSlots', add: 1 }]],
-    ['planet-4', 'Geologia głębinowa', 'Złoża głęboko pod powierzchnią.', [output('metal', 15), output('crystal', 15)]],
-    ['planet-5', 'Terraformacja', 'Planety bez kar środowiska.', [{ kind: 'environment', percent: -50 }]],
-  ]).map((node) => (node.ring === 1 ? { ...node, requires: [] } : node)),
+  // Planetologia w trzech ścieżkach (v0.35, nazwy robocze): Geologia (środek), Środowisko (−1),
+  // Osadnictwo (+1); mosty do Produktywności (wydobycie, inżynieria) — badania z dwóch ramion.
+  node('planetology', 1, 0, 'planet-1', 'Badania geologiczne', 'Geologia: mapy złóż wszystkich planet.', [], [output('metal', 5), output('crystal', 5)]),
+  node('planetology', 3, 0, 'planet-4', 'Geologia głębinowa', 'Geologia: złoża sięgają głębiej — większy zasób złóż planety.', ['planet-1', 'mining-1'], [
+    { kind: 'deposits', percent: 20 },
+  ]),
+  node('planetology', 2, -1, 'planet-2', 'Adaptacja do środowiska', 'Środowisko: kary środowiska planet słabsze o połowę.', ['planet-1'], [{ kind: 'environment', percent: -50 }]),
+  node('planetology', 5, -1, 'planet-5', 'Terraformacja', 'Środowisko: planety bez kar środowiska.', ['planet-2', 'planet-4'], [{ kind: 'environment', percent: -50 }]),
+  node('planetology', 2, 1, 'ice-build', 'Budowa na lodzie', 'Osadnictwo: wszystkie budynki także na polach lodu — lodowe światy przestają być ciasne.', ['planet-1'], [
+    { kind: 'unlock', feature: 'build-ice' },
+  ]),
+  node('planetology', 3, 1, 'planet-3', 'Osadnictwo', 'Osadnictwo: miejsce na jeszcze jedną planetę.', ['ice-build'], [{ kind: 'planetSlots', add: 1 }]),
   {
-    id: 'planet-spec',
-    arm: 'planetology',
-    ring: 2,
-    lane: 1,
-    name: 'Przebudowa kolonii',
-    description: 'Planetę można przestawić na inną specjalizację (zmiana trwa 1 godzinę).',
-    requires: ['planet-1'],
-    effects: [{ kind: 'unlock', feature: 'specialization-change' }],
+    ...node('planetology', 4, 1, 'shore', 'Platformy przybrzeżne', 'Osadnictwo: pola na płytkiej wodzie — oceaniczne światy przestają być ciasne.', ['planet-3', 'eng-2'], [
+      { kind: 'unlock', feature: 'build-water' },
+    ]),
+    soon: true,
   },
-  master('planetology', 'planet-master', 'Architekt światów', 'Gwiazda mistrzowska Planetologii.', ['planet-5']),
+  node('planetology', 3, 2, 'planet-spec', 'Przebudowa kolonii', 'Planetę można przestawić na inną specjalizację (zmiana trwa 1 godzinę).', ['planet-1'], [
+    { kind: 'unlock', feature: 'specialization-change' },
+  ]),
+  master('planetology', 'planet-master', 'Architekt światów', 'Gwiazda mistrzowska Planetologii.', ['planet-5', 'planet-3']),
 
   // ——— ramiona „wkrótce” ———
   {
@@ -288,6 +306,25 @@ export const RESEARCH_NODES: readonly ResearchNodeDef[] = [
   soon('fleet', 3, 'fleet-3', 'Szlaki konwojów', 'Stałe trasy transportowe.', ['fleet-2']),
   master('fleet', 'fleet-master', 'Admiralicja', 'Gwiazda mistrzowska Floty.', ['fleet-3']),
 ];
+
+/**
+ * Mosty między ramionami i gałęziami (v0.35, decyzja właściciela: „więcej takich połączeń”): badanie
+ * wymaga też wiedzy z innej dziedziny — jak Astrofizyka ekstremalna z dwóch gałęzi Eksploracji.
+ */
+const BRIDGES: Readonly<Record<string, readonly string[]>> = {
+  'mining-3': ['planet-4'], // Głębokie szyby ← Geologia głębinowa
+  'energy-4': ['am-2'], // Reaktor gwiazdowy ← Kondensacja próżni
+  'eng-4': ['log-3'], // Nanomontaż ← Magazyny próżniowe
+  'am-4': ['eng-3'], // Skok czasowy ← Roboty budowlane
+  'log-4': ['ai-3'], // Ciągłość produkcji ← Autonomia (SI)
+  'ai-queue-2': ['eng-1'], // Harmonogram ← Prefabrykaty
+  'probe-3': ['energy-2'], // Napęd jonowy sond ← Ogniwa fuzyjne
+  'astro-2': ['planet-1'], // Spektroskopia gwiazd ← Badania geologiczne
+};
+
+export const RESEARCH_NODES: readonly ResearchNodeDef[] = NODES.map((n) =>
+  BRIDGES[n.id] ? { ...n, requires: [...n.requires, ...BRIDGES[n.id]!.filter((r) => !n.requires.includes(r))] } : n,
+);
 
 export function findResearch(id: string): ResearchNodeDef | undefined {
   return RESEARCH_NODES.find((node) => node.id === id);

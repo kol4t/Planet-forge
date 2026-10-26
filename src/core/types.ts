@@ -320,13 +320,15 @@ export type ResearchEffect =
   | { kind: 'environment'; percent: number }
   | { kind: 'planetSlots'; add: number }
   | { kind: 'buildQueue'; add: number }
+  /** Większe złoża planety (procent zasobu złóż metalu i kryształów, v0.35). */
+  | { kind: 'deposits'; percent: number }
   /** Ekspedycje (v0.34.3): zasięg, jakość danych, szansa powodzenia, szybkość, zasięg sygnałów. */
   | { kind: 'expedition'; stat: ExpeditionStat; add: number }
   /** Odblokowanie funkcji gry (np. statek kolonizacyjny). */
   | { kind: 'unlock'; feature: UnlockFeature };
 
 /** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
-export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics';
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water';
 
 /**
  * Rzadki obiekt astronomiczny (v0.34.4): rodzaj gwiazdy, którego bez badania „Astrofizyka ekstremalna”

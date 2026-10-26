@@ -2,7 +2,7 @@
 // Badania są wspólne dla imperium; koszt płaci aktywna planeta, antymateria idzie ze wspólnego portfela.
 import { BALANCE } from '../../data/balance.ts';
 import { findArm, findResearch, RESEARCH_NODES, RESEARCH_RULES } from '../../data/research.ts';
-import { fitsInStorage, productionRates, storageCapacity } from '../economy/economy.ts';
+import { depositTotal, fitsInStorage, productionRates, storageCapacity } from '../economy/economy.ts';
 import type { Balance, EconomyState, Planet, ResearchEffect, ResearchNodeDef, ResearchProject, ResearchRules, ResearchState, Resources } from '../types.ts';
 
 export const EMPTY_RESEARCH: ResearchState = { done: [], current: null };
@@ -215,6 +215,12 @@ export function applyResearch(base: Balance, done: readonly string[], extra: rea
       finishSecondsPerUnit: base.antimatter.finishSecondsPerUnit / Math.max(0.1, mult('finishPrice')),
     },
     environmentPenalty: base.environmentPenalty * mult('environment'),
+    deposits: {
+      perHundredFields: {
+        metal: base.deposits.perHundredFields.metal * mult('deposits'),
+        crystal: base.deposits.perHundredFields.crystal * mult('deposits'),
+      },
+    },
     researchTimeFactor: base.researchTimeFactor * mult('researchTime'),
     buildings: base.buildings.map((def) => {
       const out = def.produces === 'storage' || def.produces === 'research' ? 1 : mult(`output:${def.produces}`);
@@ -266,6 +272,8 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
         return `+${e.add} miejsce na planetę`;
       case 'buildQueue':
         return `+${e.add} miejsce w kolejce budowy`;
+      case 'deposits':
+        return `złoża planety ${pct(e.percent)}`;
       case 'expedition':
         return {
           range: `+${e.add} jedn. zasięgu ekspedycji`,
@@ -282,6 +290,8 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
           'ai-offline': 'SI buduje przy zamkniętej grze (budowy o 50% dłuższe)',
           'specialization-change': 'zmiana specjalizacji kolonii (trwa 1 h)',
           expeditions: 'ekspedycje — wyprawy do sygnałów i nieznanych układów',
+          'build-ice': 'wszystkie budynki także na polach lodu',
+          'build-water': 'pola na płytkiej wodzie przy brzegu',
           'extreme-astrophysics': 'odczyt pulsarów i czarnych dziur — ich zbadanie daje premie z danych naukowych',
         }[e.feature];
     }
@@ -389,6 +399,7 @@ export function researchPreview(node: ResearchNodeDef, economy: EconomyState, pl
     else if (e.kind === 'energyUse') add('Zużycie energii', rb.energyUsed, ra.energyUsed, '');
     else if (e.kind === 'storage') add('Magazyn', storageCapacity(economy, before), storageCapacity(economy, after), '');
     else if (e.kind === 'buildTime') add('Czas budowy na poziom', before.buildSecondsPerLevel, after.buildSecondsPerLevel, ' s');
+    else if (e.kind === 'deposits') add('Złoże metalu', depositTotal(planet, before).metal, depositTotal(planet, after).metal, '');
     else if (e.kind === 'buildQueue') add('Kolejka budowy', before.buildQueue, after.buildQueue, '');
     else if (e.kind === 'offlineHours') add('Praca podczas nieobecności', before.maxOfflineSeconds / 3600, after.maxOfflineSeconds / 3600, ' h');
   }
