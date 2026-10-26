@@ -160,6 +160,8 @@ Grę testuje kilka osób; błędy i sugestie trafiają jako **GitHub Issues** (`
 
 10. **Nowe badania i mechaniki** (decyzja właściciela 2026-10-26: wszystkie z propozycji, bez Rekultywacji): ~~Planetologia w trzech ścieżkach, mosty, burzenie~~ (v0.35); dalej: Platformy przybrzeżne (pola na płytkiej wodzie), ~~Transportowce~~ (v0.36), szlaki konwojów, Stacja i handel (Moduł orbitalny — bez warunku 3 planet, Górnictwo asteroid, Czerpanie gazu, Dok handlowy), Doradztwo SI (Analityk złóż), ~~Lżejsze kadłuby~~ (v0.36), Sondy — „Bogate w…” w całej galaktyce.
 
+**Zapisane na przyszłość (decyzja właściciela 2026-10-26):** **Górnictwo asteroid (v0.37)** — stacja wydobywcza na pasie asteroid we własnym układzie, jako drugie źródło surowców po wyczerpaniu złóż planety (część ramienia „Stacja i handel”, razem z kometami; surowce na planety — transportowcami z v0.36).
+
 **Potem — do wyboru przez właściciela:** księżyc jako pierwsza lokacja wokół planety; gwiazdy mistrzowskie i mosty w badaniach; osobny ekran SI; typy planet z Lore Bible (gdy lore rozstrzygnie O-004).
 
 **Zrobione wcześniej:** czas budowy (v0.3), magazyn (v0.4), antymateria (v0.5; zakup za pieniądze — dopiero z backendem), PWA (v0.6) i hosting — GitHub Pages `https://kol4t.github.io/Planet-forge/`, automatycznie z `main` (`.github/workflows/pages.yml`), pinch-zoom (v0.8), poprawki UI (v0.9, v0.19–v0.21), badania — galaktyka (v0.10; szczegóły w `docs/decisions.md`; aktywne ramiona: Produktywność, Planetologia, Eksploracja, SI; dalej Stacja i handel, Flota), SI Matka i wykonawcze (v0.14), SI przy zamkniętej grze (v0.15).
