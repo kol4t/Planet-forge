@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.32: nowy wygląd ekranu „Imperium” (krok 2 odnowy ekranów)
+
+Według propozycji (https://claude.ai/artifact/Ku54wCdmoJ3qFpe5UEAwi8); właściciel: „przejdźmy do v0.32”. Zasady gry bez zmian.
+- **Kafelki sumy imperium**: metal i kryształy na godzinę, pola (zajęte/wszystkie), antymateria z przyrostem na godzinę (`GameController.empireTotals`: przyrost pasywny raz — na aktywnej planecie, kolektory wszystkich planet — `PlanetOverview.collectorPerHour`). 4 w rzędzie na szerokim ekranie, 2×2 na wąskim. Statki w drodze — linijka pod kafelkami.
+- **Karta planety**: większa miniatura, nazwa szeryfowa, znaczki z danych (`game/ui/empireCards.ts`: „Tu jesteś”, „bogata w metal / kryształy” przy bogactwie ≥ 120%, „magazyn pełny”, „złoże wyczerpane”), paski Magazyn / Złoża / Pola (`planetBars`; `PlanetOverview.deposits`), surowce z produkcją, budowa z paskiem postępu.
+- **Dotknięcie karty = przejście** na planetę (aktywna — zamyka ekran); obsługa przez `onTap` listy, więc przewijanie palcem po kartach działa. **„Usuń” w menu ⋯** na karcie (z potwierdzeniem drugim dotknięciem i „Anuluj”).
+- **Wolne miejsce** jako karta z przerywaną ramką — dotknięcie otwiera mapę układu; bez wolnego miejsca — przycisk „Mapa układu”.
+
 ## 2026-10-26 — v0.31.2: badania jako system strategiczny — czytelność, panel, nawigacja, logika
 
 Prośba właściciela (wytyczne „audyt i rozwój interfejsu badań”, kroki 1–5). Zakres zgodny z kolejnością z wytycznych: czytelność i model badania teraz, nowe systemy — po decyzji.

@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.31.2 — opublikowana)
+## Stan obecny (v0.32 — na gałęzi `claude/imperium-wyglad`, czeka na akceptację; opublikowana v0.31.2)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **Przybliżanie dwoma palcami** (0,8×–3,5× od v0.25, płynne; `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
@@ -59,7 +59,8 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **v0.31 — wygląd „Badań”**: ikony w gwiazdach (`nodeIcon`), przerywany obrys zablokowanych, jasny szlak do celu (`researchPath`), postęp ramion (`armProgress`), panel w spoczynku z „dostępne teraz”, efekt „przed → po” (`researchPreview`, `GameController.researchPreview`).
 - **v0.31.1**: łagodniejsza siatka pól (cieńsza linia, słabsza obwódka — `FIELD_LINE`).
 - **v0.31.2 — badania jako system**: jaśniejsze zablokowane i nazwy, legenda stanów, panel-karta dopasowana do treści (wąski ekran — dolny arkusz), szczegóły z wymaganiami ✓/✗ i brakami, filtry ramion, „Wyśrodkuj” i płynny przejazd mapy (`moveCamera`), `applyResearch` liczy każde badanie raz. Architektura na później (ścieżki wyboru, kolejka, poziomy, warunki planetarne) — `docs/decisions.md`.
-- 223 testy (w tym badania bez podwójnych efektów, widok badań, linie siatki pól, start bez liczenia siatek nieaktywnych planet, animacje liczników, informacja geologiczna, skończone złoża, zgłoszenia i dziennik błędów, grupy i zarządzanie, pola planety, rozdzielczość 3D, kamera, hydrologia, profile, metody terenu, badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
+- **v0.32 — wygląd „Imperium”**: kafelki sumy (`empireTotals`), karty planet ze znaczkami i paskami magazyn/złoża/pola (`game/ui/empireCards.ts`), dotknięcie karty = przejście, „Usuń” w menu ⋯, karta wolnego miejsca.
+- 225 testów (w tym karty i suma „Imperium”, badania bez podwójnych efektów, widok badań, linie siatki pól, start bez liczenia siatek nieaktywnych planet, animacje liczników, informacja geologiczna, skończone złoża, zgłoszenia i dziennik błędów, grupy i zarządzanie, pola planety, rozdzielczość 3D, kamera, hydrologia, profile, metody terenu, badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -139,7 +140,7 @@ Grę testuje kilka osób; błędy i sugestie trafiają jako **GitHub Issues** (`
 4. ~~Woda i lawa~~ (v0.24, etap 5; opublikowana — test na iPadzie i pomiar kl./s u właściciela).
 5. ~~Światło, atmosfera, kamera~~ (v0.25, etap 6) + kolory materiałów i nowa lawa (opublikowana — test na iPadzie u właściciela).
 6. **Dokończenie UI** (reszta etapu 7, małymi krokami — decyzja właściciela 2026-10-26: nazwy sekcji zostają): ~~animacje~~ (v0.29), ikony na dolnym pasku, ewentualnie podział `PlanetScene.ts` na mniejsze pliki. ~~Zgłoszenie #1~~ (v0.30).
-7. **Odnowa ekranów** (propozycja: https://claude.ai/artifact/Ku54wCdmoJ3qFpe5UEAwi8): ~~Badania~~ (v0.31), Imperium (v0.32), Mapa (v0.33); nowe ścieżki badań — po decyzji właściciela (pytania w propozycji).
+7. **Odnowa ekranów** (propozycja: https://claude.ai/artifact/Ku54wCdmoJ3qFpe5UEAwi8): ~~Badania~~ (v0.31–v0.31.2), ~~Imperium~~ (v0.32), Mapa (v0.33); nowe ścieżki badań — po decyzji właściciela (pytania w propozycji).
 8. **Laboratorium planet** (etap 8 planu generatora) i raport końcowy przebudowy.
 
 **Potem — do wyboru przez właściciela:** księżyc jako pierwsza lokacja wokół planety; gwiazdy mistrzowskie i mosty w badaniach; osobny ekran SI; typy planet z Lore Bible (gdy lore rozstrzygnie O-004).

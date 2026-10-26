@@ -306,4 +306,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 168. Panel to karta tak wysoka jak treść; pod nią można przesuwać mapę. Szczegóły badania: wymagania z ✓/✗, „Brakuje: …” przy koszcie, przycisk „Wyśrodkuj”.
 169. Na telefonie szczegóły badania wysuwają się jako wyższy arkusz od dołu.
 
+### Od 0.32: ekran „Imperium”
+
+170. U góry kafelki: metal i kryształy na godzinę z całego imperium, pola, antymateria.
+171. Każda planeta ma paski Magazyn / Złoża / Pola i znaczki (np. „bogata w metal”, „magazyn pełny”). Dotknięcie karty przenosi na planetę.
+172. „Usuń planetę” jest w menu ⋯ na karcie (drugie dotknięcie potwierdza). Puste miejsce ma kartę „+ Wolne miejsce” — dotknięcie otwiera mapę.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

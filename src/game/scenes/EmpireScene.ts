@@ -4,6 +4,7 @@ import { AI_RULES, type AiLevel } from '../../core/ai/advisor.ts';
 import type { JournalKind } from '../../core/types.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { TOUCH, type Rect } from '../ui/layout.ts';
+import { planetBadges, planetBars, type CardTone } from '../ui/empireCards.ts';
 import { COLORS, FONTS, formatClock, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
@@ -24,12 +25,17 @@ const KIND_COLOR: Record<JournalKind, number> = {
 
 interface CardLive {
   index: number;
-  metal: Phaser.GameObjects.Text;
-  crystal: Phaser.GameObjects.Text;
+  resources: Phaser.GameObjects.Text;
   build: Phaser.GameObjects.Text;
-  bar: Phaser.GameObjects.Graphics;
-  barRect: Rect;
+  graphics: Phaser.GameObjects.Graphics;
+  bars: { value: Phaser.GameObjects.Text; rect: Rect }[];
+  buildBar: Rect;
 }
+
+type TileId = 'metal' | 'crystal' | 'fields' | 'antimatter';
+
+/** Kolory znaczków i pasków. */
+const TONE: Record<CardTone, number> = { teal: COLORS.tealHex, gold: COLORS.goldHex, danger: COLORS.dangerHex };
 
 /**
  * Ekran „Imperium”: wszystkie planety naraz (zasoby, produkcja, budowy, przejście, usuwanie),
@@ -40,7 +46,12 @@ export class EmpireScene extends OverlayScene {
   private content: Phaser.GameObjects.Container | undefined;
   private contentH = 0;
   private cards: CardLive[] = [];
-  private summary: Phaser.GameObjects.Text | undefined;
+  private ships: Phaser.GameObjects.Text | undefined;
+  private readonly tiles = new Map<TileId, { value: Phaser.GameObjects.Text; note: Phaser.GameObjects.Text }>();
+  /** Miejsca na liście do dotknięcia (pt, w układzie treści przed przewinięciem). */
+  private hits: { rect: Rect; action: () => void }[] = [];
+  /** Karta z otwartym menu ⋯. */
+  private menuIndex: number | null = null;
   private thumbs: string[] = [];
   /** Liczba planet i statków przy ostatnim układzie (zmiana = przebudowa listy). */
   private shape = '';
@@ -113,42 +124,98 @@ export class EmpireScene extends OverlayScene {
 
   // ——— zakładka „Planety” ———
 
-  /** Buduje listę planet; zwraca wysokość treści (pt). */
+  /** Kształt listy: zmiana (planety, statki, znaczki, menu karty) = przebudowa. */
+  private planetsShape(overview: PlanetOverview[], missions: number): string {
+    return [overview.length, missions, this.menuIndex, ...overview.map((p) => `${p.index}${p.active ? '*' : ''}:${planetBadges(p).map((b) => b.label).join(',')}`)].join('|');
+  }
+
+  /** Buduje kafelki sumy i karty planet; zwraca wysokość treści (pt). */
   private buildPlanets(): number {
     const c = this.deps.controller;
     const area = this.area;
     const items: Phaser.GameObjects.GameObject[] = [];
     const gap = this.s(10);
     let y = area.y + this.s(4);
-    this.summary = this.text(area.x + this.s(4), y, '', 12, COLORS.text, { wordWrap: { width: this.px(area.w - this.s(8)) }, lineSpacing: this.px(3) }, false);
-    items.push(this.summary);
-    y += this.s(44);
     const overview = c.overview();
     const missions = c.missionsView();
-    this.shape = `${overview.length}|${missions.length}|${c.planets().find((p) => p.active)?.index}`;
+    this.shape = this.planetsShape(overview, missions.length);
+    this.hits = [];
+    this.tiles.clear();
+
+    // Kafelki sumy imperium (2 albo 4 w rzędzie).
+    const tileCols = area.w >= this.s(560) ? 4 : 2;
+    const tileW = (area.w - gap * (tileCols - 1)) / tileCols;
+    const tileH = this.s(60);
+    const tiles: [TileId, string][] = [
+      ['metal', 'METAL / H'],
+      ['crystal', 'KRYSZTAŁY / H'],
+      ['fields', 'POLA'],
+      ['antimatter', 'ANTYMATERIA'],
+    ];
+    tiles.forEach(([id, label], i) => {
+      const x = area.x + (i % tileCols) * (tileW + gap);
+      const top = y + Math.floor(i / tileCols) * (tileH + gap);
+      const bg = this.add.graphics();
+      bg.fillStyle(COLORS.panel, 0.92).fillRoundedRect(this.px(x), this.px(top), this.px(tileW), this.px(tileH), this.px(this.s(10)));
+      bg.lineStyle(this.px(1), COLORS.panelBorder, 1).strokeRoundedRect(this.px(x), this.px(top), this.px(tileW), this.px(tileH), this.px(this.s(10)));
+      const name = this.text(x + this.s(12), top + this.s(9), label, 9.5, COLORS.muted, { fontStyle: '600', letterSpacing: 1.3 }, false);
+      const value = this.text(x + this.s(12), top + this.s(25), '', 19, COLORS.text, {}, false);
+      const note = this.text(x + this.s(12), top + this.s(29), '', 10.5, COLORS.muted, {}, false);
+      items.push(bg, name, value, note);
+      this.tiles.set(id, { value, note });
+    });
+    y += Math.ceil(tiles.length / tileCols) * (tileH + gap);
+    this.ships = this.text(area.x + this.s(4), y, '', 12, COLORS.gold, { fontStyle: '600', wordWrap: { width: this.px(area.w - this.s(8)) } }, false);
+    items.push(this.ships);
+    if (missions.length > 0) y += this.s(18) * missions.length + this.s(8);
+
+    // Karty planet.
     const cols = Math.max(1, Math.min(3, Math.floor((area.w + gap) / (this.s(300) + gap))));
     const cardW = (area.w - gap * (cols - 1)) / cols;
-    const cardH = this.s(168);
+    const cardH = this.s(206);
+    const free = Math.max(0, c.slotInfo.unlocked - overview.length);
+    const count = overview.length + Math.min(1, free);
     overview.forEach((p, i) => {
       const x = area.x + (i % cols) * (cardW + gap);
       const top = y + Math.floor(i / cols) * (cardH + gap);
       items.push(...this.planetCard(p, { x, y: top, w: cardW, h: cardH }));
     });
-    y += Math.ceil(overview.length / cols) * (cardH + gap);
-    for (const m of missions) {
-      items.push(
-        this.text(area.x + this.s(4), y, `Statek kolonizacyjny: ${m.fromName} → ${m.targetName} (${m.target})`, 12, COLORS.gold, { fontStyle: '600' }, false),
-      );
-      y += this.s(22);
+    if (free > 0) {
+      const i = overview.length;
+      const rect = { x: area.x + (i % cols) * (cardW + gap), y: y + Math.floor(i / cols) * (cardH + gap), w: cardW, h: cardH };
+      items.push(...this.freeSlotCard(rect, free));
     }
-    const halfW = Math.min(this.s(240), (area.w - gap) / 2);
-    items.push(
-      this.button(area.x, y + this.s(6), halfW, 'Mapa układu', 'primary', () => this.scene.start('map', { system: c.homeSystem })),
-      this.button(area.x + halfW + gap, y + this.s(6), halfW, 'Dziennik', 'secondary', () => this.switchTab('journal')),
-    );
-    y += this.s(6) + TOUCH + this.s(12);
+    y += Math.ceil(count / cols) * (cardH + gap);
+    if (free === 0) {
+      items.push(this.button(area.x, y + this.s(4), Math.min(this.s(240), area.w), 'Mapa układu', 'secondary', () => this.scene.start('map', { system: c.homeSystem })));
+      y += this.s(4) + TOUCH + this.s(12);
+    }
     this.content!.add(items);
     return y - area.y;
+  }
+
+  /** Puste miejsce na planetę: przerywana ramka, dotknięcie otwiera mapę układu. */
+  private freeSlotCard(rect: Rect, free: number): Phaser.GameObjects.GameObject[] {
+    const c = this.deps.controller;
+    const g = this.add.graphics();
+    const line = this.px(1.2);
+    g.lineStyle(line, COLORS.panelBorder, 1);
+    // Przerywana ramka z odcinków (Phaser nie ma linii przerywanej).
+    const dash = this.px(this.s(8));
+    const [x, y, w, h] = [this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h)];
+    for (let d = 0; d < w; d += dash * 2) {
+      g.lineBetween(x + d, y, x + Math.min(w, d + dash), y);
+      g.lineBetween(x + d, y + h, x + Math.min(w, d + dash), y + h);
+    }
+    for (let d = 0; d < h; d += dash * 2) {
+      g.lineBetween(x, y + d, x, y + Math.min(h, d + dash));
+      g.lineBetween(x + w, y + d, x + w, y + Math.min(h, d + dash));
+    }
+    const cx = rect.x + rect.w / 2;
+    const title = this.text(cx, rect.y + rect.h / 2 - this.s(22), '+ Wolne miejsce', 16, COLORS.teal, { fontStyle: '600' }, false).setOrigin(0.5, 0);
+    const hint = this.text(cx, rect.y + rect.h / 2 + this.s(4), `Dotknij, by wybrać planetę na mapie.\nWolnych miejsc: ${free} z ${c.slotInfo.unlocked}.`, 11, COLORS.muted, { align: 'center', lineSpacing: this.px(3) }, false).setOrigin(0.5, 0);
+    this.hits.push({ rect, action: () => this.scene.start('map', { system: c.homeSystem }) });
+    return [g, title, hint];
   }
 
   private planetCard(p: PlanetOverview, rect: Rect): Phaser.GameObjects.GameObject[] {
@@ -173,47 +240,100 @@ export class EmpireScene extends OverlayScene {
     new PlanetThumbnail(p.planet).draw(texture.context, p.index * 1.7);
     texture.refresh();
     this.thumbs.push(key);
-    const thumbD = this.s(46);
+    const thumbD = this.s(54);
     items.push(this.add.image(this.px(rect.x + pad + thumbD / 2), this.px(rect.y + pad + thumbD / 2), key).setDisplaySize(this.px(thumbD), this.px(thumbD)));
+    const menuW = p.active ? 0 : TOUCH;
     const tx = rect.x + pad + thumbD + this.s(10);
-    const tw = rect.w - (tx - rect.x) - pad;
+    const tw = rect.w - (tx - rect.x) - pad - menuW;
     items.push(
-      this.text(tx, rect.y + pad - this.s(2), p.name, 15, p.active ? COLORS.gold : COLORS.text, { fontStyle: '600', fixedWidth: this.px(tw) }, false),
-      this.text(tx, rect.y + pad + this.s(19), `${p.address} · ${p.category}`, 10.5, COLORS.faint, { fixedWidth: this.px(tw) }, false),
+      this.text(tx, rect.y + pad, p.name, 16, p.active ? COLORS.gold : COLORS.text, { fontFamily: FONTS.serif, fixedWidth: this.px(tw) }, false),
+      this.text(tx, rect.y + pad + this.s(24), `${p.address} · ${p.category}`, 10.5, COLORS.faint, { fixedWidth: this.px(tw) }, false),
     );
-    let y = rect.y + pad + thumbD + this.s(6);
-    const metal = this.text(rect.x + pad, y, '', 11, COLORS.stone, {}, false);
-    const crystal = this.text(rect.x + pad + (rect.w - 2 * pad) / 2, y, '', 11, COLORS.teal, {}, false);
-    y += this.s(17);
-    const build = this.text(rect.x + pad, y, '', 11, COLORS.muted, { fixedWidth: this.px(rect.w - 2 * pad) }, false);
-    const barRect = { x: rect.x + pad, y: y + this.s(17), w: rect.w - 2 * pad, h: this.s(3) };
-    const bar = this.add.graphics();
-    items.push(metal, crystal, build, bar);
-    this.cards.push({ index: p.index, metal, crystal, build, bar, barRect });
-    // Przyciski.
-    const by = rect.y + rect.h - pad - TOUCH;
-    const half = (rect.w - 2 * pad - this.s(8)) / 2;
-    if (p.active) {
-      items.push(this.button(rect.x + pad, by, rect.w - 2 * pad, 'Tu jesteś', 'disabled', () => this.close()));
-    } else {
+    if (!p.active) {
+      // Rzadka akcja (usunięcie) w menu ⋯ — daleko od „przejdź” (dotknięcie karty).
+      items.push(
+        this.button(rect.x + rect.w - pad / 2 - TOUCH, rect.y + pad / 2, TOUCH, '⋯', 'secondary', () => {
+          this.menuIndex = this.menuIndex === p.index ? null : p.index;
+          this.removeArmed = null;
+          this.relayout();
+        }),
+      );
+    }
+    // Znaczki z danych gry.
+    let y = rect.y + pad + thumbD + this.s(8);
+    let bx = rect.x + pad;
+    const chips = this.add.graphics();
+    items.push(chips);
+    for (const badge of planetBadges(p)) {
+      const color = TONE[badge.tone];
+      const t = this.text(bx + this.s(8), y + this.s(3), badge.label, 10, Phaser.Display.Color.IntegerToColor(color).rgba, { fontStyle: '600' }, false);
+      const w = t.width / this.dpr + this.s(16);
+      if (bx + w > rect.x + rect.w - pad) {
+        t.destroy();
+        break;
+      }
+      chips.lineStyle(this.px(1), color, 0.85).strokeRoundedRect(this.px(bx), this.px(y), this.px(w), this.px(this.s(19)), this.px(this.s(9.5)));
+      items.push(t);
+      bx += w + this.s(6);
+    }
+    y += this.s(28);
+    // Paski: magazyn, złoża, pola (rysowane w `refresh`).
+    const labelW = this.s(64);
+    const valueW = this.s(58);
+    const bars: CardLive['bars'] = [];
+    for (const bar of planetBars(p)) {
+      const label = this.text(rect.x + pad, y, bar.label, 10.5, COLORS.muted, {}, false);
+      const value = this.text(rect.x + rect.w - pad, y, '', 10.5, COLORS.text, {}, false).setOrigin(1, 0);
+      items.push(label, value);
+      bars.push({ value, rect: { x: rect.x + pad + labelW, y: y + this.s(6), w: rect.w - 2 * pad - labelW - valueW, h: this.s(4) } });
+      y += this.s(20);
+    }
+    const resources = this.text(rect.x + pad, y + this.s(2), '', 11, COLORS.stone, { fixedWidth: this.px(rect.w - 2 * pad) }, false);
+    y += this.s(18);
+    const build = this.text(rect.x + pad, y + this.s(2), '', 11, COLORS.muted, { fixedWidth: this.px(rect.w - 2 * pad) }, false);
+    const graphics = this.add.graphics();
+    items.push(resources, build, graphics);
+    this.cards.push({ index: p.index, resources, build, graphics, bars, buildBar: { x: rect.x + pad, y: y + this.s(19), w: rect.w - 2 * pad, h: this.s(3) } });
+
+    if (this.menuIndex === p.index && !p.active) {
+      // Menu ⋯: usunięcie z potwierdzeniem drugim dotknięciem.
+      const by = rect.y + rect.h - pad - TOUCH;
+      const cover = this.add.graphics().fillStyle(COLORS.panel, 1).fillRect(this.px(rect.x + this.s(2)), this.px(by - this.s(8)), this.px(rect.w - this.s(4)), this.px(TOUCH + this.s(8) + pad - this.s(2)));
+      const half = (rect.w - 2 * pad - this.s(8)) / 2;
       const armed = this.removeArmed?.index === p.index && Date.now() <= this.removeArmed.until;
       items.push(
-        this.button(rect.x + pad, by, half, 'Przejdź', 'primary', () => {
-          const result = c.switchPlanet(p.index);
-          this.close(result.message);
-        }),
-        this.button(rect.x + pad + half + this.s(8), by, half, armed ? 'Na pewno?' : 'Usuń', armed ? 'danger' : 'secondary', () => {
+        cover,
+        this.button(rect.x + pad, by, half, armed ? 'Na pewno?' : 'Usuń planetę', armed ? 'danger' : 'secondary', () => {
           if (!armed) {
             // Pierwsze dotknięcie tylko pyta — postęp usuniętej planety przepada.
             this.removeArmed = { index: p.index, until: Date.now() + 3000 };
           } else {
             this.removeArmed = null;
+            this.menuIndex = null;
             const result = c.removePlanet(p.index);
             this.showToast(result.message, result.ok ? 'info' : 'error');
           }
           this.relayout();
         }),
+        this.button(rect.x + pad + half + this.s(8), by, half, 'Anuluj', 'secondary', () => {
+          this.menuIndex = null;
+          this.removeArmed = null;
+          this.relayout();
+        }),
       );
+    } else {
+      // Dotknięcie karty (poza przyciskami): przejście na planetę albo zamknięcie, gdy już tu jesteś.
+      this.hits.push({
+        rect,
+        action: () => {
+          if (p.active) {
+            this.close();
+            return;
+          }
+          const result = c.switchPlanet(p.index);
+          this.close(result.message);
+        },
+      });
     }
     return items;
   }
@@ -317,8 +437,14 @@ export class EmpireScene extends OverlayScene {
     this.content?.setPosition(0, this.pan.y);
   }
 
-  protected onTap(): void {
-    // Lista: przyciski obsługują się same.
+  /** Dotknięcie listy poza przyciskami: karta planety albo wolne miejsce. */
+  protected onTap(px: number, py: number): void {
+    if (this.tab !== 'planets') return;
+    const x = px / this.dpr;
+    const y = (py - this.pan.y) / this.dpr;
+    if (y < this.area.y || py / this.dpr > this.area.y + this.area.h) return;
+    const hit = this.hits.find(({ rect }) => x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h);
+    hit?.action();
   }
 
   protected refresh(): void {
@@ -334,33 +460,42 @@ export class EmpireScene extends OverlayScene {
     }
     const overview = c.overview();
     const missions = c.missionsView();
-    if (`${overview.length}|${missions.length}|${overview.find((p) => p.active)?.index}` !== this.shape) {
+    if (this.planetsShape(overview, missions.length) !== this.shape) {
       this.relayout();
       return;
     }
-    const total = overview.reduce((sum, p) => ({ metal: sum.metal + p.rates.metal, crystal: sum.crystal + p.rates.crystal }), { metal: 0, crystal: 0 });
-    const ships = missions.map((m) => `${m.targetName} za ${formatDuration(m.secondsLeft)}`).join(', ');
-    this.summary?.setText(
-      `Całe imperium: +${formatRate(total.metal)} metalu/min · +${formatRate(total.crystal)} kryształów/min · antymateria ${formatInt(c.economy.antimatter)}` +
-        (ships ? `\nStatki w drodze: ${ships}` : ''),
-    );
+    const totals = c.empireTotals(overview);
+    const tile = (id: TileId, value: string, note: string, color: string = COLORS.text) => {
+      const t = this.tiles.get(id);
+      if (!t) return;
+      t.value.setText(value).setColor(color);
+      t.note.setText(note).setX(t.value.x + t.value.width + this.px(this.s(6)));
+    };
+    tile('metal', formatInt(totals.metalPerHour), 'na godzinę');
+    tile('crystal', formatInt(totals.crystalPerHour), 'na godzinę');
+    tile('fields', `${formatInt(totals.fieldsUsed)}/${formatInt(totals.fieldsBuildable)}`, 'zajęte');
+    tile('antimatter', formatInt(totals.antimatter), `+${formatRate(totals.antimatterPerHour)}/h`, COLORS.antimatter);
+    this.ships?.setText(missions.map((m) => `Statek kolonizacyjny: ${m.fromName} → ${m.targetName} · ${formatDuration(m.secondsLeft)}`).join('\n'));
     for (const card of this.cards) {
       const p = overview.find((o) => o.index === card.index);
       if (!p) continue;
-      const full = (have: number) => (have >= p.capacity ? ' · pełny' : '');
-      card.metal.setText(`Metal ${formatInt(p.stock.metal)} · +${formatRate(p.rates.metal)}/min${full(p.stock.metal)}`);
-      card.crystal.setText(`Kryształy ${formatInt(p.stock.crystal)} · +${formatRate(p.rates.crystal)}/min${full(p.stock.crystal)}`);
+      const g = card.graphics.clear();
+      planetBars(p).forEach((bar, i) => {
+        const live = card.bars[i];
+        if (!live) return;
+        const { x, y, w, h } = live.rect;
+        live.value.setText(bar.text).setColor(bar.tone === 'danger' ? COLORS.danger : COLORS.text);
+        g.fillStyle(COLORS.divider, 1).fillRoundedRect(this.px(x), this.px(y), this.px(w), this.px(h), this.px(h / 2));
+        if (bar.value > 0) g.fillStyle(TONE[bar.tone], 1).fillRoundedRect(this.px(x), this.px(y), this.px(Math.max(h, w * bar.value)), this.px(h), this.px(h / 2));
+      });
+      card.resources.setText(`Metal ${formatInt(p.stock.metal)} · +${formatRate(p.rates.metal)}/min   Kryształy ${formatInt(p.stock.crystal)} · +${formatRate(p.rates.crystal)}/min`);
       const b = p.construction;
-      card.build.setText(b ? `Buduje: ${b.name} poz. ${b.level} · ${formatDuration(b.secondsLeft)}` : 'Brak budowy');
+      card.build.setText(b ? `Buduje: ${b.name} poz. ${b.level} · ${formatDuration(b.secondsLeft)}` : p.active ? 'Brak budowy' : 'Brak budowy · dotknij karty, by przejść');
       card.build.setColor(b ? COLORS.gold : COLORS.faint);
-      const { x, y, w, h } = card.barRect;
-      card.bar.clear();
       if (b) {
-        card.bar
-          .fillStyle(COLORS.divider, 1)
-          .fillRect(this.px(x), this.px(y), this.px(w), this.px(h))
-          .fillStyle(COLORS.goldHex, 1)
-          .fillRect(this.px(x), this.px(y), this.px(Math.max(h, w * b.progress)), this.px(h));
+        const { x, y, w, h } = card.buildBar;
+        g.fillStyle(COLORS.divider, 1).fillRect(this.px(x), this.px(y), this.px(w), this.px(h));
+        g.fillStyle(COLORS.goldHex, 1).fillRect(this.px(x), this.px(y), this.px(Math.max(h, w * b.progress)), this.px(h));
       }
     }
   }

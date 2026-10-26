@@ -154,6 +154,20 @@ export interface PlanetOverview extends PlanetSummary {
   construction: { name: string; level: number; secondsLeft: number; progress: number } | null;
   /** Pola lądu: zajęte / do zabudowy. */
   fields: { used: number; buildable: number };
+  /** Złoża planety: ile zostało i ile było (od v0.32 — do kart „Imperium”). */
+  deposits: { left: Resources; total: Resources };
+  /** Antymateria z Kolektora tej planety (na godzinę, bez przyrostu pasywnego). */
+  collectorPerHour: number;
+}
+
+/** Suma imperium do kafelków „Imperium” (produkcja na godzinę, pola, antymateria). */
+export interface EmpireTotals {
+  metalPerHour: number;
+  crystalPerHour: number;
+  fieldsUsed: number;
+  fieldsBuildable: number;
+  antimatter: number;
+  antimatterPerHour: number;
 }
 
 /** Statek kolonizacyjny w drodze (do mapy i zestawienia). */
@@ -478,8 +492,23 @@ export class GameController {
             }
           : null,
         fields: fieldsOf(slot, summary.active),
+        deposits: { left: depositsLeft(economy, slot.planet, balance), total: depositTotal(slot.planet, balance) },
+        collectorPerHour: productionRates(economy, slot.planet, balance).antimatterPerHour - balance.antimatter.passivePerHour,
       };
     });
+  }
+
+  /** Suma imperium: przyrost pasywny antymaterii liczy się raz (na aktywnej planecie), kolektory — wszystkie. */
+  empireTotals(overview: PlanetOverview[] = this.overview()): EmpireTotals {
+    const sum = (pick: (p: PlanetOverview) => number) => overview.reduce((total, p) => total + pick(p), 0);
+    return {
+      metalPerHour: sum((p) => p.rates.metal) * 60,
+      crystalPerHour: sum((p) => p.rates.crystal) * 60,
+      fieldsUsed: sum((p) => p.fields.used),
+      fieldsBuildable: sum((p) => p.fields.buildable),
+      antimatter: this.economy.antimatter,
+      antimatterPerHour: this.balance.antimatter.passivePerHour + sum((p) => p.collectorPerHour),
+    };
   }
 
   // ——— dziennik ekspedycji ———
