@@ -1,4 +1,4 @@
-import { buildableCount, FIELD_GRID_VERSION, fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
+import { buildableCount, cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import { hasRoomFor, reconcilePlots, siteFactors, suits, usedLandFields, type Plots } from '../core/colony/plots.ts';
 import {
   advance,
@@ -80,6 +80,8 @@ interface Slot {
   research: ResearchState;
   /** Pola zajęte przez budowle (od v0.26; uzupełniane automatycznie z poziomów). */
   plots: Plots;
+  /** Pola z ostatniego przeliczenia siatki (lista planet bez liczenia siatek nieaktywnych planet). */
+  fields?: { used: number; buildable: number };
 }
 
 /** Kto jest na planecie — z punktu widzenia gracza. */
@@ -1066,6 +1068,7 @@ export class GameController {
         // Bez przeliczania siatek wszystkich planet przy każdym zapisie — aktywna jest dopasowywana na bieżąco.
         plots: slot.plots,
         plotsGrid: FIELD_GRID_VERSION,
+        ...(slot.fields ? { fields: slot.fields } : {}),
       })),
     };
   }
@@ -1121,9 +1124,17 @@ export class GameController {
 
 /** Przydział pól dopasowany do poziomów (budowa w toku już zajmuje swoje pole); wynik zostaje w miejscu. */
 /** Pola lądu planety; aktywna — z bieżącym przydziałem (budowa w toku), inne — z zapisanego. */
+/**
+ * Pola planety: aktywna (albo z gotową siatką) — liczone na bieżąco i zapamiętywane; nieaktywna — z pamięci,
+ * bo siatka to kilkaset ms liczenia na planetę (przy starcie z kilkoma planetami gra by się zacinała).
+ * Nieaktywna planeta i tak nie zmienia pól, dopóki nie stanie się aktywna.
+ */
 function fieldsOf(slot: Slot, active: boolean): { used: number; buildable: number } {
-  const grid = fieldGrid(slot.planet);
-  return { used: usedLandFields(grid, active ? syncPlots(slot) : slot.plots), buildable: buildableCount(grid) };
+  const grid = active ? fieldGrid(slot.planet) : cachedFieldGrid(slot.planet);
+  if (!grid && slot.fields) return slot.fields;
+  const ready = grid ?? fieldGrid(slot.planet);
+  slot.fields = { used: usedLandFields(ready, active ? syncPlots(slot) : slot.plots), buildable: buildableCount(ready) };
+  return slot.fields;
 }
 
 function syncPlots(slot: Slot): Plots {
@@ -1156,6 +1167,7 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       research: slot.research ?? EMPTY_RESEARCH,
       // Przydział z innej wersji siatki wskazywałby inne pola — budowle dostają pola od nowa.
       plots: slot.plotsGrid === FIELD_GRID_VERSION ? (slot.plots ?? {}) : {},
+      ...(slot.plotsGrid === FIELD_GRID_VERSION && slot.fields ? { fields: slot.fields } : {}),
     });
   }
   return slots;

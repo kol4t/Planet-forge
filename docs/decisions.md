@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.30: zgłoszenie #1 — zacięcia przy starcie, zmianie planety i grafiki
+
+Zgłoszenie testera: spadki klatek przy zmianie grafiki 2D→3D (to przeładowanie gry, czyli pełny start) i przy zmianie planety (diagnostyka: średnio 49 kl./s, najsłabsza sekunda 4 kl./s, 4 planety). Pomiar (profil CPU w Chromium, zapis z 4 planetami):
+- **Start:** układ ekranu pytał o pełne zestawienie planet (`overview()`) tylko po to, by znać ich liczbę, a zestawienie liczyło **siatkę pól każdej planety** (200–480 ms na planetę na komputerze) dla rubryki „pola” → ok. 1,9 s zbędnej pracy przy 4 planetach. Teraz liczba planet z `slotInfo`, a pola nieaktywnych planet z pamięci: `Slot.fields` / `SlotSave.fields` (zapisywane przy każdym przeliczeniu, ważne z tą samą wersją siatki; stary zapis liczy raz). Nieaktywna planeta i tak nie zmienia pól, dopóki nie stanie się aktywna — wartości jak dotąd.
+- **Zmiana planety:** teren, siatka pól i model to nadal kilkaset ms (na iPadzie więcej) — liczone raz na planetę w sesji. Najpierw rysuje się komunikat „Ładowanie: <planeta>…” (od razu widoczny), dopiero po klatce z nim liczenie; w tym czasie ekran nie odświeża danych nowej planety (`planetPending`).
+- **3D:** zmiana automatycznej rozdzielczości przeliczała bufor obrazu dwa razy (`setPixelRatio` + `setSize`) — teraz raz (`setDrawingBufferSize`) i tylko przy faktycznej zmianie.
+- Sprawdzone i odrzucone: mikro‑optymalizacje siatki pól (wynik identyczny, zysk w granicach szumu). Do rozważenia później: liczenie siatki w tle (Web Worker) albo zapamiętanie jej w pamięci przeglądarki.
+
 ## 2026-10-26 — v0.29: mikroanimacje interfejsu (etap 7, krok 1)
 
 Decyzja właściciela: etap 7 (dokończenie UI) małymi krokami, najpierw animacje; nazwy sekcji dolnego paska zostają (Produkcja, Badania, Mapa, Imperium, Planeta, SI).

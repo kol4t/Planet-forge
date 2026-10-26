@@ -294,8 +294,10 @@ export class PlanetView implements PlanetDisplay {
   /** Gęstość pikseli z budżetu × automatyczna skala (spada, gdy klatki są za długie). */
   private applyPixelRatio(): void {
     const ratio = renderPixelRatio(this.width, this.height, window.devicePixelRatio) * this.resolution.scale;
-    this.renderer.setPixelRatio(ratio);
-    this.renderer.setSize(this.width, this.height, false);
+    // Jedno przeliczenie bufora (setPixelRatio + setSize robiły to dwa razy — widoczne zacięcie).
+    const size = this.renderer.getSize(new THREE.Vector2());
+    if (ratio === this.renderer.getPixelRatio() && size.x === this.width && size.y === this.height) return;
+    this.renderer.setDrawingBufferSize(this.width, this.height, ratio);
   }
 
   /** Skala rozdzielczości 3D (diagnostyka): 1 = pełna. */

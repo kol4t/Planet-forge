@@ -101,10 +101,12 @@ const normalize = (v: Vec3): Vec3 => {
 
 const cache = new Map<string, FieldGrid>();
 const CACHE_SIZE = 16;
+const fieldGridKey = (planet: Planet) =>
+  `${planet.definitionId}|${planet.seed}|${planet.gameplay.fields}|${planet.visual.surfaceVersion}|${planet.visual.terrainMethod}`;
 
 /** Siatka pól planety (pamięć podręczna — liczona raz na planetę). */
 export function fieldGrid(planet: Planet): FieldGrid {
-  const key = `${planet.definitionId}|${planet.seed}|${planet.gameplay.fields}|${planet.visual.surfaceVersion}|${planet.visual.terrainMethod}`;
+  const key = fieldGridKey(planet);
   let grid = cache.get(key);
   if (!grid) {
     grid = buildFieldGrid(planet);
@@ -112,6 +114,16 @@ export function fieldGrid(planet: Planet): FieldGrid {
     cache.set(key, grid);
   }
   return grid;
+}
+
+/** Czyści pamięć siatek (testy: sprawdzenie, czy coś liczy siatki bez potrzeby). */
+export function clearFieldGridCache(): void {
+  cache.clear();
+}
+
+/** Siatka pól, jeśli jest już policzona (bez liczenia — do szybkich zestawień). */
+export function cachedFieldGrid(planet: Planet): FieldGrid | undefined {
+  return cache.get(fieldGridKey(planet));
 }
 
 /** Mapa powierzchni → pola lądu (dokładnie `gameplay.fields`) i pola lodu → granice. */

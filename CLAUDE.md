@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.29 — opublikowana)
+## Stan obecny (v0.30 — na gałęzi `claude/zgloszenie-1-zaciecia`, czeka na akceptację; opublikowana v0.29)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **Przybliżanie dwoma palcami** (0,8×–3,5× od v0.25, płynne; `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
@@ -54,7 +54,8 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **v0.27 — skończone złoża**: zasób złóż metalu i kryształów planety (`depositTotal` = `deposits.perHundredFields` × bogactwo × pola/100, bez nowych losowań), zapis wydobycia `EconomyState.mined` (stare zapisy = złoża pełne), złoże traci tylko faktyczny urobek kopalń (przyrost podstawowy — nie, więc brak blokady), kopalnia na pustym złożu stoi i nie bierze energii, `advance` dzieli czas w chwili wyczerpania, `Rates.fromDeposits`, `GameController.deposits`; UI: panel „Planeta”, karta kopalni, „Zarządzanie”; SI pomija pustą kopalnię.
 - **v0.28 — informacja geologiczna** (decyzja właściciela: dokładne wartości): panel planety na mapie — bogactwo złóż, pola i złoże całkowite, własna planeta „zostało … z …”, porównanie z aktywną planetą (`core/economy/geology.ts`, `game/ui/geologyText.ts`, `GameController.geologyAt`); bez zmian w generatorze i zapisach.
 - **v0.29 — mikroanimacje UI** (etap 7, krok 1): panel wjeżdża z dołu przy otwarciu, liczniki surowców w pasku płynnie (`game/ui/motion.ts`: `approach`), złoty błysk karty po rozpoczęciu budowy; „Ogranicz ruch” wyłącza animacje.
-- 216 testów (w tym animacje liczników, informacja geologiczna, skończone złoża, zgłoszenia i dziennik błędów, grupy i zarządzanie, pola planety, rozdzielczość 3D, kamera, hydrologia, profile, metody terenu, badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
+- **v0.30 — zgłoszenie #1 (zacięcia)**: start nie liczy siatek pól nieaktywnych planet (pola z pamięci: `SlotSave.fields`, `cachedFieldGrid`; liczba planet z `slotInfo`), zmiana planety najpierw pokazuje „Ładowanie: …”, potem liczy (`planetPending`), 3D: jedno przeliczenie bufora przy zmianie rozdzielczości.
+- 217 testów (w tym start bez liczenia siatek nieaktywnych planet, animacje liczników, informacja geologiczna, skończone złoża, zgłoszenia i dziennik błędów, grupy i zarządzanie, pola planety, rozdzielczość 3D, kamera, hydrologia, profile, metody terenu, badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz
 
@@ -133,8 +134,8 @@ Grę testuje kilka osób; błędy i sugestie trafiają jako **GitHub Issues** (`
 3. ~~Sześć profili i `npm run atlas`~~ (v0.23, etap 4; opublikowana — test na iPadzie u właściciela).
 4. ~~Woda i lawa~~ (v0.24, etap 5; opublikowana — test na iPadzie i pomiar kl./s u właściciela).
 5. ~~Światło, atmosfera, kamera~~ (v0.25, etap 6) + kolory materiałów i nowa lawa (opublikowana — test na iPadzie u właściciela).
-6. **Dokończenie UI** (reszta etapu 7, małymi krokami — decyzja właściciela 2026-10-26: nazwy sekcji zostają): ~~animacje~~ (v0.29), ikony na dolnym pasku, ewentualnie podział `PlanetScene.ts` na mniejsze pliki. Zgłoszenie #1 (spadki klatek przy zmianie 2D→3D i planety) — do zbadania.
-7. **Laboratorium planet** (v0.30, etap 8) i raport końcowy przebudowy.
+6. **Dokończenie UI** (reszta etapu 7, małymi krokami — decyzja właściciela 2026-10-26: nazwy sekcji zostają): ~~animacje~~ (v0.29), ikony na dolnym pasku, ewentualnie podział `PlanetScene.ts` na mniejsze pliki. ~~Zgłoszenie #1~~ (v0.30).
+7. **Laboratorium planet** (v0.31, etap 8) i raport końcowy przebudowy.
 
 **Potem — do wyboru przez właściciela:** księżyc jako pierwsza lokacja wokół planety; gwiazdy mistrzowskie i mosty w badaniach; osobny ekran SI; typy planet z Lore Bible (gdy lore rozstrzygnie O-004).
 

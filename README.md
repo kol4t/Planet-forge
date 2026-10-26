@@ -285,4 +285,9 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 159. Rozpocznij budowę: karta budynku błyska na złoto, a liczby metalu i kryształów w górnym pasku zmniejszają się płynnie.
 160. Z włączonym „Ogranicz ruch” (Ustawienia iPada → Dostępność → Ruch) wszystko dzieje się od razu, bez animacji.
 
+### Od 0.30: płynniejszy start i zmiana planety
+
+161. Z kilkoma planetami gra startuje szybciej (także po przełączeniu grafiki 2D ↔ 3D, które uruchamia grę od nowa).
+162. ☰ → dotknij innej planety: najpierw pojawia się komunikat „Ładowanie: …”, po chwili nowa planeta. Pierwsze wejście na planetę w danej sesji trwa dłużej, kolejne — krócej.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

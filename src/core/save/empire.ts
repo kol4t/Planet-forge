@@ -26,6 +26,11 @@ export interface SlotSave {
   plots?: Plots;
   /** Wersja siatki pól, do której należy `plots` (od v0.26.3; inna lub brak = przydział od nowa). */
   plotsGrid?: number;
+  /**
+   * Zajęte i wszystkie pola lądu z ostatniego przeliczenia (od v0.30) — lista planet nie liczy siatek
+   * nieaktywnych planet przy starcie. Ważne tylko z tą samą wersją siatki (`plotsGrid`).
+   */
+  fields?: { used: number; buildable: number };
 }
 
 export interface EmpireSave {
@@ -96,6 +101,7 @@ export function parseJournal(raw: unknown): JournalEntry[] {
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const isFieldCount = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 10_000;
 
 export function serializeEmpire(empire: Omit<EmpireSave, 'saveVersion'>): string {
   return JSON.stringify({ ...empire, saveVersion: EMPIRE_VERSION });
@@ -128,6 +134,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(raw.research ? { research: parseResearch(raw.research) } : {}),
       ...(raw.plots ? { plots: parsePlots(raw.plots) } : {}),
       ...(isNum(raw.plotsGrid) ? { plotsGrid: raw.plotsGrid } : {}),
+      ...(isFieldCount(raw.fields?.used) && isFieldCount(raw.fields?.buildable) ? { fields: { used: raw.fields.used, buildable: raw.fields.buildable } } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;

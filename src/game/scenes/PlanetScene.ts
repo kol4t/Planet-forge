@@ -146,6 +146,8 @@ export class PlanetScene extends Phaser.Scene {
   /** Panel pokazany w ostatnim układzie (animujemy tylko nowo otwarty). */
   private shownPanel: PanelId | null = null;
   private readonly reducedMotion = prefersReducedMotion();
+  /** Zmieniono planetę, ale jej model jeszcze się liczy (komunikat „Ładowanie…” na ekranie). */
+  private planetPending = false;
   private layoutState: Layout | undefined;
   private dpr = 1;
   private readonly gestures = new GestureTracker();
@@ -212,11 +214,20 @@ export class PlanetScene extends Phaser.Scene {
       else if (event.key === '0') this.resetView();
     });
 
+    // Nowa planeta to kilkaset ms liczenia (teren, siatka pól, model) — najpierw komunikat na ekranie,
+    // dopiero po jego narysowaniu liczenie; do tego czasu ekran nie odświeża danych planety.
     controller.onPlanetChange(() => {
-      display.setPlanet(controller.planet);
-      display.setStructures(controller.economy.levels, null, controller.colony().plots);
       this.selected = null;
-      this.relayout();
+      this.planetPending = true;
+      this.showToast(`Ładowanie: ${controller.planet.displayName}…`, 'info', 1500);
+      this.game.events.once('postrender', () =>
+        setTimeout(() => {
+          display.setPlanet(controller.planet);
+          display.setStructures(controller.economy.levels, null, controller.colony().plots);
+          this.planetPending = false;
+          this.relayout();
+        }, 0),
+      );
     });
 
     controller.onResearchComplete((id) => {
@@ -346,7 +357,7 @@ export class PlanetScene extends Phaser.Scene {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
     this.gestures.tapSlop = 12 * viewport.dpr;
-    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels, this.deps.controller.aiUnlocked ? AI_RULES.length : 0, this.deps.controller.overview().length);
+    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels, this.deps.controller.aiUnlocked ? AI_RULES.length : 0, this.deps.controller.slotInfo.used);
     this.layoutState = layout;
     this.deps.display.resize(viewport.width, viewport.height);
     this.moveFocus(layout.planet, animate);
@@ -1095,6 +1106,7 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   private refreshValues(): void {
+    if (this.planetPending) return;
     const controller = this.deps.controller;
     const rates = controller.rates;
     const now = Date.now();
@@ -1406,9 +1418,10 @@ export class PlanetScene extends Phaser.Scene {
     const toast = this.add
       .container(this.px(layout.stage.x + layout.stage.w / 2), this.px(layout.toastY), [bg, label])
       .setDepth(50)
-      .setAlpha(0);
+      .setAlpha(this.planetPending ? 1 : 0);
     this.toast = toast;
-    this.tweens.add({ targets: toast, alpha: 1, duration: 150 });
+    // Podczas ładowania planety komunikat musi być widoczny od pierwszej klatki (potem ekran stoi).
+    if (!this.planetPending) this.tweens.add({ targets: toast, alpha: 1, duration: 150 });
     this.tweens.add({
       targets: toast,
       alpha: 0,
