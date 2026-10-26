@@ -194,7 +194,7 @@ export function applyResearch(base: Balance, done: readonly string[], extra: rea
     else if (e.kind === 'antimatterPassive') add(e.kind, e.perHour);
     else if (e.kind === 'freeFinish') add(e.kind, e.levels);
     else if (e.kind === 'planetSlots' || e.kind === 'buildQueue') add(e.kind, e.add);
-    else if (e.kind === 'unlock') continue;
+    else if (e.kind === 'unlock' || e.kind === 'expedition') continue;
     else add(e.kind, e.percent);
   }
   if (sum.size === 0) return base;
@@ -266,6 +266,14 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
         return `+${e.add} miejsce na planetę`;
       case 'buildQueue':
         return `+${e.add} miejsce w kolejce budowy`;
+      case 'expedition':
+        return {
+          range: `+${e.add} jedn. zasięgu ekspedycji`,
+          quality: `dokładniejsze raporty ekspedycji (+${e.add} poziom wiedzy)`,
+          success: `+${e.add} pkt proc. szansy powodzenia ekspedycji`,
+          speed: `ekspedycje o ${e.add}% szybsze`,
+          scan: `+${e.add} jedn. zasięgu wykrywania sygnałów`,
+        }[e.stat];
       case 'unlock':
         return {
           'colony-ship': 'statek kolonizacyjny — kolonizacja innych układów',
@@ -273,6 +281,7 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
           'ai-executors': 'SI działa sama (poziom „działa samo”)',
           'ai-offline': 'SI buduje przy zamkniętej grze (budowy o 50% dłuższe)',
           'specialization-change': 'zmiana specjalizacji kolonii (trwa 1 h)',
+          expeditions: 'ekspedycje — wyprawy do sygnałów i nieznanych układów',
         }[e.feature];
     }
   });

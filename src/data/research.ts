@@ -194,8 +194,31 @@ export const RESEARCH_NODES: readonly ResearchNodeDef[] = [
     effects: [{ kind: 'unlock', feature: 'colony-ship' }],
   },
   { ...soon('exploration', 2, 'explore-2', 'Księżyce', 'Księżyc jako nowe miejsce imperium.', ['explore-1']), soon: true },
-  { ...soon('exploration', 3, 'explore-3', 'Ekspedycje', 'Wyprawy w nieznane rejony galaktyki.', ['explore-2']), soon: true },
-  master('exploration', 'explore-master', 'Pionier', 'Gwiazda mistrzowska Eksploracji.', ['explore-3']),
+  // v0.34.3 — ekspedycje (nazwy robocze): sondy (zasięg, szybkość), astronomia (dokładność, szansa),
+  // analiza sygnałów (wykrywanie wokół celu); astrofizyka ekstremalna — rzadkie obiekty (v0.34.4).
+  {
+    id: 'probe-1',
+    arm: 'exploration',
+    ring: 2,
+    lane: 1,
+    name: 'Sondy zwiadowcze',
+    description: 'Ekspedycje do sygnałów i znanych z daleka układów.',
+    requires: [],
+    effects: [{ kind: 'unlock', feature: 'expeditions' }],
+  },
+  ...lane('exploration', 1, 3, 'probe-1', [
+    ['probe-2', 'Sondy dalekiego zasięgu', 'Sondy: dalej od własnych układów.', [{ kind: 'expedition', stat: 'range', add: 20 }]],
+    ['probe-3', 'Napęd jonowy sond', 'Sondy: jeszcze dalej i szybciej.', [{ kind: 'expedition', stat: 'range', add: 25 }, { kind: 'expedition', stat: 'speed', add: 25 }]],
+  ]),
+  ...lane('exploration', 2, 3, 'probe-1', [
+    ['astro-1', 'Teleskop orbitalny', 'Astronomia: dokładniejsze raporty — więcej wiedzy z jednej wyprawy.', [{ kind: 'expedition', stat: 'quality', add: 1 }]],
+    ['astro-2', 'Spektroskopia gwiazd', 'Astronomia: mniej nieudanych wypraw.', [{ kind: 'expedition', stat: 'success', add: 8 }]],
+  ]),
+  ...lane('exploration', -1, 4, 'astro-1', [
+    ['anom-1', 'Analiza sygnałów', 'Anomalie: wyprawa wychwytuje sygnały dalej wokół celu.', [{ kind: 'expedition', stat: 'scan', add: 10 }]],
+  ]),
+  { ...soon('exploration', 5, 'astro-x', 'Astrofizyka ekstremalna', 'Pulsary i czarne dziury: rozpoznawanie i wyprawy w ich pobliże.', ['probe-3', 'anom-1']), lane: -1, soon: true },
+  master('exploration', 'explore-master', 'Pionier', 'Gwiazda mistrzowska Eksploracji.', ['probe-3', 'astro-2']),
   soon('station', 1, 'station-1', 'Moduł orbitalny', 'Pierwszy moduł stacji kosmicznej.'),
   soon('station', 2, 'station-2', 'Dok handlowy', 'Stacja przyjmuje statki kupców.', ['station-1']),
   soon('station', 3, 'station-3', 'Rynek galaktyczny', 'Handel z kupcami i szlaki handlowe.', ['station-2']),

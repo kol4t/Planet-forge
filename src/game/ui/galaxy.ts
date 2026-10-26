@@ -80,6 +80,8 @@ export function nodeIcon(node: ResearchNodeDef): NodeIcon {
     case 'environment':
     case 'planetSlots':
       return 'planet';
+    case 'expedition':
+      return 'ship';
     case 'unlock':
       return first.feature === 'colony-ship' ? 'ship' : first.feature === 'specialization-change' ? 'planet' : 'ai';
     default:

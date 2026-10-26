@@ -357,4 +357,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 195. Dotknij sygnału: „Nieznany sygnał” — bez nazwy i szczegółów. Dotknij sąsiada: nazwa, gwiazda, liczba planet, „rozpoznany”; przycisk „Nie zbadany” (widok układu — dopiero po zbadaniu).
 196. Twój układ i układy z Twoimi planetami działają jak dotąd (widok układu, kolonizacja).
 
+### Od 0.34.3: ekspedycje
+
+197. Badania → Eksploracja: „Sondy zwiadowcze” (pierścień 2). Bez nich panel sygnału na mapie mówi, czego brakuje.
+198. Po badaniu: dotknij sygnału albo rozpoznanego układu — panel pokazuje czas, koszt i szansę; na mapie przerywany okrąg zasięgu. „Wyślij ekspedycję” pobiera koszt; na mapie przerywana trasa i sonda (tam i z powrotem), w panelu odliczanie, w „Imperium” — ekspedycja w drodze.
+199. Po powrocie (także przy zamkniętej grze): komunikat i wpis w dzienniku. Udana: sygnał → układ rozpoznany (nazwa, gwiazda, planety), rozpoznany → zbadany (widok układu, kolonizacja statkiem), nowe sygnały w pobliżu. Nieudana: „wróciła bez wyników”.
+200. Kolejne badania sond, astronomii i analizy sygnałów: większy zasięg, krótsze wyprawy, większa szansa, więcej wiedzy z jednej wyprawy.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

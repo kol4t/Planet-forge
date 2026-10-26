@@ -1,4 +1,4 @@
-import type { DiscoveryRules, GalaxyRules, OrbitRules, StarKindDef } from '../core/types.ts';
+import type { DiscoveryRules, ExpeditionRules, GalaxyRules, OrbitRules, StarKindDef } from '../core/types.ts';
 
 // Galaktyka (v0.11). Nazwy gwiazd, wagi i liczby są ROBOCZE (do potwierdzenia w Lore Bible).
 
@@ -107,6 +107,22 @@ export const ORBIT_RULES: OrbitRules = {
 export const DISCOVERY_RULES: DiscoveryRules = {
   telescopeNeighbors: 4,
   signalRange: 40,
+};
+
+/** Ekspedycje (v0.34.3, robocze): ~4–8 min w zasięgu startowym, 10–20% porażek, koszt rośnie z odległością. */
+export const EXPEDITION_RULES: ExpeditionRules = {
+  baseRange: 40,
+  baseQuality: 1,
+  baseSuccess: 0.88,
+  easyDistance: 15,
+  successPerUnit: 0.004,
+  successRange: [0.5, 0.97],
+  baseSeconds: 150,
+  secondsPerUnit: 8,
+  cost: { metal: 300, crystal: 200 },
+  costPerUnit: { metal: 12, crystal: 8 },
+  maxActive: 2,
+  scanRadius: 14,
 };
 
 export const ZONE_LABELS = {
