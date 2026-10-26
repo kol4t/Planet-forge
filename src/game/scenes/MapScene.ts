@@ -16,6 +16,8 @@ import { geologyLines } from '../ui/geologyText.ts';
 import { filterCount, MAP_FILTERS, systemRows, ZONE_COLORS, type MapFilter, type SystemRowInput } from '../ui/systemTable.ts';
 import { COLORS, FONTS, formatDuration, formatInt } from '../ui/theme.ts';
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
+import { prefersReducedMotion } from '../ui/motion.ts';
+import { centerOn, edgePointer } from '../ui/mapCamera.ts';
 
 /** Z czym otworzyć mapę: cała galaktyka albo od razu układ. */
 export interface MapSceneData {
@@ -64,6 +66,12 @@ export class MapScene extends OverlayScene {
   private cometList: { x: number; y: number; vx: number; vy: number; age: number; life: number }[] = [];
   private nextComet = 0;
   private readonly cometRng = createRng(`komety-${Date.now()}`);
+  /** Kamera galaktyki sprzed wejścia do układu (powrót = to samo miejsce). */
+  private galaxyCamera: { pan: { x: number; y: number }; zoom: number } | null = null;
+  private homeTween: Phaser.Tweens.Tween | undefined;
+  /** Strzałka do Twojego układu przy krawędzi mapy (warstwa ekranu, nie mapy). */
+  private homePointer: Phaser.GameObjects.Graphics | undefined;
+  private homePointerAt: { x: number; y: number } | null = null;
   /** Filtr podświetlania planet w widoku układu (v0.33). */
   private filter: MapFilter = 'all';
   /** Dane wierszy tabeli złóż układu (liczone raz przy budowie widoku). */
@@ -128,6 +136,8 @@ export class MapScene extends OverlayScene {
     this.labels = [];
     this.clearThumbs();
     this.world = this.add.container(0, 0);
+    this.homePointer?.destroy();
+    this.homePointer = this.add.graphics();
     if (this.mode === 'galaxy') this.buildGalaxy();
     else this.buildSystem();
     this.beginUi();
@@ -150,13 +160,27 @@ export class MapScene extends OverlayScene {
     };
     const U = this.view.unit;
     // Tło: jasne zgrubienie centralne, dwa ramiona spiralne z tysiącami gwiazd i pasami pyłu.
-    const art = this.add.image(0, 0, galaxyArt(this)).setDisplaySize(2 * radius * U, 2 * radius * U);
+    // Rozdzielczość tła z wielkości na ekranie (mocne pomniejszenie dużego obrazka daje „szachownicę”).
+    const size = 2 * radius * U;
+    const T = Math.min(1536, Math.max(768, Math.ceil((size * 1.25) / 256) * 256));
+    const art = this.add.image(0, 0, galaxyArt(this, T)).setDisplaySize(size, size);
+    // Układy jak gwiazdy na zdjęciu: małe, jasny środek, delikatna poświata w barwie gwiazdy;
+    // wielkość z rodzaju gwiazdy (olbrzym większy, karzeł mniejszy), czarna dziura — ciemny środek z dyskiem.
     const g = this.add.graphics();
     for (const s of galaxy.systems) {
       const color = hex(findStar(s.star).color);
-      const r = Math.max(1.4 * this.dpr, (0.55 + s.planetCount * 0.04) * U);
-      g.fillStyle(color, 0.16).fillCircle(s.x * U, s.y * U, r * 2);
-      g.fillStyle(color, 1).fillCircle(s.x * U, s.y * U, r);
+      const r = Math.max(1.1 * this.dpr, (STAR_DOT[s.star] ?? 0.5) * U);
+      const x = s.x * U;
+      const y = s.y * U;
+      g.fillStyle(color, 0.07).fillCircle(x, y, r * 3.2);
+      g.fillStyle(color, 0.16).fillCircle(x, y, r * 1.8);
+      if (s.star === 'black-hole') {
+        g.lineStyle(Math.max(1, r * 0.35), color, 0.85).strokeEllipse(x, y, r * 3, r * 1.1);
+        g.fillStyle(0x000000, 1).fillCircle(x, y, r * 0.7);
+        continue;
+      }
+      g.fillStyle(color, 0.9).fillCircle(x, y, r);
+      g.fillStyle(0xffffff, 0.75).fillCircle(x, y, r * 0.45);
     }
     this.marks = this.add.graphics();
     this.comets = this.add.graphics();
@@ -183,10 +207,27 @@ export class MapScene extends OverlayScene {
     g.clear();
     const U = this.view.unit;
     const line = Math.max(1, this.dpr) / this.zoom;
+    // Twój układ: złoty celownik o stałej wielkości na ekranie (pierścień + cztery kreski) — widać go
+    // przy każdym przybliżeniu; poza widokiem prowadzi do niego strzałka przy krawędzi (`drawHomePointer`).
     const home = this.deps.controller.galaxy.systems[this.deps.controller.homeSystem - 1];
-    if (home) g.lineStyle(line * 2, COLORS.goldHex, 1).strokeCircle(home.x * U, home.y * U, 3.2 * U);
+    if (home) {
+      const hx = home.x * U;
+      const hy = home.y * U;
+      const r = this.px(this.s(11)) / this.zoom;
+      g.fillStyle(COLORS.goldHex, 0.12).fillCircle(hx, hy, r);
+      g.lineStyle(line * 2, COLORS.goldHex, 1).strokeCircle(hx, hy, r);
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        g.lineBetween(hx + dx * r * 1.25, hy + dy * r * 1.25, hx + dx * r * 1.75, hy + dy * r * 1.75);
+      }
+    }
     const selected = this.selected ? this.deps.controller.galaxy.systems[this.selected - 1] : undefined;
-    if (selected) g.lineStyle(line * 1.6, 0xffffff, 0.9).strokeCircle(selected.x * U, selected.y * U, 4.2 * U);
+    if (selected && selected !== home) g.lineStyle(line * 1.6, 0xffffff, 0.9).strokeCircle(selected.x * U, selected.y * U, this.px(this.s(13)) / this.zoom);
+    else if (selected) g.lineStyle(line * 1.2, 0xffffff, 0.7).strokeCircle(selected.x * U, selected.y * U, this.px(this.s(22)) / this.zoom);
   }
 
   // ——— widok układu ———
@@ -488,11 +529,12 @@ export class MapScene extends OverlayScene {
     const area = this.area;
     for (const label of this.labels) {
       const x = cx + label.x * scale;
-      const y = cy + label.y * scale + (this.mode === 'galaxy' ? 2.4 * scale + this.px(2) : 0);
+      const y = cy + label.y * scale + (this.mode === 'galaxy' ? Math.max(1.6 * scale, this.px(this.s(20))) : 0);
       const inside = x > this.px(area.x) && x < this.px(area.x + area.w) && y > this.px(area.y) && y < this.px(area.y + area.h);
       label.text.setPosition(x, y).setVisible(inside && (label.always || showAll));
     }
     this.drawGalaxyMarks();
+    this.drawHomePointer();
   }
 
   protected refresh(): void {
@@ -518,6 +560,11 @@ export class MapScene extends OverlayScene {
   }
 
   protected onTap(px: number, py: number): void {
+    const pointer = this.homePointerAt;
+    if (this.mode === 'galaxy' && pointer && Math.hypot(px - pointer.x, py - pointer.y) <= this.px(TOUCH / 2 + 4)) {
+      this.focusHome();
+      return;
+    }
     if (this.mode === 'galaxy') {
       const scale = this.view.unit * this.zoom;
       const gx = (px - this.view.cx - this.pan.x) / scale;
@@ -557,6 +604,8 @@ export class MapScene extends OverlayScene {
   }
 
   private openSystem(index: number): void {
+    // Powrót do galaktyki wraca do tego samego miejsca i przybliżenia.
+    if (this.mode === 'galaxy') this.galaxyCamera = { pan: { ...this.pan }, zoom: this.zoom };
     this.mode = 'system';
     this.systemIndex = index;
     this.selected = null;
@@ -568,7 +617,69 @@ export class MapScene extends OverlayScene {
     this.mode = 'galaxy';
     this.selected = this.systemIndex;
     this.resetView();
+    const camera = this.galaxyCamera;
+    if (camera) {
+      this.zoom = camera.zoom;
+      this.gestures.zoom = camera.zoom;
+      this.pan = { ...camera.pan };
+    }
     this.relayout();
+  }
+
+  /** „Mój układ”: płynny przejazd mapy do Twojego układu z przybliżeniem (bez zmiany zaznaczenia). */
+  private focusHome(): void {
+    const home = this.deps.controller.galaxy.systems[this.deps.controller.homeSystem - 1];
+    if (!home || this.mode !== 'galaxy') return;
+    const zoom = Math.max(this.zoom, 2.2);
+    const scale = this.view.unit * zoom;
+    const to = { ...centerOn(home, scale), zoom };
+    const from = { x: this.pan.x, y: this.pan.y, zoom: this.zoom };
+    this.homeTween?.stop();
+    const apply = (t: number) => {
+      this.zoom = from.zoom + (to.zoom - from.zoom) * t;
+      this.gestures.zoom = this.zoom;
+      this.pan = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+      this.applyTransform();
+    };
+    if (prefersReducedMotion()) {
+      apply(1);
+      return;
+    }
+    this.homeTween = this.tweens.addCounter({ from: 0, to: 1, duration: 450, ease: 'Cubic.easeInOut', onUpdate: (tw) => apply(tw.getValue() ?? 1) });
+  }
+
+  /**
+   * Strzałka do Twojego układu przy krawędzi mapy, gdy układ jest poza widokiem (galaktyka).
+   * Zwraca jej położenie (px urządzenia) albo null, gdy układ widać.
+   */
+  private drawHomePointer(): { x: number; y: number } | null {
+    const g = this.homePointer;
+    if (!g) return null;
+    g.clear();
+    this.homePointerAt = null;
+    const home = this.deps.controller.galaxy.systems[this.deps.controller.homeSystem - 1];
+    if (!home || this.mode !== 'galaxy') return null;
+    const scale = this.view.unit * this.zoom;
+    const hx = this.view.cx + this.pan.x + home.x * scale;
+    const hy = this.view.cy + this.pan.y + home.y * scale;
+    const inset = this.px(this.s(22));
+    const left = this.px(this.area.x) + inset;
+    const right = this.px(this.area.x + this.area.w) - inset;
+    const top = this.px(this.area.y) + inset;
+    const bottom = this.px(this.area.y + this.area.h) - inset;
+    const edge = edgePointer({ left, top, right, bottom }, { x: hx, y: hy });
+    if (!edge) return null;
+    const { x, y, angle: a } = edge;
+    const r = this.px(this.s(13));
+    g.fillStyle(COLORS.panel, 0.85).fillCircle(x, y, r * 1.25);
+    g.lineStyle(this.px(1.6), COLORS.goldHex, 1).strokeCircle(x, y, r * 1.25);
+    const tip = { x: x + Math.cos(a) * r * 0.95, y: y + Math.sin(a) * r * 0.95 };
+    const side = (s: number) => ({ x: x + Math.cos(a + s * 2.55) * r * 0.75, y: y + Math.sin(a + s * 2.55) * r * 0.75 });
+    const l = side(1);
+    const rr = side(-1);
+    g.fillStyle(COLORS.goldHex, 1).fillTriangle(tip.x, tip.y, l.x, l.y, rr.x, rr.y);
+    this.homePointerAt = { x, y };
+    return this.homePointerAt;
   }
 
   private clearThumbs(): void {
@@ -589,13 +700,13 @@ export class MapScene extends OverlayScene {
       this.mode === 'galaxy'
         ? `${galaxy.systems.length} układów · Twój układ: ${galaxy.systems[controller.homeSystem - 1]?.name ?? ''} (1:${controller.homeSystem})`
         : `Adres 1:${this.systemIndex} · ${this.system ? findStar(this.system.star).label : ''}`;
-    const backW = this.mode === 'system' ? 112 * this.u : 0;
+    const backW = 112 * this.u;
     this.text(bar.x + pad, bar.y + this.s(8), title, 15, COLORS.gold, { fontFamily: FONTS.serif, letterSpacing: 2, fixedWidth: this.px(bar.w - 2 * pad - closeW - backW) });
     this.text(bar.x + pad, bar.y + this.s(30), sub, 10.5, COLORS.muted, { fixedWidth: this.px(bar.w - 2 * pad - closeW - backW) });
     const y = bar.y + (bar.h - TOUCH) / 2;
-    if (this.mode === 'system') {
-      this.addButton(bar.x + bar.w - pad / 2 - closeW - this.s(8) - backW, y, backW, TOUCH, 'Galaktyka', 'secondary', () => this.openGalaxy());
-    }
+    // Galaktyka: „Mój układ” przesuwa mapę do Twojego układu; układ: powrót do galaktyki.
+    const [label, action] = this.mode === 'system' ? ['Galaktyka', () => this.openGalaxy()] : ['Mój układ', () => this.focusHome()];
+    this.addButton(bar.x + bar.w - pad / 2 - closeW - this.s(8) - backW, y, backW, TOUCH, label, 'secondary', action);
     this.addButton(bar.x + bar.w - pad / 2 - closeW, y, closeW, TOUCH, 'Zamknij', 'secondary', () => this.close());
   }
 
@@ -893,6 +1004,15 @@ export class MapScene extends OverlayScene {
   }
 }
 
+/** Promień kropki układu w galaktyce (jednostki mapy) według rodzaju gwiazdy. */
+const STAR_DOT: Partial<Record<string, number>> = {
+  'red-dwarf': 0.42,
+  yellow: 0.55,
+  binary: 0.6,
+  'blue-giant': 0.75,
+  pulsar: 0.4,
+  'black-hole': 0.55,
+};
 /** Zaznaczenie pasa asteroid (zamiast numeru orbity). */
 const BELT = -1;
 /** Okres obiegu po polsku: „2 min”, „12,5 min”. */
@@ -937,65 +1057,112 @@ function drawGasGiant(g: Phaser.GameObjects.Graphics, x: number, y: number, r: n
 }
 
 /**
- * Tło galaktyki (rysowane raz, zapamiętane jako tekstura): jasne zgrubienie centralne,
- * dwa ramiona spirali logarytmicznej z tysiącami gwiazd, obłoki wodoru i ciemne pasy pyłu.
+ * Tło galaktyki (rysowane raz, zapamiętane jako tekstura; v0.34.1 — bliżej zdjęć galaktyk spiralnych):
+ * jasne, ciepłe zgrubienie centralne, ramiona spirali logarytmicznej z gromadami gwiazd, różowe i
+ * niebieskie obłoki zjonizowanego wodoru wzdłuż ramion, ciemne pasma pyłu po ich wewnętrznej stronie
+ * i rzadkie gwiazdy dysku między ramionami. Bez neonu — jasność rośnie przez gęstość, nie przez kolor.
  */
-function galaxyArt(scene: Phaser.Scene): string {
-  const key = 'galaxy-art-v3';
+function galaxyArt(scene: Phaser.Scene, T: number): string {
+  const key = `galaxy-art-v4-${T}`;
   if (scene.textures.exists(key)) return key;
-  const T = 1024;
   const texture = scene.textures.createCanvas(key, T, T)!;
   const ctx = texture.context;
   const R = GALAXY_RULES.radius;
   const k = T / 2 / (R + 6);
   const c = T / 2;
-  const rng = createRng('galaktyka-tlo');
+  const rng = createRng('galaktyka-tlo-v4');
   const gauss = () => (rng.next() + rng.next() + rng.next() - 1.5) * 1.15;
   const dot = (x: number, y: number, size: number, color: string) => {
     ctx.fillStyle = color;
     ctx.fillRect(c + x * k - size / 2, c + y * k - size / 2, size, size);
   };
-  // Poświata dysku i jądra.
+  const blob = (x: number, y: number, radius: number, inner: string) => {
+    const px = c + x * k;
+    const py = c + y * k;
+    const g = ctx.createRadialGradient(px, py, 0, px, py, radius * k);
+    g.addColorStop(0, inner);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(px - radius * k, py - radius * k, radius * k * 2, radius * k * 2);
+  };
+  const armPoint = (arm: number, r: number) => spiralPoint(arm, r, R);
+  // Poświata dysku: ciepłe jądro, chłodniejszy, coraz ciemniejszy dysk.
   const glow = ctx.createRadialGradient(c, c, 0, c, c, R * k);
-  glow.addColorStop(0, 'rgba(255,236,204,0.55)');
-  glow.addColorStop(0.1, 'rgba(250,222,176,0.28)');
-  glow.addColorStop(0.35, 'rgba(150,176,210,0.08)');
-  glow.addColorStop(1, 'rgba(90,120,150,0)');
+  glow.addColorStop(0, 'rgba(255,238,210,0.62)');
+  glow.addColorStop(0.07, 'rgba(255,224,182,0.34)');
+  glow.addColorStop(0.2, 'rgba(210,196,180,0.10)');
+  glow.addColorStop(0.55, 'rgba(120,145,180,0.04)');
+  glow.addColorStop(1, 'rgba(60,80,110,0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, T, T);
   ctx.globalCompositeOperation = 'lighter';
-  // Ramiona: gęsto przy osi, rzadziej na zewnątrz; wewnątrz ciepłe, na obrzeżach niebieskawe gwiazdy.
-  for (let i = 0; i < 11000; i++) {
+  // Miękka poświata ramion (gaz i niewidoczne pojedynczo gwiazdy).
+  for (let i = 0; i < 1400; i++) {
+    const arm = rng.int(0, SPIRAL.arms - 1);
+    const r = R * (0.1 + 0.9 * rng.next() ** 0.85);
+    const p = armPoint(arm, r);
+    const spread = r * 0.1;
+    const warm = Math.max(0, 1 - (r / R) * 1.8);
+    blob(p.x + gauss() * spread, p.y + gauss() * spread, rng.range(4, 9) * (0.6 + r / R), `rgba(${Math.round(150 + 90 * warm)},${Math.round(170 + 40 * warm)},${Math.round(215 - 40 * warm)},${0.05 * (1.25 - r / R)})`);
+  }
+  // Gwiazdy ramion: gęsto przy osi, rzadziej na zewnątrz; wewnątrz ciepłe, na obrzeżach niebieskawe.
+  for (let i = 0; i < 16000; i++) {
     const arm = rng.int(0, SPIRAL.arms - 1);
     const r = R * (0.1 + 0.95 * rng.next() ** 0.9);
-    const p = spiralPoint(arm, r, R);
-    const spread = r * (0.06 + 0.12 * rng.next());
+    const p = armPoint(arm, r);
+    const spread = r * (0.05 + 0.15 * rng.next());
     const t = r / R;
     const warm = Math.max(0, 1 - t * 1.6);
-    const color = `rgba(${Math.round(175 + 80 * warm)},${Math.round(200 + 30 * warm)},${Math.round(255 - 55 * warm)},${(0.14 + 0.3 * rng.next()) * (1.1 - t * 0.5)})`;
-    dot(p.x + gauss() * spread, p.y + gauss() * spread, rng.range(0.8, 2.2), color);
-    if (rng.next() < 0.02) dot(p.x + gauss() * spread, p.y + gauss() * spread, rng.range(2.5, 4.5), 'rgba(255,140,175,0.22)');
+    const color = `rgba(${Math.round(185 + 70 * warm)},${Math.round(205 + 25 * warm)},${Math.round(255 - 50 * warm)},${(0.1 + 0.28 * rng.next()) * (1.1 - t * 0.5)})`;
+    dot(p.x + gauss() * spread, p.y + gauss() * spread, rng.range(0.8, 2), color);
   }
-  // Zgrubienie centralne.
-  for (let i = 0; i < 3500; i++) {
-    const r = R * 0.13 * Math.abs(gauss());
+  // Gromady gwiazd w ramionach: ciasne skupiska, nadają ramionom nieregularną, „ziarnistą” strukturę.
+  for (let i = 0; i < 160; i++) {
+    const arm = rng.int(0, SPIRAL.arms - 1);
+    const r = R * (0.18 + 0.8 * rng.next());
+    const p = armPoint(arm, r);
+    const cx = p.x + gauss() * r * 0.07;
+    const cy = p.y + gauss() * r * 0.07;
+    const n = rng.int(12, 40);
+    const size = rng.range(0.8, 2.2);
+    blob(cx, cy, size * 1.6, 'rgba(200,215,255,0.05)');
+    for (let j = 0; j < n; j++) dot(cx + gauss() * size, cy + gauss() * size, rng.range(0.8, 1.8), `rgba(220,230,255,${0.2 + 0.35 * rng.next()})`);
+  }
+  // Obłoki wodoru (mgławice emisyjne): różowe, czasem niebieskie, po zewnętrznej stronie ramion.
+  for (let i = 0; i < 90; i++) {
+    const arm = rng.int(0, SPIRAL.arms - 1);
+    const r = R * (0.25 + 0.7 * rng.next());
+    const p = armPoint(arm, r * 1.03);
+    const pink = rng.next() < 0.75;
+    const radius = rng.range(1.2, 3.6);
+    blob(p.x + gauss() * r * 0.05, p.y + gauss() * r * 0.05, radius, pink ? `rgba(255,120,160,${rng.range(0.12, 0.22)})` : `rgba(120,170,255,${rng.range(0.08, 0.16)})`);
+  }
+  // Zgrubienie centralne: gęste, ciepłe, lekko eliptyczne.
+  for (let i = 0; i < 5000; i++) {
+    const r = R * 0.12 * Math.abs(gauss());
     const a = rng.range(0, Math.PI * 2);
-    dot(Math.cos(a) * r, Math.sin(a) * r * 0.85, rng.range(0.8, 2), `rgba(255,228,190,${0.12 + 0.2 * rng.next()})`);
+    dot(Math.cos(a) * r, Math.sin(a) * r * 0.82, rng.range(0.8, 2), `rgba(255,228,190,${0.1 + 0.2 * rng.next()})`);
   }
   // Rozproszone gwiazdy dysku między ramionami.
-  for (let i = 0; i < 2500; i++) {
+  for (let i = 0; i < 3000; i++) {
     const r = R * Math.sqrt(rng.next());
     const a = rng.range(0, Math.PI * 2);
-    dot(Math.cos(a) * r, Math.sin(a) * r, rng.range(0.6, 1.4), `rgba(200,215,235,${0.06 + 0.1 * rng.next()})`);
+    dot(Math.cos(a) * r, Math.sin(a) * r, rng.range(0.6, 1.3), `rgba(200,215,235,${0.05 + 0.08 * rng.next()})`);
   }
-  // Ciemne pasy pyłu po wewnętrznej stronie ramion.
+  // Pasma pyłu po wewnętrznej stronie ramion: miękkie ciemne obłoki i drobny „piasek”.
   ctx.globalCompositeOperation = 'source-over';
+  for (let i = 0; i < 700; i++) {
+    const arm = rng.int(0, SPIRAL.arms - 1);
+    const r = R * (0.12 + 0.65 * rng.next());
+    const p = armPoint(arm, r * 0.93);
+    blob(p.x + gauss() * r * 0.03, p.y + gauss() * r * 0.03, rng.range(1.2, 3), `rgba(3,6,8,${rng.range(0.1, 0.22)})`);
+  }
   for (let i = 0; i < 4000; i++) {
     const arm = rng.int(0, SPIRAL.arms - 1);
     const r = R * (0.14 + 0.7 * rng.next());
-    const p = spiralPoint(arm, r * 0.94, R);
+    const p = armPoint(arm, r * 0.94);
     const spread = r * 0.035;
-    dot(p.x + gauss() * spread, p.y + gauss() * spread, rng.range(1.5, 3), 'rgba(4,8,10,0.16)');
+    dot(p.x + gauss() * spread, p.y + gauss() * spread, rng.range(1.5, 3), 'rgba(4,8,10,0.14)');
   }
   texture.refresh();
   return key;
