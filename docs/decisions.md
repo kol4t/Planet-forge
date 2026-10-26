@@ -2,6 +2,10 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.31.1: łagodniejsza siatka pól
+
+Właściciel: siatka z v0.30.1 ma za duży kontrast i „razi po oczach”. `FIELD_LINE`: linia 1,6 → 1,2 pt, krycie 95% → 70%, obwódka 4 → 2,8 pt i 60% → 32%. Nadal widoczna na lodzie i jasnym lądzie (zrzuty 2D i 3D), ale spokojniejsza.
+
 ## 2026-10-26 — v0.31: wygląd ekranu „Badania” (krok 1 odnowy ekranów)
 
 Prośba właściciela: dopracować wizualnie Imperium, Badania i Mapę oraz zaproponować ścieżki badań. Propozycja ze szkicami i drzewem badań: https://claude.ai/artifact/Ku54wCdmoJ3qFpe5UEAwi8 (kolejność: v0.31 Badania, v0.32 Imperium, v0.33 Mapa; nowe badania — po decyzji właściciela, pytania w propozycji jeszcze otwarte). Właściciel: „przejdźmy dalej” → v0.31.

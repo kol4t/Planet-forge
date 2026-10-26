@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną planetą**: obraca ją palcem w 3D, gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.31 — opublikowana)
+## Stan obecny (v0.31.1 — na gałęzi `claude/siatka-lagodniej`, czeka na akceptację; opublikowana v0.31)
 
 - **Planeta 2D (domyślnie, decyzja właściciela)**: pikselowa tarcza (Canvas, `CanvasPlanetFallback.ts`) z obrotem palcem, budowle jako kwadratowe piksele. **3D (Three.js) to opcja** w Ustawieniach → Grafika. Obie wersje generowane deterministycznie z **seeda**: ląd, ocean, chmury, atmosfera, gwiazdy. Obrót palcem z bezwładnością, powolny autoobrót.
 - **Przybliżanie dwoma palcami** (0,8×–3,5× od v0.25, płynne; `game/ui/gestures.ts` → `PlanetDisplay.setZoom`); w 2D ostre piksele przy zbliżeniu.
@@ -57,6 +57,7 @@ Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **jedną plan
 - **v0.30 — zgłoszenie #1 (zacięcia)**: start nie liczy siatek pól nieaktywnych planet (pola z pamięci: `SlotSave.fields`, `cachedFieldGrid`; liczba planet z `slotInfo`), zmiana planety najpierw pokazuje „Ładowanie: …”, potem liczy (`planetPending`), 3D: jedno przeliczenie bufora przy zmianie rozdzielczości.
 - **v0.30.1 — widoczna siatka pól**: linie 1,6 pt z ciemną obwódką (`FIELD_LINE`), 3D — grube linie (`LineSegments2`/`LineMaterial`) wyżej nad terenem, 2D — odcinki łączone w linie (`borderChains`).
 - **v0.31 — wygląd „Badań”**: ikony w gwiazdach (`nodeIcon`), przerywany obrys zablokowanych, jasny szlak do celu (`researchPath`), postęp ramion (`armProgress`), panel w spoczynku z „dostępne teraz”, efekt „przed → po” (`researchPreview`, `GameController.researchPreview`).
+- **v0.31.1**: łagodniejsza siatka pól (cieńsza linia, słabsza obwódka — `FIELD_LINE`).
 - 222 testy (w tym widok badań, linie siatki pól, start bez liczenia siatek nieaktywnych planet, animacje liczników, informacja geologiczna, skończone złoża, zgłoszenia i dziennik błędów, grupy i zarządzanie, pola planety, rozdzielczość 3D, kamera, hydrologia, profile, metody terenu, badania na planetę, galaktyka, mapa, statki, dziennik, SI i SI podczas nieobecności): seed/RNG, generator, zakresy i walidacja wszystkich typów planet, regresja planety startowej, ekonomia i budowa (kolejka, anulowanie, ukończenie offline, „Ukończ teraz”), magazyn, antymateria, zapis, kontroler, gest obrotu, układ ekranu (8 rozmiarów × 4 stany paneli), rozmieszczenie kolonii, eksport/import zapisu (imperium, PF1/PF2), kilka planet (limit, przełączanie, wspólna antymateria, migracja), licznik płynności, gesty (obrót/szczypanie), tarcza 2D, zawartość buildu (manifest, ikony, service worker), bezpiecznik startu.
 
 ## Architektura — zasady, których nie łamiesz

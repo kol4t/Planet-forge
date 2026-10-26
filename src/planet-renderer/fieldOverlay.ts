@@ -9,9 +9,9 @@ export type FieldState = keyof typeof FIELD_COLORS;
 
 /**
  * Grubość linii siatki (pt ekranu) i ciemna obwódka pod nią — linia jest widoczna na każdym tle:
- * jasnym lodzie, piasku, zieleni i nocnej stronie (od v0.30.1; wcześniej 1 px bez obwódki).
+ * jasnym lodzie, piasku, zieleni i nocnej stronie (od v0.30.1; v0.31.1 — łagodniej, na prośbę właściciela).
  */
-export const FIELD_LINE = { width: 1.6, halo: 4, haloColor: '#041012', haloAlpha: 0.6, alpha: 0.95 } as const;
+export const FIELD_LINE = { width: 1.2, halo: 2.8, haloColor: '#041012', haloAlpha: 0.32, alpha: 0.7 } as const;
 
 /** Stan każdego pola: zajęte (przez budowlę), wolne (ląd) albo lód. */
 export function fieldStates(grid: FieldGrid, plots: Plots | null): FieldState[] {
