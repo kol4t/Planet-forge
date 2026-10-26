@@ -187,6 +187,25 @@ html, body {
 #text-panel .tp-error.ok { color: var(--teal); }
 #text-panel .tp-error a { color: var(--gold); }
 #text-panel .fb-clear { display: block; flex: none; width: auto; margin: 12px auto 0; padding: 0 12px; border: 0; background: none; color: #8ea6a0; font-size: 14px; }
+/* Okno „Szukaj układu” — src/game/ui/searchPanel.ts */
+#text-panel .sp-box { display: flex; flex-direction: column; height: min(100%, 640px); }
+#text-panel .sp-filters { flex-wrap: wrap; }
+#text-panel .sp-filters button { flex: 1 1 auto; }
+#text-panel .sp-list { flex: 1 1 auto; min-height: 120px; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 6px; }
+#text-panel .sp-row {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid #2b4846;
+  background: #0d1a1d;
+  color: var(--text);
+  text-align: left;
+}
+#text-panel .sp-name { font-size: 15px; color: var(--text); }
+#text-panel .sp-info { font: 400 13px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif; color: #8ea6a0; }
   </style>
 </head>
 <body>

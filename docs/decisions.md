@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.34.5: wyszukiwarka i filtry galaktyki
+
+- Spis znanych układów liczony z wiedzy (`knownSystemsList`) — bez nowego zapisu. Filtry: Zbadane (poziom 4), Rzadkie (rzadki obiekt, o którym gracz już wie), W zasięgu (można teraz wysłać ekspedycję). Na mapie filtr podświetla pasujące i przygasza resztę znanych; wybór pamiętany do zamknięcia mapy.
+- Wyszukiwanie w oknie HTML (jak „Wczytaj zapis”), bo Phaser nie ma pola tekstowego, a iPad potrzebuje prawdziwej klawiatury; pole nie dostaje fokusu samo (klawiatura zasłoniłaby listę). Dopasowanie bez wielkich liter i polskich znaków (`fold`), także „1:42” i sam numer; sygnały znajdują się tylko po słowie „sygnał” — ich numer nic nie zdradza. Wybór wyniku = przejazd kamery (`moveCameraTo`, wspólny z „Mój układ”) i zaznaczenie układu.
+- Okno ma stałą wysokość (lista przewija się w środku), żeby nie skakało podczas pisania.
+
 ## 2026-10-26 — v0.34.4: rzadkie obiekty
 
 - Klasy rzadkie = istniejące rodzaje gwiazd z generatora (pulsar, czarna dziura) — bez zmian w generatorze i zapisach; rzadkość wynika z dostępu: bez „Astrofizyki ekstremalnej” (pierścień 5 Eksploracji, wymaga Napędu jonowego sond i Analizy sygnałów) wyprawa kończy na „wykryty — niezwykły sygnał”, a teleskop na start też tylko wykrywa. Model rozszerzalny: `RARE_OBJECTS` (rodzaj, opis, efekty, limit) — kolejne klasy to nowy wpis.

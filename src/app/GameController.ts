@@ -68,7 +68,8 @@ import {
 } from '../core/economy/specialization.ts';
 import { findSpecialization, SPECIALIZATION_RULES, SPECIALIZATIONS } from '../data/specializations.ts';
 import { RARE_OBJECTS, ZONE_LABELS } from '../data/galaxy.ts';
-import { expeditionStats, planExpedition, resolveExpedition, type ExpeditionPlan, type ExpeditionStats } from '../core/galaxy/expeditions.ts';
+import { distanceFrom, expeditionStats, planExpedition, resolveExpedition, type ExpeditionPlan, type ExpeditionStats } from '../core/galaxy/expeditions.ts';
+import type { KnownSystem } from '../core/galaxy/galaxyIndex.ts';
 import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownCount, raiseDiscovery, rareBonuses, type Discoveries, type DiscoveryLevel } from '../core/galaxy/discovery.ts';
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
@@ -1299,6 +1300,23 @@ export class GameController {
     const bonuses = rareBonuses(this.galaxy, this.discoveries);
     this.rareCache = { known: this.discoveries, effects: bonuses.flatMap((b) => b.effects), key: bonuses.map((b) => b.count).join(',') };
     return this.rareCache;
+  }
+
+  /** Spis układów, o których gracz coś wie (do wyszukiwarki i filtrów mapy, v0.34.5). */
+  knownSystemsList(): KnownSystem[] {
+    const own = new Set(this.ownSystems());
+    const stats = this.expeditionStats;
+    return this.galaxy.systems
+      .filter((s) => this.discoveryLevel(s.index) > DISCOVERY.unknown)
+      .map((s) => ({
+        index: s.index,
+        name: this.knownName(s.index) === 'nieznany sygnał' ? 'Nieznany sygnał' : s.name,
+        level: this.discoveryLevel(s.index),
+        rare: this.knownRare(s.index),
+        distance: Math.round(distanceFrom(this.galaxy, [...own], s.index)),
+        reachable: stats.unlocked && this.expeditionPlan(s.index).ok,
+        own: own.has(s.index),
+      }));
   }
 
   /** Ile układów gracz zna (co najmniej wykrytych). */

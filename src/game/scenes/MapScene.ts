@@ -3,6 +3,8 @@ import type { MapOccupant } from '../../app/GameController.ts';
 import { findStar, parseAddress, SPIRAL, spiralPoint, type GasGiantLook, type StarSystem, type SystemPlanet, type SystemSummary } from '../../core/galaxy/galaxy.ts';
 import { createRng } from '../../core/random/rng.ts';
 import { DISCOVERY, DISCOVERY_LABELS } from '../../core/galaxy/discovery.ts';
+import { GALAXY_FILTERS, galaxyFilterCount, matchesGalaxyFilter, type GalaxyFilter } from '../../core/galaxy/galaxyIndex.ts';
+import { openSearchPanel } from '../ui/searchPanel.ts';
 import { orbitAngle, systemPeriods } from '../../core/galaxy/orbits.ts';
 import { worldNow } from '../../core/time/worldClock.ts';
 import { compareGeology } from '../../core/economy/geology.ts';
@@ -75,6 +77,9 @@ export class MapScene extends OverlayScene {
   /** Strzałka do Twojego układu przy krawędzi mapy (warstwa ekranu, nie mapy). */
   private homePointer: Phaser.GameObjects.Graphics | undefined;
   private homePointerAt: { x: number; y: number } | null = null;
+  /** Filtr znanych układów w widoku galaktyki (v0.34.5). */
+  private galaxyFilter: GalaxyFilter = 'all';
+  private closeSearch: (() => void) | null = null;
   /** Filtr podświetlania planet w widoku układu (v0.33). */
   private filter: MapFilter = 'all';
   /** Dane wierszy tabeli złóż układu (liczone raz przy budowie widoku). */
@@ -126,12 +131,16 @@ export class MapScene extends OverlayScene {
   create(): void {
     this.setupInput();
     this.relayout();
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.clearThumbs());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.clearThumbs();
+      this.closeSearch?.();
+      this.closeSearch = null;
+    });
   }
 
   relayout(): void {
     // Widok układu na telefonie: wyższy panel na tabelę złóż.
-    const { bar } = this.frame(this.mode === 'system' ? 440 : 226, this.mode === 'system' ? 450 : 256);
+    const { bar } = this.frame(this.mode === 'system' ? 440 : 250, this.mode === 'system' ? 450 : 300);
     this.panZoom = this.mode === 'galaxy';
     this.world?.destroy(true);
     this.details?.destroy(true);
@@ -197,6 +206,16 @@ export class MapScene extends OverlayScene {
       }
       g.fillStyle(color, 0.9).fillCircle(x, y, r);
       g.fillStyle(0xffffff, 0.75).fillCircle(x, y, r * 0.45);
+    }
+    // Filtr (v0.34.5): pasujące — turkusowa obwódka, pozostałe znane — przygaszone.
+    if (this.galaxyFilter !== 'all') {
+      const list = controller.knownSystemsList();
+      for (const k of list) {
+        const sys = galaxy.systems[k.index - 1]!;
+        const r = Math.max(3 * this.dpr, 1.6 * U);
+        if (matchesGalaxyFilter(k, this.galaxyFilter)) g.lineStyle(Math.max(1.2, this.dpr * 1.2), COLORS.tealHex, 0.95).strokeCircle(sys.x * U, sys.y * U, r);
+        else g.fillStyle(0x05080a, 0.75).fillCircle(sys.x * U, sys.y * U, r * 1.3);
+      }
     }
     // Rzadkie obiekty, o których gracz już wie: fioletowy pierścień (wykryty — przerywany).
     for (const s of galaxy.systems) {
@@ -701,9 +720,14 @@ export class MapScene extends OverlayScene {
   private focusHome(): void {
     const home = this.deps.controller.galaxy.systems[this.deps.controller.homeSystem - 1];
     if (!home || this.mode !== 'galaxy') return;
+    this.moveCameraTo(home);
+  }
+
+  /** Płynny przejazd kamery galaktyki do punktu (przybliżenie ≥ 2,2×; „Ogranicz ruch” — od razu). */
+  private moveCameraTo(point: { x: number; y: number }): void {
     const zoom = Math.max(this.zoom, 2.2);
     const scale = this.view.unit * zoom;
-    const to = { ...centerOn(home, scale), zoom };
+    const to = { ...centerOn(point, scale), zoom };
     const from = { x: this.pan.x, y: this.pan.y, zoom: this.zoom };
     this.homeTween?.stop();
     const apply = (t: number) => {
@@ -717,6 +741,39 @@ export class MapScene extends OverlayScene {
       return;
     }
     this.homeTween = this.tweens.addCounter({ from: 0, to: 1, duration: 450, ease: 'Cubic.easeInOut', onUpdate: (tw) => apply(tw.getValue() ?? 1) });
+  }
+
+  /** Filtr znanych układów: podświetlenie na mapie (przebudowa widoku galaktyki). */
+  private setGalaxyFilter(filter: GalaxyFilter): void {
+    this.galaxyFilter = filter;
+    this.relayout();
+  }
+
+  /** Okno „Szukaj układu” (pole tekstowe HTML); wybór przenosi mapę do układu i go zaznacza. */
+  private openSearch(): void {
+    this.closeSearch?.();
+    this.closeSearch = openSearchPanel({
+      systems: this.deps.controller.knownSystemsList(),
+      filter: this.galaxyFilter,
+      onFilter: (filter) => {
+        this.galaxyFilter = filter;
+      },
+      onPick: (index) => {
+        this.closeSearch = null;
+        this.relayout();
+        this.flyTo(index);
+      },
+    });
+  }
+
+  /** Przejazd mapy do układu z przybliżeniem i zaznaczeniem. */
+  private flyTo(index: number): void {
+    const target = this.deps.controller.galaxy.systems[index - 1];
+    if (!target || this.mode !== 'galaxy') return;
+    this.selected = index;
+    this.moveCameraTo(target);
+    this.refresh();
+    this.buildDetails();
   }
 
   /**
@@ -810,13 +867,26 @@ export class MapScene extends OverlayScene {
       const s = this.selected ? controller.galaxy.systems[this.selected - 1] : undefined;
       if (!s) {
         line('Galaktyka', 18, COLORS.gold, { fontFamily: FONTS.serif });
-        line('Widzisz tylko to, co poznałeś: kolorowe gwiazdy — znane układy, szare — wykryte bez szczegółów, blade obwódki — sygnały.', 11.5, COLORS.muted);
+        line('Kolorowe gwiazdy — znane układy, szare — wykryte, blade obwódki — sygnały.', 11, COLORS.muted, {}, 4);
+        // Filtry znanych układów (podświetlenie na mapie) — jeden wiersz krótkich przycisków.
+        const list = controller.knownSystemsList();
+        const gap = this.s(6);
+        const chipW = (w - gap * (GALAXY_FILTERS.length - 1)) / GALAXY_FILTERS.length;
+        GALAXY_FILTERS.forEach((f, i) => {
+          const count = f.id === 'all' ? null : galaxyFilterCount(list, f.id);
+          const label = count === null ? f.label : `${f.label} ${count}`;
+          const style: ButtonStyle = this.galaxyFilter === f.id ? 'primary' : count === 0 ? 'disabled' : 'secondary';
+          items.push(
+            new Button(this, this.px(x + i * (chipW + gap)), this.px(y), this.px(chipW), this.px(TOUCH), label, this.dpr, () => this.setGalaxyFilter(this.galaxyFilter === f.id ? 'all' : f.id), this.s(chipW < 80 ? 11 : 12.5)).setStyle(style),
+          );
+        });
+        y += TOUCH + this.s(8);
         const science = controller.rareBonuses.filter((b) => b.count > 0);
         if (science.length > 0) {
           line(`Dane naukowe: ${science.map((b) => `${b.label.toLowerCase()} ${b.count}/${b.max} — ${b.text}`).join(' · ')}`, 11, RARE_TEXT);
         }
         y = this.buildStarLegend(items, x, y, w, buttonY - this.s(10));
-        buttons(['Twój układ', 'primary', () => this.openSystem(controller.homeSystem)], ['Zamknij', 'secondary', () => this.close()]);
+        buttons(['Szukaj układu', 'primary', () => this.openSearch()], ['Twój układ', 'secondary', () => this.openSystem(controller.homeSystem)]);
       } else if (controller.discoveryLevel(s.index) < DISCOVERY.explored) {
         // Wiedza niepełna: tylko to, co gracz już wie (bez planet, złóż i — przed rozpoznaniem — gwiazdy).
         const level = controller.discoveryLevel(s.index);
