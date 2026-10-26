@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — v0.34.1: wygląd galaktyki i „Mój układ”
+
+- Tło galaktyki (`galaxyArt` v4, rysowane raz na rozmiar): realizm z gęstości i kompozycji, nie z neonu — miękka poświata ramion (ciepła przy jądrze, chłodna dalej), 16 tys. gwiazd ramion, 160 gromad, 90 obłoków wodoru (różowe/niebieskie, po zewnętrznej stronie ramion), pasma pyłu po wewnętrznej, gęste ciepłe zgrubienie. Rozdzielczość tekstury z wielkości galaktyki na ekranie (×1,25, 768–1536 px): duże pomniejszenie dawało na telefonie wzór szachownicy. Bez nowych efektów na klatkę (koszt tylko przy pierwszym rysowaniu).
+- Układy: mniejsze kropki z jasnym środkiem i słabą poświatą, wielkość z rodzaju gwiazdy (`STAR_DOT`), czarna dziura — czarny środek z dyskiem. Generator galaktyki i dane bez zmian.
+- Twój układ: złoty celownik o stałej wielkości na ekranie; gdy jest poza widokiem — złota strzałka przy krawędzi obszaru mapy (`edgePointer`), dotknięcie = przejazd. „Mój układ” w górnym pasku: płynny przejazd (450 ms, przybliżenie ≥ 2,2×; „Ogranicz ruch” — od razu), bez wymuszania środka przy przesuwaniu. Powrót z układu do galaktyki zachowuje przesunięcie i przybliżenie (`galaxyCamera`).
+
 ## 2026-10-26 — Galaktyka do odkrywania: plan i v0.34 (czas świata, ruch planet)
 
 Właściciel przyjął plan przebudowy galaktyki (prompt z ChatGPT, audyt w rozmowie) z decyzjami: widok układu pod kątem — tak; na start z istniejącym zapisem znane: własny układ, układy z planetami i statkami gracza oraz najbliżsi sąsiedzi; ekspedycja może się nie udać; nowe badania w ramieniu Eksploracja (4 gałęzie robocze: astronomia, sondy, anomalie, astrofizyka). Otwarte pytania z propozycji (Moduł orbitalny, Rekultywacja) — później.

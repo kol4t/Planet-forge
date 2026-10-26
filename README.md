@@ -345,4 +345,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 189. Zapamiętaj położenie planety, przejdź na kilka minut do Badań i wróć — planeta jest dalej na orbicie (o tyle, ile minęło), nie na początku.
 190. Planety po dalszej stronie orbity chowają się za gwiazdą. W szczegółach planety jest „obieg N min”.
 
+### Od 0.34.1: galaktyka
+
+191. Galaktyka: gęstsze ramiona z gromadami gwiazd, różowe obłoki, ciemne pasma pyłu; układy jako małe gwiazdy (czarna dziura — ciemny środek z dyskiem).
+192. Twój układ: złoty celownik. Przesuń mapę tak, by zniknął — przy krawędzi pojawia się złota strzałka w jego stronę; dotknięcie strzałki albo „Mój układ” w pasku przewozi mapę do Twojego układu.
+193. Wejdź do układu i wróć przez „Galaktyka” — mapa jest w tym samym miejscu i przybliżeniu.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.
