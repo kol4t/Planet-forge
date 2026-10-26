@@ -198,6 +198,13 @@ export class MapScene extends OverlayScene {
       g.fillStyle(color, 0.9).fillCircle(x, y, r);
       g.fillStyle(0xffffff, 0.75).fillCircle(x, y, r * 0.45);
     }
+    // Rzadkie obiekty, o których gracz już wie: fioletowy pierścień (wykryty — przerywany).
+    for (const s of galaxy.systems) {
+      if (!controller.knownRare(s.index)) continue;
+      const r = Math.max(3 * this.dpr, 1.5 * U);
+      if (controller.discoveryLevel(s.index) >= DISCOVERY.recognized) g.lineStyle(Math.max(1, this.dpr), RARE_COLOR, 0.9).strokeCircle(s.x * U, s.y * U, r);
+      else dashedCircle(g, s.x * U, s.y * U, r, Math.max(1, this.dpr), RARE_COLOR, 0.8);
+    }
     this.marks = this.add.graphics();
     this.comets = this.add.graphics();
     this.world!.add([art, g, this.comets, this.marks]);
@@ -804,6 +811,10 @@ export class MapScene extends OverlayScene {
       if (!s) {
         line('Galaktyka', 18, COLORS.gold, { fontFamily: FONTS.serif });
         line('Widzisz tylko to, co poznałeś: kolorowe gwiazdy — znane układy, szare — wykryte bez szczegółów, blade obwódki — sygnały.', 11.5, COLORS.muted);
+        const science = controller.rareBonuses.filter((b) => b.count > 0);
+        if (science.length > 0) {
+          line(`Dane naukowe: ${science.map((b) => `${b.label.toLowerCase()} ${b.count}/${b.max} — ${b.text}`).join(' · ')}`, 11, RARE_TEXT);
+        }
         y = this.buildStarLegend(items, x, y, w, buttonY - this.s(10));
         buttons(['Twój układ', 'primary', () => this.openSystem(controller.homeSystem)], ['Zamknij', 'secondary', () => this.close()]);
       } else if (controller.discoveryLevel(s.index) < DISCOVERY.explored) {
@@ -818,7 +829,9 @@ export class MapScene extends OverlayScene {
         } else {
           line(s.name, 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
           line(`Układ 1:${s.index} · ${DISCOVERY_LABELS[level]} · ${distance} jedn. od Twojego układu`, 10.5, COLORS.teal, { fontStyle: '600' });
-          if (level === DISCOVERY.recognized) {
+          if (controller.knownRare(s.index) && level < DISCOVERY.recognized) {
+            line('Niezwykły obiekt — sygnał nie przypomina zwykłej gwiazdy.', 11.5, RARE_TEXT);
+          } else if (level === DISCOVERY.recognized) {
             const star = findStar(s.star);
             line(`${star.label} — ${star.description}`, 11.5, COLORS.muted);
             line(`Planet: ${s.planetCount} · szczegóły planet i złóż nieznane.`, 11.5, COLORS.text);
@@ -854,6 +867,8 @@ export class MapScene extends OverlayScene {
         line(s.name, 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
         line(`Układ 1:${s.index} · ${own ? 'Twój układ' : 'zbadany'}`, 10.5, own ? COLORS.gold : COLORS.teal, { fontStyle: '600' });
         line(`${star.label} — ${star.description}`, 11.5, COLORS.muted);
+        const rare = controller.rareBonuses.find((b) => b.label === star.label);
+        if (rare && controller.knownRare(s.index)) line(`Rzadki obiekt · dane naukowe: ${rare.text} dla imperium.`, 11, RARE_TEXT, { fontStyle: '600' });
         const giants = system.planets.filter((p) => p.body === 'gas-giant').length;
         line(
           `Planet: ${s.planetCount} (gazowe olbrzymy: ${giants}) · miejsca startowe graczy: ${homes} · formy obce: ${system.planets.filter((p) => p.occupant === 'alien').length}${system.belt ? ' · pas asteroid' : ''}`,
@@ -1121,6 +1136,9 @@ function dashedCircle(g: Phaser.GameObjects.Graphics, x: number, y: number, r: n
   }
 }
 
+/** Rzadkie obiekty (pulsary, czarne dziury) — fiolet jak antymateria. */
+const RARE_COLOR = 0xb9a8f0;
+const RARE_TEXT = '#b9a8f0';
 /** Barwa sygnałów (układy znane tylko jako sygnał) — chłodna, przygaszona. */
 const SIGNAL_COLOR = 0x9fb4c8;
 /** Promień kropki układu w galaktyce (jednostki mapy) według rodzaju gwiazdy. */

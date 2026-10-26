@@ -364,4 +364,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 199. Po powrocie (także przy zamkniętej grze): komunikat i wpis w dzienniku. Udana: sygnał → układ rozpoznany (nazwa, gwiazda, planety), rozpoznany → zbadany (widok układu, kolonizacja statkiem), nowe sygnały w pobliżu. Nieudana: „wróciła bez wyników”.
 200. Kolejne badania sond, astronomii i analizy sygnałów: większy zasięg, krótsze wyprawy, większa szansa, więcej wiedzy z jednej wyprawy.
 
+### Od 0.34.4: rzadkie obiekty
+
+201. Wyprawa do sygnału, który okaże się pulsarem albo czarną dziurą, bez „Astrofizyki ekstremalnej”: raport „niezwykły obiekt”, na mapie przerywany fioletowy pierścień, kolejna wyprawa zablokowana z podpowiedzią.
+202. Po badaniu „Astrofizyka ekstremalna” (Eksploracja, pierścień 5): wyprawy rozpoznają i badają te obiekty; zbadany — pełny fioletowy pierścień, w panelu „Rzadki obiekt · dane naukowe”, w panelu galaktyki „Dane naukowe”.
+203. Premie dla całego imperium: każdy zbadany pulsar +0,25 antymaterii/h, każda czarna dziura −5% czasu badań (do 4 obiektów każdego rodzaju).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -1,4 +1,4 @@
-import type { DiscoveryRules, ExpeditionRules, GalaxyRules, OrbitRules, StarKindDef } from '../core/types.ts';
+import type { DiscoveryRules, ExpeditionRules, GalaxyRules, OrbitRules, RareObjectDef, StarKindDef } from '../core/types.ts';
 
 // Galaktyka (v0.11). Nazwy gwiazd, wagi i liczby są ROBOCZE (do potwierdzenia w Lore Bible).
 
@@ -124,6 +124,30 @@ export const EXPEDITION_RULES: ExpeditionRules = {
   maxActive: 2,
   scanRadius: 14,
 };
+
+/**
+ * Rzadkie obiekty (v0.34.4, robocze): pulsary i czarne dziury. Bez „Astrofizyki ekstremalnej” wyprawa
+ * zatrzymuje się na „wykryty — niezwykły sygnał”; po badaniu można je zbadać, a dane z każdego
+ * zbadanego obiektu dają imperium trwałą premię (do `maxCount` obiektów danego rodzaju).
+ */
+export const RARE_OBJECTS: readonly RareObjectDef[] = [
+  {
+    star: 'pulsar',
+    label: 'Pulsar',
+    description: 'Pomiary wirującej gwiazdy neutronowej kalibrują pułapki antymaterii.',
+    effects: [{ kind: 'antimatterPassive', perHour: 0.25 }],
+    maxCount: 4,
+    status: 'robocza',
+  },
+  {
+    star: 'black-hole',
+    label: 'Czarna dziura',
+    description: 'Obserwacje dysku materii przyspieszają badania w całym imperium.',
+    effects: [{ kind: 'researchTime', percent: -5 }],
+    maxCount: 4,
+    status: 'robocza',
+  },
+];
 
 export const ZONE_LABELS = {
   hot: 'gorąca',

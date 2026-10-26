@@ -282,6 +282,7 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
           'ai-offline': 'SI buduje przy zamkniętej grze (budowy o 50% dłuższe)',
           'specialization-change': 'zmiana specjalizacji kolonii (trwa 1 h)',
           expeditions: 'ekspedycje — wyprawy do sygnałów i nieznanych układów',
+          'extreme-astrophysics': 'odczyt pulsarów i czarnych dziur — ich zbadanie daje premie z danych naukowych',
         }[e.feature];
     }
   });

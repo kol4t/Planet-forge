@@ -67,13 +67,13 @@ import {
   specializationEffects,
 } from '../core/economy/specialization.ts';
 import { findSpecialization, SPECIALIZATION_RULES, SPECIALIZATIONS } from '../data/specializations.ts';
-import { ZONE_LABELS } from '../data/galaxy.ts';
+import { RARE_OBJECTS, ZONE_LABELS } from '../data/galaxy.ts';
 import { expeditionStats, planExpedition, resolveExpedition, type ExpeditionPlan, type ExpeditionStats } from '../core/galaxy/expeditions.ts';
-import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, knownCount, raiseDiscovery, type Discoveries, type DiscoveryLevel } from '../core/galaxy/discovery.ts';
+import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownCount, raiseDiscovery, rareBonuses, type Discoveries, type DiscoveryLevel } from '../core/galaxy/discovery.ts';
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, JournalEntry, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -277,6 +277,7 @@ export class GameController {
   /** Balans z efektami badań — osobno dla każdej listy zbadanych (planety). */
   /** Wiedza o galaktyce (v0.34.2): poziom odkrycia każdego układu — osobno od danych galaktyki. */
   private discoveries: Discoveries = {};
+  private rareCache: { known: Discoveries; effects: ResearchEffect[]; key: string } | null = null;
   /** Ekspedycje w drodze (v0.34.3). */
   private expeditions: Expedition[] = [];
   private readonly expeditionListeners = new Set<(report: ExpeditionReport) => void>();
@@ -361,8 +362,11 @@ export class GameController {
    * (domyślnie: ostatnie naliczenie planety). Liczony ponownie tylko po zmianie.
    */
   private balanceFor(slot: Slot, at = slot.economy.lastUpdate): Balance {
-    const effects = activeSpecializationEffects(slot.specialization, this.siteOf(slot.address), at);
-    const spec = effects.length > 0 ? slot.specialization!.id : '';
+    const own = activeSpecializationEffects(slot.specialization, this.siteOf(slot.address), at);
+    // Premie z danych naukowych rzadkich obiektów (v0.34.4) — dla każdej planety imperium.
+    const rare = this.rareEffects();
+    const effects = [...own, ...rare.effects];
+    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}`;
     const hit = this.balanceCache.get(slot);
     if (hit && hit.done === slot.research.done && hit.spec === spec) return hit.balance;
     const balance = applyResearch(BALANCE, slot.research.done, effects);
@@ -1195,6 +1199,7 @@ export class GameController {
       chance: plan.chance,
       quality: plan.quality,
       scan: plan.scan,
+      ...(plan.extreme ? { extreme: true } : {}),
     });
     const name = this.knownName(index);
     this.log('expedition', `Ekspedycja wyruszyła z ${this.planet.displayName}: ${name} (szansa ${Math.round(plan.chance * 100)}%).`, now);
@@ -1250,7 +1255,14 @@ export class GameController {
       let text: string;
       if (!outcome.success) {
         text = `Ekspedycja (${before}) wróciła bez wyników — sygnał się urwał. Szansa była ${Math.round(expedition.chance * 100)}%.`;
+      } else if (outcome.unreadable && outcome.after < DISCOVERY.recognized) {
+        text = `Ekspedycja (${before}): niezwykły obiekt — ${system.name}. Jego sygnału nie umiemy odczytać; potrzebna „Astrofizyka ekstremalna”.`;
       } else {
+        const rare = RARE_OBJECTS.find((r) => r.star === system.star);
+        const science =
+          rare && outcome.after >= DISCOVERY.explored && outcome.before < DISCOVERY.explored
+            ? ` Rzadki obiekt! Dane naukowe: ${describeEffectList(rare.effects)} dla imperium.`
+            : '';
         const what =
           outcome.after >= DISCOVERY.explored
             ? `${system.name} zbadany — ${findStar(system.star).label.toLowerCase()}, planet: ${system.planetCount}. Widok układu i kolonizacja dostępne.`
@@ -1258,12 +1270,35 @@ export class GameController {
               ? `${system.name} rozpoznany — ${findStar(system.star).label.toLowerCase()}, planet: ${system.planetCount}.`
               : `${system.name} wykryty.`;
         const extra = outcome.revealed.length > 0 ? ` Nowe sygnały w pobliżu: ${outcome.revealed.length}.` : '';
-        text = `Ekspedycja (${before}): ${what}${extra}`;
+        text = `Ekspedycja (${before}): ${what}${science}${extra}`;
       }
       this.log('expedition', text, expedition.returnsAt);
       reports.push({ target: expedition.target, success: outcome.success, text });
     }
     return reports;
+  }
+
+  /** Czy układ jest rzadkim obiektem — tylko gdy gracz już to wie (wykryty lub dalej). */
+  knownRare(index: number): boolean {
+    return this.discoveryLevel(index) >= DISCOVERY.detected && isRare(this.galaxy, index);
+  }
+
+  /** Premie z zbadanych rzadkich obiektów (do panelu mapy). */
+  get rareBonuses(): { label: string; count: number; max: number; text: string }[] {
+    return rareBonuses(this.galaxy, this.discoveries).map((b) => ({
+      label: b.def.label,
+      count: b.count,
+      max: b.def.maxCount,
+      text: describeEffectList(b.def.effects),
+    }));
+  }
+
+  /** Efekty premii rzadkich obiektów i klucz do pamięci balansu (liczone raz na zmianę wiedzy). */
+  private rareEffects(): { effects: ResearchEffect[]; key: string } {
+    if (this.rareCache?.known === this.discoveries) return this.rareCache;
+    const bonuses = rareBonuses(this.galaxy, this.discoveries);
+    this.rareCache = { known: this.discoveries, effects: bonuses.flatMap((b) => b.effects), key: bonuses.map((b) => b.count).join(',') };
+    return this.rareCache;
   }
 
   /** Ile układów gracz zna (co najmniej wykrytych). */
