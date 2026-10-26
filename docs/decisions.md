@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-26 — Galaktyka do odkrywania: plan i v0.34 (czas świata, ruch planet)
+
+Właściciel przyjął plan przebudowy galaktyki (prompt z ChatGPT, audyt w rozmowie) z decyzjami: widok układu pod kątem — tak; na start z istniejącym zapisem znane: własny układ, układy z planetami i statkami gracza oraz najbliżsi sąsiedzi; ekspedycja może się nie udać; nowe badania w ramieniu Eksploracja (4 gałęzie robocze: astronomia, sondy, anomalie, astrofizyka). Otwarte pytania z propozycji (Moduł orbitalny, Rekultywacja) — później.
+- Ustalenia audytu: widok układu był z góry, planety stały w miejscu (kąt z generatora); pulsarów i czarnych dziur jest 8 i 5 na 100 układów — **wag gwiazd nie zmieniamy** (zmieniłoby istniejące układy i zapisy), rzadkość da odkrywanie (wykrywalne dopiero po badaniach i w dalszych obszarach); budowanie bez Vite (własny skrypt) zostaje; ekspedycje użyją mechanizmu podróży statku kolonizacyjnego (start, czas, rozliczenie raz, także offline).
+- Kroki: v0.34 czas i orbity, v0.34.1 wygląd galaktyki i „Mój układ”, v0.34.2 stany odkrycia (osobno od danych galaktyki), v0.34.3 ekspedycje + badania, v0.34.4 rzadkie obiekty.
+- **v0.34:** `core/time/worldClock.ts` — jedno źródło czasu świata (`worldNow`, podmienialne), stała epoka `WORLD_EPOCH` (2026-01-01, niezapisywana). `core/galaxy/orbits.ts` — okres T ∝ a^1,5 (odległość w j.a. z generatora), rozciągnięty w każdym układzie liniowo na 2–25 min (`ORBIT_RULES`, robocze); kąt = faza + 2π · (czas − epoka) / okres. Położenie liczone z czasu przy każdej klatce widocznego układu — nic nie liczy się w tle, nic nie trzeba zapisywać, powrót na ekran, przeładowanie i uśpienie Safari dają poprawne położenia. Fazą jest dotychczasowy kąt planety z generatora (ten sam wygląd w chwili epoki). Gospodarka zostaje na swoich znacznikach czasu (`Date.now()`); przejście na `worldNow` — przy ekspedycjach.
+- Widok pod kątem: elipsy (spłaszczenie dobrane do kształtu obszaru: 0,42 szeroki ekran … 0,7 pion), szerokość orbit z szerokości ekranu; planety po dalszej stronie pod gwiazdą i o 10% mniejsze, po bliższej — o 10% większe. Dotknięcie pasa asteroid liczone z odwróconym spłaszczeniem.
+
 ## 2026-10-26 — v0.33: „Mapa” jako atlas złóż
 
 Według propozycji odnowy ekranów (Ekran 3): bez zmian w zasadach gry, generatorze i zapisie.

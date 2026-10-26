@@ -339,4 +339,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 186. Panel układu: tabela — każda planeta w wierszu z kropką właściciela i paskami metalu i kryształów. Dotknięcie wiersza pokazuje szczegóły planety.
 187. „Wolne / Metal / Kryształy” podświetlają pasujące planety (turkusowa obwódka), resztę przygaszają; drugie dotknięcie wyłącza filtr.
 
+### Od 0.34: ruch planet
+
+188. Widok układu jest pod kątem (orbity jako elipsy); planety krążą — najbliższa w ~2 min, najdalsza w ~25 min.
+189. Zapamiętaj położenie planety, przejdź na kilka minut do Badań i wróć — planeta jest dalej na orbicie (o tyle, ile minęło), nie na początku.
+190. Planety po dalszej stronie orbity chowają się za gwiazdą. W szczegółach planety jest „obieg N min”.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

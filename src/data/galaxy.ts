@@ -1,4 +1,4 @@
-import type { GalaxyRules, StarKindDef } from '../core/types.ts';
+import type { GalaxyRules, OrbitRules, StarKindDef } from '../core/types.ts';
 
 // Galaktyka (v0.11). Nazwy gwiazd, wagi i liczby są ROBOCZE (do potwierdzenia w Lore Bible).
 
@@ -96,6 +96,11 @@ export const GALAXY_RULES: GalaxyRules = {
   },
   // v0.18: planety jałowe (robocze) — bez atmosfery, najczęściej blisko gwiazdy i daleko od niej.
   laterTypes: [{ id: 'barren', chance: { hot: 0.3, warm: 0.1, temperate: 0.04, cold: 0.15, frozen: 0.35 } }],
+};
+
+/** Ruch planet w widoku układu (v0.34, wartości robocze): najbliższa ~2 min, najdalsza ~25 min na obieg. */
+export const ORBIT_RULES: OrbitRules = {
+  periodSeconds: [2 * 60, 25 * 60],
 };
 
 export const ZONE_LABELS = {
