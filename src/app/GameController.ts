@@ -2209,11 +2209,12 @@ export class GameController {
     const level = this.economy.levels[id] ?? 0;
     const now = this.rates;
     const without = productionRates({ ...this.economy, levels: { ...this.economy.levels, [id]: 0 } }, this.planet, this.balance);
-    const per = (v: number) => Math.round(v * 10) / 10;
+    // Polski zapis liczb (przecinek dziesiętny, spacja co tysiąc) — audyt v0.46: było „+728.4 metalu/min”.
+    const per = (v: number) => PL_NUMBER.format(Math.round(v * 10) / 10);
     let output: string | null = null;
     if (def.produces === 'metal') output = `+${per(now.metal - without.metal)} metalu/min`;
     else if (def.produces === 'crystal') output = `+${per(now.crystal - without.crystal)} kryształów/min`;
-    else if (def.produces === 'energy') output = `+${Math.round(now.energyProduced - without.energyProduced)} energii`;
+    else if (def.produces === 'energy') output = `+${PL_NUMBER.format(Math.round(now.energyProduced - without.energyProduced))} energii`;
     else if (def.produces === 'antimatter') output = `+${per(now.antimatterPerHour - without.antimatterPerHour)} antymaterii/h`;
     const use = now.energyUsed - without.energyUsed;
     const own = (this.slots[this.active]!.complexes ?? []).find((c) => c.building === id);
@@ -2248,7 +2249,7 @@ export class GameController {
       stage: stage >= 0 ? stageName(id, level) : null,
       description: def.description,
       output: level > 0 ? output : null,
-      energy: level > 0 && use > 0.05 ? `−${Math.round(use)} energii` : null,
+      energy: level > 0 && use > 0.05 ? `−${PL_NUMBER.format(Math.round(use))} energii` : null,
       fields: this.footprint(id).length,
       planetFields: this.fields,
       stages,
@@ -2633,6 +2634,9 @@ function finishedBuild(before: EconomyState, after: EconomyState): CompletedBuil
   if (a && a.building === c.building && a.startedAt === c.startedAt) return null;
   return (after.levels[c.building] ?? 0) >= c.targetLevel ? { building: c.building, level: c.targetLevel } : null;
 }
+
+/** Liczby w tekstach dla gracza: przecinek dziesiętny i spacja tysięcy (jak w panelach). */
+const PL_NUMBER = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 1 });
 
 /** Planeta z galaktyki: typ z układu, seed = adres, nazwa od układu (np. „HD-412 c”). */
 function galaxyPlanet(target: SystemPlanet): Planet {
