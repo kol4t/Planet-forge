@@ -67,6 +67,19 @@ export const COMPLEX_FAMILIES: readonly ComplexFamily[] = [
     ],
     status: 'robocza',
   },
+  {
+    id: 'tesla-grid',
+    building: 'powerPlant',
+    name: 'Sieć Tesli',
+    hubName: 'wieża przesyłowa',
+    groups: 3,
+    extraFields: 1,
+    bonus: 30,
+    cost: { metal: 2000, crystal: 2000 },
+    unlock: 'tesla-grid',
+    research: '„Przesył bezprzewodowy” (Badania → Produktywność)',
+    status: 'robocza',
+  },
 ];
 
 /** Tryb kompleksu (nieznany albo brak — pierwszy z listy; rodziny bez trybów — neutralny). */

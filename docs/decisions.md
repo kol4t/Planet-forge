@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.40: przemysł, krok 3 — sieć Tesli
+
+- Trzecia rodzina z danych (`COMPLEX_FAMILIES`) — bez zmian w logice łączenia; teren z `suits` (równiny). Premia działa na produkcję energii tym samym `siteFactor` co wydobycie kopalń.
+- Bez trybów pracy: przy elektrowni tryb „więcej energii” nie miałby kosztu (elektrownia nie zużywa energii) — wybór byłby pozorny. Ekran sieci (np. przesył między planetami) — dopiero z nową mechaniką.
+- Wyładowania lekkie (zgodnie z planem, bez cząsteczek): jeden dodatkowy InstancedMesh z odcinkami (maks. 504), kształt z szybkiego skrótu czasu — nie z `rng`, bo to tylko wygląd. 2D: piksele łamanej.
+- Nazwa „Tesla” pochodzi z promptu właściciela — robocza.
+
 ## 2026-10-27 — v0.39: przemysł, krok 2 — wielka fabryka metalu
 
 - Druga rodzina kompleksów z danych (`COMPLEX_FAMILIES`) bez nowej logiki łączenia — ten sam `mergeCandidate`, teren z `suits` (wzgórza i góry). Wygląd rodziny opisuje `FAMILY_LOOK` (kolory rotora, poświaty, rur, szybkość) — kolejne rodziny (elektrownie, v0.40) dopisują wpis.

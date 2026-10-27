@@ -250,11 +250,78 @@ function createFoundry(): BigShape {
   };
 }
 
-/** Rodzina konstrukcji (wiertła kryształu, zakłady metalu): kształty pełnego pola i huba, kolory światła. */
-const FAMILY_LOOK: Partial<Record<BuildingId, { rig: () => BigShape; hub: () => BigShape; rotor: string; glow: string; pipe: string; speed: number }>> = {
+/** Węzeł Tesli (pełne pole elektrowni, v0.40): ażurowa wieża na równinie, obracający się pierścień, świecąca kula. */
+function createTeslaNode(): BigShape {
+  const legs = [0, 1, 2].map((k) => {
+    const a = (k * Math.PI * 2) / 3;
+    return at(new THREE.BoxGeometry(0.04, 0.5, 0.04).rotateZ(-0.22), Math.cos(a) * 0.14, 0.33, Math.sin(a) * 0.14, -a);
+  });
+  return {
+    body: prepare([
+      paint(at(new THREE.CylinderGeometry(0.42, 0.48, 0.1, 6), 0, 0.05, 0), STEEL),
+      ...legs.map((g) => paint(g, STEEL)),
+      paint(at(new THREE.CylinderGeometry(0.035, 0.06, 0.62, 6), 0, 0.4, 0), STEEL),
+      paint(at(new THREE.CylinderGeometry(0.09, 0.09, 0.03, 8), 0, 0.3, 0), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.075, 0.075, 0.03, 8), 0, 0.46, 0), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 8), 0, 0.6, 0), GOLD),
+      // Transformatory przy podstawie.
+      paint(at(new THREE.BoxGeometry(0.14, 0.12, 0.12), 0.3, 0.16, 0.08, 0.4), GOLD),
+      paint(at(new THREE.BoxGeometry(0.12, 0.1, 0.1), -0.28, 0.15, -0.12, -0.3), STEEL),
+    ]),
+    // Izolatory (ciemne talerze) na kolumnie.
+    pit: prepare([at(new THREE.CylinderGeometry(0.07, 0.07, 0.02, 8), 0, 0.38, 0), at(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 8), 0, 0.53, 0)]),
+    // Pierścień (toroid) obraca się powoli.
+    rotor: prepare([at(new THREE.TorusGeometry(0.14, 0.022, 4, 12).rotateX(Math.PI / 2), 0, 0.72, 0), at(new THREE.BoxGeometry(0.3, 0.015, 0.015), 0, 0.72, 0)]),
+    glow: prepare([at(new THREE.IcosahedronGeometry(0.08, 0), 0, 0.8, 0), at(new THREE.BoxGeometry(0.1, 0.03, 0.01), 0.3, 0.18, 0.145)]),
+  };
+}
+
+/** Wieża przesyłowa sieci Tesli (hub, v0.40): wysoka kratownica, dwa pierścienie, duża kula, transformatory. */
+function createTeslaTower(): BigShape {
+  const legs = [0, 1, 2, 3].map((k) => {
+    const a = (k * Math.PI) / 2 + Math.PI / 4;
+    return at(new THREE.BoxGeometry(0.05, 0.7, 0.05).rotateZ(-0.25), Math.cos(a) * 0.2, 0.4, Math.sin(a) * 0.2, -a);
+  });
+  return {
+    body: prepare([
+      paint(at(new THREE.CylinderGeometry(0.5, 0.56, 0.1, 8), 0, 0.05, 0), STEEL),
+      ...legs.map((g) => paint(g, STEEL)),
+      paint(at(new THREE.CylinderGeometry(0.04, 0.08, 0.86, 6), 0, 0.52, 0), STEEL),
+      paint(at(new THREE.BoxGeometry(0.34, 0.03, 0.03), 0, 0.42, 0), GOLD),
+      paint(at(new THREE.BoxGeometry(0.03, 0.03, 0.34), 0, 0.42, 0), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 8), 0, 0.62, 0), GOLD),
+      paint(at(new THREE.BoxGeometry(0.16, 0.14, 0.14), 0.36, 0.17, 0.12, 0.3), GOLD),
+      paint(at(new THREE.BoxGeometry(0.16, 0.14, 0.14), -0.34, 0.17, 0.16, -0.4), GOLD),
+      paint(at(new THREE.BoxGeometry(0.14, 0.1, 0.12), 0.05, 0.15, -0.38), STEEL),
+    ]),
+    pit: prepare([at(new THREE.CylinderGeometry(0.08, 0.08, 0.02, 8), 0, 0.5, 0), at(new THREE.CylinderGeometry(0.07, 0.07, 0.02, 8), 0, 0.72, 0)]),
+    rotor: prepare([
+      at(new THREE.TorusGeometry(0.2, 0.025, 4, 14).rotateX(Math.PI / 2), 0, 0.9, 0),
+      at(new THREE.TorusGeometry(0.13, 0.02, 4, 12).rotateX(Math.PI / 2), 0, 0.8, 0),
+    ]),
+    glow: prepare([
+      at(new THREE.IcosahedronGeometry(0.11, 0), 0, 1.0, 0),
+      at(new THREE.BoxGeometry(0.1, 0.03, 0.01), 0.36, 0.2, 0.195),
+      at(new THREE.BoxGeometry(0.1, 0.03, 0.01), -0.34, 0.2, 0.235),
+    ]),
+  };
+}
+
+/** Rodzina konstrukcji (wiertła kryształu, zakłady metalu, węzły Tesli): kształty pełnego pola i huba, kolory światła. */
+const FAMILY_LOOK: Partial<Record<BuildingId, { rig: () => BigShape; hub: () => BigShape; rotor: string; glow: string; pipe: string; speed: number; arcs?: boolean }>> = {
   crystalMine: { rig: createRig, hub: createHub, rotor: STRUCTURE_COLORS.crystalMine.light, glow: '#6fe9ff', pipe: '#4f8a82', speed: 1.6 },
   metalMine: { rig: createFactory, hub: createFoundry, rotor: '#e6c77a', glow: '#ff9a3c', pipe: '#c9a24a', speed: 0.35 },
+  // Sieć Tesli: kable po gruncie (ciemne) i wyładowania między szczytami wież (`arcs`).
+  powerPlant: { rig: createTeslaNode, hub: createTeslaTower, rotor: '#e6c77a', glow: '#bff6ff', pipe: '#2f3d44', speed: 0.8, arcs: true },
 };
+
+/** Wysokość kul na szczytach wież (w jednostkach kształtu) — tu zaczynają się i kończą wyładowania. */
+const NODE_TOP = 0.8;
+const TOWER_TOP = 1.0;
+const ARC_SEGMENTS = 7;
+const MAX_ARCS = 72 * ARC_SEGMENTS;
+/** Zmiana kształtu wyładowań co tyle sekund (lekki efekt bez cząsteczek). */
+const ARC_TICK = 0.09;
 
 interface BigMeshes {
   body: THREE.InstancedMesh;
@@ -283,6 +350,8 @@ export class ColonyMeshes {
   /** Konstrukcje rodzin (v0.38–v0.39): na każdy budynek z `RIG_BUILDINGS` — pełne pola i huby. */
   private readonly families = new Map<BuildingId, { rigs: BigMeshes; hubs: BigMeshes; glow: string; speed: number }>();
   private readonly pipes: THREE.InstancedMesh;
+  /** Wyładowania sieci Tesli (v0.40): świecące odcinki łamanej między kulami wież. */
+  private readonly arcs: THREE.InstancedMesh;
   /** Animacja łączenia (v0.38.2): postęp 0..1 każdego szybu głównego (szyb wyrasta, rury rosną do wierteł). */
   private readonly hubGrowth = new Map<string, number>();
   private hubsSeeded = false;
@@ -374,6 +443,14 @@ export class ColonyMeshes {
     this.pipes.count = 0;
     this.pipes.frustumCulled = false;
     this.object.add(this.pipes);
+    this.arcs = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: '#bff6ff', toneMapped: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+      MAX_ARCS,
+    );
+    this.arcs.count = 0;
+    this.arcs.frustumCulled = false;
+    this.object.add(this.arcs);
   }
 
   /** Nowa planeta → nowe miejsca; budowle pojawiają się bez animacji. */
@@ -566,12 +643,63 @@ export class ColonyMeshes {
     });
     this.pipes.count = pipe;
     if (this.pipes.instanceColor) this.pipes.instanceColor.needsUpdate = true;
+    this.updateArcs(hubs, growth);
     // Kryształy i żar pieców lekko pulsują (bez „Ogranicz ruch”).
     const pulse = this.still ? 1 : 0.82 + 0.18 * Math.sin(this.time * 2);
     for (const family of this.families.values()) {
       for (const glow of [family.rigs.glow, family.hubs.glow]) (glow.material as THREE.MeshBasicMaterial).color.set(family.glow).multiplyScalar(pulse);
     }
     this.pipes.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * Wyładowania sieci Tesli: łamana od kuli wieży przesyłowej do kuli każdego węzła, kształt losowany
+   * co `ARC_TICK` s (deterministycznie z czasu), część łuków na chwilę gaśnie. „Ogranicz ruch” — stałe, proste.
+   */
+  private updateArcs(hubs: readonly ColonyLayout['hubs'][number][], growth: readonly number[]): void {
+    const { m, q, p, s, n, a, b, x, h0, h1 } = this.tmp;
+    const tick = this.still ? 0 : Math.floor(this.time / ARC_TICK);
+    let arc = 0;
+    const point = (out: THREE.Vector3, from: THREE.Vector3, to: THREE.Vector3, t: number, r0: number, r1: number, seed: number) => {
+      out.copy(from).lerp(to, t).normalize();
+      // Lekki łuk ponad prostą (wyżej w środku) i drganie poprzeczne (poza końcami).
+      const lift = Math.sin(t * Math.PI) * 0.012;
+      out.multiplyScalar(r0 + (r1 - r0) * t + lift);
+      if (t > 0 && t < 1 && !this.still) {
+        const j = (hash(seed) - 0.5) * 0.014;
+        const k = (hash(seed + 7.1) - 0.5) * 0.014;
+        out.x += j;
+        out.y += k;
+        out.z += (hash(seed + 3.3) - 0.5) * 0.014;
+      }
+      return out;
+    };
+    hubs.forEach((hub, hi) => {
+      if (!FAMILY_LOOK[hub.building]?.arcs) return;
+      const ready = growth[hi]! * 2 - 1;
+      if (ready <= 0) return;
+      h0.set(hub.dir[0], hub.dir[1], hub.dir[2]);
+      const r0 = hub.surface + HUB_SIZE * (TOWER_TOP - 0.06);
+      hub.members.forEach((member, mi) => {
+        // Łuk miga: w części chwil gaśnie (każdy w innym rytmie).
+        if (!this.still && hash(tick * 13.7 + mi * 5.3 + hi) < 0.3) return;
+        h1.set(member[0], member[1], member[2]);
+        const r1 = hub.surface + RIG_SIZE * (NODE_TOP - 0.06);
+        for (let k = 0; k < ARC_SEGMENTS && arc < MAX_ARCS && k / ARC_SEGMENTS < ready; k++) {
+          const seed = tick * 31.7 + hi * 101 + mi * 17 + k;
+          point(a, h0, h1, k / ARC_SEGMENTS, r0, r1, seed);
+          point(b, h0, h1, (k + 1) / ARC_SEGMENTS, r0, r1, seed + 1);
+          p.copy(a).add(b).multiplyScalar(0.5);
+          q.setFromUnitVectors(x, n.copy(b).sub(a).normalize());
+          s.set(a.distanceTo(b) * 1.05, 0.0032, 0.0032);
+          m.compose(p, q, s);
+          this.arcs.setMatrixAt(arc++, m);
+        }
+      });
+    });
+    this.arcs.count = arc;
+    this.arcs.instanceMatrix.needsUpdate = true;
+    (this.arcs.material as THREE.MeshBasicMaterial).opacity = this.still ? 0.8 : 0.65 + 0.35 * hash(tick * 3.1);
   }
 
   private updateScaffold(): void {
@@ -601,7 +729,7 @@ export class ColonyMeshes {
   dispose(): void {
     (this.scaffold.material as THREE.Material).dispose();
     const big = [...this.families.values()].flatMap((f) => [f.rigs, f.hubs]).flatMap((b) => [b.body, b.pit, b.rotor, b.glow]);
-    for (const mesh of [...big, this.pipes]) {
+    for (const mesh of [...big, this.pipes, this.arcs]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();
       mesh.dispose();
@@ -614,6 +742,12 @@ export class ColonyMeshes {
       }
     }
   }
+}
+
+/** Szybki pseudolosowy skrót 0..1 (wygląd wyładowań — nie logika gry, więc bez `rng`). */
+function hash(v: number): number {
+  const t = Math.sin(v * 12.9898) * 43758.5453;
+  return t - Math.floor(t);
 }
 
 /** Indeks miejsca dla budowli danego poziomu (powyżej limitu: ostatnie miejsce). */
