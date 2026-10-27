@@ -45,13 +45,39 @@ export interface ColonyHub {
   members: Vec3[];
 }
 
+/** Rodzaj przemienionego gruntu wokół kompleksu (v0.42): kryształowe wychodnie, żużel, naelektryzowane płyty. */
+export type MarkKind = 'crystal' | 'slag' | 'charged';
+
+/** Element przemienionego terenu (tylko wygląd, odtwarzany z kompleksów w zapisie). */
+export interface ColonyMark {
+  kind: MarkKind;
+  dir: Vec3;
+  surface: number;
+  spin: number;
+  /** Wielkość 0.6..1.4 (dalej od kompleksu — mniejsze). */
+  size: number;
+  /** Indeks huba kompleksu (`ColonyLayout.hubs`) — teren zmienia się po animacji łączenia. */
+  hub: number;
+}
+
 export interface ColonyLayout {
   center: Vec3;
   slots: Record<BuildingId, ColonySlot[]>;
   /** Grupy budynków z większą konstrukcją po zapełnieniu pola (rysowane zamiast 3 małych budowli). */
   rigs: ColonyRig[];
   hubs: ColonyHub[];
+  /** Przemieniony teren wokół kompleksów (v0.42). */
+  marks: ColonyMark[];
 }
+
+export const MARK_KINDS: Partial<Record<BuildingId, MarkKind>> = { crystalMine: 'crystal', metalMine: 'slag', powerPlant: 'charged' };
+
+/** Najwięcej elementów przemienionego terenu (pojemność siatek 3D). */
+export const MAX_MARKS = 1600;
+/** Udział punktów mapy powierzchni z elementem: pola kompleksu i pola sąsiednie. */
+const MARK_DENSITY = { inside: 0.2, around: 0.07 };
+/** Wolny krąg wokół konstrukcji (kąt) — teren zmienia się wokół, nie pod budowlą. */
+const MARK_CLEAR = { rig: 0.07, hub: 0.09 };
 
 /** Budynki, których pełne pole zmienia się w większą konstrukcję (v0.38: wiertła kryształu, v0.39: zakłady metalu). */
 export const RIG_BUILDINGS: readonly BuildingId[] = ['crystalMine', 'metalMine', 'powerPlant'];
@@ -144,7 +170,44 @@ export function layoutFromPlots(
       return { building: c.building, dir, surface: surfaceAt(dir), spin: hash01(cell, 6) * Math.PI * 2, members: c.cells.map((m) => fieldPoint(grid, m)) };
     }),
   );
-  return { center: grid.cells[grid.colonyCenter]!.center, slots, rigs, hubs };
+  return { center: grid.cells[grid.colonyCenter]!.center, slots, rigs, hubs, marks: transformMarks(grid, complexes, surfaceAt) };
+}
+
+/**
+ * Przemieniony teren (v0.42): punkty mapy powierzchni pól kompleksu (gęsto) i pól sąsiednich (rzadko),
+ * z wolnym kręgiem wokół wierteł/zakładów/wież i huba. Deterministycznie z numerów punktów — ten sam
+ * zapis daje ten sam teren.
+ */
+export function transformMarks(grid: FieldGrid, complexes: readonly Complex[], surfaceAt: (dir: Vec3) => number): ColonyMark[] {
+  const marks: ColonyMark[] = [];
+  const taken = new Set<number>();
+  let hubIndex = 0;
+  for (const c of complexes) {
+    const hub = hubIndex;
+    hubIndex += c.hubs.length;
+    const kind = MARK_KINDS[c.building];
+    if (!kind) continue;
+    const own = new Set([...c.cells, ...c.hubs]);
+    const around = new Set<number>();
+    for (const cell of own) for (const n of grid.cells[cell]?.neighbors ?? []) if (!own.has(n)) around.add(n);
+    const clear = [
+      ...c.cells.map((cell) => ({ dir: fieldPoint(grid, cell), r: MARK_CLEAR.rig })),
+      ...c.hubs.map((cell) => ({ dir: fieldPoint(grid, cell), r: MARK_CLEAR.hub })),
+    ];
+    for (const [cells, density, scale] of [[own, MARK_DENSITY.inside, 1], [around, MARK_DENSITY.around, 0.75]] as const) {
+      for (const cell of cells) {
+        for (const p of grid.cells[cell]?.members ?? []) {
+          if (marks.length >= MAX_MARKS) return marks;
+          if (taken.has(p) || hash01(p, 11) >= density) continue;
+          const dir = grid.samples[p]!;
+          if (clear.some((k) => angleBetween(dir, k.dir) < k.r)) continue;
+          taken.add(p);
+          marks.push({ kind, dir, surface: surfaceAt(dir), spin: hash01(p, 12) * Math.PI * 2, size: scale * (0.6 + 0.8 * hash01(p, 13)), hub });
+        }
+      }
+    }
+  }
+  return marks;
 }
 
 /** Punkt mapy powierzchni pola najbliżej jego środka (zawsze na lądzie albo lodzie pola). */

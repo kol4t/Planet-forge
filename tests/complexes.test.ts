@@ -8,7 +8,7 @@ import { deserializeEmpire, EMPIRE_KEY } from '../src/core/save/empire.ts';
 import { COMPLEX_FAMILIES, findFamily } from '../src/data/complexes.ts';
 import { STARTER } from '../src/data/planets.ts';
 import { findResearch } from '../src/data/research.ts';
-import { layoutFromPlots } from '../src/planet-renderer/colony.ts';
+import { angleBetween, layoutFromPlots } from '../src/planet-renderer/colony.ts';
 import { createSurfaceSampler } from '../src/planet-renderer/surface.ts';
 
 function withMemoryStorage(run: () => void): void {
@@ -230,5 +230,29 @@ test('poziomy wizualne (v0.41): etap co 5 poziomów, karta pokazuje bieżący i 
     assert.deepEqual(look, { tier: 3, max: 6, name: 'Hale boczne', nextFrom: 16, nextName: 'Przewody i maszt' });
     game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 30 } };
     assert.equal(game.buildingCard('metalMine').look.nextFrom, null);
+  });
+});
+
+test('przemieniony teren (v0.42): wokół kompleksu, nie pod konstrukcjami, ten sam z zapisu', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, powerPlant: 12, storage: 7 }, stock: { metal: 50000, crystal: 50000 } };
+    game.research = { done: ['tesla-grid'], current: null };
+    const sampler = createSurfaceSampler(game.planet);
+    const before = game.colony();
+    assert.equal(layoutFromPlots(before.grid, before.plots, sampler, ['powerPlant'], before.complexes).marks.length, 0, 'bez kompleksu — teren bez zmian');
+    assert.ok(game.mergeComplex('powerPlant', 0).ok);
+    const col = game.colony();
+    const layout = layoutFromPlots(col.grid, col.plots, sampler, ['powerPlant'], col.complexes);
+    assert.ok(layout.marks.length > 20, `elementów: ${layout.marks.length}`);
+    assert.ok(layout.marks.every((m) => m.kind === 'charged' && m.hub === 0));
+    const hub = layout.hubs[0]!;
+    assert.ok(layout.marks.every((m) => angleBetween(m.dir, hub.dir) >= 0.09), 'wolny krąg wokół wieży');
+    const near = new Set(col.complexes[0]!.cells.concat(col.complexes[0]!.hubs).flatMap((c) => [c, ...col.grid.cells[c]!.neighbors]));
+    assert.ok(layout.marks.every((m) => near.has(col.grid.owner[col.grid.samples.indexOf(m.dir)]!)), 'tylko pola kompleksu i sąsiednie');
+    // Wczytana gra: ten sam teren.
+    const again = new GameController(1000);
+    const col2 = again.colony();
+    assert.deepEqual(layoutFromPlots(col2.grid, col2.plots, sampler, ['powerPlant'], col2.complexes).marks, layout.marks);
   });
 });

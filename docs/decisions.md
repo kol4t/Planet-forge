@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.42: przemysł, krok 5 — przemieniony teren
+
+- Plan mówił „warstwa nad terenem, odtwarzana z zapisu”: teren planety (generator, `SURFACE_VERSION`) zostaje nietknięty, a zmiana jest osobną warstwą elementów stojących na powierzchni — liczoną z kompleksów, które już są w zapisie. Zero nowych pól zapisu, zero ryzyka dla starych zapisów.
+- Rozmieszczenie z punktów mapy powierzchni pól (te same, z których powstaje siatka pól) — elementy zawsze na lądzie/lodzie pola, nigdy w wodzie. Wolny krąg wokół konstrukcji, żeby nie zasłaniać budowli.
+- Wydajność: 3 InstancedMesh (po jednym na rodzaj), maks. 1600 elementów, macierze tylko przy zmianie układu i w czasie animacji (nie co klatkę).
+- Megakompleksy (łączenie kompleksów) i energia gwiazdy zostają na kolejne kroki — wymagają nowych reguł gry i decyzji o balansie.
+
 ## 2026-10-27 — v0.41: przemysł, krok 4 — poziomy wizualne
 
 - Prompt: „poziomy 1–30”. Gra ma poziom budynku na całej planecie (nie na budowli), więc etap wyglądu wynika z poziomu budynku: 6 etapów co 5 poziomów (`VISUAL_TIERS`, robocze). Moduły tylko na pełnych polach i w kompleksach — małe budowle (poz. 1–2 na polu) bez zmian, żeby nie zagracić planety.

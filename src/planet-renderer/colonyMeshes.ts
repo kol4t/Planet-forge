@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingId, BuildingLevels } from '../core/types.ts';
 import type { BuildSite } from './PlanetDisplay.ts';
-import { groupFull, MAX_STRUCTURES, RIG_BUILDINGS, visibleStructures, type ColonyLayout } from './colony.ts';
+import { groupFull, MAX_MARKS, MAX_STRUCTURES, RIG_BUILDINGS, visibleStructures, type ColonyLayout, type MarkKind } from './colony.ts';
 import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
 import { VISUAL_TIERS, visualTier } from '../data/industry.ts';
 
@@ -364,6 +364,28 @@ function createTierModules(tier: number): THREE.BufferGeometry {
   return prepare(parts);
 }
 
+/** Przemieniony teren (v0.42): kształt i materiał elementu każdego rodzaju (wielkość względem promienia planety). */
+const MARK_LOOK: Record<MarkKind, { geometry: () => THREE.BufferGeometry; material: () => THREE.Material; size: number }> = {
+  // Kryształowe wychodnie — wydłużone ośmiościany, lekko świecące.
+  crystal: {
+    geometry: () => new THREE.OctahedronGeometry(0.5).scale(0.45, 1.6, 0.45).translate(0, 0.45, 0),
+    material: () => new THREE.MeshStandardMaterial({ color: '#9fe9f2', emissive: '#2a8fa0', emissiveIntensity: 0.6, roughness: 0.3, flatShading: true }),
+    size: 0.011,
+  },
+  // Żużel i hałdy przy fabryce — ciemne, płaskie bryły.
+  slag: {
+    geometry: () => new THREE.IcosahedronGeometry(0.5, 0).scale(1, 0.38, 1),
+    material: () => new THREE.MeshStandardMaterial({ color: '#2f2a26', roughness: 1, metalness: 0.1, flatShading: true }),
+    size: 0.017,
+  },
+  // Naelektryzowane płyty gruntu przy sieci Tesli — ciemne heksy z błękitną poświatą.
+  charged: {
+    geometry: () => new THREE.CylinderGeometry(0.5, 0.5, 0.12, 6).translate(0, 0.03, 0),
+    material: () => new THREE.MeshStandardMaterial({ color: '#25333b', emissive: '#1d7fa0', emissiveIntensity: 0.55, roughness: 0.8, flatShading: true }),
+    size: 0.015,
+  },
+};
+
 interface BigMeshes {
   /** Moduły poziomu wizualnego (v0.41); geometria wg etapu budynku. */
   modules: THREE.InstancedMesh;
@@ -417,6 +439,9 @@ export class ColonyMeshes {
     h1: new THREE.Vector3(),
   };
   private readonly tmpColor = new THREE.Color();
+  /** Przemieniony teren (v0.42): po jednym InstancedMesh na rodzaj; macierze liczone tylko w czasie wzrostu. */
+  private readonly marks = new Map<MarkKind, THREE.InstancedMesh>();
+  private marksDirty = true;
   /** Geometria modułów dla etapów 2..max (indeks = etap). */
   private readonly tierGeometry = VISUAL_TIERS.map((_, i) => (i >= 1 ? createTierModules(i + 1) : null));
 
@@ -499,11 +524,19 @@ export class ColonyMeshes {
     this.arcs.count = 0;
     this.arcs.frustumCulled = false;
     this.object.add(this.arcs);
+    for (const kind of Object.keys(MARK_LOOK) as MarkKind[]) {
+      const mesh = new THREE.InstancedMesh(MARK_LOOK[kind].geometry(), MARK_LOOK[kind].material(), MAX_MARKS);
+      mesh.count = 0;
+      mesh.frustumCulled = false;
+      this.object.add(mesh);
+      this.marks.set(kind, mesh);
+    }
   }
 
   /** Nowa planeta → nowe miejsca; budowle pojawiają się bez animacji. */
   setLayout(layout: ColonyLayout): void {
     this.layout = layout;
+    this.marksDirty = true;
     this.hubGrowth.clear();
     this.hubsSeeded = false;
     this.levels = null;
@@ -521,6 +554,7 @@ export class ColonyMeshes {
    */
   updateLayout(layout: ColonyLayout): void {
     this.layout = layout;
+    this.marksDirty = true;
     this.registerHubs();
     if (this.levels) this.setLevels(this.levels, true);
   }
@@ -697,6 +731,7 @@ export class ColonyMeshes {
     this.pipes.count = pipe;
     if (this.pipes.instanceColor) this.pipes.instanceColor.needsUpdate = true;
     this.updateArcs(hubs, growth);
+    if (this.marksDirty || growth.some((g) => g < 1)) this.updateMarks(growth);
     // Kryształy i żar pieców lekko pulsują (bez „Ogranicz ruch”).
     const pulse = this.still ? 1 : 0.82 + 0.18 * Math.sin(this.time * 2);
     for (const family of this.families.values()) {
@@ -755,6 +790,35 @@ export class ColonyMeshes {
     (this.arcs.material as THREE.MeshBasicMaterial).opacity = this.still ? 0.8 : 0.65 + 0.35 * hash(tick * 3.1);
   }
 
+  /** Przemieniony teren pojawia się wraz z rurami (druga połowa animacji łączenia). */
+  private updateMarks(growth: readonly number[]): void {
+    const layout = this.layout;
+    if (!layout) return;
+    this.marksDirty = false;
+    const { m, q, spin, p, s, n, up } = this.tmp;
+    const counts = new Map<MarkKind, number>();
+    for (const mark of layout.marks) {
+      const mesh = this.marks.get(mark.kind)!;
+      const i = counts.get(mark.kind) ?? 0;
+      const g = Math.max(0, Math.min(1, (growth[mark.hub] ?? 1) * 2 - 1));
+      if (g <= 0) continue;
+      const size = MARK_LOOK[mark.kind].size * mark.size * g;
+      n.set(mark.dir[0], mark.dir[1], mark.dir[2]);
+      q.setFromUnitVectors(up, n);
+      spin.setFromAxisAngle(up, mark.spin);
+      q.multiply(spin);
+      p.copy(n).multiplyScalar(mark.surface - size * 0.15);
+      s.setScalar(Math.max(size, 1e-5));
+      m.compose(p, q, s);
+      mesh.setMatrixAt(i, m);
+      counts.set(mark.kind, i + 1);
+    }
+    for (const [kind, mesh] of this.marks) {
+      mesh.count = counts.get(kind) ?? 0;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
   private updateScaffold(): void {
     const site = this.site;
     const slots = site && this.layout?.slots[site.building];
@@ -789,7 +853,7 @@ export class ColonyMeshes {
     }
     for (const g of this.tierGeometry) g?.dispose();
     const big = all.flatMap((b) => [b.body, b.pit, b.rotor, b.glow]);
-    for (const mesh of [...big, this.pipes, this.arcs]) {
+    for (const mesh of [...big, this.pipes, this.arcs, ...this.marks.values()]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();
       mesh.dispose();

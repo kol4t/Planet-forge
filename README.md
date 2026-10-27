@@ -448,4 +448,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 244. Co 5 poziomów (6, 11, 16, 21, 26) pełne pola i kompleksy tego budynku dostają moduły: platforma ze złotą krawędzią → hale boczne → przewody i maszt z migającym światłem → złote zbiorniki → złote łuki nad konstrukcją (2D i 3D).
 245. Płynność w 3D przy wielu konstrukcjach — bez widocznego spadku względem v0.40.
 
+### Od 0.42: przemieniony teren
+
+246. Po połączeniu kompleksu (druga połowa animacji) grunt wokół niego się zmienia: kompleks wiertniczy — jasne, kryształowe wychodnie; wielka fabryka — ciemny żużel i hałdy; sieć Tesli — ciemne płyty z błękitną poświatą, w 2D chwilami rozbłyskują.
+247. Bezpośrednio pod konstrukcjami grunt zostaje czysty (wolny krąg), zmiana sięga też trochę na sąsiednie pola.
+248. Zamknij i otwórz grę — teren wygląda tak samo. „Rozłącz” kompleks — grunt wraca do zwykłego.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

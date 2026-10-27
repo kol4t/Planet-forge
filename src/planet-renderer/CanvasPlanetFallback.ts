@@ -397,6 +397,19 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     };
     // Postęp łączenia 0..1: szyb wyrasta w pierwszej połowie, rury biegną do wierteł w drugiej (2,4 s).
     const growth = (hub: { dir: readonly number[] }) => Math.min(1, (performance.now() - (this.hubBirth.get(hub.dir.join(',')) ?? -1e9)) / 2400);
+    // Przemieniony teren wokół kompleksów (v0.42): piksele gruntu pod konstrukcjami, po animacji łączenia.
+    const MARK_COLORS = { crystal: '#9fe9f2', slag: '#2b2622', charged: '#2f6f86' } as const;
+    for (const mark of this.colony.marks) {
+      const hub = this.colony.hubs[mark.hub];
+      if (!hub || growth(hub) * 2 - 1 < hash(mark.spin)) continue;
+      const p = toScreen(mark.dir);
+      if (p.depth < 0.08) continue;
+      ctx.globalAlpha = Math.min(1, p.depth * 2.5) * (mark.kind === 'slag' ? 0.85 : 0.75);
+      // Płyty sieci Tesli chwilami rozbłyskują.
+      ctx.fillStyle = mark.kind === 'charged' && now > 0 && hash(Math.floor(now / 250) + mark.spin * 7) < 0.04 ? '#bff6ff' : MARK_COLORS[mark.kind];
+      const big = mark.size > 1.1 && mark.kind !== 'crystal' ? 2 : 1;
+      ctx.fillRect(snapX(p.x - pixel / 2), snapY(p.y - pixel / 2), big * pixel, big * pixel);
+    }
     for (const hub of this.colony.hubs) {
       const h = toScreen(hub.dir);
       if (h.depth < 0.08) continue;
@@ -613,4 +626,10 @@ function prefersReducedMotion(): boolean {
   } catch {
     return false;
   }
+}
+
+/** Szybki skrót 0..1 (tylko wygląd: kolejność pojawiania się i rozbłyski przemienionego terenu). */
+function hash(v: number): number {
+  const t = Math.sin(v * 12.9898) * 43758.5453;
+  return t - Math.floor(t);
 }

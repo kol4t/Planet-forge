@@ -28,7 +28,7 @@ Prompt właściciela (2026-10-27): budowle mają łączyć się w widoczne kompl
 2. ✔ **v0.39 — kopalnie metalu:** zakład metalurgiczny (pełne pola), wielka fabryka (rodzina w `COMPLEX_FAMILIES`, większy footprint), ekran fabryki z trybami (np. maksymalna produkcja / oszczędzanie energii — mierzalne przez `siteFactor` i energię).
 3. ✔ **v0.40 — energetyka:** węzły i słupy Tesli (pełne pola elektrowni, kompleks z przesyłem), wyładowania lekkie (bez cząsteczek).
 4. ✔ **v0.41 — poziomy wizualne:** progi 1–30 w konfiguracji (`visualTier`), moduły dokładane do modeli (platformy, hale, przewody).
-5. **v0.42+ — transformacja terenu:** lokalne materiały wokół kompleksów (warstwa nad terenem, odtwarzana z zapisu), potem megakompleksy i energia gwiazdy (badania).
+5. ✔ **v0.42 — transformacja terenu** (dalej v0.43+: megakompleksy, energia gwiazdy): lokalne materiały wokół kompleksów (warstwa nad terenem, odtwarzana z zapisu), potem megakompleksy i energia gwiazdy (badania).
 6. **v0.50 — wydanie zbiorcze:** raport, testy na iPadzie, porządki.
 
 Liczby (premie, koszty, pola) są robocze — strojenie na końcu (decyzja właściciela).
