@@ -57,11 +57,10 @@ for (const id of ['metalMine', 'crystalMine'] as BuildingId[]) {
     await page.waitForTimeout(5000);
     await page.mouse.click(...CARD[id]!);
     await page.waitForTimeout(1800);
-    // Panel zamknięty, planeta przybliżona 2× (klawisz „+”).
-    await page.mouse.click(458, 346);
-    for (let k = 0; k < 4; k++) await page.keyboard.press('=');
+    // Planeta przybliżona (klawisz „+”); panel „Produkcja” zostaje — planeta stoi w tym samym miejscu ekranu.
+    for (let k = 0; k < 3; k++) await page.keyboard.press('=');
     await page.waitForTimeout(2200);
-    const buffer: Buffer = await page.screenshot({ clip: { x: 470, y: 120, width: 700, height: 600 } });
+    const buffer: Buffer = await page.screenshot({ clip: { x: 480, y: 60, width: 700, height: 600 } });
     shots.push({ id, level, png: buffer.toString('base64') });
     await page.close();
   }
@@ -83,7 +82,7 @@ const html = `<!doctype html><meta charset="utf-8"><style>
   figure { margin: 0; border: 1px solid #2b4846; border-radius: 10px; overflow: hidden; background: #0b1517; }
   img { display: block; width: 100%; }
   figcaption { display: flex; justify-content: space-between; padding: 8px 10px; } figcaption span { color: #e6c77a; }
-</style><h1>Etapy kompleksów (v0.45)</h1><p>Planeta startowa, widok 2D, przybliżenie. Turkusowy obrys — cały obszar budynku. Liczby pól robocze.</p>
+</style><h1>Etapy kompleksów (v0.45)</h1><p>Planeta startowa, widok ${graphics.toUpperCase()}, przybliżenie. Turkusowy obrys — cały obszar budynku. Liczby pól robocze.</p>
 <h2>${NAMES.metalMine}</h2><div class="row">${cells('metalMine')}</div>
 <h2>${NAMES.crystalMine}</h2><div class="row">${cells('crystalMine')}</div>`;
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });

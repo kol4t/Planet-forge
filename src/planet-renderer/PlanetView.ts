@@ -349,13 +349,17 @@ export class PlanetView implements PlanetDisplay {
       const c = complexAt(...dir);
       if (!c) continue;
       const ground = complexGround(c, dir);
-      // Świecące elementy (okna pieców, kryształy) jaśniejsze — ściany lądu nie świecą same.
+      // Ścianki lądu są większe niż działki zabudowy — wzór wyciszony do koloru bazowego budynku (bez pstrej mozaiki),
+      // świecące elementy (okna pieców, kryształy) zostają mocne. Odkrywka — pełny kolor tarasów.
+      const base = GROUND_BASE[c.building];
+      const mix = ground.glow > 0 || pitDepth(c, dir) > 0 ? 0 : 0.6;
       const k = 1 + ground.glow * 0.6;
+      const rgb = [0, 1, 2].map((ch) => Math.min(1, (ground.rgb[ch]! * (1 - mix) + base[ch]! * mix) * k));
       for (let v = 0; v < 3; v++) {
         const i = t + v * 3;
-        col[i] = Math.min(1, ground.rgb[0] * k);
-        col[i + 1] = Math.min(1, ground.rgb[1] * k);
-        col[i + 2] = Math.min(1, ground.rgb[2] * k);
+        col[i] = rgb[0]!;
+        col[i + 1] = rgb[1]!;
+        col[i + 2] = rgb[2]!;
         if (c.building !== 'crystalMine') continue;
         // Odkrywka: wierzchołek obniżony schodkami tarasów, najwyżej do poziomu tuż nad morzem.
         const r = Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!);
@@ -581,6 +585,16 @@ export class PlanetView implements PlanetDisplay {
     this.renderer.dispose();
   }
 }
+
+/** Kolor bazowy gruntu kompleksu w 3D (ściany lądu): stal huty, beton krawędzi odkrywki, łupek elektrowni… */
+const GROUND_BASE: Record<BuildingId, readonly [number, number, number]> = {
+  metalMine: [0.36, 0.36, 0.34],
+  crystalMine: [0.42, 0.44, 0.46],
+  powerPlant: [0.24, 0.29, 0.33],
+  storage: [0.47, 0.47, 0.44],
+  antimatterCollector: [0.2, 0.17, 0.27],
+  laboratory: [0.6, 0.65, 0.64],
+};
 
 function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Object3D[] {
   const v = planet.visual;

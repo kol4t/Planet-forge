@@ -449,30 +449,32 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const box = (dx: number, dy: number, w: number, h: number, color: string, glowPhase?: number) => rects.push([dx, dy, w, h, color, glowPhase]);
       switch (c.building) {
         case 'metalMine': {
-          // Huta: hale (stal, złote dachy) w rzędzie, kominy z żarem, okna pieców.
-          const w = Math.min(Math.max(4, span), 4 + stage * 3);
-          const h = 3 + stage;
-          box(-Math.floor(w / 2), -h + 1, w, h, '#6f7b78');
-          box(-Math.floor(w / 2), -h + 1, w, 1, '#c9a24a');
-          if (stage >= 2) box(-Math.floor(w / 2) - 2, -1, 3, 2, '#8a9592');
-          for (let k = 0; k < 1 + stage; k++) {
-            const dx = -Math.floor(w / 2) + 1 + k * 2;
-            if (dx >= Math.ceil(w / 2)) break;
-            const ch = 3 + stage + (k % 2);
+          // Huta: blok hal (stal, złote dachy pasami), kominy na całej szerokości, rząd okien pieców; rośnie z obszarem.
+          const w = Math.min(Math.max(4, span), Math.max(4 + stage * 3, Math.round(span * 0.35)));
+          const h = Math.max(3 + stage, Math.round(w * 0.4));
+          const left = -Math.floor(w / 2);
+          box(left, -h + 1, w, h, '#6f7b78');
+          for (let r = 0; r < h - 2; r += 3) box(left, -h + 1 + r, w, 1, '#c9a24a');
+          if (stage >= 2) box(left - 2, -1, 3, 2, '#8a9592');
+          for (let k = 0, dx = left + 1; dx < left + w - 1; k++, dx += 3) {
+            const ch = 3 + stage + (k % 3);
             box(dx, -h + 1 - ch, 1, ch, '#3c4543');
             box(dx, -h - ch, 1, 1, '#ff9a3c', k * 1.3);
           }
-          for (let k = -Math.floor(w / 2) + 1; k < Math.ceil(w / 2) - 1; k += 2) box(k, -1, 1, 1, '#ffb15a', k * 0.7);
+          for (let k = left + 1; k < left + w - 1; k += 2) box(k, -1, 1, 1, '#ffb15a', k * 0.7);
           break;
         }
         case 'crystalMine': {
           // Wieża wiertnicza nad środkiem odkrywki: kratownica, świecący rdzeń, złota głowica i ramiona.
-          const h = 5 + stage * 3;
-          box(-1, -h + 1, 3, h, '#4f5a58');
+          // Wieża rośnie z odkrywką (do ~0,4 promienia obszaru).
+          const h = Math.max(5 + stage * 3, Math.round(span * 0.3));
+          // Szersza kratownica przy większej odkrywce (nieparzysta szerokość — rdzeń w środku).
+          const half = 1 + Math.floor(h / 14);
+          box(-half, -h + 1, half * 2 + 1, h, '#4f5a58');
           box(0, -h + 2, 1, h - 2, '#1a2224');
           for (let k = 2; k < h - 1; k += 2) box(0, -h + 1 + k, 1, 1, '#6fe9ff', k * 0.4);
-          box(-2, -h, 5, 1, '#c9a24a');
-          if (stage >= 1) box(-3, -h + 2, 7, 1, '#c9a24a');
+          for (let k = 4; k < h - 2; k += 6) box(-half - 1, -h + 1 + k, half * 2 + 3, 1, '#c9a24a');
+          box(-half - 1, -h, half * 2 + 3, 1, '#c9a24a');
           box(0, -h - 1, 1, 1, '#9ff3ff', 0);
           break;
         }

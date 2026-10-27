@@ -29,6 +29,7 @@ Prompt właściciela (2026-10-27): budowle mają łączyć się w widoczne kompl
 3. ✔ **v0.40 — energetyka:** węzły i słupy Tesli (pełne pola elektrowni, kompleks z przesyłem), wyładowania lekkie (bez cząsteczek).
 4. ✔ **v0.41 — poziomy wizualne:** progi 1–30 w konfiguracji (`visualTier`), moduły dokładane do modeli (platformy, hale, przewody).
 5. ✔ **v0.42 — transformacja terenu**; ✔ **v0.43–v0.43.1 — megakompleksy i znaleziska**; ✔ **v0.44 — energia gwiazdy** (kolektor na orbicie): lokalne materiały wokół kompleksów (warstwa nad terenem, odtwarzana z zapisu), potem megakompleksy i energia gwiazdy (badania).
+5a. ✔ **v0.45 — budynek = jeden kompleks** (zgłoszenie właściciela): pola z etapów, spójny obszar, kompleksy jako ulepszenie budynku; zastępuje osobne budowle, rury, moduły v0.41 i przemieniony teren v0.42.
 6. **v0.50 — wydanie zbiorcze:** raport, testy na iPadzie, porządki.
 
 Liczby (premie, koszty, pola) są robocze — strojenie na końcu (decyzja właściciela).
