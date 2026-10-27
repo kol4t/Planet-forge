@@ -4,10 +4,11 @@ import { BALANCE } from '../../data/balance.ts';
 import { parseAiLevels, type AiLevel, type AiRuleId } from '../ai/advisor.ts';
 import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
 import { parseSpecialization } from '../economy/specialization.ts';
+import { parseStation } from '../economy/asteroids.ts';
 import { parseDiscoveries, type Discoveries } from '../galaxy/discovery.ts';
 import { parseExpeditions } from '../galaxy/expeditions.ts';
 import { parseShipments } from '../economy/transport.ts';
-import type { ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import type { AsteroidStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 
@@ -37,6 +38,8 @@ export interface SlotSave {
   fields?: { used: number; buildable: number };
   /** Specjalizacja kolonii (od v0.32.3; brak albo błędna = bez specjalizacji). */
   specialization?: PlanetSpecialization;
+  /** Stacja wydobywcza na pasie asteroid (od v0.37; brak albo błędna = brak stacji). */
+  asteroidStation?: AsteroidStation;
 }
 
 export interface EmpireSave {
@@ -148,6 +151,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(isNum(raw.plotsGrid) ? { plotsGrid: raw.plotsGrid } : {}),
       ...(isFieldCount(raw.fields?.used) && isFieldCount(raw.fields?.buildable) ? { fields: { used: raw.fields.used, buildable: raw.fields.buildable } } : {}),
       ...(parseSpecialization(raw.specialization) ? { specialization: parseSpecialization(raw.specialization) } : {}),
+      ...(parseStation(raw.asteroidStation) ? { asteroidStation: parseStation(raw.asteroidStation) } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;

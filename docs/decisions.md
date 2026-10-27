@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.37: Górnictwo asteroid
+
+- **Gdzie** (decyzja właściciela): stacja tylko w układzie, w którym gracz ma planetę, i tylko gdy układ ma pas (46 ze 100 układów; startowy 1:16 — nie). Jeden pas = jedna stacja (przypisana do jednej planety). Układy bez pasa — później Przechwyt komet.
+- **Jak liczona**: urobek stacji dodawany do przyrostu podstawowego planety (`passiveIncome`) w jej balansie — automatycznie działa offline, przy nadrabianiu nieaktywnych planet i z limitem magazynu, nie rusza złóż planety ani energii. Bez nowego budynku i pól (stacja jest na orbicie, nie na powierzchni).
+- **Budowa**: koszt z aktywnej planety przy starcie, czas jak budynki (120 s × poziom), bez anulowania (robocze); poziom działa od `readyAt`, `advanceSlot` dzieli naliczanie w tej chwili (tak jak koniec zmiany specjalizacji). Badanie „Rafinacja w próżni” działa na planecie, która je zbadała (jak inne badania wydobycia).
+- **Ramię Stacja i handel**: aktywne; „Górnictwo asteroid” zajęło id `station-1` (wcześniej „Moduł orbitalny — wkrótce”, nikt go nie zbadał), Moduł orbitalny dostał nowe id `station-orbit`.
+
 ## 2026-10-26 — v0.36.1: połączenia w „Badaniach” bez chaosu
 
 Właściciel (zrzut z iPada): mosty dają ciekawe zależności, ale długie linie przez całą galaktykę gubią gracza. Zasady rysowania: (1) każde połączenie to łuk „po spirali” (interpolacja kąta i promienia), więc biegnie wzdłuż pierścieni, a nie na skos przez jądro; (2) most z innego ramienia w spoczynku = krótki zaczep z kropką w kolorze ramienia źródła — informacja „zależy od innej dziedziny” bez linii przez mapę; (3) pełny most (przerywany) dopiero po zaznaczeniu jednego z jego końców, a pozostałe połączenia wtedy przygasają; (4) szlak do celu przez most też przerywany. Dane badań i zależności bez zmian.

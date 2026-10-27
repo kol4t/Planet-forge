@@ -29,6 +29,7 @@ export function planetBadges(p: PlanetOverview): CardBadge[] {
   const badges: CardBadge[] = [];
   if (p.active) badges.push({ label: 'Tu jesteś', tone: 'teal' });
   if (p.specialization) badges.push({ label: p.specialization.pending ? `→ ${p.specialization.name.toLowerCase()}` : p.specialization.name.toLowerCase(), tone: 'teal' });
+  if (p.asteroidLevel > 0) badges.push({ label: `pas asteroid ${p.asteroidLevel}`, tone: 'teal' });
   const rich = p.planet.gameplay.richness;
   if (rich.metal >= RICH_FROM) badges.push({ label: 'bogata w metal', tone: 'gold' });
   if (rich.crystal >= RICH_FROM) badges.push({ label: 'bogata w kryształy', tone: 'gold' });

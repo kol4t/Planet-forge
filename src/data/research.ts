@@ -49,7 +49,7 @@ export const RESEARCH_ARMS: readonly ResearchArmDef[] = [
     description: 'Stacja kosmiczna od modułu orbitalnego do sztucznej planety; rynek i szlaki handlowe.',
     angleDeg: 90,
     color: 0x8fb0d8,
-    active: false,
+    active: true,
     status: 'robocza',
   },
   {
@@ -246,10 +246,19 @@ const NODES: readonly ResearchNodeDef[] = [
     effects: [{ kind: 'unlock', feature: 'extreme-astrophysics' }],
   },
   master('exploration', 'explore-master', 'Pionier', 'Gwiazda mistrzowska Eksploracji.', ['probe-3', 'astro-2']),
-  soon('station', 1, 'station-1', 'Moduł orbitalny', 'Pierwszy moduł stacji kosmicznej.'),
-  soon('station', 2, 'station-2', 'Dok handlowy', 'Stacja przyjmuje statki kupców.', ['station-1']),
-  soon('station', 3, 'station-3', 'Rynek galaktyczny', 'Handel z kupcami i szlaki handlowe.', ['station-2']),
-  master('station', 'station-master', 'Planeta-stacja', 'Gwiazda mistrzowska Stacji i handlu.', ['station-3']),
+  // Stacja i handel (v0.37, nazwy robocze): najpierw wydobycie z pasa asteroid — drugie źródło surowców
+  // po wyczerpaniu złóż planety (decyzja właściciela); moduł orbitalny, komety i handel — później.
+  node('station', 1, 0, 'station-1', 'Górnictwo asteroid', 'Stacja wydobywcza na pasie asteroid w układzie z Twoją planetą.', [], [
+    { kind: 'unlock', feature: 'asteroid-mining' },
+  ]),
+  node('station', 3, 0, 'station-refine', 'Rafinacja w próżni', 'Stacja na pasie wydobywa o połowę więcej.', ['station-1', 'mining-1'], [
+    { kind: 'asteroidOutput', percent: 50 },
+  ]),
+  { ...node('station', 2, 1, 'station-orbit', 'Moduł orbitalny', 'Pierwszy moduł stacji kosmicznej nad planetą.', ['station-1'], []), soon: true },
+  { ...node('station', 4, 0, 'station-comet', 'Przechwyt komet', 'Holowanie komet — surowce także w układach bez pasa.', ['station-refine', 'probe-1'], []), soon: true },
+  { ...node('station', 3, 1, 'station-2', 'Dok handlowy', 'Stacja przyjmuje statki kupców.', ['station-orbit'], []), soon: true },
+  { ...node('station', 4, 1, 'station-3', 'Rynek galaktyczny', 'Handel z kupcami i szlaki handlowe.', ['station-2'], []), soon: true },
+  master('station', 'station-master', 'Planeta-stacja', 'Gwiazda mistrzowska Stacji i handlu.', ['station-3', 'station-comet']),
   {
     id: 'ai-1',
     arm: 'ai',
