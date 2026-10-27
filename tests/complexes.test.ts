@@ -142,3 +142,46 @@ test('wybór pola przez gracza (v0.38.2): tylko gdy poziom otwiera nowe pole, ty
     assert.equal(game.buildingCard('metalMine').placement, null);
   });
 });
+
+test('wielka fabryka (v0.39): łączenie zakładów na wzgórzach i w górach, tryby pracy zmieniają metal i energię, zapis', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 9, powerPlant: 12, storage: 7 }, stock: { metal: 50000, crystal: 50000 } };
+    game.research = { done: ['metal-factory'], current: null };
+    const view = game.complexView('metalMine')!;
+    assert.equal(view.name, 'Wielka fabryka');
+    assert.ok(view.candidate, view.reason ?? '');
+    const grid = game.colony().grid;
+    for (const c of [...view.candidate!.cells, ...view.candidate!.hubs]) assert.ok(['hill', 'mountain'].includes(grid.cells[c]!.terrain));
+    assert.ok(game.mergeComplex('metalMine', 0).ok);
+    const factory = game.factoryView('metalMine')!;
+    assert.equal(factory.complexes.length, 1);
+    const [balanced, max, eco] = factory.complexes[0]!.modes;
+    assert.equal(balanced!.active, true);
+    assert.ok(max!.energyUse > balanced!.energyUse && eco!.energyUse < balanced!.energyUse, 'energia zależy od trybu');
+    assert.ok(eco!.outputPerMinute < balanced!.outputPerMinute);
+    // Wybór trybu: gra liczy dokładnie to, co pokazał podgląd.
+    assert.ok(game.setComplexMode(factory.complexes[0]!.index, 'eco', 0).ok);
+    assert.ok(Math.abs(game.rates.energyUsed - eco!.energyUse) < 1e-6);
+    assert.ok(Math.abs(game.rates.fromDeposits.metal - eco!.outputPerMinute) < 1e-6);
+    assert.equal(game.buildingCard('metalMine').factory, 'Ekran: wielka fabryka');
+    assert.equal(game.setComplexMode(0, 'turbo', 0).ok, false);
+    // Zapis: tryb, mnożnik energii i premia > 1 (wcześniej odrzucana przy odczycie) przetrwają wczytanie.
+    const saved = deserializeEmpire(localStorage.getItem(EMPIRE_KEY))!;
+    assert.equal(saved.slots[0]!.complexes![0]!.mode, 'eco');
+    assert.ok((saved.slots[0]!.economy.energyFactor?.metalMine ?? 1) < 1);
+    const again = new GameController(1000);
+    assert.equal(again.factoryView('metalMine')!.complexes[0]!.mode, 'eco');
+  });
+});
+
+test('zapis (v0.39): premia kompleksu w siteFactor > 1 nie jest odrzucana', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, crystalMine: 9, storage: 6 }, stock: { metal: 9000, crystal: 9000 } };
+    game.research = { done: ['crystal-complex'], current: null };
+    assert.ok(game.mergeComplex('crystalMine', 0).ok);
+    const saved = deserializeEmpire(localStorage.getItem(EMPIRE_KEY))!;
+    assert.ok((saved.slots[0]!.economy.siteFactor?.crystalMine ?? 0) > 1);
+  });
+});

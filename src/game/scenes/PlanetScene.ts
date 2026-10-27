@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
+import { openFactoryPanel } from '../ui/factoryPanel.ts';
 import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
 import { BuildingCardView, type CardPlacement } from '../ui/buildingCard.ts';
 import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
@@ -1125,6 +1126,23 @@ export class PlanetScene extends Phaser.Scene {
     this.cardRefreshAt = 0;
   }
 
+  /** Ekran fabryki wybranej budowli (HTML, v0.39). */
+  private openFactory(): void {
+    const id = this.selected;
+    if (!id) return;
+    const c = this.deps.controller;
+    this.closeAsteroid?.();
+    this.closeAsteroid = openFactoryPanel({
+      view: () => c.factoryView(id),
+      setMode: (index, mode) => c.setComplexMode(index, mode),
+      onChange: (message) => {
+        this.showToast(message, 'ok', 2600);
+        this.cardRefreshAt = 0;
+        this.refreshValues();
+      },
+    });
+  }
+
   /** Włącz / wyłącz wybór pola: złote obrysy wolnych pól dedykowanego terenu na planecie. */
   private togglePlacing(): void {
     const id = this.selected;
@@ -1748,6 +1766,7 @@ export class PlanetScene extends Phaser.Scene {
       this.relayout();
     },
     () => this.togglePlacing(),
+    () => this.openFactory(),
   );
   /** Tryb wyboru pola dla następnego poziomu wybranej budowli (v0.38.2). */
   private placing: { id: BuildingId; cells: number[] } | null = null;

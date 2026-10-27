@@ -317,6 +317,7 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
           'asteroid-mining': 'stacja wydobywcza na pasie asteroid (w układzie z Twoją planetą)',
           'comet-capture': 'holownik po kometę — metal i kryształy w każdym układzie',
           'crystal-complex': 'łączenie trzech sąsiednich pełnych pól wierteł kryształu w kompleks wiertniczy',
+          'metal-factory': 'łączenie trzech sąsiednich zakładów metalu w wielką fabrykę z trybami pracy',
           'extreme-astrophysics': 'odczyt pulsarów i czarnych dziur — ich zbadanie daje premie z danych naukowych',
         }[e.feature];
     }

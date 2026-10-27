@@ -14,6 +14,8 @@ export interface Complex {
   cells: number[];
   /** Dodatkowe pola wspólnej konstrukcji. */
   hubs: number[];
+  /** Tryb pracy (v0.39, rodziny z trybami; brak = domyślny). */
+  mode?: string;
 }
 
 /** Pola z pełną grupą (3 poziomy) budynku `id`, w kolejności budowy. */
@@ -136,6 +138,7 @@ export function parseComplexes(raw: unknown, families: readonly ComplexFamily[])
   return raw.flatMap((c: any) => {
     const family = families.find((f) => f.id === c?.family);
     if (!family || !ints(c.cells) || !ints(c.hubs)) return [];
-    return [{ family: family.id, building: family.building, cells: [...c.cells], hubs: [...c.hubs] }];
+    const mode = typeof c.mode === 'string' && family.modes?.some((m) => m.id === c.mode) ? { mode: c.mode as string } : {};
+    return [{ family: family.id, building: family.building, cells: [...c.cells], hubs: [...c.hubs], ...mode }];
   });
 }

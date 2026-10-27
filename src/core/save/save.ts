@@ -98,14 +98,18 @@ function parseMined(raw: any): Pick<EconomyState, 'mined'> {
 }
 
 /** Ustawienia budynków i dopasowanie do terenu (od v0.26.1) — błędne wartości pomijane. */
-function parseBuildingMaps(economy: any): Pick<EconomyState, 'settings' | 'siteFactor'> {
+function parseBuildingMaps(economy: any): Pick<EconomyState, 'settings' | 'siteFactor' | 'energyFactor'> {
   const unit = (v: unknown): v is number => isNum(v) && v >= 0 && v <= 1;
-  const out: Pick<EconomyState, 'settings' | 'siteFactor'> = {};
+  // Mnożniki terenu i kompleksów mogą przekraczać 1 (premia kompleksu, tryb fabryki — v0.38/v0.39).
+  const factor = (v: unknown): v is number => isNum(v) && v >= 0 && v <= 5;
+  const out: Pick<EconomyState, 'settings' | 'siteFactor' | 'energyFactor'> = {};
   for (const def of BALANCE.buildings) {
     const s = economy.settings?.[def.id];
     if (s && unit(s.work) && unit(s.priority)) (out.settings ??= {})[def.id] = { work: s.work, priority: s.priority };
     const f = economy.siteFactor?.[def.id];
-    if (unit(f)) (out.siteFactor ??= {})[def.id] = f;
+    if (factor(f)) (out.siteFactor ??= {})[def.id] = f;
+    const e = economy.energyFactor?.[def.id];
+    if (factor(e)) (out.energyFactor ??= {})[def.id] = e;
   }
   return out;
 }

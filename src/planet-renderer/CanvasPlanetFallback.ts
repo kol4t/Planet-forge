@@ -401,8 +401,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       if (h.depth < 0.08) continue;
       const reach = Math.max(0, growth(hub) * 2 - 1);
       if (reach <= 0) continue;
-      // Rury od szybu głównego do wierteł kompleksu: piksele co krok wzdłuż odcinka.
-      ctx.fillStyle = STRUCTURE_COLORS[hub.building].body;
+      // Rury (kryształy) albo taśmociągi (metal — złote) od konstrukcji głównej do pól kompleksu.
+      ctx.fillStyle = hub.building === 'metalMine' ? '#c9a24a' : STRUCTURE_COLORS[hub.building].body;
       ctx.globalAlpha = Math.min(1, h.depth * 2.5) * 0.9;
       for (const member of hub.members) {
         const m = toScreen(member);
@@ -410,18 +410,40 @@ export class CanvasPlanetFallback implements PlanetDisplay {
         for (let k = 0; k <= steps * reach; k++) ctx.fillRect(snapX(h.x + ((m.x - h.x) * k) / steps), snapY(h.y + ((m.y - h.y) * k) / steps), pixel, pixel);
       }
     }
+    // Zakład metalu (v0.39): stalowa hala ze złotym dachem, żarzące się okna pieców i komin z iskrą.
+    const hall = (px: number, py: number, n: number, alpha: number) => {
+      const x0 = snapX(px - (n * pixel) / 2);
+      const y0 = snapY(py - (n * pixel) / 2);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#6f7b78';
+      ctx.fillRect(x0, y0 + pixel, n * pixel, (n - 1) * pixel);
+      ctx.fillStyle = '#c9a24a';
+      ctx.fillRect(x0, y0 + pixel, n * pixel, pixel);
+      ctx.fillStyle = '#3c4543';
+      ctx.fillRect(x0 + pixel, y0 - 2 * pixel, pixel, 3 * pixel);
+      // Okna pieców: co drugi piksel żarzy się i lekko mruga.
+      ctx.fillStyle = '#ff9a3c';
+      for (let k = 1; k < n - 1; k += 2) {
+        ctx.globalAlpha = alpha * (0.6 + 0.4 * Math.abs(Math.sin(now / 500 + k)));
+        ctx.fillRect(x0 + k * pixel, y0 + Math.ceil(n / 2) * pixel, pixel, pixel);
+      }
+      ctx.globalAlpha = alpha * (0.5 + 0.5 * Math.abs(Math.sin(now / 350 + px)));
+      ctx.fillRect(x0 + pixel, y0 - 3 * pixel, pixel, pixel);
+    };
+    const draw = (building: BuildingId, x: number, y: number, n: number, speed: number, alpha: number) =>
+      building === 'metalMine' ? hall(x, y, n, alpha) : pit(x, y, n, STRUCTURE_COLORS[building], speed, alpha);
     for (const rig of this.colony.rigs) {
       if (!groupFull(level(rig.building), rig.group)) continue;
       const p = toScreen(rig.dir);
       if (p.depth < 0.08) continue;
-      pit(p.x, p.y, 7, STRUCTURE_COLORS[rig.building], 0.9, Math.min(1, p.depth * 2.5));
+      draw(rig.building, p.x, p.y, 7, 0.9, Math.min(1, p.depth * 2.5));
     }
     for (const hub of this.colony.hubs) {
       const h = toScreen(hub.dir);
       if (h.depth < 0.08) continue;
-      // Szyb główny rośnie od 3 do 9 pikseli (nieparzyście — środek zostaje na miejscu).
+      // Szyb / hala główna rośnie od 3 do 9 pikseli (nieparzyście — środek zostaje na miejscu).
       const size = 3 + 2 * Math.round(3 * Math.min(1, growth(hub) * 2));
-      pit(h.x, h.y, size, STRUCTURE_COLORS[hub.building], 0.6, Math.min(1, h.depth * 2.5));
+      draw(hub.building, h.x, h.y, size, 0.6, Math.min(1, h.depth * 2.5));
     }
     ctx.globalAlpha = 1;
     const site = this.site;

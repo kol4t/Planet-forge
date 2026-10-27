@@ -249,6 +249,24 @@ html, body {
 #building-card .bc-stage.soon { opacity: 0.55; }
 #building-card .bc-choose { width: 100%; min-height: 44px; margin-top: 10px; border: 0; border-radius: 10px; background: var(--gold); color: #0c1513; font: 600 15px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif; }
 #building-card .bc-choose.on { background: #1a2b2d; border: 1.5px solid var(--gold); color: var(--gold); }
+#text-panel .fp-box { max-width: 560px; }
+#text-panel .fp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0 10px; }
+#text-panel .fp-stats div { padding: 8px 10px; border: 1px solid #2b4846; border-radius: 10px; background: #0d1a1d; }
+#text-panel .fp-stats span { display: block; font-size: 11px; color: #8ea6a0; }
+#text-panel .fp-stats b { font-size: 18px; color: #5ff2e0; }
+#text-panel .fp-stats b.warn { color: var(--danger); }
+#text-panel .fp-complex h3 { margin: 14px 0 8px; font: 400 18px Georgia, serif; color: var(--gold); }
+#text-panel .fp-complex h4 { margin: 10px 0 6px; font-size: 11px; letter-spacing: 1.3px; text-transform: uppercase; color: #8ea6a0; }
+#text-panel .fp-scheme { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+#text-panel .fp-scheme div { padding: 6px 8px; border-left: 3px solid #c9a24a; background: #0d1a1d; font-size: 12px; }
+#text-panel .fp-scheme b { display: block; color: var(--text); }
+#text-panel .fp-scheme span { color: #8ea6a0; }
+#text-panel .fp-modes { display: flex; flex-direction: column; gap: 6px; }
+#text-panel .fp-mode { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 44px; padding: 8px 12px; border: 1.5px solid #2b4846; background: #0d1a1d; color: var(--text); text-align: left; font-size: 14px; }
+#text-panel .fp-mode.on { border-color: #ff9a3c; box-shadow: 0 0 10px rgba(255, 154, 60, 0.25); }
+#text-panel .fp-mode span { color: #8ea6a0; font-size: 12px; font-weight: 400; }
+#text-panel .fp-mode small { color: #e6c77a; font-size: 12px; }
+@media (max-width: 520px) { #text-panel .fp-scheme { grid-template-columns: 1fr 1fr; } }
 #building-card .bc-hint { margin: 6px 0 0; font-size: 12px; line-height: 1.4; color: #8ea6a0; }
   </style>
 </head>

@@ -227,6 +227,8 @@ export interface EconomyState {
    * na innym — słabiej. Liczy gra z zajętych pól; brak = 1.
    */
   siteFactor?: Partial<Record<BuildingId, number>>;
+  /** Mnożnik zużycia energii budynku (od v0.39: tryb pracy fabryki dla poziomów w kompleksie); brak = 1. */
+  energyFactor?: Partial<Record<BuildingId, number>>;
   /**
    * Ile metalu i kryształów kopalnie wydobyły już ze złóż planety (od v0.27; brak = nic).
    * Zasób złoża = `depositTotal(planet)` − `mined`; zgromadzony zapas (`stock`) to osobna rzecz.
@@ -347,7 +349,7 @@ export type ResearchEffect =
   | { kind: 'unlock'; feature: UnlockFeature };
 
 /** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
-export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport' | 'asteroid-mining' | 'comet-capture' | 'crystal-complex';
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport' | 'asteroid-mining' | 'comet-capture' | 'crystal-complex' | 'metal-factory';
 
 /**
  * Rzadki obiekt astronomiczny (v0.34.4): rodzaj gwiazdy, którego bez badania „Astrofizyka ekstremalna”

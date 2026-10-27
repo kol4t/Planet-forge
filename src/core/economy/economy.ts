@@ -122,7 +122,7 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
     const work = dry ? 0 : setWork;
     // Produktywność skaluje wydobycie i zużycie energii; teren — tylko wydobycie.
     const output = scaled(def.baseOutput, level, growth) * work * (state.siteFactor?.[def.id] ?? 1);
-    const need = scaled(def.baseEnergyUse, level, growth) * work;
+    const need = scaled(def.baseEnergyUse, level, growth) * work * (state.energyFactor?.[def.id] ?? 1);
     energyUsed += need;
     if (def.produces === 'energy') energyProduced += output * rich.energy * env.energy;
     else consumers.push({ def, output, need, priority });

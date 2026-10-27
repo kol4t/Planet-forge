@@ -19,9 +19,9 @@ export const INDUSTRY_STAGES: Partial<Record<BuildingId, readonly IndustryStage[
     { name: 'Transformacja terenu', footprint: 'wkrótce', description: 'Kryształowy krajobraz wokół kompleksów.', when: 'soon' },
   ],
   metalMine: [
-    { name: 'Kopalnia', footprint: '1 pole (3 poziomy)', description: 'Wejścia do kopalni na wzgórzach i w górach.', when: 'built' },
-    { name: 'Zakład przetwórczy', footprint: 'wkrótce', description: 'Pełne pola kopalń jako zakład (v0.39).', when: 'soon' },
-    { name: 'Wielka fabryka', footprint: 'wkrótce', description: 'Kompleks z własnym ekranem i trybami pracy.', when: 'soon' },
+    { name: 'Kopalnia', footprint: '1 pole', description: 'Poziomy 1–2 na polu: wejścia do kopalni na wzgórzach i w górach.', when: 'built' },
+    { name: 'Zakład przetwórczy', footprint: '1 pole (3 poziomy)', description: 'Pełne pole (poz. 3, 6, 9…): hala, piece i kominy.', when: 'full-group' },
+    { name: 'Wielka fabryka', footprint: '4 pola', description: '3 sąsiednie zakłady + hala główna, +30% metalu, ekran z trybami pracy.', when: 'complex' },
     { name: 'Megakompleks metalowy', footprint: 'wkrótce', description: 'Pełny cykl produkcji metalu.', when: 'soon' },
   ],
   powerPlant: [

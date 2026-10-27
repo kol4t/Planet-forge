@@ -1,7 +1,7 @@
 import { buildableCount, cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type BuildRules, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import { choiceCells, hasRoomFor, LEVELS_PER_FIELD, reconcilePlots, siteFactors, suits, TERRAIN_NAMES, usedLandFields, type Plots } from '../core/colony/plots.ts';
 import { complexBonus, mergeCandidate, reservedCells, validComplexes, type Complex } from '../core/colony/complexes.ts';
-import { COMPLEX_FAMILIES, findFamily } from '../data/complexes.ts';
+import { COMPLEX_FAMILIES, complexMode, findFamily } from '../data/complexes.ts';
 import { INDUSTRY_STAGES } from '../data/industry.ts';
 import {
   advance,
@@ -137,6 +137,26 @@ export interface BuildingCard {
   next: string | null;
   /** Wybór pola dla następnego poziomu (v0.38.2): ile pól dedykowanego terenu jest wolnych; null — nie teraz. */
   placement: { level: number; cells: number; terrain: string | null } | null;
+  /** Kompleks z ekranem zarządzania (v0.39, np. wielka fabryka) — nazwa przycisku albo null. */
+  factory: string | null;
+}
+
+/** Ekran fabryki (v0.39): kompleksy budynku z trybami pracy i ich mierzalnym skutkiem. */
+export interface FactoryView {
+  name: string;
+  hubName: string;
+  bonus: number;
+  /** Wydobycie całego budynku teraz (na minutę), energia, którą dostaje (0..1), i ile jej zużywa. */
+  outputPerMinute: number;
+  energyUse: number;
+  energyEfficiency: number;
+  complexes: {
+    index: number;
+    levels: number;
+    fields: number;
+    mode: string;
+    modes: { id: string; name: string; description: string; outputPerMinute: number; energyUse: number; active: boolean }[];
+  }[];
 }
 
 /** Kompleks budynku na aktywnej planecie (okno „Kompleks”, v0.38). */
@@ -144,6 +164,8 @@ export interface ComplexView {
   name: string;
   hubName: string;
   unlocked: boolean;
+  /** Badanie, które odblokowuje rodzinę (tekst do komunikatu). */
+  research: string;
   /** Ile kompleksów już stoi i ile poziomów obejmują. */
   count: number;
   levelsIn: number;
@@ -2002,7 +2024,8 @@ export class GameController {
     else if (nextStage?.when === 'full-group') next = `Ulepsz do poz. 3 — pole zapełni się trzema poziomami.`;
     else if (nextStage?.when === 'complex') {
       const view = this.complexView(id);
-      next = !view?.unlocked ? 'Zbadaj „Wspólne szyby” (Produktywność).' : view.candidate ? 'Gotowe do połączenia: Zarządzanie → Kompleks wiertniczy.' : (view.reason ?? null);
+      const family = findFamily(id);
+      next = !view?.unlocked ? `Zbadaj ${family?.research ?? 'badanie kompleksu'}.` : view.candidate ? `Gotowe do połączenia: Zarządzanie → ${family?.name ?? 'Kompleks'}.` : (view.reason ?? null);
     }
     return {
       name: def.name,
@@ -2015,6 +2038,7 @@ export class GameController {
       planetFields: this.fields,
       stages,
       next,
+      factory: findFamily(id)?.modes && complexes > 0 ? `Ekran: ${findFamily(id)!.name.toLowerCase()}` : null,
       placement: (() => {
         const p = this.placement(id);
         return p.needed && INDUSTRY_STAGES[id] ? { level: p.level, cells: p.cells.length, terrain: p.terrain } : null;
@@ -2047,6 +2071,7 @@ export class GameController {
       name: family.name,
       hubName: family.hubName,
       unlocked,
+      research: family.research,
       count: mine.length,
       levelsIn: mine.length * family.groups * 3,
       bonus: family.bonus,
@@ -2059,12 +2084,79 @@ export class GameController {
     };
   }
 
+  /** Produkcja i energia planety przy danym zestawie kompleksów (podgląd trybów — te same reguły co gra). */
+  private ratesWith(complexes: readonly Complex[]): Rates {
+    const slot = this.slots[this.active]!;
+    const grid = fieldGrid(slot.planet);
+    const siteFactor = siteFactors(grid, slot.plots, this.economy.levels, complexCellBonus(complexes));
+    const energyFactor = complexEnergyFactors(complexes, this.economy.levels);
+    return productionRates({ ...this.economy, siteFactor, energyFactor }, this.planet, this.balance);
+  }
+
+  /** Ekran fabryki: kompleksy budynku, ich tryby pracy i skutek każdego trybu (wydobycie, energia). */
+  factoryView(id: BuildingId): FactoryView | null {
+    const family = findFamily(id);
+    if (!family?.modes) return null;
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const all = slot.complexes ?? [];
+    const resource = id === 'metalMine' ? 'metal' : 'crystal';
+    const rates = this.rates;
+    return {
+      name: family.name,
+      hubName: family.hubName,
+      bonus: family.bonus,
+      outputPerMinute: rates.fromDeposits[resource],
+      energyUse: rates.energyUsed,
+      energyEfficiency: rates.efficiencyBy[id] ?? 1,
+      complexes: all.flatMap((c, index) =>
+        c.building !== id
+          ? []
+          : [
+              {
+                index,
+                levels: c.cells.length * LEVELS_PER_FIELD,
+                fields: c.cells.length + c.hubs.length,
+                mode: complexMode(family, c.mode).id,
+                modes: family.modes!.map((m) => {
+                  const r = this.ratesWith(all.map((x, i) => (i === index ? { ...x, mode: m.id } : x)));
+                  return {
+                    id: m.id,
+                    name: m.name,
+                    description: m.description,
+                    outputPerMinute: r.fromDeposits[resource],
+                    energyUse: r.energyUsed,
+                    active: complexMode(family, c.mode).id === m.id,
+                  };
+                }),
+              },
+            ],
+      ),
+    };
+  }
+
+  /** Zmiana trybu pracy kompleksu (od razu, bez kosztu — robocze). */
+  setComplexMode(index: number, mode: string, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    const c = slot.complexes?.[index];
+    const family = c && COMPLEX_FAMILIES.find((f) => f.id === c.family);
+    const def = family?.modes?.find((m) => m.id === mode);
+    if (!c || !family || !def) return { ok: false, message: 'Nie ma takiego trybu.' };
+    slot.complexes = slot.complexes!.map((x, i) => (i === index ? { ...x, mode } : x));
+    syncPlots(slot, this.buildRules);
+    this.log('build', `${this.planet.displayName}: ${family.name.toLowerCase()} — tryb „${def.name}”.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `${family.name}: tryb „${def.name}”.` };
+  }
+
   /** Połączenie pełnych grup w kompleks (decyzja gracza): warunki → koszt → kompleks od razu. */
   mergeComplex(id: BuildingId, now = Date.now()): ActionMessage {
     this.tick(now);
     const family = findFamily(id);
     if (!family) return { ok: false, message: 'Ten budynek nie tworzy kompleksów.' };
-    if (!this.unlocked(family.unlock)) return { ok: false, message: 'Najpierw zbadaj „Wspólne szyby” (Badania → Produktywność).' };
+    if (!this.unlocked(family.unlock)) return { ok: false, message: `Najpierw zbadaj ${family.research}.` };
     const view = this.complexView(id)!;
     if (!view.candidate) return { ok: false, message: view.reason ?? 'Brak pól do połączenia.' };
     const cost = family.cost;
@@ -2083,7 +2175,7 @@ export class GameController {
     this.log('build', `${this.planet.displayName}: ${family.name.toLowerCase()} — połączono ${family.groups} pola.`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `${family.name} gotowy: +${family.bonus}% wydobycia z ${family.groups * 3} poziomów, ${family.hubName} zajmuje ${family.extraFields} pole.` };
+    return { ok: true, message: `Połączono — ${family.name}: +${family.bonus}% wydobycia z ${family.groups * 3} poziomów, ${family.hubName} zajmuje ${family.extraFields} pole.` };
   }
 
   /** Rozłączenie ostatniego kompleksu budynku (bez zwrotu kosztu; pole wspólnej konstrukcji się zwalnia). */
@@ -2164,6 +2256,11 @@ function syncPlots(slot: Slot, rules: BuildRules): Plots {
   // Dopasowanie do terenu (poziomy w grupach na niepasującym terenie produkują słabiej) i premia kompleksów.
   const factors = siteFactors(grid, slot.plots, slot.economy.levels, complexCellBonus(slot.complexes ?? []));
   if (JSON.stringify(factors) !== JSON.stringify(slot.economy.siteFactor ?? {})) slot.economy = { ...slot.economy, siteFactor: factors };
+  const energy = complexEnergyFactors(slot.complexes ?? [], slot.economy.levels);
+  if (JSON.stringify(energy) !== JSON.stringify(slot.economy.energyFactor ?? {})) {
+    const { energyFactor: _old, ...rest } = slot.economy;
+    slot.economy = Object.keys(energy).length > 0 ? { ...rest, energyFactor: energy } : rest;
+  }
   return slot.plots;
 }
 
@@ -2172,7 +2269,30 @@ const BUILDING_ORDER: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id)
 /** Premia kompleksów dla poziomów na polu (procent z danych rodziny). */
 function complexCellBonus(complexes: readonly Complex[]): (id: BuildingId, cell: number) => number {
   const bonusOf = (family: string) => COMPLEX_FAMILIES.find((f) => f.id === family)?.bonus ?? 0;
-  return (id, cell) => complexBonus(complexes, id, cell, bonusOf);
+  // Premia kompleksu × wydobycie trybu pracy (v0.39).
+  return (id, cell) => {
+    const c = complexes.find((x) => x.building === id && x.cells.includes(cell));
+    const mode = c ? complexMode(COMPLEX_FAMILIES.find((f) => f.id === c.family), c.mode) : null;
+    return complexBonus(complexes, id, cell, bonusOf) * (mode?.output ?? 1);
+  };
+}
+
+/**
+ * Mnożnik energii budynku z trybów pracy jego kompleksów (v0.39): poziomy w kompleksie zużywają
+ * energię × tryb, reszta — zwykle; średnia ważona liczbą poziomów.
+ */
+function complexEnergyFactors(complexes: readonly Complex[], levels: BuildingLevels): Partial<Record<BuildingId, number>> {
+  const out: Partial<Record<BuildingId, number>> = {};
+  for (const c of complexes) {
+    const family = COMPLEX_FAMILIES.find((f) => f.id === c.family);
+    const mode = complexMode(family, c.mode);
+    if (mode.energy === 1) continue;
+    const level = Math.max(1, levels[c.building] ?? 1);
+    const inside = c.cells.length * LEVELS_PER_FIELD;
+    out[c.building] = (out[c.building] ?? 1) + (inside / level) * (mode.energy - 1);
+  }
+  for (const id of Object.keys(out) as BuildingId[]) out[id] = Math.round(out[id]! * 1000) / 1000;
+  return out;
 }
 
 /** Miejsca z zapisu → planety (nieznane typy i inne wersje generatora są pomijane). */

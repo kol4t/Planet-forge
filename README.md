@@ -428,4 +428,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 233. Kopalnia metalu na poziomie 3, 6, 9… (następny poziom otwiera nowe pole): dotknij kopalnię na planecie → w karcie „Wybierz miejsce na poz. N” → na planecie złote obrysy wolnych wzgórz i gór → dotknij jedno z nich: budowa rusza dokładnie tam (złote rusztowanie), obrys zajętości obejmuje nowe pole. „Anuluj wybór miejsca” — bez budowy.
 234. Kompleks wiertniczy łączy tylko pełne pola wierteł na lodzie (okno pisze, ile pełnych pól poza lodem się nie liczy). Po „Połącz w kompleks” na planecie: najpierw wyrasta szyb główny, potem rury biegną do trzech wierteł (ok. 2,5 s).
 
+### Od 0.39: wielka fabryka (metal)
+
+235. Kopalnia metalu z pełnym polem (3 poziomy) wygląda jak zakład: stalowa hala ze złotym dachem, kominem i migającymi pomarańczowymi oknami (2D i 3D).
+236. Badania → Produktywność → „Metalurgia przemysłowa”. Potem Produkcja → suwaki kopalni metalu (Zarządzanie) → „Wielka fabryka”: połączenie 3 sąsiednich pełnych pól na wzgórzach/górach + hala główna na wolnym polu; złote taśmociągi biegną do zakładów.
+237. Dotknij halę główną → w karcie „Ekran: wielka fabryka” → okno z metalem, energią, premią, schematem i trzema trybami pracy. Dotknij „Oszczędzanie energii”: metal i zużycie energii w pasku u góry spadają dokładnie o tyle, ile pokazał tryb. „Maksymalna produkcja” — odwrotnie.
+238. Zamknij i otwórz grę ponownie: wybrany tryb i premia fabryki zostają (wcześniej premia kompleksu mogła zniknąć po wczytaniu).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

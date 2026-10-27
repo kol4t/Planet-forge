@@ -52,7 +52,7 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
   merge.disabled = !c || !v.unlocked;
   split.disabled = v.count === 0;
   if (!v.unlocked) {
-    error.textContent = 'Najpierw zbadaj „Wspólne szyby” (Badania → Produktywność).';
+    error.textContent = `Najpierw zbadaj ${v.research}.`;
     error.hidden = false;
   }
   const act = (run: () => ActionMessage) => () => {
