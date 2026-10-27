@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { generatePlanet } from '../src/core/generation/generatePlanet.ts';
 import { PLANET_DEFINITIONS } from '../src/data/planets.ts';
-import { buildLowPolyLand, shapedRadius, terrace } from '../src/planet-renderer/lowPoly.ts';
+import { buildLowPolyLand, facetNormals, shapedRadius, terrace } from '../src/planet-renderer/lowPoly.ts';
 import { createSurfaceSampler } from '../src/planet-renderer/surface.ts';
 
 test('tarasy: płaskie poziomy, wynik rośnie i mieści się w 0..1', () => {
@@ -46,4 +46,18 @@ test('ląd low-poly: każdy typ planety daje poprawną siatkę i kolory', () => 
     // Najniższy ląd ponad taflą morza (1,001) — inaczej w 3D wygląda jak woda.
     assert.ok(shapedRadius(planet, planet.visual.seaLevel) > 1.001);
   }
+});
+
+test('normalne faset (v0.47): jednostkowe, na zewnątrz, przechylone ku górze', () => {
+  // Stromy trójkąt (ściana tarasu): normalna fasety prawie pozioma — po przechyleniu ma składową „w górę”.
+  const tri = new Float32Array([1, 0, 0, 1.05, 0, 0.02, 1, 0.02, 0.01]);
+  const n = facetNormals(tri);
+  for (let k = 0; k < 9; k += 3) {
+    const len = Math.hypot(n[k]!, n[k + 1]!, n[k + 2]!);
+    assert.ok(Math.abs(len - 1) < 1e-5);
+  }
+  assert.ok(n[0]! > 0.3, `normalna ma składową w górę (${n[0]})`);
+  // Trójkąt nawinięty odwrotnie daje tę samą normalną (zawsze na zewnątrz).
+  const back = facetNormals(new Float32Array([1, 0, 0, 1, 0.02, 0.01, 1.05, 0, 0.02]));
+  assert.ok(Math.abs(back[0]! - n[0]!) < 1e-6 && Math.abs(back[1]! - n[1]!) < 1e-6);
 });

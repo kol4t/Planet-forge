@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.47.0 — grafika 3D, prototyp A (planeta) — 2026-10-27
+
+- 3D bez „szachownicy”: normalne faset przechylone ku górze (`facetNormals`), kolor fasety ze średniej wierzchołków i wygładzonej wysokości, jasność płatami zamiast losowo, przyciemnienie tylko na uskokach tarasów (maks. 25%).
+- Grunt kompleksów w 3D jako spokojna płyta w kolorze budynku (odkrywka z tarasami i ciemnym dnem).
+- Chmury znikają przy przybliżeniu (1,4×–2,2×), gładka tafla oceanu, słabe światło wypełniające po nocnej stronie.
+- Audyt grafiki: `docs/audyt-grafiki-v047.md`. 2D, mechanika i zapisy bez zmian.
+
 ## v0.46 — audyt projektu — 2026-10-27
 
 - Zapis: uszkodzony zapis nie przepada (kopia `planet-forge.empire.broken`, komunikat, kopia w zgłoszeniu); komunikat o nieudanym zapisie (pełna pamięć / tryb prywatny).
