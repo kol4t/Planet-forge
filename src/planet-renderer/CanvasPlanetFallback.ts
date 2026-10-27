@@ -2,7 +2,8 @@ import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
-import { layoutFromPlots, plotsKey, visibleStructures, type ColonyLayout } from './colony.ts';
+import type { Complex } from '../core/colony/complexes.ts';
+import { groupFull, layoutFromPlots, plotsKey, RIG_BUILDINGS, visibleStructures, type ColonyLayout } from './colony.ts';
 import { borderChains, borderStates, FIELD_COLORS, FIELD_LINE, type BorderChain } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
@@ -73,12 +74,12 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.lastDrawn = { yaw: NaN, pitch: NaN };
   }
 
-  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots): void {
+  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = []): void {
     if (plots && this.grid && this.sampler) {
-      const key = plotsKey(plots, BUILDING_IDS);
+      const key = plotsKey(plots, BUILDING_IDS, complexes);
       if (key !== this.plotsKey) {
         this.plotsKey = key;
-        this.colony = layoutFromPlots(this.grid, plots, this.sampler, BUILDING_IDS);
+        this.colony = layoutFromPlots(this.grid, plots, this.sampler, BUILDING_IDS, complexes);
       }
       this.plots = plots;
     }
@@ -273,17 +274,75 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const hz = -px * sy + pz * cy;
       return { x: cx + sx * r, y: centerY - (py * cp - hz * sp) * r, depth: py * sp + hz * cp };
     };
+    // Pełne pole wierteł kryształu (v0.38) to jedno wiertło z szybem zamiast trzech małych budowli.
+    const level = (id: BuildingId) => this.levels![id] ?? 0;
+    const rigged = (id: BuildingId, i: number) => RIG_BUILDINGS.includes(id) && groupFull(level(id), Math.floor(i / 3));
     for (const id of BUILDING_IDS) {
       const slots = this.colony.slots[id] ?? [];
       const count = Math.min(visibleStructures(this.levels[id] ?? 0), slots.length);
       ctx.fillStyle = STRUCTURE_COLORS[id].light;
       for (let i = 0; i < count; i++) {
+        if (rigged(id, i)) continue;
         const p = toScreen(slots[i]!.dir);
         if (p.depth < 0.08) continue;
         ctx.globalAlpha = Math.min(1, p.depth * 2.5);
         ctx.fillRect(snapX(p.x - pixel / 2), snapY(p.y - pixel / 2), cell, cell);
       }
     }
+    // Szyby w pikselach: ciemne wnętrze, obręcz, światło obiegające obręcz (praca wiertła).
+    // „Ogranicz ruch” — szyby bez obiegającego światła i pulsowania.
+    const now = this.reducedMotion ? 0 : performance.now();
+    const pit = (px: number, py: number, n: number, colors: { body: string; light: string }, speed: number, alpha: number) => {
+      const x0 = snapX(px - (n * pixel) / 2);
+      const y0 = snapY(py - (n * pixel) / 2);
+      ctx.globalAlpha = alpha;
+      // Obręcz bez narożników — szyb jest okrągławy, nie kwadratowy.
+      ctx.fillStyle = colors.body;
+      ctx.fillRect(x0 + pixel, y0, (n - 2) * pixel, n * pixel);
+      ctx.fillRect(x0, y0 + pixel, n * pixel, (n - 2) * pixel);
+      ctx.fillStyle = '#071012';
+      ctx.fillRect(x0 + pixel, y0 + pixel, (n - 2) * pixel, (n - 2) * pixel);
+      // Obręcz: piksele po obwodzie; jeden (dwa przy kompleksie) świecą i obiegają szyb.
+      const ring: [number, number][] = [];
+      for (let k = 1; k < n - 1; k++) ring.push([k, 0]);
+      for (let k = 1; k < n - 1; k++) ring.push([n - 1, k]);
+      for (let k = n - 2; k > 0; k--) ring.push([k, n - 1]);
+      for (let k = n - 2; k > 0; k--) ring.push([0, k]);
+      const step = Math.floor((now / 1000) * speed * ring.length) % ring.length;
+      ctx.fillStyle = colors.light;
+      for (const offset of n > 3 ? [0, ring.length / 2] : [0]) {
+        const [rx, ry] = ring[(step + offset) % ring.length]!;
+        ctx.fillRect(x0 + rx * pixel, y0 + ry * pixel, pixel, pixel);
+      }
+      // Kryształ na dnie szybu pulsuje.
+      ctx.globalAlpha = alpha * (0.45 + 0.55 * Math.abs(Math.sin(now / 600 + px)));
+      const c = Math.floor(n / 2);
+      ctx.fillRect(x0 + c * pixel, y0 + c * pixel, pixel, pixel);
+    };
+    for (const hub of this.colony.hubs) {
+      const h = toScreen(hub.dir);
+      if (h.depth < 0.08) continue;
+      // Rury od szybu głównego do wierteł kompleksu: piksele co krok wzdłuż odcinka.
+      ctx.fillStyle = STRUCTURE_COLORS[hub.building].body;
+      ctx.globalAlpha = Math.min(1, h.depth * 2.5) * 0.9;
+      for (const member of hub.members) {
+        const m = toScreen(member);
+        const steps = Math.max(1, Math.ceil(Math.hypot(m.x - h.x, m.y - h.y) / pixel));
+        for (let k = 0; k <= steps; k++) ctx.fillRect(snapX(h.x + ((m.x - h.x) * k) / steps), snapY(h.y + ((m.y - h.y) * k) / steps), pixel, pixel);
+      }
+    }
+    for (const rig of this.colony.rigs) {
+      if (!groupFull(level(rig.building), rig.group)) continue;
+      const p = toScreen(rig.dir);
+      if (p.depth < 0.08) continue;
+      pit(p.x, p.y, 7, STRUCTURE_COLORS[rig.building], 0.9, Math.min(1, p.depth * 2.5));
+    }
+    for (const hub of this.colony.hubs) {
+      const h = toScreen(hub.dir);
+      if (h.depth < 0.08) continue;
+      pit(h.x, h.y, 9, STRUCTURE_COLORS[hub.building], 0.6, Math.min(1, h.depth * 2.5));
+    }
+    ctx.globalAlpha = 1;
     const site = this.site;
     const siteSlots = site && this.colony.slots[site.building];
     if (site && siteSlots?.length) {

@@ -150,6 +150,10 @@ const NODES: readonly ResearchNodeDef[] = [
     ['mining-3', 'Głębokie szyby', 'Wydobycie: złoża poniżej skorupy — szybciej i więcej do wydobycia.', [output('metal', 15), output('crystal', 15), { kind: 'deposits', percent: 15 }]],
     ['mining-4', 'Automatyczne rafinerie', 'Wydobycie: urobek oczyszczany na miejscu.', [output('metal', 20), output('crystal', 20)]],
   ]),
+  // Przemysł (v0.38, robocze): łączenie pełnych pól wierteł kryształu w kompleks wiertniczy.
+  node('productivity', 4, -3, 'crystal-complex', 'Wspólne szyby', 'Inżynieria wydobywcza: trzy sąsiednie pola wierteł kryształu łączą się w kompleks ze wspólnym szybem.', ['mining-2'], [
+    { kind: 'unlock', feature: 'crystal-complex' },
+  ]),
   ...lane('productivity', -1, 2, 'prod-core', [
     ['energy-1', 'Sieci nadprzewodzące', 'Energetyka: mniej strat na przesyle.', [{ kind: 'energyUse', percent: -10 }]],
     ['energy-2', 'Ogniwa fuzyjne', 'Energetyka: wydajniejsze elektrownie.', [output('energy', 15)]],

@@ -409,4 +409,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 223. Panel „Planeta”: wiersz „KOSMOS” (np. „bez pasa · holownik gotowy”) → „Wydobycie” → okno z sekcjami „Pas asteroid” i „Kometa”. Na planecie bez pasa sekcja pasa tylko wyjaśnia, gdzie można postawić stację.
 224. „Wyślij holownik”: koszt schodzi od razu, wiersz pokazuje „kometa 59:59”, w „Imperium” — „Holownik po kometę: …”. Po godzinie komunikat „Kometa przyholowana…” i więcej metalu i kryształów; działa też przy zamkniętej grze.
 
+### Od 0.38: wiertła kryształu i kompleks wiertniczy
+
+225. Ekstraktor kryształów na poziomie 3, 6, 9…: każde pełne pole (3 poziomy) to jedno większe wiertło z szybem w gruncie zamiast trzech małych budowli — w 2D ciemny szyb z obiegającym światłem, w 3D platforma z otworem i obracającą się głowicą.
+226. Badania → Produktywność → „Wspólne szyby”. Potem Produkcja → ikonka „Zarządzanie” na karcie Ekstraktora → „Kompleks wiertniczy”: okno pokazuje, czy 3 pełne pola leżą obok siebie, ile pól zajmie kompleks (POLA +1), ile więcej kryształów i koszt.
+227. „Połącz w kompleks”: kryształy/min w pasku rosną o tyle, ile pokazał podgląd, POLA +1, na planecie szyb główny z rurami do trzech wierteł.
+228. To samo okno → „Rozłącz” → „Na pewno?”: kompleks znika, POLA −1, wydobycie wraca. Zburzenie poziomu Ekstraktora też rozłącza kompleks.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

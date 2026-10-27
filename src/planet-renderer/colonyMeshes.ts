@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingId, BuildingLevels } from '../core/types.ts';
 import type { BuildSite } from './PlanetDisplay.ts';
-import { MAX_STRUCTURES, visibleStructures, type ColonyLayout } from './colony.ts';
+import { groupFull, MAX_STRUCTURES, RIG_BUILDINGS, visibleStructures, type ColonyLayout } from './colony.ts';
 import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
 
 // Zabudowa kolonii na powierzchni planety: każdy typ budynku = 2 InstancedMesh
@@ -99,6 +99,84 @@ function createShapes(): Record<BuildingId, Shape> {
   };
 }
 
+/** Wiertło pełnego pola i szyb główny kompleksu (v0.38) — większe niż zwykła budowla. */
+const RIG_SIZE = 0.085;
+const HUB_SIZE = 0.13;
+const MAX_RIGS = 70;
+const MAX_HUBS = 24;
+const PIPE_SEGMENTS = 5;
+const MAX_PIPES = 72 * PIPE_SEGMENTS;
+
+type BigShape = { body: THREE.BufferGeometry; pit: THREE.BufferGeometry; rotor: THREE.BufferGeometry };
+
+/**
+ * Szyb jako bryła: podwyższenie z otworem — ściany szybu schodzą od krawędzi niemal do gruntu, na dnie
+ * świecące kryształy. Teren planety nie przykrywa wnętrza, bo szyb jest wpuszczony w platformę.
+ */
+function createRig(): BigShape {
+  const legs = [0, 1, 2, 3].map((k) => {
+    const a = (k * Math.PI) / 2 + Math.PI / 4;
+    return at(new THREE.BoxGeometry(0.05, 0.62, 0.05).rotateZ(-0.38), Math.cos(a) * 0.3, 0.5, Math.sin(a) * 0.3, -a);
+  });
+  return {
+    body: prepare([
+      at(new THREE.CylinderGeometry(0.5, 0.58, 0.24, 8, 1, true), 0, 0.12, 0),
+      at(new THREE.RingGeometry(0.27, 0.5, 8).rotateX(-Math.PI / 2), 0, 0.24, 0),
+      ...legs,
+      at(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 6), 0, 0.8, 0),
+      at(new THREE.BoxGeometry(0.16, 0.12, 0.3), 0.42, 0.3, 0),
+    ]),
+    pit: prepare([
+      at(new THREE.CylinderGeometry(0.27, 0.19, 0.22, 8, 1, true), 0, 0.13, 0),
+      at(new THREE.CircleGeometry(0.19, 8).rotateX(-Math.PI / 2), 0, 0.02, 0),
+    ]),
+    rotor: prepare([
+      at(new THREE.ConeGeometry(0.08, 0.34, 6).rotateX(Math.PI), 0, 0.3, 0),
+      at(new THREE.CylinderGeometry(0.025, 0.025, 0.38, 4), 0, 0.6, 0),
+      at(new THREE.BoxGeometry(0.42, 0.035, 0.05), 0, 0.72, 0),
+      at(new THREE.OctahedronGeometry(0.06), 0.12, 0.06, 0.04),
+      at(new THREE.OctahedronGeometry(0.05), -0.1, 0.05, -0.06),
+    ]),
+  };
+}
+
+function createHub(): BigShape {
+  const towers = [0, 1, 2, 3].map((k) => {
+    const a = (k * Math.PI) / 2 + Math.PI / 4;
+    return at(new THREE.BoxGeometry(0.09, 0.42, 0.09), Math.cos(a) * 0.4, 0.33, Math.sin(a) * 0.4);
+  });
+  return {
+    body: prepare([
+      at(new THREE.CylinderGeometry(0.52, 0.58, 0.2, 8, 1, true), 0, 0.1, 0),
+      at(new THREE.RingGeometry(0.24, 0.52, 8).rotateX(-Math.PI / 2), 0, 0.2, 0),
+      ...towers,
+      at(new THREE.BoxGeometry(0.06, 0.5, 0.06), 0.2, 0.45, 0),
+      at(new THREE.BoxGeometry(0.06, 0.5, 0.06), -0.2, 0.45, 0),
+      at(new THREE.BoxGeometry(0.5, 0.07, 0.1), 0, 0.72, 0),
+    ]),
+    pit: prepare([
+      at(new THREE.CylinderGeometry(0.24, 0.16, 0.19, 8, 1, true), 0, 0.11, 0),
+      at(new THREE.CircleGeometry(0.16, 8).rotateX(-Math.PI / 2), 0, 0.02, 0),
+    ]),
+    rotor: prepare([
+      at(new THREE.ConeGeometry(0.1, 0.36, 8).rotateX(Math.PI), 0, 0.28, 0),
+      at(new THREE.TorusGeometry(0.17, 0.025, 4, 12).rotateX(Math.PI / 2), 0, 0.5, 0),
+      at(new THREE.BoxGeometry(0.36, 0.03, 0.04), 0, 0.5, 0),
+      at(new THREE.OctahedronGeometry(0.07), 0.08, 0.06, 0.05),
+      at(new THREE.OctahedronGeometry(0.06), -0.09, 0.05, -0.04),
+      at(new THREE.OctahedronGeometry(0.05), 0.02, 0.05, -0.1),
+    ]),
+  };
+}
+
+interface BigMeshes {
+  body: THREE.InstancedMesh;
+  pit: THREE.InstancedMesh;
+  rotor: THREE.InstancedMesh;
+  /** Bieżąca skala (wyrastanie) każdej konstrukcji. */
+  current: Float32Array;
+}
+
 interface Group {
   body: THREE.InstancedMesh;
   light: THREE.InstancedMesh;
@@ -114,6 +192,9 @@ export class ColonyMeshes {
   private levels: BuildingLevels | null = null;
   private animating = false;
   private readonly shapes = createShapes();
+  private readonly rigs: BigMeshes;
+  private readonly hubs: BigMeshes;
+  private readonly pipes: THREE.InstancedMesh;
   /** Rusztowanie trwającej budowy: zarys budynku rosnący wraz z postępem. */
   private readonly scaffold: THREE.Mesh;
   private site: BuildSite | null = null;
@@ -126,9 +207,18 @@ export class ColonyMeshes {
     s: new THREE.Vector3(),
     n: new THREE.Vector3(),
     up: new THREE.Vector3(0, 1, 0),
+    a: new THREE.Vector3(),
+    b: new THREE.Vector3(),
+    x: new THREE.Vector3(1, 0, 0),
+    h0: new THREE.Vector3(),
+    h1: new THREE.Vector3(),
   };
 
-  constructor(ids: readonly BuildingId[]) {
+  /** `still` — „Ogranicz ruch”: głowice wierteł nie obracają się. */
+  private readonly still: boolean;
+
+  constructor(ids: readonly BuildingId[], still = false) {
+    this.still = still;
     this.object.name = 'colony';
     const shapes = this.shapes;
     this.scaffold = new THREE.Mesh(
@@ -162,6 +252,32 @@ export class ColonyMeshes {
         target: new Float32Array(MAX_STRUCTURES),
       });
     }
+    // Wiertła i szyby kompleksów (v0.38): po 3 InstancedMesh (bryła, wnętrze szybu, ruchoma głowica) + rury.
+    const crystal = STRUCTURE_COLORS.crystalMine;
+    const big = (shape: BigShape, count: number): BigMeshes => {
+      const meshes = {
+        body: new THREE.InstancedMesh(shape.body, new THREE.MeshStandardMaterial({ color: crystal.body, roughness: 0.55, metalness: 0.3, flatShading: true, side: THREE.DoubleSide }), count),
+        pit: new THREE.InstancedMesh(shape.pit, new THREE.MeshStandardMaterial({ color: '#0b1517', roughness: 1, metalness: 0, side: THREE.DoubleSide }), count),
+        rotor: new THREE.InstancedMesh(shape.rotor, new THREE.MeshBasicMaterial({ color: crystal.light, toneMapped: false }), count),
+        current: new Float32Array(count),
+      };
+      for (const mesh of [meshes.body, meshes.pit, meshes.rotor]) {
+        mesh.count = 0;
+        mesh.frustumCulled = false;
+        this.object.add(mesh);
+      }
+      return meshes;
+    };
+    this.rigs = big(createRig(), MAX_RIGS);
+    this.hubs = big(createHub(), MAX_HUBS);
+    this.pipes = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ color: '#4f8a82', roughness: 0.5, metalness: 0.4, emissive: '#123a36' }),
+      MAX_PIPES,
+    );
+    this.pipes.count = 0;
+    this.pipes.frustumCulled = false;
+    this.object.add(this.pipes);
   }
 
   /** Nowa planeta → nowe miejsca; budowle pojawiają się bez animacji. */
@@ -194,8 +310,10 @@ export class ColonyMeshes {
       const slots = this.layout.slots[id] ?? [];
       const level = levels[id] ?? 0;
       const count = Math.min(visibleStructures(level), slots.length);
+      // Pełne pole wierteł: zamiast 3 małych budowli jedno wiertło z szybem (v0.38).
+      const rigged = RIG_BUILDINGS.includes(id);
       for (let i = 0; i < MAX_STRUCTURES; i++) {
-        group.target[i] = i < count ? slots[i]!.size : 0;
+        group.target[i] = i < count && !(rigged && groupFull(level, Math.floor(i / 3))) ? slots[i]!.size : 0;
         if (first) group.current[i] = group.target[i]!;
       }
       // Rysujemy też budowle znikające (np. nowa gra), dopóki nie zmaleją do zera.
@@ -224,6 +342,7 @@ export class ColonyMeshes {
   update(dt: number): void {
     this.time += dt;
     this.updateScaffold();
+    this.updateBig(dt);
     if (!this.animating || !this.layout) return;
     const { m, q, spin, p, s, n, up } = this.tmp;
     let stillMoving = false;
@@ -267,6 +386,63 @@ export class ColonyMeshes {
     this.animating = stillMoving;
   }
 
+  /** Wiertła i szyby kompleksów: wyrastanie, obracające się głowice, rury (kilkanaście instancji — co klatkę). */
+  private updateBig(dt: number): void {
+    const layout = this.layout;
+    if (!layout || !this.levels) return;
+    const { m, q, spin, p, s, n, up, a, b, x } = this.tmp;
+    const grow = dt / GROW_SECONDS;
+    const place = (meshes: BigMeshes, i: number, dir: readonly number[], surface: number, turn: number, target: number, size: number, speed: number) => {
+      const cur = meshes.current[i]!;
+      const next = target > cur ? Math.min(target, cur + grow) : Math.max(target, cur - grow * 2);
+      meshes.current[i] = next;
+      n.set(dir[0]!, dir[1]!, dir[2]!);
+      q.setFromUnitVectors(up, n);
+      spin.setFromAxisAngle(up, turn);
+      q.multiply(spin);
+      p.copy(n).multiplyScalar(surface - size * 0.06);
+      s.setScalar(Math.max(next * size, 1e-5));
+      m.compose(p, q, s);
+      meshes.body.setMatrixAt(i, m);
+      meshes.pit.setMatrixAt(i, m);
+      // Głowica wiertła obraca się wokół osi szybu.
+      spin.setFromAxisAngle(up, this.still ? 0 : this.time * speed);
+      q.multiply(spin);
+      m.compose(p, q, s);
+      meshes.rotor.setMatrixAt(i, m);
+    };
+    const rigs = layout.rigs.slice(0, MAX_RIGS);
+    rigs.forEach((rig, i) => place(this.rigs, i, rig.dir, rig.surface, rig.spin, groupFull(this.levels![rig.building] ?? 0, rig.group) ? 1 : 0, RIG_SIZE, 1.6));
+    const hubs = layout.hubs.slice(0, MAX_HUBS);
+    hubs.forEach((hub, i) => place(this.hubs, i, hub.dir, hub.surface, hub.spin, 1, HUB_SIZE, 0.9));
+    for (const meshes of [this.rigs, this.hubs]) {
+      const count = meshes === this.rigs ? rigs.length : hubs.length;
+      meshes.body.count = meshes.pit.count = meshes.rotor.count = count;
+      meshes.body.instanceMatrix.needsUpdate = meshes.pit.instanceMatrix.needsUpdate = meshes.rotor.instanceMatrix.needsUpdate = true;
+    }
+    // Rury: prosty odcinek nad gruntem od szybu głównego do każdego wiertła kompleksu.
+    let pipe = 0;
+    // Każda rura to kilka odcinków po łuku nad powierzchnią (prosty odcinek chowałby się w planecie).
+    const { h0, h1 } = this.tmp;
+    for (const hub of hubs) {
+      h0.set(hub.dir[0], hub.dir[1], hub.dir[2]);
+      for (const member of hub.members) {
+        h1.set(member[0], member[1], member[2]);
+        for (let k = 0; k < PIPE_SEGMENTS && pipe < MAX_PIPES; k++) {
+          a.copy(h0).lerp(h1, k / PIPE_SEGMENTS).normalize().multiplyScalar(hub.surface + 0.009);
+          b.copy(h0).lerp(h1, (k + 1) / PIPE_SEGMENTS).normalize().multiplyScalar(hub.surface + 0.009);
+          p.copy(a).add(b).multiplyScalar(0.5);
+          q.setFromUnitVectors(x, n.copy(b).sub(a).normalize());
+          s.set(a.distanceTo(b) * 1.04, 0.006, 0.006);
+          m.compose(p, q, s);
+          this.pipes.setMatrixAt(pipe++, m);
+        }
+      }
+    }
+    this.pipes.count = pipe;
+    this.pipes.instanceMatrix.needsUpdate = true;
+  }
+
   private updateScaffold(): void {
     const site = this.site;
     const slots = site && this.layout?.slots[site.building];
@@ -293,6 +469,11 @@ export class ColonyMeshes {
 
   dispose(): void {
     (this.scaffold.material as THREE.Material).dispose();
+    for (const mesh of [this.rigs.body, this.rigs.pit, this.rigs.rotor, this.hubs.body, this.hubs.pit, this.hubs.rotor, this.pipes]) {
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+      mesh.dispose();
+    }
     for (const group of this.groups.values()) {
       for (const mesh of [group.body, group.light]) {
         mesh.geometry.dispose();

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
+import { openComplexPanel } from '../ui/complexPanel.ts';
 import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled, secondsUntilAffordable } from '../../core/economy/economy.ts';
 import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
@@ -230,7 +231,8 @@ export class PlanetScene extends Phaser.Scene {
       this.game.events.once('postrender', () =>
         setTimeout(() => {
           display.setPlanet(controller.planet);
-          display.setStructures(controller.economy.levels, null, controller.colony().plots);
+          const colony = controller.colony();
+          display.setStructures(controller.economy.levels, null, colony.plots, colony.complexes);
           this.planetPending = false;
           this.relayout();
         }, 0),
@@ -1174,10 +1176,12 @@ export class PlanetScene extends Phaser.Scene {
     this.refreshAiBubble();
     const construction = controller.economy.construction;
     const progress = controller.buildProgress(now);
+    const colony = controller.colony();
     this.deps.display.setStructures(
       controller.economy.levels,
       construction ? { building: construction.building, targetLevel: construction.targetLevel, progress } : null,
-      controller.colony().plots,
+      colony.plots,
+      colony.complexes,
     );
     if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
       this.relayout();
@@ -1622,7 +1626,19 @@ export class PlanetScene extends Phaser.Scene {
     // Zburzenie poziomu (v0.35): zwalnia pole, gdy grupa budowli się zmniejsza — bez zwrotu surowców.
     const canDemolish = info.level > (id === 'storage' ? 1 : 0);
     if (canDemolish) lines.push('Zburzenie: −1 poziom od razu, bez zwrotu surowców; pole zwalnia się, gdy grupa 3 poziomów maleje.');
+    // Kompleks (v0.38): rodziny z `data/complexes.ts` — okno z podglądem i decyzją.
+    const complex = c.complexView(id);
+    if (complex) lines.push(`${complex.name}: ${complex.count > 0 ? `${complex.count} (+${complex.bonus}% z ${complex.levelsIn} poziomów)` : complex.candidate ? 'można połączyć pola' : 'brak'}.`);
     add(lines.join('\n'), 12, COLORS.stone, {}, gap * 1.5);
+    if (complex) {
+      const open = new Button(this, pad, y, w - 2 * pad, buttonH, complex.name, this.dpr, () => {
+        this.demolishArmed = null;
+        this.closeOverlay();
+        this.openComplex(id);
+      }, this.s(14));
+      items.push(open.setStyle(complex.candidate && complex.unlocked ? 'primary' : 'secondary'));
+      y += buttonH + gap;
+    }
     if (canDemolish) {
       const armed = this.demolishArmed === id;
       const demolish = new Button(this, pad, y, this.px(this.s(170)), buttonH, armed ? 'Na pewno?' : `Zburz poz. ${info.level}`, this.dpr, () => this.onDemolish(id), this.s(14));
@@ -1654,6 +1670,22 @@ export class PlanetScene extends Phaser.Scene {
    * (drugie dotknięcie potwierdza — przez ten czas planeta nie ma premii).
    */
   private closeAsteroid: (() => void) | null = null;
+
+  /** Okno „Kompleks” (HTML) budynku aktywnej planety. */
+  private openComplex(id: BuildingId): void {
+    const c = this.deps.controller;
+    this.closeAsteroid?.();
+    this.closeAsteroid = openComplexPanel({
+      view: () => c.complexView(id)!,
+      merge: () => c.mergeComplex(id),
+      split: () => c.splitComplex(id),
+      onDone: (message) => {
+        this.closeAsteroid = null;
+        this.showToast(message, 'ok', 3600);
+        this.relayout();
+      },
+    });
+  }
 
   /** Stan wydobycia w kosmosie w jednym wierszu: stacja na pasie i holownik po kometę (v0.37.1). */
   private beltText(): string {

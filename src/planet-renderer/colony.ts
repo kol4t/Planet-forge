@@ -2,7 +2,8 @@
 // Od v0.26 każda budowla stoi na swoim polu siatki (`core/colony`): pola przydziela gra i zapisuje,
 // więc kolonia wygląda tak samo po każdym uruchomieniu i nic nie przeskakuje przy rozbudowie.
 import type { FieldGrid } from '../core/colony/fieldGrid.ts';
-import type { Plots } from '../core/colony/plots.ts';
+import { LEVELS_PER_FIELD, type Plots } from '../core/colony/plots.ts';
+import type { Complex } from '../core/colony/complexes.ts';
 import type { BuildingId } from '../core/types.ts';
 import type { SurfaceSampler } from './surface.ts';
 
@@ -23,10 +24,40 @@ export interface ColonySlot {
   onLand: boolean;
 }
 
+/** Pełne pole (grupa 3 poziomów) budynku z większą konstrukcją — np. wiertło z szybem (v0.38). */
+export interface ColonyRig {
+  building: BuildingId;
+  /** Numer grupy budynku (poziomy 3g+1..3g+3). */
+  group: number;
+  cell: number;
+  dir: Vec3;
+  surface: number;
+  spin: number;
+}
+
+/** Kompleks: wspólna konstrukcja na polu huba i połączenia do jego grup (v0.38). */
+export interface ColonyHub {
+  building: BuildingId;
+  dir: Vec3;
+  surface: number;
+  spin: number;
+  /** Środki połączonych grup (do rur). */
+  members: Vec3[];
+}
+
 export interface ColonyLayout {
   center: Vec3;
   slots: Record<BuildingId, ColonySlot[]>;
+  /** Grupy budynków z większą konstrukcją po zapełnieniu pola (rysowane zamiast 3 małych budowli). */
+  rigs: ColonyRig[];
+  hubs: ColonyHub[];
 }
+
+/** Budynki, których pełne pole zmienia się w większą konstrukcję (v0.38: wiertła kryształu). */
+export const RIG_BUILDINGS: readonly BuildingId[] = ['crystalMine'];
+
+/** Czy grupa `group` jest pełna przy danym poziomie (wtedy rysujemy konstrukcję zamiast 3 budowli). */
+export const groupFull = (level: number, group: number) => Math.floor(level) >= (group + 1) * LEVELS_PER_FIELD;
 
 /** Ile budowli danego typu widać na danym poziomie (każdy poziom = jedna budowla na swoim polu). */
 export function visibleStructures(level: number): number {
@@ -74,8 +105,18 @@ function hash01(n: number, salt: number): number {
  * z dala od grup z pól sąsiednich.
  * Lista budowli typu = kolejne poziomy (poziom n → pole ⌊(n−1)/3⌋, miejsce (n−1) mod 3).
  */
-export function layoutFromPlots(grid: FieldGrid, plots: Plots, sampler: SurfaceSampler, ids: readonly BuildingId[]): ColonyLayout {
+export function layoutFromPlots(
+  grid: FieldGrid,
+  plots: Plots,
+  sampler: SurfaceSampler,
+  ids: readonly BuildingId[],
+  complexes: readonly Complex[] = [],
+): ColonyLayout {
   const slots = {} as Record<BuildingId, ColonySlot[]>;
+  const surfaceAt = (dir: Vec3) => {
+    const level = Math.max(sampler.height(...dir), sampler.lakeLevel(...dir));
+    return sampler.isLand(level) ? sampler.radius(level) : 1.001;
+  };
   for (const id of ids) {
     slots[id] = (plots[id] ?? []).flatMap((cell) => groupDirs(grid, cell).map((dir, k) => ({ cell, k, dir }))).map(({ cell, k, dir }) => {
       const h = sampler.height(...dir);
@@ -89,7 +130,37 @@ export function layoutFromPlots(grid: FieldGrid, plots: Plots, sampler: SurfaceS
       };
     });
   }
-  return { center: grid.cells[grid.colonyCenter]!.center, slots };
+  // Konstrukcja pełnego pola stoi w jego środku (na lądzie pola), huby kompleksów — w środku swojego pola.
+  const rigs: ColonyRig[] = [];
+  for (const id of RIG_BUILDINGS) {
+    (plots[id] ?? []).forEach((cell, group) => {
+      const dir = fieldPoint(grid, cell);
+      rigs.push({ building: id, group, cell, dir, surface: surfaceAt(dir), spin: hash01(cell, 5) * Math.PI * 2 });
+    });
+  }
+  const hubs: ColonyHub[] = complexes.flatMap((c) =>
+    c.hubs.map((cell) => {
+      const dir = fieldPoint(grid, cell);
+      return { building: c.building, dir, surface: surfaceAt(dir), spin: hash01(cell, 6) * Math.PI * 2, members: c.cells.map((m) => fieldPoint(grid, m)) };
+    }),
+  );
+  return { center: grid.cells[grid.colonyCenter]!.center, slots, rigs, hubs };
+}
+
+/** Punkt mapy powierzchni pola najbliżej jego środka (zawsze na lądzie albo lodzie pola). */
+function fieldPoint(grid: FieldGrid, cell: number): Vec3 {
+  const field = grid.cells[cell]!;
+  let best = field.center;
+  let bestDot = -Infinity;
+  for (const p of field.members) {
+    const q = grid.samples[p]!;
+    const d = q[0] * field.center[0] + q[1] * field.center[1] + q[2] * field.center[2];
+    if (d > bestDot) {
+      bestDot = d;
+      best = q;
+    }
+  }
+  return best;
 }
 
 /** Odstęp budowli w grupie (kąt) — jak dotąd, ale nie dalej niż w obrębie pola. */
@@ -122,6 +193,6 @@ function groupDirs(grid: FieldGrid, cell: number): Vec3[] {
 }
 
 /** Klucz zajętych pól — renderer przebudowuje kolonię tylko, gdy się zmienił. */
-export function plotsKey(plots: Plots, ids: readonly BuildingId[]): string {
-  return ids.map((id) => (plots[id] ?? []).join(',')).join('|');
+export function plotsKey(plots: Plots, ids: readonly BuildingId[], complexes: readonly Complex[] = []): string {
+  return ids.map((id) => (plots[id] ?? []).join(',')).join('|') + '#' + complexes.map((c) => `${c.cells.join(',')}>${c.hubs.join(',')}`).join(';');
 }

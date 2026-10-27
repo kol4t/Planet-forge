@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.38: przemysł, krok 1 — wiertła kryształu i kompleks wiertniczy
+
+- Prompt właściciela „v0.50 Industrial Evolution” to kilka wersji pracy; zgodnie z zasadą małych kroków i z samym promptem („najpierw kompletny przykład na wiertłach kryształu”) v0.38 robi audyt i pierwszą rodzinę. Plan i mapowanie pojęć: `docs/plan-przemysl.md`.
+- **Poziom budynku ≠ kompleks ≠ zajętość pól** (rozdzielone, jak chce prompt): poziom zostaje w `levels`; „wiertło poziomu 3” = pełne pole (grupa 3 poziomów, `LEVELS_PER_FIELD`) — tylko wygląd; kompleks to osobna decyzja gracza zapisana w `SlotSave.complexes` i zajmująca dodatkowe pole (hub).
+- **Ekonomia bez podwójnego liczenia:** premia kompleksu mnoży wagę poziomów na jego polach w `siteFactors` (to samo miejsce co dopasowanie terenu), więc produkcja, energia i karty liczą się jednym torem. Zużycie energii bez zmian.
+- **Otwór w planecie bez deformacji sfery:** szyb jest zagłębieniem w podwyższonej platformie (ściany + dno pod krawędzią), więc teren nie przykrywa wnętrza, a siatka planety zostaje nietknięta (brak pęknięć i migotania). 2D: szyb w pikselach z obiegającym światłem.
+- **Wydajność:** 7 nowych InstancedMesh (wiertła, szyby kompleksów, rury) z małą liczbą instancji; głowice obracane co klatkę (kilkanaście macierzy). „Ogranicz ruch” zatrzymuje obroty i miganie.
+- Połączenie od razu (bez czasu budowy) i odwracalne bez zwrotu — robocze.
+
 ## 2026-10-27 — v0.37.1: Przechwyt komet
 
 - Cel: wydobycie w kosmosie także dla układów bez pasa (w tym startowego 1:16). Komety to akcja, nie stały urobek: holownik z planety (jeden naraz) leci 60 min i wraca z ładunkiem — trzeba go wysyłać ponownie, więc stacja na pasie pozostaje lepszym, stałym źródłem.

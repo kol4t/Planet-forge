@@ -5,6 +5,7 @@ import { BALANCE } from '../data/balance.ts';
 import { createAtmosphere } from './atmosphere.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
+import type { Complex } from '../core/colony/complexes.ts';
 import { layoutFromPlots, plotsKey, type ColonyLayout } from './colony.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
@@ -60,7 +61,7 @@ export class PlanetView implements PlanetDisplay {
   /** Obrót planety wokół osi. */
   private readonly spinGroup = new THREE.Group();
   private readonly rotator = new DragRotator(prefersReducedMotion() ? { idleSpin: 0 } : {});
-  private readonly colony = new ColonyMeshes(BUILDING_IDS);
+  private readonly colony = new ColonyMeshes(BUILDING_IDS, prefersReducedMotion());
   private planetObjects: THREE.Object3D[] = [];
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
@@ -215,12 +216,12 @@ export class PlanetView implements PlanetDisplay {
     this.fieldColors.setColors(colors);
   }
 
-  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots): void {
+  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = []): void {
     if (plots && this.grid && this.shaped) {
-      const key = plotsKey(plots, BUILDING_IDS);
+      const key = plotsKey(plots, BUILDING_IDS, complexes);
       if (key !== this.plotsKey) {
         this.plotsKey = key;
-        this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS);
+        this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS, complexes);
         this.colony.updateLayout(this.layout);
         this.colorFieldLines(plots);
       }

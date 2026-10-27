@@ -316,6 +316,7 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
           transport: 'transportowce — przesyłanie metalu i kryształów między Twoimi planetami',
           'asteroid-mining': 'stacja wydobywcza na pasie asteroid (w układzie z Twoją planetą)',
           'comet-capture': 'holownik po kometę — metal i kryształy w każdym układzie',
+          'crystal-complex': 'łączenie trzech sąsiednich pełnych pól wierteł kryształu w kompleks wiertniczy',
           'extreme-astrophysics': 'odczyt pulsarów i czarnych dziur — ich zbadanie daje premie z danych naukowych',
         }[e.feature];
     }

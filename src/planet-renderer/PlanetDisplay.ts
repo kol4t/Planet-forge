@@ -1,5 +1,6 @@
 import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import type { Plots } from '../core/colony/plots.ts';
+import type { Complex } from '../core/colony/complexes.ts';
 import type { StructureHit } from './pick.ts';
 
 export type { StructureHit };
@@ -12,7 +13,7 @@ export interface PlanetDisplay {
    * Poziomy budynków → widoczna zabudowa kolonii, plus rusztowanie trwającej budowy.
    * Wywołuj śmiało co klatkę/odświeżenie (porównuje zmiany).
    */
-  setStructures(levels: BuildingLevels, site?: BuildSite | null, plots?: Plots): void;
+  setStructures(levels: BuildingLevels, site?: BuildSite | null, plots?: Plots, complexes?: readonly Complex[]): void;
   /** Budowla pod punktem (x, y w pikselach CSS) albo null — wybór budynku dotknięciem (przy każdym przybliżeniu). */
   pickStructure(x: number, y: number): StructureHit | null;
   /**
