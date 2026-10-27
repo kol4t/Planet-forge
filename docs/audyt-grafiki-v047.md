@@ -177,3 +177,43 @@ Koszt grafiki (przeglądarka, planeta startowa, metal i kryształy na tym samym 
 poz. 3 — 39 → **43 rysowania**, 83,2 → 83,3 tys. trójkątów; poz. 25 — 48 → **52 rysowania**, 122,3 → **124,4 tys.** trójkątów.
 Na iPadzie v0.46 zmierzono 28 rysowań przy 56 kl./s — zapas jest, ale każda kolejna rodzina dodaje ~4 rysowania;
 przy reszcie rodzin trzeba będzie łączyć części modeli (np. światło i obrót w jednej siatce).
+
+## Wynik — rodzina energetyczna (ten sam standard, tylko 3D)
+
+Zmienione: `planet-renderer/colonyMeshes.ts` — elektrownia w `FAMILIES` (bez taśmociągów), nowe modele; stary hub
+`createTeslaTower` usunięty (węzeł Tesli zostaje jako moduł po usprawnieniu). Bez zmian: mechanika, pola, zapisy, 2D.
+
+| Etap (poz.) | Główna konstrukcja | Pozostałe pola |
+|---|---|---|
+| Elektrownia (1–5) | chłodnia kominowa (ciepły blask na krawędzi), hala turbin z wentylatorem, transformator | pola paneli słonecznych (trzy rzędy w złotych ramach) |
+| Węzeł energetyczny (6–11) | dwie chłodnie, długa hala generatorów, plac transformatorów ze słupem | na przemian panele i stacje przesyłowe (słup, rozdzielnia) |
+| Wielka elektrownia (12–19) | kopuła reaktora ze świecącym pasem i obracającym się pierścieniem, trzy chłodnie, hala turbin | głównie panele, co trzecie pole stacja |
+| Megasieć (20+) | dwupoziomowa platforma, wieża przesyłowa Tesli (dwa pierścienie, kula światła), cztery chłodnie | jak wyżej |
+
+Po usprawnieniu „Sieć Tesli” co czwarte pole dostaje węzeł Tesli. Wielkość głównej konstrukcji: 1,6 / 2,1 / 2,7 / 3,4 promienia pola.
+
+**Oszczędność rysowań:** puste części modeli (np. model bez obracającej się części) były rysowane mimo 0 wierzchołków —
+teraz są ukryte. Koszt (przeglądarka, planeta startowa, metal, kryształy i elektrownia na tym samym poziomie):
+poz. 3 — 39 (v0.47.2) → **30 rysowań**; poz. 25 — 52 → **37 rysowań**; trójkąty bez zmian (~75 / ~125 tys.).
+
+## Poprawka — budowle nachodziły na teren (zgłoszenie właściciela)
+
+Objaw: moduły i główne konstrukcje wystawały poza obrys obszaru, nad jeziora i na sąsiedni teren; na stokach teren
+przebijał płyty albo płyty wisiały. Przyczyna: wielkość budowli liczona tylko z promienia pola, bez sprawdzenia terenu.
+
+- `colony.ts`: `ComplexSpot.free` i `ColonyComplex.free` — wolny promień: jak daleko od miejsca (12 kierunków, krok
+  0,008 rad) teren jest suchym lądem **własnego obszaru** i bez uskoku większego niż +0,025 / −0,035. Liczony tylko w 3D
+  (`layoutFromPlots(…, true)`), ok. 50 ms na komputerze przy zmianie układu (trzy duże kompleksy); 2D bez kosztu.
+- `colonyMeshes.ts`: moduł nie większy niż wolne miejsce (za ciasno — pole bez modułu), główna konstrukcja tak samo,
+  ale nie mniejsza niż połowa docelowej (czytelność).
+- `PlanetView.ts` — **fundamenty**: teren pod każdą budowlą (w jej zasięgu, w jej obszarze, poza jeziorami) wyrównany
+  do wysokości podstawy. Decyzja zależy tylko od położenia wierzchołka, więc ścianki zostają szczelne.
+- Test: punkty w promieniu `free` leżą na suchym lądzie własnego obszaru; 2D ma ten sam układ bez pomiaru.
+
+Koszt grafiki bez zmian (30 / 37 rysowań).
+
+Uzupełnienie po zrzucie z iPada (LHS-258 c, lodowa, v0.47.2): płyty nachodziły też **na siebie** (główna konstrukcja na
+moduły). Teraz każda nowa płyta dostaje najwyżej tyle miejsca, ile zostało do już postawionych (odstęp 0,004 rad) —
+zmniejsza się albo pole zostaje puste. Wolne miejsce głównej konstrukcji liczone bez kryterium uskoku (szeroki
+fundament i tak wyrównuje pod nią teren) — tylko granica obszaru i woda. Gdy środek obszaru leży blisko jego skraju,
+główna konstrukcja bywa mniejsza (najmniej połowa docelowej).
