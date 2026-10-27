@@ -363,3 +363,36 @@ test('energia gwiazdy (v0.44): kolektor zasila wszystkie planety gracza w układ
     assert.equal(again.collectorView(ready + 3).level, 1);
   });
 });
+
+test('nieudany zapis (pełna pamięć): komunikat raz, ponownie dopiero po udanym zapisie (audyt v0.46)', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    let calls = 0;
+    game.onSaveFailed(() => calls++);
+    const storage = globalThis.localStorage as unknown as { setItem: (k: string, v: string) => void };
+    const ok = storage.setItem;
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError');
+    };
+    assert.equal(game.save(), false);
+    assert.equal(game.save(), false);
+    assert.equal(calls, 1);
+    storage.setItem = ok;
+    assert.equal(game.save(), true);
+    storage.setItem = () => {
+      throw new Error('QuotaExceededError');
+    };
+    game.save();
+    assert.equal(calls, 2);
+  });
+});
+
+test('uszkodzony zapis: gra zaczyna od nowa, zgłasza to i nie nadpisuje kopii (audyt v0.46)', () => {
+  withMemoryStorage(() => {
+    globalThis.localStorage.setItem(EMPIRE_KEY, '{"saveVersion":1,"slots":"zepsute"}');
+    const game = new GameController(0);
+    assert.equal(game.brokenSaveFound, true);
+    game.save();
+    assert.equal(globalThis.localStorage.getItem('planet-forge.empire.broken'), '{"saveVersion":1,"slots":"zepsute"}');
+  });
+});

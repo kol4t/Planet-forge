@@ -11,8 +11,6 @@ export interface FindsState {
   next: Record<string, number>;
 }
 
-export const EMPTY_FINDS: FindsState = { items: {}, next: {} };
-
 /** Odstęp do następnego znaleziska (ms) po chwili `at`. */
 export function findInterval(key: string, at: number): number {
   const [lo, hi] = FIND_RULES.intervalHours;

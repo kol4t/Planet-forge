@@ -187,7 +187,7 @@ export interface Planet {
   gameplay: {
     sizeClass: { id: string; label: string };
     radiusKm: number;
-    /** Liczba pól siatki (30–200): każdy poziom budynku zajmuje jedno pole lądu (od v0.26). */
+    /** Liczba pól siatki (30–200); budynki zajmują obszary pól rosnące z etapem (od v0.45). */
     fields: number;
     richness: Record<YieldId, number>;
     environment: {

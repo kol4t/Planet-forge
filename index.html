@@ -121,6 +121,10 @@ html, body {
 }
 #text-panel .tp-box {
   width: min(100%, 480px);
+  /* Każde okno przewija się, gdy jest wyższe niż ekran (telefon poziomo — audyt v0.46). */
+  max-height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   box-sizing: border-box;
   padding: 20px;
   border-radius: 16px;
@@ -183,7 +187,7 @@ html, body {
 #text-panel .fb-check { display: flex; gap: 10px; align-items: center; min-height: 44px; font-size: 14px; color: var(--text); }
 #text-panel .fb-check input { width: 22px; height: 22px; flex: none; accent-color: var(--teal); }
 #text-panel .fb-details { margin: 4px 0 8px; font-size: 14px; color: #8ea6a0; }
-#text-panel .fb-details summary { min-height: 32px; cursor: pointer; }
+#text-panel .fb-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
 #text-panel .tp-error.ok { color: var(--teal); }
 #text-panel .tp-error a { color: var(--gold); }
 #text-panel .fb-clear { display: block; flex: none; width: auto; margin: 12px auto 0; padding: 0 12px; border: 0; background: none; color: #8ea6a0; font-size: 14px; }

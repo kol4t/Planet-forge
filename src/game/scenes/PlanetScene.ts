@@ -4,6 +4,7 @@ import { openComplexPanel } from '../ui/complexPanel.ts';
 import { openFindsPanel } from '../ui/findsPanel.ts';
 import { openFactoryPanel } from '../ui/factoryPanel.ts';
 import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
+import { brokenSaveText } from '../../core/save/empire.ts';
 import { BuildingCardView, type CardPlacement } from '../ui/buildingCard.ts';
 import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled, secondsUntilAffordable } from '../../core/economy/economy.ts';
@@ -25,6 +26,7 @@ import {
   PLANET_ROW_H,
   DOCK_PANELS,
   TOUCH,
+  cardHeight,
   type DockItemId,
   type Insets,
   type Layout,
@@ -103,6 +105,8 @@ interface ResourceTexts {
   fieldsNote: Phaser.GameObjects.Text;
   /** Czy notatki (np. „+23/min”) mieszczą się obok wartości. */
   notes: boolean;
+  /** Szerokość kolumny paska (pt) — dopisek nie może wyjść poza nią. */
+  colW: number;
 }
 
 type ToastKind = 'ok' | 'error' | 'info';
@@ -178,6 +182,8 @@ export class PlanetScene extends Phaser.Scene {
   private depositRowsAt = 0;
   /** Wiersz „Pas asteroid” w panelu „Planeta” (odliczanie rozbudowy, v0.37). */
   private beltRow: Phaser.GameObjects.Text | null = null;
+  /** Ostrzeżenie o niedoborze energii w nagłówku „Produkcji” (dotknięcie — wyjaśnienie). */
+  private energyWarning: Phaser.GameObjects.Text | null = null;
   /** Otwarty panel SI: stan reguł przy ostatnim rysowaniu (zmiana = przebudowa). */
   private aiPanelShape = '';
   /** Dymek SI Matki z bieżącą propozycją (klucz = propozycja + poziom). */
@@ -263,6 +269,10 @@ export class PlanetScene extends Phaser.Scene {
       this.showToast(report.text, report.success ? 'ok' : 'info', 5000);
     });
 
+    controller.onSaveFailed(() => {
+      this.showToast('Nie udało się zapisać gry (pełna pamięć przeglądarki albo tryb prywatny). Skopiuj zapis: Ustawienia → Kopiuj zapis.', 'error', 7000);
+    });
+
     controller.onShipmentArrived((text) => {
       if (!this.screenOpen) this.showToast(text, 'ok', 3500);
       this.refreshValues();
@@ -280,7 +290,14 @@ export class PlanetScene extends Phaser.Scene {
       display.showBuilding(done.building);
     });
 
-    if (this.deps.graphics.crashedLastTime) {
+    if (controller.brokenSaveFound) {
+      controller.brokenSaveFound = false;
+      this.showToast(
+        'Zapisu gry nie dało się wczytać — zaczynasz od nowa. Kopia starego zapisu została w pamięci przeglądarki. Zgłoś to: Ustawienia → Zgłoś / diagnostyka.',
+        'error',
+        9000,
+      );
+    } else if (this.deps.graphics.crashedLastTime) {
       this.showToast(
         'Poprzednie uruchomienie się nie powiodło — gra działa na planecie 2D. Zgłoś to: Ustawienia → Zgłoś / diagnostyka.',
         'info',
@@ -395,6 +412,7 @@ export class PlanetScene extends Phaser.Scene {
     this.planetStatus = [];
     this.depositRows = [];
     this.beltRow = null;
+    this.energyWarning = null;
     this.dockProgress = null;
     this.aiPanelShape = '';
     this.buildTopBar(layout);
@@ -496,8 +514,14 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   /** Przycisk panelu na dolnym pasku: otwiera panel, drugie dotknięcie go zamyka. */
+  /**
+   * Zasada okien (audyt v0.46): naraz jeden panel z dolnego paska ALBO wybrany budynek (karta budowli + okienko
+   * „Budynek”). Wyjątek: „Produkcja” zostaje obok karty budowli — wtedy bez okienka „Budynek” (ta sama karta jest
+   * w panelu, podświetlona). Dymek SI chowa się, dopóki wybrany jest budynek.
+   */
   private togglePanel(id: PanelId): void {
     this.panels = { open: this.panels.open === id ? null : id };
+    if (this.panels.open && this.panels.open !== 'production') this.selected = null;
     savePanels(this.panels);
     this.closeOverlay();
     this.relayout(true);
@@ -698,6 +722,12 @@ export class PlanetScene extends Phaser.Scene {
       const value = this.text(tx, bar.y + this.s(19), '0', valueSize, COLORS.text, { fontStyle: '600' });
       const note = this.text(tx, bar.y + this.s(19), '', 10.5, COLORS.teal);
       const fillBar = { x: tx, y: bar.y + bar.h - this.s(8), w: Math.max(20, colW - this.s(32) - this.s(12)) };
+      // Energia: dotknięcie kolumny wyjaśnia bilans i niedobór (audyt v0.46 — sam czerwony kolor nic nie mówił).
+      if (kind === 'energy') {
+        const zone = this.add.zone(this.px(x), this.px(bar.y), this.px(colW), this.px(bar.h)).setOrigin(0).setInteractive({ useHandCursor: true });
+        zone.on('pointerup', () => this.showToast(this.energyExplanation(), 'info', 7000));
+        this.ui!.add(zone);
+      }
       return { value, note, fillBar };
     };
     // Wąskie kolumny (telefon) dostają skrócone etykiety.
@@ -723,7 +753,24 @@ export class PlanetScene extends Phaser.Scene {
       fields: fields.value,
       fieldsNote: fields.note,
       notes,
+      colW,
     };
+  }
+
+  /** Bilans energii prostymi słowami: skąd niedobór, co z niego wynika i co z nim zrobić. */
+  private energyExplanation(): string {
+    const r = this.deps.controller.rates;
+    const made = formatInt(r.energyProduced);
+    const used = formatInt(r.energyUsed);
+    if (r.energyProduced >= r.energyUsed) {
+      return `Energia: elektrownie dają ${made}, budynki zużywają ${used} — zapas ${formatInt(r.energyProduced - r.energyUsed)}. Kopalnie pracują na 100%.`;
+    }
+    const pct = Math.round(r.efficiency * 100);
+    return (
+      `Brakuje ${formatInt(r.energyUsed - r.energyProduced)} energii: elektrownie dają ${made}, budynki potrzebują ${used}.\n` +
+      `Dlatego kopalnie i kolektor pracują na ${pct}% — wydobywają mniej niż mogłyby.\n` +
+      'Rozbuduj Elektrownię albo zmniejsz pracę lub pierwszeństwo kopalń (Produkcja → ikona ustawień na karcie).'
+    );
   }
 
   /** Dolny pasek: menu, przyciski paneli i ekranów (otwarty panel podświetlony). */
@@ -759,7 +806,21 @@ export class PlanetScene extends Phaser.Scene {
       letterSpacing: 1.5,
     });
     this.iconButton(panel.close, 'close', () => this.togglePanel(panel.id));
-    if (panel.id === 'production') this.buildProduction(layout.cards);
+    if (panel.id === 'production') {
+      // Niedobór energii widoczny tam, gdzie się buduje — z wyjaśnieniem po dotknięciu.
+      const x = panel.rect.x + this.s(110);
+      const zone = this.add
+        .zone(this.px(x), this.px(panel.rect.y), this.px(panel.close.x - x), this.px(TOUCH))
+        .setOrigin(0)
+        .setInteractive({ useHandCursor: true });
+      zone.on('pointerup', () => this.showToast(this.energyExplanation(), 'info', 7000));
+      this.ui!.add(zone);
+      this.energyWarning = this.text(x, panel.rect.y + this.s(13), '', 11, COLORS.danger, {
+        fontStyle: '600',
+        fixedWidth: this.px(panel.close.x - x - this.s(4)),
+      });
+      this.buildProduction(layout.cards);
+    }
     else if (panel.id === 'planet') this.buildPlanetInfo(panel.body);
     else if (panel.id === 'planets') this.buildPlanetsPanel(panel.body, layout);
     else this.buildAiPanel(panel.body);
@@ -843,7 +904,12 @@ export class PlanetScene extends Phaser.Scene {
     const { planet } = this.deps.controller;
     const g = planet.gameplay;
     const pad = this.s(6);
-    const w = box.w - 2 * pad;
+    // Niski i szeroki panel (telefon poziomo): złoża i środowisko w drugiej kolumnie (audyt v0.46 — treść
+    // wychodziła poza panel).
+    const twoCols = box.w >= 520 && box.h < this.s(390);
+    const colGap = this.s(16);
+    const w = (twoCols ? (box.w - colGap) / 2 : box.w) - 2 * pad;
+    let x0 = box.x;
     const percent = (m: number | undefined) =>
       m && m !== 1 ? `${m > 1 ? '+' : ''}${Math.round((m - 1) * 100)}%` : null;
     const effects =
@@ -855,18 +921,18 @@ export class PlanetScene extends Phaser.Scene {
         .filter(Boolean)
         .join(' · ') || 'bez efektów';
     let y = box.y;
-    this.text(box.x + pad, y, planet.displayName, 22, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(w) });
+    this.text(x0 + pad, y, planet.displayName, 22, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(w) });
     y += this.s(30);
-    this.text(box.x + pad, y, `${planet.category} · ${g.sizeClass.label} · ${formatInt(g.radiusKm)} km`, 11.5, COLORS.stone, {
+    this.text(x0 + pad, y, `${planet.category} · ${g.sizeClass.label} · ${formatInt(g.radiusKm)} km`, 11.5, COLORS.stone, {
       wordWrap: { width: this.px(w) },
     });
     y += this.s(17);
-    this.text(box.x + pad, y, addressLine(this.deps.controller.address, planet.seed), 10.5, COLORS.faint, { fontFamily: FONTS.mono });
+    this.text(x0 + pad, y, addressLine(this.deps.controller.address, planet.seed), 10.5, COLORS.faint, { fontFamily: FONTS.mono });
     y += this.s(19);
-    // Pola: każdy poziom budynku zajmuje jedno pole lądu; ich liczba wynika z seeda planety.
+    // Pola: budynek zajmuje spójny obszar, który rośnie z etapem; liczba pól planety wynika z seeda.
     const f = this.deps.controller.fields;
     const full = f.used >= f.buildable;
-    this.text(box.x + pad, y, `POLA  ${f.used} / ${f.buildable} zajęte${full ? ' — brak wolnych' : ''}`, 10.5, full ? COLORS.danger : COLORS.teal, {
+    this.text(x0 + pad, y, `POLA  ${f.used} / ${f.buildable} zajęte${full ? ' — brak wolnych' : ''}`, 10.5, full ? COLORS.danger : COLORS.teal, {
       fontStyle: '600',
       wordWrap: { width: this.px(w) },
     });
@@ -879,39 +945,43 @@ export class PlanetScene extends Phaser.Scene {
         : `→ ${spec.current.name} · ${formatDuration(spec.current.secondsLeft)}`
       : 'brak — wybierz';
     const specW = this.s(96);
-    this.text(box.x + pad, y + this.s(4), 'SPECJALIZACJA', 9.5, COLORS.muted, { fontStyle: '600' });
-    this.text(box.x + pad, y + this.s(18), specText, 13, spec.current ? COLORS.text : COLORS.gold, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
-    this.addButton(box.x + pad + w - specW, y, specW, TOUCH, spec.current ? 'Szczegóły' : 'Wybierz', spec.current ? 'secondary' : 'primary', () => {
+    this.text(x0 + pad, y + this.s(4), 'SPECJALIZACJA', 9.5, COLORS.muted, { fontStyle: '600' });
+    this.text(x0 + pad, y + this.s(18), specText, 13, spec.current ? COLORS.text : COLORS.gold, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
+    this.addButton(x0 + pad + w - specW, y, specW, TOUCH, spec.current ? 'Szczegóły' : 'Wybierz', spec.current ? 'secondary' : 'primary', () => {
       this.specArmed = null;
       this.openSpecialization();
     }, 12.5);
     y += TOUCH + this.s(10);
     // Pas asteroid (od v0.37): stan stacji i okno budowy.
     const belt = this.deps.controller.asteroidView();
-    this.text(box.x + pad, y + this.s(4), 'KOSMOS', 9.5, COLORS.muted, { fontStyle: '600' });
-    this.beltRow = this.text(box.x + pad, y + this.s(18), this.beltText(), 13, belt.target > 0 ? COLORS.text : COLORS.stone, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
-    this.addButton(box.x + pad + w - specW, y, specW, TOUCH, 'Kosmos', (this.deps.controller.collectorView().unlocked && this.deps.controller.collectorView().target === 0) || (belt.hasBelt && belt.unlocked && belt.target === 0 && !belt.takenBy) || (this.deps.controller.cometView().unlocked && !this.deps.controller.cometView().flying) ? 'primary' : 'secondary', () => this.openAsteroid(), 12.5);
+    this.text(x0 + pad, y + this.s(4), 'KOSMOS', 9.5, COLORS.muted, { fontStyle: '600' });
+    this.beltRow = this.text(x0 + pad, y + this.s(18), this.beltText(), 13, belt.target > 0 ? COLORS.text : COLORS.stone, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
+    this.addButton(x0 + pad + w - specW, y, specW, TOUCH, 'Kosmos', (this.deps.controller.collectorView().unlocked && this.deps.controller.collectorView().target === 0) || (belt.hasBelt && belt.unlocked && belt.target === 0 && !belt.takenBy) || (this.deps.controller.cometView().unlocked && !this.deps.controller.cometView().flying) ? 'primary' : 'secondary', () => this.openAsteroid(), 12.5);
     y += TOUCH + this.s(10);
-    this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
+    if (twoCols) {
+      x0 = box.x + w + 2 * pad + colGap;
+      y = box.y;
+    }
+    this.text(x0 + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
     y += this.s(15);
     for (const [id, label, color] of RICHNESS_ROWS) {
-      this.richnessBar(box.x + pad, y, w, label, g.richness[id], color);
+      this.richnessBar(x0 + pad, y, w, label, g.richness[id], color);
       y += this.s(26);
     }
     // Zasób złóż: kopalnie go wyczerpują (przyrost podstawowy działa zawsze).
     const deposits = this.deps.controller.deposits;
     for (const id of ['metal', 'crystal'] as const) {
-      const t = this.text(box.x + pad, y, '', 10.5, COLORS.stone, { wordWrap: { width: this.px(w) } });
+      const t = this.text(x0 + pad, y, '', 10.5, COLORS.stone, { wordWrap: { width: this.px(w) } });
       this.setDepositRow(t, id, deposits[id]);
       this.depositRows.push({ id, text: t });
       y += t.height / this.dpr + this.s(3);
     }
     y += this.s(6);
-    this.text(box.x + pad, y, 'ŚRODOWISKO', 9.5, COLORS.muted, { fontStyle: '600' });
+    this.text(x0 + pad, y, 'ŚRODOWISKO', 9.5, COLORS.muted, { fontStyle: '600' });
     y += this.s(14);
-    this.text(box.x + pad, y, g.environment.label, 13.5, COLORS.text, { fontStyle: '600' });
+    this.text(x0 + pad, y, g.environment.label, 13.5, COLORS.text, { fontStyle: '600' });
     y += this.s(19);
-    this.text(box.x + pad, y, `${g.environment.description}\n${effects}`, 11, COLORS.muted, {
+    this.text(x0 + pad, y, `${g.environment.description}\n${effects}`, 11, COLORS.muted, {
       wordWrap: { width: this.px(w) },
       lineSpacing: this.px(2),
     });
@@ -1000,6 +1070,12 @@ export class PlanetScene extends Phaser.Scene {
   /** Karta budynku: nazwa, poziom, efekt, koszt, „Ulepsz” (odświeżana w refreshValues). */
   private addCard(def: (typeof BALANCE.buildings)[number], card: Rect): void {
     this.subPanel(card);
+    // Budynek wybrany na planecie: jego karta w „Produkcji” w złotej ramce (zamiast osobnego okienka).
+    if (def.id === this.selected && this.panels.open === 'production') {
+      const g = this.add.graphics();
+      g.lineStyle(this.px(2), COLORS.goldHex, 0.95).strokeRoundedRect(this.px(card.x), this.px(card.y), this.px(card.w), this.px(card.h), this.px(this.s(10)));
+      this.ui!.add(g);
+    }
     // Dotknięcie karty (poza przyciskami, które leżą wyżej) pokazuje budynek na planecie z bliska.
     const cardZone = this.add
       .zone(this.px(card.x), this.px(card.y), this.px(card.w), this.px(card.h))
@@ -1069,6 +1145,11 @@ export class PlanetScene extends Phaser.Scene {
     const id = hit?.id ?? null;
     if (id === this.selected) return;
     this.selected = id;
+    // Wybrany budynek zamyka inne panele niż „Produkcja” (zasada okien — `togglePanel`).
+    if (id && this.panels.open && this.panels.open !== 'production') {
+      this.panels = { open: null };
+      savePanels(this.panels);
+    }
     this.relayout();
   }
 
@@ -1103,23 +1184,29 @@ export class PlanetScene extends Phaser.Scene {
     const stage = layout.stage;
     const gap = this.s(10);
     const pad = this.s(8);
+    // Przy otwartej „Produkcji” karta tego budynku jest już w panelu — bez drugiego okienka.
+    const inPanel = layout.panel?.id === 'production';
     const w = Math.min(this.s(340), stage.w);
-    const cardH = this.s(w - 2 * pad >= this.s(230) ? 128 : 176);
-    const h = this.s(40) + cardH + pad;
+    const cardH = cardHeight(w - 2 * pad, layout.u);
+    const h = inPanel ? 0 : this.s(40) + cardH + pad;
     const rect: Rect = { x: stage.x + (stage.w - w) / 2, y: stage.y + stage.h - h - gap / 2, w, h };
-    this.panel(rect, true);
-    this.text(rect.x + this.s(14), rect.y + this.s(13), 'BUDYNEK', 11, COLORS.gold, { fontStyle: '600', letterSpacing: 1.5 });
-    this.iconButton({ x: rect.x + rect.w - TOUCH, y: rect.y, w: TOUCH, h: TOUCH }, 'close', () => {
-      this.selected = null;
-      this.relayout();
-    });
-    this.addCard(def, { x: rect.x + pad, y: rect.y + this.s(40), w: rect.w - 2 * pad, h: cardH });
+    if (!inPanel) {
+      this.panel(rect, true);
+      this.text(rect.x + this.s(14), rect.y + this.s(13), 'BUDYNEK', 11, COLORS.gold, { fontStyle: '600', letterSpacing: 1.5 });
+      this.iconButton({ x: rect.x + rect.w - TOUCH, y: rect.y, w: TOUCH, h: TOUCH }, 'close', () => {
+        this.selected = null;
+        this.relayout();
+      });
+      this.addCard(def, { x: rect.x + pad, y: rect.y + this.s(40), w: rect.w - 2 * pad, h: cardH });
+    }
     // Karta budowli (HTML): po prawej stronie planety na szerokim miejscu, u góry na wąskim.
     const narrow = stage.w < 600;
-    const cardW = narrow ? stage.w - 2 * gap : Math.min(310, stage.w * 0.4);
+    // Na szerokim miejscu karta stoi obok kolumny przycisków kamery, nie na niej.
+    const right = stage.x + stage.w - (layout.camera ? TOUCH + 4 : 0);
+    const cardW = narrow ? stage.w - 2 * gap : Math.min(310, (right - stage.x) * 0.42);
     const top = stage.y + gap;
     this.cardAt = {
-      x: narrow ? stage.x + gap : stage.x + stage.w - cardW - gap,
+      x: narrow ? stage.x + gap : right - cardW - gap,
       y: top,
       w: cardW,
       maxH: Math.max(160, narrow ? (rect.y - top) * 0.6 : rect.y - top - gap),
@@ -1313,6 +1400,9 @@ export class PlanetScene extends Phaser.Scene {
         note.setText(showNotes ? n : '');
         note.setX(value.x + value.width + this.px(this.s(6)));
         note.setY(value.y + value.height - note.height - this.px(this.s(2)));
+        // Dopisek, który nie mieści się w kolumnie, znika (audyt v0.46: nachodził na sąsiednią kolumnę).
+        const right = value.x - this.px(this.s(32)) + this.px(this.res!.colW) - this.px(this.s(4));
+        if (note.x + note.width > right) note.setText('');
       };
       const capacity = controller.capacity;
       const stock = controller.economy.stock;
@@ -1334,6 +1424,7 @@ export class PlanetScene extends Phaser.Scene {
       );
       this.res.energy.setColor(balance >= 0 ? COLORS.text : COLORS.danger);
       this.res.energyNote.setColor(rates.efficiency < 1 ? COLORS.danger : COLORS.muted);
+      this.energyWarning?.setText(rates.efficiency < 1 ? `⚡ Brak energii: kopalnie ${Math.round(rates.efficiency * 100)}% · dotknij` : '');
       pair(this.res.antimatter, this.res.antimatterNote, shown('antimatter', controller.economy.antimatter), `+${formatRate(rates.antimatterPerHour)}/h`);
       this.res.antimatterNote.setColor(COLORS.antimatter);
       const f = controller.fields;
@@ -1423,8 +1514,11 @@ export class PlanetScene extends Phaser.Scene {
       const short = !!card.extra;
       card.cost.setColor(COLORS.muted);
       const cost = controller.costOf(card.id);
+      // Czas budowy na przycisku „Ulepsz” (audyt v0.46: w linii kosztu przeskakiwał do nowego wiersza i chował się).
       const time = formatDuration(controller.buildSecondsFor(level + 1));
-      card.cost.setText(`Koszt: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów · ${time}`);
+      // Bardzo wąska karta (telefon poziomo, 6 kart w wierszu): czas w linii kosztu — napis przycisku musi się zmieścić.
+      const tiny = card.rect.w < 150;
+      card.cost.setText(`Koszt: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów${tiny ? ` · ${time}` : ''}`);
       card.cost.setY(card.effect.y + card.effect.height + this.px(this.s(4)));
       if (level >= balance.maxLevel) {
         card.button.setText(short ? 'Maks. poziom' : 'Maksymalny poziom').setStyle('disabled');
@@ -1456,9 +1550,11 @@ export class PlanetScene extends Phaser.Scene {
         continue;
       }
       const wait = controller.waitSecondsFor(card.id);
-      if (wait <= 0) card.button.setText(short ? `Ulepsz (${level + 1})` : `Ulepsz do ${level + 1}`).setStyle('primary');
-      else {
-        const label = Number.isFinite(wait) ? `${short ? 'Za' : 'Dostępne za'} ${formatDuration(wait)}` : 'Brak produkcji';
+      if (wait <= 0) {
+        const label = tiny ? (short ? 'Ulepsz' : `Ulepsz (${level + 1})`) : short ? `Ulepsz · ${time}` : `Ulepsz do ${level + 1} · ${time}`;
+        card.button.setText(label).setStyle('primary');
+      } else {
+        const label = Number.isFinite(wait) ? `${short || tiny ? 'Za' : 'Dostępne za'} ${formatDuration(wait)}` : 'Brak produkcji';
         card.button.setText(label).setStyle('disabled');
       }
     }
@@ -1502,7 +1598,10 @@ export class PlanetScene extends Phaser.Scene {
   private refreshAiBubble(): void {
     const layout = this.layoutState;
     if (!layout || !this.ui) return;
-    const suggestion = this.deps.controller.aiSuggestion();
+    // Dymek nie zasłania karty wybranego budynku (zasada okien — `togglePanel`).
+    // Na telefonie (pionowo albo poziomo z wąskim miejscem obok panelu) dymek wraca po zamknięciu panelu.
+    const hidden = this.selected || (layout.panel && (layout.mode === 'sheet' || layout.stage.w < 320));
+    const suggestion = hidden ? null : this.deps.controller.aiSuggestion();
     const key = suggestion ? `${suggestion.key}|${suggestion.level}|${this.deps.controller.aiAutoUnlocked}` : '';
     if ((this.aiBubble?.key ?? '') === key) return;
     this.aiBubble?.container.destroy(true);
@@ -1592,8 +1691,13 @@ export class PlanetScene extends Phaser.Scene {
       .fillRoundedRect(-w / 2, -h / 2, w, h, h / 2)
       .lineStyle(this.px(1), kind === 'error' ? COLORS.dangerHex : COLORS.tealHex, 0.7)
       .strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    // W granicach ekranu i nad dolnym paskiem (audyt v0.46: na telefonie poziomo wychodził za prawą krawędź).
+    const W = this.px(viewport.width);
+    const margin = this.px(8);
+    const cx = Math.min(Math.max(this.px(layout.stage.x + layout.stage.w / 2), w / 2 + margin), W - w / 2 - margin);
+    const cy = Math.min(this.px(layout.toastY), this.px(layout.dock.rect.y) - h / 2 - margin);
     const toast = this.add
-      .container(this.px(layout.stage.x + layout.stage.w / 2), this.px(layout.toastY), [bg, label])
+      .container(cx, Math.max(h / 2 + margin, cy), [bg, label])
       .setDepth(50)
       .setAlpha(this.planetPending ? 1 : 0);
     this.toast = toast;
@@ -1757,6 +1861,7 @@ export class PlanetScene extends Phaser.Scene {
     const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
     const dialog = this.add.container(x, top, [box, blocker, ...items]);
     this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+    this.scrollableDialog(dialog, blocker, top, h, H);
   }
 
   /**
@@ -1917,6 +2022,7 @@ export class PlanetScene extends Phaser.Scene {
     const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
     const dialog = this.add.container(x, top, [box, blocker, ...items]);
     this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+    this.scrollableDialog(dialog, blocker, top, h, H);
   }
 
   /** Dotknięcie specjalizacji: wybór od razu; zmiana — najpierw „Na pewno?”, drugie dotknięcie zmienia. */
@@ -2113,12 +2219,53 @@ export class PlanetScene extends Phaser.Scene {
     const blocker = this.add.zone(0, 0, w, h).setOrigin(0).setInteractive();
     const dialog = this.add.container(x, top, [box, blocker, ...items]);
     this.overlay = this.add.container(0, 0, [shade, dialog]).setDepth(100);
+    this.scrollableDialog(dialog, blocker, top, h, H);
+  }
+
+  /**
+   * Okno wyższe niż ekran (telefon poziomo): przesuwanie palcem albo kółkiem myszy, z krótką podpowiedzią
+   * (audyt v0.46 — dolne przyciski, w tym „Zamknij”, były poza ekranem). Wartości w pikselach urządzenia.
+   */
+  private scrollableDialog(dialog: Phaser.GameObjects.Container, blocker: Phaser.GameObjects.Zone, top: number, h: number, H: number): void {
+    const margin = this.px(8);
+    const minY = Math.min(top, H - h - margin);
+    if (minY >= top || !this.overlay) return;
+    let last: number | null = null;
+    const move = (dy: number) => dialog.setY(Math.min(top, Math.max(minY, dialog.y + dy)));
+    blocker.on('pointerdown', (p: Phaser.Input.Pointer) => (last = p.y));
+    blocker.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (last === null || !p.isDown) return;
+      move(p.y - last);
+      last = p.y;
+    });
+    blocker.on('pointerup', () => (last = null));
+    blocker.on('pointerout', () => (last = null));
+    blocker.on('wheel', (_p: Phaser.Input.Pointer, _dx: number, dy: number) => move(-dy));
+    const W = this.px(this.deps.getViewport().width);
+    const more = this.add
+      .text(W / 2, H - margin, '↑ przesuń okno palcem — niżej są kolejne opcje', {
+        fontFamily: FONTS.body,
+        fontSize: `${this.px(this.s(12))}px`,
+        color: COLORS.gold,
+        backgroundColor: '#071012',
+        padding: { x: this.px(8), y: this.px(4) },
+      })
+      .setOrigin(0.5, 1);
+    this.overlay.add(more);
+    this.time.delayedCall(4000, () => more.destroy());
   }
 
   /** Okno „Diagnostyka i zgłoszenia”: błąd albo sugestia → zgłoszenie w repozytorium gry (GitHub) albo tekst do skopiowania. */
   private openFeedback(): void {
     this.closeOverlay();
-    openFeedbackPanel({ diagnostics: () => this.deps.graphics.diagnostics(), save: () => this.deps.controller.exportSave() });
+    openFeedbackPanel({
+      diagnostics: () => this.deps.graphics.diagnostics(),
+      // Kopia zapisu, którego nie dało się wczytać (jeśli jest), jedzie razem z obecnym — do odzyskania postępu.
+      save: () => {
+        const broken = brokenSaveText();
+        return this.deps.controller.exportSave() + (broken ? `\n— Uszkodzony zapis (kopia) —\n${broken}` : '');
+      },
+    });
   }
 
   private copySave(): void {

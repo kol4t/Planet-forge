@@ -29,6 +29,11 @@ export interface PlanetDisplay {
   setZoom(zoom: number, instant?: boolean): void;
   /** Skala rozdzielczości 3D 0,6–1 (automatyczna, diagnostyka); brak = widok 2D. */
   renderScale?(): number;
+  /**
+   * Liczby z karty graficznej po ostatniej klatce (3D; brak = widok 2D) — do Ustawienia → Diagnostyka
+   * i pomiarów wydajności (audyt v0.46).
+   */
+  gpuStats?(): { drawCalls: number; triangles: number; geometries: number; textures: number };
   /** Docelowe przybliżenie (to, do którego widok dochodzi). */
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */

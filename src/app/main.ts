@@ -50,6 +50,12 @@ function getViewport(): Viewport {
   };
 }
 
+/** Liczby z karty graficznej (tylko 3D): rysowania, trójkąty i zajęta pamięć (geometrie, tekstury). */
+function gpuLine(display: PlanetDisplay): Record<string, string> {
+  const s = display.gpuStats?.();
+  return s ? { 'grafika 3D': `${s.drawCalls} rysowań, ${s.triangles} trójkątów, ${s.geometries} geometrii, ${s.textures} tekstur` } : {};
+}
+
 /** Niebo aktywnej planety: kolor gwiazdy i sąsiednie ciała jej układu (z mapy galaktyki). */
 function skyFor(controller: GameController): SkyScene {
   const where = parseAddress(controller.address);
@@ -83,6 +89,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     setZoom: (zoom, instant) => display.setZoom(zoom, instant),
     zoomLevel: () => display.zoomLevel(),
     renderScale: display.renderScale ? () => display.renderScale!() : undefined,
+    gpuStats: display.gpuStats ? () => display.gpuStats!() : undefined,
     resetView: () => display.resetView(),
     holdSpin: (hold) => display.holdSpin(hold),
     setGridVisible: (visible) => display.setGridVisible(visible),
@@ -209,6 +216,7 @@ function start(boot: BootGuard): void {
           'z ekranu początkowego': isStandalone() ? 'tak' : 'nie',
           'grafika teraz': display.kind + (display.renderScale ? ` (rozdzielczość ${Math.round(display.renderScale() * 100)}%)` : ''),
           'płynność (ostatnia minuta)': fps.describe(),
+          ...gpuLine(display),
           planety: `${controller.slotInfo.used} z ${controller.slotInfo.unlocked}`,
           planeta: `${controller.planet.displayName} (${controller.planet.definitionId}, ${controller.address || 'startowa'}, seed ${controller.planet.seed})`,
           budynki: Object.entries(controller.economy.levels)
@@ -220,6 +228,8 @@ function start(boot: BootGuard): void {
         ].join('\n'),
     },
   });
+  // Tylko podgląd (`npm run dev`, bez PWA): dostęp dla skryptów pomiarowych (scripts/perf.ts). W grze — nie istnieje.
+  if (!__PWA__) (window as unknown as { __planetForge?: unknown }).__planetForge = { controller, display, fps, scene };
   const research = new ResearchScene({ controller, getViewport });
   const map = new MapScene({ controller, getViewport });
   const empire = new EmpireScene({ controller, getViewport });

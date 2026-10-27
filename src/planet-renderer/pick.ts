@@ -1,6 +1,6 @@
 // Wybór budowli dotknięciem: rzut budowli kolonii na ekran (ten sam obrót co renderery)
 // i najbliższa widoczna budowla pod palcem. Czysta matematyka (bez three/DOM) — testowalna.
-import type { BuildingId, BuildingLevels } from '../core/types.ts';
+import type { BuildingId } from '../core/types.ts';
 import type { FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { ColonyLayout, Vec3 } from './colony.ts';
 
@@ -14,11 +14,6 @@ export interface PickView {
   tilt: number;
   /** 2D: rzut prostokątny, `r` = promień tarczy. 3D: perspektywa — ogniskowa `f` (px) i odległość kamery `d` (promienie planety). */
   projection: { kind: 'ortho'; r: number } | { kind: 'perspective'; f: number; d: number };
-}
-
-/** Poziomy z placem budowy: budowla w budowie też jest do wybrania. */
-export function levelsWithSite(levels: BuildingLevels, site: { building: BuildingId; targetLevel: number } | null): BuildingLevels {
-  return site ? { ...levels, [site.building]: Math.max(levels[site.building] ?? 0, site.targetLevel) } : levels;
 }
 
 /** Promień „trafienia” w budowlę (pt) — palec ma ok. 44 pt. */

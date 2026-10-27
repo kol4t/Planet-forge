@@ -91,8 +91,14 @@ export const PLANET_ROW_GAP = 6;
 export const planetFooterRows = (hidden: number) => Math.ceil((hidden + 1) / 2);
 /** Nagłówek panelu. */
 const HEADER_H = 40;
-/** Wysokość karty budynku zależna od szerokości (węższa karta = więcej zawijania tekstu). */
-const cardHeightFor = (cardW: number, u: number) => (cardW >= 230 * u ? 128 : 176) * u;
+/**
+ * Wysokość karty budynku zależna od szerokości (węższa karta = więcej zawijania tekstu). Wąska karta mieści
+ * dwuwierszową nazwę, efekt i koszt (po dwa wiersze) nad przyciskiem (audyt v0.46: tekst chował się pod przyciskiem).
+ */
+export const cardHeight = (cardW: number, u: number) => (cardW >= CARD_WIDE * u ? 132 : 172) * u;
+/** Od tej szerokości (× u) efekt i koszt mieszczą się w jednym wierszu — karta może być niska. */
+export const CARD_WIDE = 290;
+const cardHeightFor = cardHeight;
 
 export function computeLayout(
   width: number,
@@ -164,8 +170,10 @@ export function computeLayout(
     return { cx: area.x + area.w / 2, cy: area.y + area.h / 2, r };
   };
   let planet = fit(stage);
+  // Za niskie wolne miejsce na kolumnę trzech przycisków (telefon pionowo z wysokim panelem) — tylko szczypanie.
+  if (stage.h < 3 * TOUCH + 2 * 6 + 8) camera = null;
   // Gdy miejsca jest mało, planeta odsuwa się od przycisków kamery (nie chowa się pod nimi).
-  const buttons = [camera.zoomIn, camera.zoomOut, camera.reset];
+  const buttons = camera ? [camera.zoomIn, camera.zoomOut, camera.reset] : [];
   if (buttons.some((b) => circleHitsRect(planet, b))) {
     const moved = fit({ ...stage, w: column - 6 - stage.x });
     if (moved.r >= planet.r * 0.85 && !buttons.some((b) => circleHitsRect(moved, b))) planet = moved;
@@ -185,7 +193,8 @@ function dockLayout(rect: Rect, u: number): Layout['dock'] {
   const room = rect.x + rect.w - p - x0;
   const minW = 84 * u;
   const count = clamp(Math.floor((room + gap) / (minW + gap)), 1, DOCK_ORDER.length);
-  const itemW = Math.min(132 * u, (room - (count - 1) * gap) / count);
+  // Przyciski dzielą całą szerokość paska po równo (audyt v0.46: na szerokim ekranie zostawała pusta końcówka).
+  const itemW = (room - (count - 1) * gap) / count;
   const items = DOCK_ORDER.slice(0, count).map((id, i) => ({ id, rect: { x: x0 + i * (itemW + gap), y, w: itemW, h: TOUCH } }));
   return { rect, menu, items, hidden: DOCK_ORDER.slice(count) };
 }

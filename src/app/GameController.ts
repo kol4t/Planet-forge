@@ -84,7 +84,7 @@ import { distanceFrom, expeditionStats, planExpedition, resolveExpedition, type 
 import type { KnownSystem } from '../core/galaxy/galaxyIndex.ts';
 import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownCount, raiseDiscovery, rareBonuses, type Discoveries, type DiscoveryLevel } from '../core/galaxy/discovery.ts';
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
-import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
+import { hasFreeSlot, inspectStoredEmpire, JOURNAL_LIMIT, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
 import type { AsteroidStation, Balance, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
@@ -431,8 +431,16 @@ export class GameController {
   private readonly researchListeners = new Set<(id: string) => void>();
   private readonly demolishListeners = new Set<(id: BuildingId) => void>();
 
+  /** Zapis w pamięci był uszkodzony — gra zaczęła od nowa, kopia starego zapisu jest zachowana (do komunikatu). */
+  brokenSaveFound = false;
+  /** Ostatni zapis się nie udał (pełna pamięć, tryb prywatny) — komunikat raz, aż zapis znów się uda. */
+  private saveFailing = false;
+  private readonly saveFailListeners = new Set<() => void>();
+
   constructor(now = Date.now()) {
-    const saved = loadEmpire();
+    const stored = inspectStoredEmpire();
+    this.brokenSaveFound = stored.broken;
+    const saved = stored.empire;
     const slots = saved ? restoreSlots(saved.slots) : [];
     if (saved && slots.length > 0) {
       this.slots = slots;
@@ -541,10 +549,18 @@ export class GameController {
     const splits = [slot.specialization?.readyAt, slot.asteroid?.readyAt, ...this.systemSlots(slot).map((s) => s.collector?.readyAt)]
       .filter((t): t is number => t !== undefined && t > e.lastUpdate && t <= now)
       .sort((a, b) => a - b);
-    for (const ready of splits) {
-      if (ready > e.lastUpdate) e = advance(e, slot.planet, ready, adjust(this.balanceFor(slot, e.lastUpdate)));
-    }
-    return advance(e, slot.planet, now, adjust(this.balanceFor(slot, e.lastUpdate)));
+    // Limit nieobecności (8 h) liczy się dla całego naliczenia, nie dla każdego odcinka osobno (audyt v0.46).
+    let left = Infinity;
+    const step = (until: number) => {
+      const balance = adjust(this.balanceFor(slot, e.lastUpdate));
+      const limit = Math.min(left, balance.maxOfflineSeconds);
+      const spent = Math.min(limit, Math.max(0, (until - e.lastUpdate) / 1000));
+      e = advance(e, slot.planet, until, { ...balance, maxOfflineSeconds: limit }, { hasRoom: this.roomCheck(slot) });
+      left = Math.max(0, limit - spent);
+    };
+    for (const ready of splits) if (ready > e.lastUpdate) step(ready);
+    step(now);
+    return e;
   }
 
   // ——— energia gwiazdy (v0.44) ———
@@ -831,7 +847,7 @@ export class GameController {
     const c = this.research.current;
     // Przy nieobecności dłuższej niż limit dzielenie czasu nie ma znaczenia (liczy się limit).
     if (c && c.finishesAt <= now && now - this.economy.lastUpdate <= this.balance.maxOfflineSeconds * 1000) {
-      this.economy = advance(this.economy, this.planet, Math.max(this.economy.lastUpdate, c.finishesAt), this.balance);
+      this.economy = advance(this.economy, this.planet, Math.max(this.economy.lastUpdate, c.finishesAt), this.balance, { hasRoom: this.roomCheck(this.slots[this.active]!) });
     }
     const result = completeResearch(this.research, now);
     if (result.completed) {
@@ -2022,7 +2038,16 @@ export class GameController {
   }
 
   save(): boolean {
-    return writeEmpire(this.empireData());
+    const ok = writeEmpire(this.empireData());
+    if (!ok && !this.saveFailing) for (const listener of this.saveFailListeners) listener();
+    this.saveFailing = !ok;
+    return ok;
+  }
+
+  /** Zapis gry się nie udał (pierwszy raz z rzędu) — do komunikatu dla gracza. */
+  onSaveFailed(listener: () => void): () => void {
+    this.saveFailListeners.add(listener);
+    return () => this.saveFailListeners.delete(listener);
   }
 
   /** Zapis całego imperium jako tekst „PF2:…” do skopiowania. */
@@ -2125,8 +2150,8 @@ export class GameController {
   }
 
   /**
-   * Pola aktywnej planety: wszystkie, lądowe (do zabudowy) i zajęte. Każdy poziom budynku zajmuje
-   * jedno pole lądu (od v0.26).
+   * Pola aktywnej planety: wszystkie, lądowe (do zabudowy) i zajęte. Budynek zajmuje spójny obszar pól,
+   * który rośnie z etapem (od v0.45, `core/economy/footprint.ts`).
    */
   get fields(): FieldsInfo {
     const slot = this.slots[this.active]!;
@@ -2184,11 +2209,12 @@ export class GameController {
     const level = this.economy.levels[id] ?? 0;
     const now = this.rates;
     const without = productionRates({ ...this.economy, levels: { ...this.economy.levels, [id]: 0 } }, this.planet, this.balance);
-    const per = (v: number) => Math.round(v * 10) / 10;
+    // Polski zapis liczb (przecinek dziesiętny, spacja co tysiąc) — audyt v0.46: było „+728.4 metalu/min”.
+    const per = (v: number) => PL_NUMBER.format(Math.round(v * 10) / 10);
     let output: string | null = null;
     if (def.produces === 'metal') output = `+${per(now.metal - without.metal)} metalu/min`;
     else if (def.produces === 'crystal') output = `+${per(now.crystal - without.crystal)} kryształów/min`;
-    else if (def.produces === 'energy') output = `+${Math.round(now.energyProduced - without.energyProduced)} energii`;
+    else if (def.produces === 'energy') output = `+${PL_NUMBER.format(Math.round(now.energyProduced - without.energyProduced))} energii`;
     else if (def.produces === 'antimatter') output = `+${per(now.antimatterPerHour - without.antimatterPerHour)} antymaterii/h`;
     const use = now.energyUsed - without.energyUsed;
     const own = (this.slots[this.active]!.complexes ?? []).find((c) => c.building === id);
@@ -2223,7 +2249,7 @@ export class GameController {
       stage: stage >= 0 ? stageName(id, level) : null,
       description: def.description,
       output: level > 0 ? output : null,
-      energy: level > 0 && use > 0.05 ? `−${Math.round(use)} energii` : null,
+      energy: level > 0 && use > 0.05 ? `−${PL_NUMBER.format(Math.round(use))} energii` : null,
       fields: this.footprint(id).length,
       planetFields: this.fields,
       stages,
@@ -2608,6 +2634,9 @@ function finishedBuild(before: EconomyState, after: EconomyState): CompletedBuil
   if (a && a.building === c.building && a.startedAt === c.startedAt) return null;
   return (after.levels[c.building] ?? 0) >= c.targetLevel ? { building: c.building, level: c.targetLevel } : null;
 }
+
+/** Liczby w tekstach dla gracza: przecinek dziesiętny i spacja tysięcy (jak w panelach). */
+const PL_NUMBER = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 1 });
 
 /** Planeta z galaktyki: typ z układu, seed = adres, nazwa od układu (np. „HD-412 c”). */
 function galaxyPlanet(target: SystemPlanet): Planet {

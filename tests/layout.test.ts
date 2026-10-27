@@ -111,3 +111,19 @@ test('panel „Planety” mieści listę planet i przyciski pod nią (do 5 plane
     assert.ok(five.panel!.rect.h < five.dock.rect.y - five.topBar.y - five.topBar.h, `${w}×${h}: 5 planet bez przycinania`);
   }
 });
+
+test('dolny pasek: przyciski dzielą całą szerokość po równo (audyt v0.46)', () => {
+  for (const [name, w, h] of SCREENS) {
+    const { dock } = computeLayout(w, h);
+    const items = dock.items.map((i) => i.rect);
+    const last = items[items.length - 1]!;
+    const end = dock.rect.x + dock.rect.w;
+    assert.ok(end - (last.x + last.w) <= 12, `${name}: pusta końcówka paska ${end - (last.x + last.w)} pt`);
+    for (const r of items) assert.ok(Math.abs(r.w - items[0]!.w) < 0.01, `${name}: różne szerokości`);
+  }
+});
+
+test('karta budynku: wąska karta ma miejsce na dwa wiersze efektu i kosztu nad przyciskiem (audyt v0.46)', () => {
+  const l = computeLayout(1180, 820, undefined, 6, { open: 'production' });
+  for (const card of l.cards) assert.ok(card.h >= (card.w >= 290 * l.u ? 132 : 172) * l.u - 0.5, `karta ${card.w}×${card.h}`);
+});
