@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.47.1 — grafika 3D, prototyp B (rodzina metalowa) — 2026-10-27
+
+- Kopalnia metalu w 3D według standardu modelu (platforma, bryła, detal, światło), wielkość z promienia pola.
+- Cztery sylwetki razem z etapami gry (poz. 1 / 6 / 12 / 20): kopalnia z wieżą wyciągową → zakład przetwórczy → huta z piecami i kominami → megakompleks z wieżą centralną i suwnicą.
+- Moduły na pozostałych polach (hale ze zbiornikami, place z hałdami) i taśmociągi do głównej konstrukcji; +4–5 rysowań.
+- 2D, mechanika, pola i zapisy bez zmian.
+
 ## v0.47.0 — grafika 3D, prototyp A (planeta) — 2026-10-27
 
 - 3D bez „szachownicy”: normalne faset przechylone ku górze (`facetNormals`), kolor fasety ze średniej wierzchołków i wygładzonej wysokości, jasność płatami zamiast losowo, przyciemnienie tylko na uskokach tarasów (maks. 25%).

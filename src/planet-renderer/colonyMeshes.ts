@@ -14,6 +14,11 @@ import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
 type Shape = { body: THREE.BufferGeometry; light: THREE.BufferGeometry };
 
 function prepare(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  if (geometries.length === 0) {
+    const empty = new THREE.BufferGeometry();
+    empty.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+    return empty;
+  }
   // Wspólny format atrybutów (bez uv) — wymagany przez mergeGeometries.
   const clean = geometries.map((g) => {
     const ng = g.index ? g.toNonIndexed() : g;
@@ -191,56 +196,6 @@ function createHub(): BigShape {
   };
 }
 
-/** Zakład przetwórczy metalu (pełne pole, v0.39): hala ze złotym dachem, kominy, okna pieców, dźwig. */
-function createFactory(): BigShape {
-  return {
-    body: prepare([
-      paint(at(new THREE.CylinderGeometry(0.5, 0.56, 0.14, 6), 0, 0.07, 0), STEEL),
-      paint(at(new THREE.BoxGeometry(0.5, 0.26, 0.34), 0.05, 0.27, -0.05), STEEL),
-      paint(at(new THREE.BoxGeometry(0.54, 0.05, 0.38), 0.05, 0.42, -0.05), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.05, 0.065, 0.46, 6), -0.28, 0.37, 0.18), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.04, 0.05, 0.32, 6), -0.15, 0.3, 0.26), STEEL),
-      paint(at(new THREE.BoxGeometry(0.04, 0.52, 0.04), 0.32, 0.38, -0.28), GOLD),
-      paint(at(new THREE.BoxGeometry(0.08, 0.04, 0.46).rotateX(0.3), 0.36, 0.22, 0.12), GOLD),
-    ]),
-    // Ciemne bramy hali (zamiast szybu).
-    pit: prepare([at(new THREE.BoxGeometry(0.14, 0.12, 0.02), 0.2, 0.2, 0.125), at(new THREE.BoxGeometry(0.1, 0.1, 0.02), -0.08, 0.19, 0.125)]),
-    // Dźwig nad halą obraca się powoli.
-    rotor: prepare([at(new THREE.BoxGeometry(0.62, 0.03, 0.05), 0.1, 0.6, 0), at(new THREE.BoxGeometry(0.03, 0.12, 0.03), 0.36, 0.53, 0)]),
-    // Żar: okna pieców, wylot komina, kadź z roztopionym metalem.
-    glow: prepare([
-      at(new THREE.BoxGeometry(0.36, 0.05, 0.01), 0.05, 0.31, 0.125),
-      at(new THREE.CylinderGeometry(0.052, 0.052, 0.03, 6), -0.28, 0.61, 0.18),
-      at(new THREE.CylinderGeometry(0.08, 0.08, 0.02, 8), 0.28, 0.15, 0.3),
-    ]),
-  };
-}
-
-/** Wielka fabryka (hala główna kompleksu metalu, v0.39): kilka hal, trzy kominy, zbiorniki, żar okien. */
-function createFoundry(): BigShape {
-  return {
-    body: prepare([
-      paint(at(new THREE.CylinderGeometry(0.55, 0.6, 0.12, 8), 0, 0.06, 0), STEEL),
-      paint(at(new THREE.BoxGeometry(0.6, 0.3, 0.4), 0, 0.27, 0), STEEL),
-      paint(at(new THREE.BoxGeometry(0.64, 0.05, 0.44), 0, 0.44, 0), GOLD),
-      paint(at(new THREE.BoxGeometry(0.25, 0.2, 0.3), 0.38, 0.22, 0.2), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.05, 0.07, 0.6, 6), -0.3, 0.42, -0.25), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.05, 0.07, 0.66, 6), -0.15, 0.45, -0.28), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.05, 0.07, 0.56, 6), 0, 0.4, -0.3), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.08, 0.08, 0.22, 8), 0.36, 0.2, -0.3), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.07, 0.07, 0.18, 8), -0.4, 0.18, 0.28), GOLD),
-    ]),
-    pit: prepare([at(new THREE.BoxGeometry(0.16, 0.14, 0.02), 0, 0.19, 0.205), at(new THREE.BoxGeometry(0.1, 0.1, 0.02), 0.38, 0.17, 0.355)]),
-    rotor: prepare([at(new THREE.BoxGeometry(0.7, 0.03, 0.05), 0, 0.66, 0.05), at(new THREE.BoxGeometry(0.03, 0.14, 0.03), 0.3, 0.58, 0.05)]),
-    glow: prepare([
-      at(new THREE.BoxGeometry(0.5, 0.05, 0.01), 0, 0.33, 0.205),
-      at(new THREE.CylinderGeometry(0.052, 0.052, 0.03, 6), -0.3, 0.73, -0.25),
-      at(new THREE.CylinderGeometry(0.052, 0.052, 0.03, 6), -0.15, 0.79, -0.28),
-      at(new THREE.CylinderGeometry(0.052, 0.052, 0.03, 6), 0, 0.69, -0.3),
-    ]),
-  };
-}
-
 /** Węzeł Tesli (pełne pole elektrowni, v0.40): ażurowa wieża na równinie, obracający się pierścień, świecąca kula. */
 function createTeslaNode(): BigShape {
   const legs = [0, 1, 2].map((k) => {
@@ -299,22 +254,232 @@ function createTeslaTower(): BigShape {
 }
 
 
+// ——— Rodzina metalowa (v0.47, prototyp B) ———
+// Standard modelu: PLATFORMA (fundament wpuszczony w teren) → BRYŁA (sylwetka etapu) → DETAL (kominy, zbiorniki, taśmy)
+// → ŚWIATŁO (okna pieców, wyloty kominów). Jednostki: 1 = szerokość konstrukcji, podstawa na y = 0. Sylwetka zmienia
+// się razem z etapem gry (poz. 1 / 6 / 12 / 20 — decyzja właściciela): kopalnia → zakład → huta → megakompleks.
+const SLAB = '#66706d';
+const ORE = '#6e5b4a';
+const DARK = '#3a4241';
+
+/** Platforma: niska płyta wpuszczona w teren (zakrywa nierówności pod budowlą). */
+function slab(radius: number, sides: number, height = 0.08): THREE.BufferGeometry {
+  return paint(at(new THREE.CylinderGeometry(radius, radius * 1.06, height + 0.1, sides), 0, height / 2 - 0.05, 0), SLAB);
+}
+
+/** Wieża wyciągowa szybu: dwie nogi (kozioł), belka, koło na szczycie. */
+function headframe(x: number, z: number, h: number, ry = 0): THREE.BufferGeometry[] {
+  return [
+    paint(at(new THREE.BoxGeometry(0.04, h, 0.04).rotateZ(0.12), x - 0.05, h / 2, z, ry), STEEL),
+    paint(at(new THREE.BoxGeometry(0.04, h, 0.04).rotateZ(-0.12), x + 0.05, h / 2, z, ry), STEEL),
+    paint(at(new THREE.BoxGeometry(0.04, h * 0.8, 0.04).rotateX(0.45), x, h * 0.42, z + h * 0.18, ry), STEEL),
+    paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 10).rotateX(Math.PI / 2), x, h, z, ry), GOLD),
+  ];
+}
+
+/** Etap 1 — Kopalnia: szyb z wieżą wyciągową, budynek maszyny, hałda, dwa pojazdy. */
+function createMineHead(): BigShape {
+  return {
+    body: prepare([
+      slab(0.46, 6),
+      paint(at(new THREE.CylinderGeometry(0.11, 0.13, 0.08, 8), 0, 0.12, 0), STEEL),
+      ...headframe(0, 0, 0.62),
+      paint(at(new THREE.BoxGeometry(0.22, 0.16, 0.18), 0.24, 0.16, -0.06), STEEL),
+      paint(at(new THREE.BoxGeometry(0.24, 0.03, 0.2), 0.24, 0.255, -0.06), GOLD),
+      paint(at(new THREE.ConeGeometry(0.16, 0.16, 7), -0.24, 0.16, 0.18), ORE),
+      paint(at(new THREE.BoxGeometry(0.09, 0.05, 0.06), -0.06, 0.1, 0.32, 0.4), GOLD),
+      paint(at(new THREE.BoxGeometry(0.08, 0.05, 0.06), 0.3, 0.1, 0.24, -0.7), GOLD),
+    ]),
+    pit: prepare([at(new THREE.CircleGeometry(0.09, 8).rotateX(-Math.PI / 2), 0, 0.165, 0)]),
+    rotor: prepare([at(new THREE.BoxGeometry(0.3, 0.025, 0.03), 0.24, 0.32, -0.06), at(new THREE.BoxGeometry(0.02, 0.07, 0.02), 0.36, 0.29, -0.06)]),
+    glow: prepare([at(new THREE.BoxGeometry(0.12, 0.035, 0.01), 0.24, 0.17, 0.035), at(new THREE.BoxGeometry(0.03, 0.03, 0.03), 0, 0.64, 0)]),
+  };
+}
+
+/** Etap 2 — Zakład przetwórczy: dwie hale, zbiorniki, komin, taśmociąg od szybu do hali. */
+function createMetalPlant(): BigShape {
+  return {
+    body: prepare([
+      slab(0.5, 8),
+      paint(at(new THREE.BoxGeometry(0.46, 0.22, 0.26), 0.04, 0.19, -0.1), STEEL),
+      paint(at(new THREE.BoxGeometry(0.5, 0.04, 0.3), 0.04, 0.31, -0.1), GOLD),
+      paint(at(new THREE.BoxGeometry(0.26, 0.16, 0.2), -0.2, 0.16, 0.2), STEEL),
+      paint(at(new THREE.BoxGeometry(0.28, 0.03, 0.22), -0.2, 0.255, 0.2), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.07, 0.07, 0.2, 10), 0.24, 0.18, 0.22), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.16, 10), 0.36, 0.16, 0.08), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.035, 0.05, 0.5, 6), -0.06, 0.45, -0.22), STEEL),
+      ...headframe(0.34, -0.3, 0.42, 0.6),
+      // Taśmociąg od szybu do hali (nachylony).
+      paint(at(new THREE.BoxGeometry(0.05, 0.03, 0.3).rotateX(-0.35), 0.24, 0.22, -0.18, 0.9), DARK),
+    ]),
+    pit: prepare([at(new THREE.BoxGeometry(0.12, 0.1, 0.01), 0.1, 0.13, 0.035), at(new THREE.BoxGeometry(0.08, 0.08, 0.01), -0.2, 0.12, 0.305)]),
+    rotor: prepare([at(new THREE.BoxGeometry(0.44, 0.025, 0.035), 0.02, 0.4, -0.02), at(new THREE.BoxGeometry(0.02, 0.08, 0.02), 0.2, 0.36, -0.02)]),
+    glow: prepare([
+      at(new THREE.BoxGeometry(0.3, 0.04, 0.01), 0.04, 0.2, 0.035),
+      at(new THREE.CylinderGeometry(0.037, 0.037, 0.02, 6), -0.06, 0.71, -0.22),
+    ]),
+  };
+}
+
+/** Etap 3 — Huta: dwa wielkie piece, trzy kominy, hala odlewni, kadzie; światło pieców i kanału z metalem. */
+function createSmelter(): BigShape {
+  const furnace = (x: number, z: number, h: number) => [
+    paint(at(new THREE.CylinderGeometry(0.07, 0.12, h, 10), x, h / 2 + 0.02, z), STEEL),
+    paint(at(new THREE.CylinderGeometry(0.125, 0.125, 0.03, 10), x, h * 0.35, z), GOLD),
+    paint(at(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 10), x, h * 0.7, z), GOLD),
+  ];
+  return {
+    body: prepare([
+      slab(0.54, 8),
+      ...furnace(-0.16, -0.14, 0.62),
+      ...furnace(0.12, -0.2, 0.54),
+      paint(at(new THREE.BoxGeometry(0.5, 0.18, 0.22), 0, 0.15, 0.2), STEEL),
+      paint(at(new THREE.BoxGeometry(0.54, 0.035, 0.26), 0, 0.255, 0.2), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.035, 0.05, 0.78, 6), 0.34, 0.41, -0.06), STEEL),
+      paint(at(new THREE.CylinderGeometry(0.035, 0.05, 0.86, 6), 0.4, 0.45, 0.08), STEEL),
+      paint(at(new THREE.CylinderGeometry(0.03, 0.045, 0.7, 6), -0.38, 0.37, 0.06), STEEL),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), -0.32, 0.1, 0.3), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), 0.3, 0.1, 0.32), GOLD),
+      // Most rurowy między piecami.
+      paint(at(new THREE.BoxGeometry(0.3, 0.035, 0.035), -0.02, 0.42, -0.17), DARK),
+    ]),
+    pit: prepare([at(new THREE.BoxGeometry(0.14, 0.1, 0.01), 0.12, 0.12, 0.315), at(new THREE.BoxGeometry(0.12, 0.08, 0.01), -0.14, 0.11, 0.315)]),
+    rotor: prepare([at(new THREE.BoxGeometry(0.56, 0.025, 0.035), 0, 0.36, 0.2), at(new THREE.BoxGeometry(0.02, 0.08, 0.02), -0.2, 0.32, 0.2)]),
+    glow: prepare([
+      at(new THREE.BoxGeometry(0.06, 0.06, 0.06), -0.16, 0.1, -0.02),
+      at(new THREE.BoxGeometry(0.06, 0.06, 0.06), 0.12, 0.1, -0.08),
+      at(new THREE.BoxGeometry(0.42, 0.012, 0.03), 0, 0.03, 0.06),
+      at(new THREE.BoxGeometry(0.36, 0.04, 0.01), 0, 0.16, 0.315),
+      at(new THREE.CylinderGeometry(0.037, 0.037, 0.02, 6), 0.34, 0.81, -0.06),
+      at(new THREE.CylinderGeometry(0.037, 0.037, 0.02, 6), 0.4, 0.89, 0.08),
+      at(new THREE.CylinderGeometry(0.032, 0.032, 0.02, 6), -0.38, 0.73, 0.06),
+    ]),
+  };
+}
+
+/** Etap 4 — Megakompleks: dwupoziomowa platforma, dominująca wieża centralna, cztery piece wokół, łączniki, suwnica. */
+function createMetalMega(): BigShape {
+  const blocks = [0, 1, 2, 3].flatMap((k) => {
+    const a = (k * Math.PI) / 2 + Math.PI / 4;
+    const x = Math.cos(a) * 0.34;
+    const z = Math.sin(a) * 0.34;
+    return [
+      paint(at(new THREE.CylinderGeometry(0.06, 0.1, 0.42, 8), x, 0.33, z), STEEL),
+      paint(at(new THREE.CylinderGeometry(0.105, 0.105, 0.03, 8), x, 0.3, z), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.025, 0.035, 0.6, 6), x * 1.28, 0.42, z * 1.28), STEEL),
+      // Łącznik do wieży.
+      paint(at(new THREE.BoxGeometry(0.04, 0.035, 0.24), x * 0.55, 0.36, z * 0.55, -a + Math.PI / 2), DARK),
+    ];
+  });
+  return {
+    body: prepare([
+      slab(0.56, 8),
+      paint(at(new THREE.CylinderGeometry(0.36, 0.4, 0.08, 8), 0, 0.12, 0), SLAB),
+      paint(at(new THREE.CylinderGeometry(0.1, 0.14, 0.95, 6), 0, 0.6, 0), STEEL),
+      paint(at(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 6), 0, 0.42, 0), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 6), 0, 0.7, 0), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.1, 0.12, 6), 0, 1.13, 0), GOLD),
+      ...blocks,
+    ]),
+    pit: prepare([at(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 6), 0, 1.2, 0)]),
+    // Pierścień suwnicy wokół wieży obraca się powoli.
+    rotor: prepare([at(new THREE.TorusGeometry(0.24, 0.012, 4, 18).rotateX(Math.PI / 2), 0, 0.82, 0), at(new THREE.BoxGeometry(0.48, 0.014, 0.02), 0, 0.82, 0)]),
+    glow: prepare([
+      at(new THREE.CylinderGeometry(0.105, 0.105, 0.05, 6), 0, 0.55, 0),
+      at(new THREE.IcosahedronGeometry(0.05, 0), 0, 1.26, 0),
+      ...[0, 1, 2, 3].map((k) => {
+        const a = (k * Math.PI) / 2 + Math.PI / 4;
+        return at(new THREE.BoxGeometry(0.06, 0.05, 0.06), Math.cos(a) * 0.34, 0.15, Math.sin(a) * 0.34);
+      }),
+    ]),
+  };
+}
+
+/** Moduł zabudowy (pozostałe pola): płyta, hala ze złotym dachem, para zbiorników, komin z żarem. */
+function createMetalBlock(): BigShape {
+  return {
+    body: prepare([
+      paint(at(new THREE.BoxGeometry(0.92, 0.12, 0.92), 0, 0.01, 0), SLAB),
+      paint(at(new THREE.BoxGeometry(0.56, 0.24, 0.34), -0.12, 0.19, -0.18), STEEL),
+      paint(at(new THREE.BoxGeometry(0.6, 0.04, 0.38), -0.12, 0.32, -0.18), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), 0.24, 0.2, 0.22), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.08, 0.08, 0.2, 10), 0.02, 0.17, 0.28), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.04, 0.055, 0.5, 6), 0.3, 0.32, -0.26), STEEL),
+    ]),
+    pit: prepare([at(new THREE.BoxGeometry(0.14, 0.1, 0.01), -0.02, 0.14, -0.005)]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.BoxGeometry(0.3, 0.04, 0.01), -0.16, 0.21, -0.005), at(new THREE.CylinderGeometry(0.042, 0.042, 0.02, 6), 0.3, 0.58, -0.26)]),
+  };
+}
+
+/** Moduł placu: płyta, dwie hałdy rudy, stacja przeładunku, pojazd. */
+function createMetalYard(): BigShape {
+  return {
+    body: prepare([
+      paint(at(new THREE.BoxGeometry(0.92, 0.12, 0.92), 0, 0.01, 0), SLAB),
+      paint(at(new THREE.ConeGeometry(0.22, 0.22, 7), -0.18, 0.18, 0.12), ORE),
+      paint(at(new THREE.ConeGeometry(0.16, 0.16, 7), 0.2, 0.15, -0.16), ORE),
+      paint(at(new THREE.BoxGeometry(0.18, 0.16, 0.14), 0.26, 0.15, 0.24), STEEL),
+      paint(at(new THREE.BoxGeometry(0.19, 0.03, 0.15), 0.26, 0.245, 0.24), GOLD),
+      paint(at(new THREE.BoxGeometry(0.1, 0.06, 0.07), -0.3, 0.1, -0.28, 0.5), GOLD),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([]),
+  };
+}
+
+/** Taśmociąg między modułami (odcinek długości 1 wzdłuż z, na podporach) — tylko bryła. */
+function createConveyor(): THREE.BufferGeometry {
+  return prepare([
+    paint(at(new THREE.BoxGeometry(0.16, 0.06, 1), 0, 0.09, 0), DARK),
+    paint(at(new THREE.BoxGeometry(0.2, 0.02, 1), 0, 0.13, 0), STEEL),
+    paint(at(new THREE.BoxGeometry(0.06, 0.08, 0.06), 0, 0.04, -0.3), STEEL),
+    paint(at(new THREE.BoxGeometry(0.06, 0.08, 0.06), 0, 0.04, 0.3), STEEL),
+  ]);
+}
+
 /** Wielkość konstrukcji (względem promienia planety): zabudowa wnętrza i główna konstrukcja. */
 const SPOT_SIZE = 0.06;
 const CORE_SIZE = 0.1;
 /** Najwięcej instancji jednego rodzaju kształtu. */
 const MAX_ITEMS = 160;
+/** Najwięcej odcinków taśmociągów (wszystkie kompleksy metalu planety). */
+const MAX_BELTS = 120;
+
+/** Kąt między dwoma kierunkami (rad). */
+function angleOf(a: Vec3, b: Vec3): number {
+  return Math.acos(Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+}
 /** Wyrastanie kompleksu po wzroście albo zmianie etapu (s). */
 const GROW_SECONDS = 1.4;
 
 /** Rodzaje kształtów: duże (bryła, wnętrze, ruchoma część, światła) z poprzednich wersji i małe budynki. */
-type KindId = 'drill' | 'drillTower' | 'hall' | 'foundry' | 'teslaNode' | 'teslaTower' | 'storage' | 'antimatterCollector' | 'laboratory';
+type KindId =
+  | 'drill'
+  | 'drillTower'
+  | 'mineHead'
+  | 'metalPlant'
+  | 'smelter'
+  | 'metalMega'
+  | 'metalBlock'
+  | 'metalYard'
+  | 'teslaNode'
+  | 'teslaTower'
+  | 'storage'
+  | 'antimatterCollector'
+  | 'laboratory';
 
 const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: string; speed: number }> = {
   drill: { shape: createRig, rotor: STRUCTURE_COLORS.crystalMine.light, glow: '#6fe9ff', speed: 1.6 },
   drillTower: { shape: createHub, rotor: STRUCTURE_COLORS.crystalMine.light, glow: '#6fe9ff', speed: 0.9 },
-  hall: { shape: createFactory, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0.35 },
-  foundry: { shape: createFoundry, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0.25 },
+  // Suwnice i dźwigi rodziny metalowej w przygaszonym złocie (jaskrawe przyćmiewały bryły — v0.47).
+  mineHead: { shape: createMineHead, rotor: '#9c8650', glow: '#ffb35a', speed: 0.3 },
+  metalPlant: { shape: createMetalPlant, rotor: '#9c8650', glow: '#ff9a3c', speed: 0.25 },
+  smelter: { shape: createSmelter, rotor: '#9c8650', glow: '#ff8a2c', speed: 0.2 },
+  metalMega: { shape: createMetalMega, rotor: '#9c8650', glow: '#ff9a3c', speed: 0.12 },
+  metalBlock: { shape: createMetalBlock, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
+  metalYard: { shape: createMetalYard, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
   teslaNode: { shape: createTeslaNode, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.8 },
   teslaTower: { shape: createTeslaTower, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.5 },
   storage: { shape: () => small('storage'), rotor: '#c9a24a', glow: STRUCTURE_COLORS.storage.light, speed: 0 },
@@ -330,12 +495,26 @@ function small(id: BuildingId): BigShape {
   return { body: paint(shape.body, STRUCTURE_COLORS[id].body), pit: empty, rotor: empty.clone(), glow: shape.light };
 }
 
+/** Główna konstrukcja rodziny metalowej na każdym etapie (poz. 1 / 6 / 12 / 20 — v0.47, prototyp B). */
+const METAL_CORE: readonly KindId[] = ['mineHead', 'metalPlant', 'smelter', 'metalMega'];
+/** Wielkość głównej konstrukcji metalu względem promienia jej pola — rośnie z etapem i dominuje na megakompleksie. */
+const METAL_CORE_SCALE = [1.7, 2.2, 2.8, 3.6] as const;
+/** Moduł zabudowy na pozostałych polach ≈ 2/3 średnicy pola. */
+const METAL_SPOT_SCALE = 1.35;
+
+/** Moduł na polu `k` obszaru metalu: na etapie kopalni place, potem na przemian hala i plac, od huty głównie hale. */
+function metalSpot(stage: number, k: number): KindId {
+  if (stage <= 0) return 'metalYard';
+  if (stage === 1) return k % 2 === 0 ? 'metalBlock' : 'metalYard';
+  return k % 3 === 0 ? 'metalYard' : 'metalBlock';
+}
+
 /** Co stoi w kompleksie: główna konstrukcja i rodzaj zabudowy wnętrza (od etapu — gęściej). */
 function plan(c: ColonyComplex): { core: KindId; spot: KindId | null; every: number; skipCenter: number } {
   const every = c.stage >= 2 ? 1 : c.stage === 1 ? 2 : 0;
   switch (c.building) {
     case 'metalMine':
-      return { core: c.stage >= 1 ? 'foundry' : 'hall', spot: 'hall', every, skipCenter: 0 };
+      return { core: METAL_CORE[Math.max(0, Math.min(3, c.stage))]!, spot: 'metalBlock', every: 1, skipCenter: 0 };
     case 'crystalMine':
       // Wnętrze to odkrywka — zabudowa tylko na krawędzi.
       return { core: 'drillTower', spot: 'drill', every, skipCenter: 0.66 };
@@ -389,6 +568,9 @@ export class ColonyMeshes {
   };
   /** `still` — „Ogranicz ruch”: nic się nie obraca ani nie pulsuje. */
   private readonly still: boolean;
+  /** Taśmociągi rodziny metalowej (v0.47): jeden InstancedMesh, odcinki między modułami. */
+  private readonly conveyor: THREE.InstancedMesh;
+  private belts: { building: BuildingId; from: Vec3; to: Vec3; surface: number; width: number }[] = [];
 
   constructor(still = false) {
     this.still = still;
@@ -400,6 +582,15 @@ export class ColonyMeshes {
     this.scaffold.visible = false;
     this.scaffold.frustumCulled = false;
     this.object.add(this.scaffold);
+    this.conveyor = new THREE.InstancedMesh(
+      createConveyor(),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.25, flatShading: true }),
+      MAX_BELTS,
+    );
+    this.conveyor.count = 0;
+    this.conveyor.visible = false;
+    this.conveyor.frustumCulled = false;
+    this.object.add(this.conveyor);
     for (const [id, look] of Object.entries(KIND_LOOK) as [KindId, (typeof KIND_LOOK)[KindId]][]) {
       const shape = look.shape();
       const kind: Kind = {
@@ -438,11 +629,16 @@ export class ColonyMeshes {
   updateLayout(layout: ColonyLayout): void {
     this.layout = layout;
     for (const kind of this.kinds.values()) kind.items = [];
+    this.belts = [];
     for (const c of layout.complexes) {
       const sig = `${c.cells.length}@${c.stage}${c.mega ? '+' : ''}`;
       if (this.seeded && this.signature.get(c.building) !== sig && !this.still) this.grownAt.set(c.building, this.time);
       this.signature.set(c.building, sig);
       const p = plan(c);
+      if (c.building === 'metalMine') {
+        this.addMetal(c, p.core);
+        continue;
+      }
       const stage = c.stage + (c.mega ? 1 : 0);
       const core = this.kinds.get(p.core)!;
       core.items.push({ building: c.building, dir: c.core, surface: c.surface - this.sink(c.core), spin: c.spots[0]?.spin ?? 0, size: CORE_SIZE * (0.75 + 0.3 * stage) });
@@ -455,6 +651,8 @@ export class ColonyMeshes {
       }
     }
     this.seeded = true;
+    this.conveyor.count = Math.min(this.belts.length, MAX_BELTS);
+    this.conveyor.visible = this.conveyor.count > 0;
     for (const kind of this.kinds.values()) {
       const count = Math.min(kind.items.length, MAX_ITEMS);
       for (const mesh of [kind.body, kind.pit, kind.rotor, kind.glow]) {
@@ -463,6 +661,46 @@ export class ColonyMeshes {
       }
     }
     this.place(true);
+  }
+
+  /**
+   * Rodzina metalowa (v0.47, prototyp B): główna konstrukcja etapu dopasowana do pola (rośnie i dominuje), na pozostałych
+   * polach moduły (hale, place) wielkości ~2/3 pola, bez nakładania na główną konstrukcję; od zakładu taśmociągi łączą
+   * każdy moduł z najbliższym bliżej środka (drzewo transportu do huty). Deterministycznie z układu pól.
+   */
+  private addMetal(c: ColonyComplex, coreKind: KindId): void {
+    const stage = Math.max(0, Math.min(3, c.stage));
+    const coreSpot = c.spots[0];
+    const coreR = coreSpot?.r ?? 0.1;
+    const coreSize = coreR * METAL_CORE_SCALE[stage]! * (c.mega ? 1.1 : 1);
+    this.kinds.get(coreKind)!.items.push({ building: c.building, dir: c.core, surface: c.surface - this.sink(c.core), spin: coreSpot?.spin ?? 0, size: coreSize });
+    // Pola zasłonięte przez główną konstrukcję zostają puste (bez nakładania brył).
+    const reach = coreSize * 0.55;
+    const placed: { dir: Vec3; surface: number }[] = [{ dir: c.core, surface: c.surface - this.sink(c.core) }];
+    c.spots.forEach((spot, k) => {
+      if (k === 0 || angleOf(spot.dir, c.core) < reach + spot.r * 0.4) return;
+      const kind = this.kinds.get(metalSpot(stage, k))!;
+      if (kind.items.length >= MAX_ITEMS) return;
+      const surface = spot.surface - this.sink(spot.dir);
+      kind.items.push({ building: c.building, dir: spot.dir, surface, spin: spot.spin, size: spot.r * METAL_SPOT_SCALE });
+      if (stage >= 1) {
+        // Taśmociąg do najbliższego już postawionego modułu (spoty są posortowane od środka — drzewo do huty).
+        let best = placed[0]!;
+        let bestA = Infinity;
+        for (const q of placed) {
+          const a = angleOf(spot.dir, q.dir);
+          if (a < bestA) {
+            bestA = a;
+            best = q;
+          }
+        }
+        // Bez taśmy przez uskok terenu (wisiałaby albo ginęła w zboczu).
+        if (Math.abs(best.surface - surface) < 0.012 && this.belts.length < MAX_BELTS) {
+          this.belts.push({ building: c.building, from: spot.dir, to: best.dir, surface: (best.surface + surface) / 2, width: spot.r * 0.5 });
+        }
+      }
+      placed.push({ dir: spot.dir, surface });
+    });
   }
 
   /** Trwająca budowa (null = brak). Wołane często — tanie. */
@@ -484,6 +722,7 @@ export class ColonyMeshes {
   /** Macierze instancji: wszystkie przy zmianie układu, co klatkę — ruchome części i wyrastające kompleksy. */
   private place(all: boolean): void {
     const { m, q, spin, p, s, n, up } = this.tmp;
+    if (this.belts.length > 0) this.placeBelts(all);
     for (const kind of this.kinds.values()) {
       if (kind.items.length === 0) continue;
       const moving = !this.still && kind.speed > 0;
@@ -518,6 +757,38 @@ export class ColonyMeshes {
     }
   }
 
+  /** Odcinki taśmociągów: środek na powierzchni między końcami, wzdłuż kierunku do celu, długość = odległość. */
+  private placeBelts(all: boolean): void {
+    const { m, q, p, s, n } = this.tmp;
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const fwd = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    const basis = new THREE.Matrix4();
+    let dirty = all;
+    this.belts.forEach((belt, i) => {
+      if (i >= MAX_BELTS) return;
+      const born = this.grownAt.get(belt.building);
+      const g = born === undefined ? 1 : Math.min(1, (this.time - born) / GROW_SECONDS);
+      if (!all && g >= 1) return;
+      dirty = true;
+      a.set(...belt.from);
+      b.set(...belt.to);
+      n.copy(a).add(b).normalize();
+      fwd.copy(b).sub(a);
+      const length = fwd.length();
+      fwd.addScaledVector(n, -fwd.dot(n)).normalize();
+      right.crossVectors(n, fwd).normalize();
+      basis.makeBasis(right, n, fwd);
+      q.setFromRotationMatrix(basis);
+      p.copy(n).multiplyScalar(belt.surface - belt.width * 0.05);
+      s.set(belt.width, belt.width, Math.max(1e-5, length * g));
+      m.compose(p, q, s);
+      this.conveyor.setMatrixAt(i, m);
+    });
+    if (dirty) this.conveyor.instanceMatrix.needsUpdate = true;
+  }
+
   private updateScaffold(): void {
     const site = this.site;
     const c = site && this.layout?.complexes.find((x) => x.building === site.building);
@@ -545,6 +816,9 @@ export class ColonyMeshes {
 
   dispose(): void {
     (this.scaffold.material as THREE.Material).dispose();
+    this.conveyor.geometry.dispose();
+    (this.conveyor.material as THREE.Material).dispose();
+    this.conveyor.dispose();
     for (const kind of this.kinds.values()) {
       for (const mesh of [kind.body, kind.pit, kind.rotor, kind.glow]) {
         mesh.geometry.dispose();

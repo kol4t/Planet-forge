@@ -38,6 +38,7 @@ for (const def of PLANET_DEFINITIONS) {
         assert.deepEqual(c.cells, cells);
         assert.equal(c.spots.length, cells.length, 'miejsce zabudowy na każdym polu');
         assert.equal(c.spots[0]!.t, Math.min(...c.spots.map((s) => s.t)), 'pierwsze miejsce — środek');
+        assert.ok(c.spots.every((s) => s.r > 0 && s.r === grid.cells[s.cell]!.radius), 'promień pola przy każdym miejscu (modele 3D, v0.47)');
         for (const cell of cells) {
           assert.equal(a.owner[cell], a.complexes.indexOf(c));
           const kind = grid.cells[cell]!.kind;
