@@ -774,16 +774,23 @@ export class ResearchScene extends OverlayScene {
     this.cameraTween = this.tweens.addCounter({ from: 0, to: 1, duration: 420, ease: 'Cubic.InOut', onUpdate: (tw) => apply(tw.getValue() ?? 1) });
   }
 
-  /** Filtry ramion u góry mapy: „Całe drzewo” i aktywne ramiona (tyle, ile się zmieści). */
+  /**
+   * Filtry ramion u góry mapy: „Całe drzewo” i aktywne ramiona. Na wąskim ekranie przechodzą do kolejnych
+   * wierszy (audyt v0.46: na telefonie część ramion była niedostępna).
+   */
   private buildFilters(): void {
     this.chips.clear();
     const gap = this.s(6);
     let x = this.area.x + gap;
-    const y = this.area.y + gap;
+    let y = this.area.y + gap;
     const right = this.area.x + this.area.w - gap;
     const entries: [string, string][] = [['all', 'Całe drzewo'], ...RESEARCH_ARMS.filter((a) => a.active).map((a): [string, string] => [a.id, a.name])];
     for (const [id, label] of entries) {
       const w = this.s(label.length * 7.6 + 30);
+      if (x + w > right && x > this.area.x + gap) {
+        x = this.area.x + gap;
+        y += TOUCH + gap;
+      }
       if (x + w > right) break;
       const chip = this.addButton(x, y, w, TOUCH, label, id === (this.armFilter ?? 'all') ? 'primary' : 'secondary', () =>
         this.focusArm(id === 'all' ? null : id),

@@ -573,6 +573,11 @@ export class PlanetView implements PlanetDisplay {
     this.renderer.render(this.scene, this.camera);
   }
 
+  gpuStats(): { drawCalls: number; triangles: number; geometries: number; textures: number } {
+    const info = this.renderer.info;
+    return { drawCalls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures };
+  }
+
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.frame);

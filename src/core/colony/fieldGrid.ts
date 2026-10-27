@@ -186,16 +186,20 @@ function fibonacciLinks(samples: Vec3[]): Links {
   const near = new Int32Array(n * K).fill(-1);
   const bestJ = new Int32Array(K);
   const bestD = new Float64Array(K);
+  // Współrzędne w jednej tablicy (szybszy dostęp niż do tablicy trójek — audyt v0.46, te same liczby).
+  const xyz = new Float64Array(n * 3);
+  samples.forEach((p, i) => xyz.set(p, i * 3));
   for (let i = 0; i < n; i++) {
-    const p = samples[i]!;
+    const px = xyz[i * 3]!;
+    const py = xyz[i * 3 + 1]!;
+    const pz = xyz[i * 3 + 2]!;
     bestJ.fill(-1);
     bestD.fill(-2);
     for (const off of offsets) {
       for (let side = 0; side < 2; side++) {
         const j = side === 0 ? i - off : i + off;
         if (j < 0 || j >= n) continue;
-        const q = samples[j]!;
-        const d = p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+        const d = px * xyz[j * 3]! + py * xyz[j * 3 + 1]! + pz * xyz[j * 3 + 2]!;
         if (d <= bestD[K - 1]!) continue;
         let at = K - 1;
         while (at > 0 && bestD[at - 1]! < d) {
@@ -209,19 +213,21 @@ function fibonacciLinks(samples: Vec3[]): Links {
     }
     near.set(bestJ, i * K);
   }
-  // Symetrycznie: j sąsiadem i ⇒ i sąsiadem j.
+  // Symetrycznie: j sąsiadem i ⇒ i sąsiadem j. Para {j < i} była już dodana przy j, jeśli i jest na liście j
+  // (sprawdzenie 6 pozycji zamiast zbioru wszystkich par — audyt v0.46, ten sam wynik, szybciej).
   const count = new Int32Array(n);
   const pairs: number[] = [];
-  const seen = new Set<number>();
+  const listed = (from: number, to: number) => {
+    for (let k = 0; k < K; k++) if (near[from * K + k] === to) return true;
+    return false;
+  };
   for (let i = 0; i < n; i++) {
     for (let k = 0; k < K; k++) {
       const j = near[i * K + k]!;
       if (j < 0) continue;
+      if (j < i && listed(j, i)) continue;
       const a = Math.min(i, j);
       const b = Math.max(i, j);
-      const key = a * n + b;
-      if (seen.has(key)) continue;
-      seen.add(key);
       pairs.push(a, b);
       count[a]!++;
       count[b]!++;
@@ -343,7 +349,8 @@ function grow(seeds: number[], links: Links, samples: Vec3[], allowed: Uint8Arra
     heap.push(0, p);
   });
   while (heap.size > 0) {
-    const [d, p] = heap.pop();
+    const p = heap.pop();
+    const d = heap.poppedKey;
     if (d > dist[p]!) continue;
     for (let k = links.start[p]!; k < links.start[p + 1]!; k++) {
       const q = links.to[k]!;
@@ -360,17 +367,24 @@ function grow(seeds: number[], links: Links, samples: Vec3[], allowed: Uint8Arra
 }
 
 class MinHeap {
-  private keys: number[] = [];
-  private values: number[] = [];
-  get size(): number {
-    return this.keys.length;
-  }
+  // Tablice typowane rosnące w miarę potrzeby (audyt v0.46: szybciej i bez śmieci dla GC; ten sam porządek).
+  private keys = new Float64Array(1024);
+  private values = new Int32Array(1024);
+  size = 0;
+  /** Klucz ostatnio zdjętego elementu (bez tworzenia pary przy każdym `pop`). */
+  poppedKey = 0;
   push(key: number, value: number): void {
+    if (this.size === this.keys.length) {
+      const keys = new Float64Array(this.size * 2);
+      keys.set(this.keys);
+      this.keys = keys;
+      const values = new Int32Array(this.size * 2);
+      values.set(this.values);
+      this.values = values;
+    }
     const k = this.keys;
     const v = this.values;
-    let i = k.length;
-    k.push(key);
-    v.push(value);
+    let i = this.size++;
     while (i > 0) {
       const parent = (i - 1) >> 1;
       if (k[parent]! <= key) break;
@@ -381,18 +395,21 @@ class MinHeap {
     k[i] = key;
     v[i] = value;
   }
-  pop(): [number, number] {
+  /** Zdejmuje najmniejszy element: zwraca wartość, klucz w `poppedKey`. */
+  pop(): number {
     const k = this.keys;
     const v = this.values;
-    const top: [number, number] = [k[0]!, v[0]!];
-    const lastK = k.pop()!;
-    const lastV = v.pop()!;
-    if (k.length > 0) {
+    this.poppedKey = k[0]!;
+    const top = v[0]!;
+    const n = --this.size;
+    const lastK = k[n]!;
+    const lastV = v[n]!;
+    if (n > 0) {
       let i = 0;
       for (;;) {
         const l = 2 * i + 1;
-        if (l >= k.length) break;
-        const c = l + 1 < k.length && k[l + 1]! < k[l]! ? l + 1 : l;
+        if (l >= n) break;
+        const c = l + 1 < n && k[l + 1]! < k[l]! ? l + 1 : l;
         if (k[c]! >= lastK) break;
         k[i] = k[c]!;
         v[i] = v[c]!;
@@ -479,10 +496,14 @@ function describeCells(cells: FieldCell[], samples: Vec3[], kinds: FieldKind[], 
  * nad tą parą (dualna siatka mapy), potem wygładzenie (bez ruszania węzłów, gdzie spotykają się 3 pola).
  */
 function traceBorders(samples: Vec3[], links: Links, owner: Int32Array): FieldBorder[] {
-  const vertex = new Map<string, { pos: Vec3; next: Set<string> }>();
-  const segments: { a: number; b: number; u: string; v: string }[] = [];
+  // Klucz rogu: trzy numery punktów rosnąco w jednej liczbie (n³ < 2⁵³ dla n ≤ 160 000) — bez napisów (audyt v0.46).
+  const n = samples.length;
+  const vertex = new Map<number, { pos: Vec3; next: Set<number> }>();
+  const segments: { a: number; b: number; u: number; v: number }[] = [];
   const corner = (p: number, q: number, r: number) => {
-    const key = [p, q, r].sort((x, y) => x - y).join(',');
+    const lo = Math.min(p, q, r);
+    const hi = Math.max(p, q, r);
+    const key = (lo * n + (p + q + r - lo - hi)) * n + hi;
     if (!vertex.has(key)) {
       const [a, b, c] = [samples[p]!, samples[q]!, samples[r]!];
       vertex.set(key, { pos: normalize([a[0] + b[0] + c[0], a[1] + b[1] + c[1], a[2] + b[2] + c[2]]), next: new Set() });
@@ -520,7 +541,7 @@ function traceBorders(samples: Vec3[], links: Links, owner: Int32Array): FieldBo
     }
   }
   for (let it = 0; it < 3; it++) {
-    const moved = new Map<string, Vec3>();
+    const moved = new Map<number, Vec3>();
     for (const [key, node] of vertex) {
       if (node.next.size !== 2) continue;
       const [n1, n2] = [...node.next].map((k) => vertex.get(k)!.pos);
