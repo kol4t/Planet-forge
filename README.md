@@ -409,4 +409,23 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 223. Panel „Planeta”: wiersz „KOSMOS” (np. „bez pasa · holownik gotowy”) → „Wydobycie” → okno z sekcjami „Pas asteroid” i „Kometa”. Na planecie bez pasa sekcja pasa tylko wyjaśnia, gdzie można postawić stację.
 224. „Wyślij holownik”: koszt schodzi od razu, wiersz pokazuje „kometa 59:59”, w „Imperium” — „Holownik po kometę: …”. Po godzinie komunikat „Kometa przyholowana…” i więcej metalu i kryształów; działa też przy zamkniętej grze.
 
+### Od 0.38: wiertła kryształu i kompleks wiertniczy
+
+225. Ekstraktor kryształów na poziomie 3, 6, 9…: każde pełne pole (3 poziomy) to jedno większe wiertło z szybem w gruncie zamiast trzech małych budowli — w 2D ciemny szyb z obiegającym światłem, w 3D platforma z otworem i obracającą się głowicą.
+226. Badania → Produktywność → „Wspólne szyby”. Potem Produkcja → ikonka „Zarządzanie” na karcie Ekstraktora → „Kompleks wiertniczy”: okno pokazuje, czy 3 pełne pola leżą obok siebie, ile pól zajmie kompleks (POLA +1), ile więcej kryształów i koszt.
+227. „Połącz w kompleks”: kryształy/min w pasku rosną o tyle, ile pokazał podgląd, POLA +1, na planecie szyb główny z rurami do trzech wierteł.
+228. To samo okno → „Rozłącz” → „Na pewno?”: kompleks znika, POLA −1, wydobycie wraca. Zburzenie poziomu Ekstraktora też rozłącza kompleks.
+
+### Od 0.38.1: karta budowli i zajętość pól
+
+229. Dotknij budowlę na planecie (np. wiertło albo szyb główny kompleksu): kamera podjeżdża, po prawej stronie planety pojawia się karta — poziom i etap, produkcja i zużycie energii, „Zajętość pól”, następny krok i „Rozwój” (osiągnięte etapy pełną kropką, bieżący świeci, „wkrótce” przygaszone).
+230. Na planecie pola tej budowli mają turkusowy, pulsujący obrys (jeden kontur wokół wszystkich jej pól, z polem szybu głównego).
+231. Krzyżyk na karcie albo dotknięcie planety obok budowli zamyka kartę i obrys. W 3D z bliska: stalowa platforma, złote maszyny, świecąca kolumna kryształu w szybie.
+
+### Od 0.38.2: teren, wybór miejsca, animacja łączenia
+
+232. Teren budynków: kryształy — lód, metal — wzgórza i góry, elektrownia — równiny (Zarządzanie → „Najlepszy teren”). Poza nim budynek pracuje w 75%.
+233. Kopalnia metalu na poziomie 3, 6, 9… (następny poziom otwiera nowe pole): dotknij kopalnię na planecie → w karcie „Wybierz miejsce na poz. N” → na planecie złote obrysy wolnych wzgórz i gór → dotknij jedno z nich: budowa rusza dokładnie tam (złote rusztowanie), obrys zajętości obejmuje nowe pole. „Anuluj wybór miejsca” — bez budowy.
+234. Kompleks wiertniczy łączy tylko pełne pola wierteł na lodzie (okno pisze, ile pełnych pól poza lodem się nie liczy). Po „Połącz w kompleks” na planecie: najpierw wyrasta szyb główny, potem rury biegną do trzech wierteł (ok. 2,5 s).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

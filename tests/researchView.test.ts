@@ -14,12 +14,12 @@ test('badania — szlak do celu: niezbadane wymagania aż do jądra, bez zbadany
   assert.deepEqual(researchPath('mining-3', []).sort(), ['mining-1', 'mining-2', 'mining-3', 'planet-1', 'planet-4', 'prod-core'].sort());
   assert.deepEqual(researchPath('mining-3', ['prod-core', 'mining-1', 'planet-1', 'planet-4']).sort(), ['mining-2', 'mining-3'].sort());
   assert.deepEqual(researchPath('mining-3', ['prod-core', 'mining-1', 'mining-2', 'mining-3']), []);
-  assert.deepEqual(researchLeadsTo('mining-2').map((n) => n.id), ['mining-3']);
+  assert.deepEqual(researchLeadsTo('mining-2').map((n) => n.id).sort(), ['crystal-complex', 'mining-3']);
 });
 
 test('badania — postęp ramienia liczy tylko badania do zrobienia', () => {
-  assert.deepEqual(armProgress('productivity', []), { done: 0, total: 21 });
-  assert.deepEqual(armProgress('productivity', ['prod-core', 'mining-1', 'planet-1']), { done: 2, total: 21 });
+  assert.deepEqual(armProgress('productivity', []), { done: 0, total: 22 });
+  assert.deepEqual(armProgress('productivity', ['prod-core', 'mining-1', 'planet-1']), { done: 2, total: 22 });
   assert.equal(armProgress('station', []).total, 3, 'Stacja i handel: Górnictwo asteroid, Przechwyt komet, Rafinacja (reszta wkrótce)');
 });
 

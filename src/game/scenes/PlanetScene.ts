@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
+import { openComplexPanel } from '../ui/complexPanel.ts';
+import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
+import { BuildingCardView, type CardPlacement } from '../ui/buildingCard.ts';
 import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled, secondsUntilAffordable } from '../../core/economy/economy.ts';
 import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
@@ -230,7 +233,8 @@ export class PlanetScene extends Phaser.Scene {
       this.game.events.once('postrender', () =>
         setTimeout(() => {
           display.setPlanet(controller.planet);
-          display.setStructures(controller.economy.levels, null, controller.colony().plots);
+          const colony = controller.colony();
+          display.setStructures(controller.economy.levels, null, colony.plots, colony.complexes);
           this.planetPending = false;
           this.relayout();
         }, 0),
@@ -1054,6 +1058,10 @@ export class PlanetScene extends Phaser.Scene {
    * przybliża (do 3×) i otwiera się okienko budynku. Dotknięcie obok budowli zamyka okienko.
    */
   private onPlanetTap(x: number, y: number): void {
+    if (this.placing) {
+      this.placeAt(x, y);
+      return;
+    }
     const hit = this.deps.display.pickStructure(x / this.dpr, y / this.dpr);
     if (hit) this.focusBuilding(hit.id, hit.index);
     const id = hit?.id ?? null;
@@ -1083,7 +1091,13 @@ export class PlanetScene extends Phaser.Scene {
   /** Okienko wybranego budynku nad dolnym paskiem (w wolnym miejscu obok panelu). */
   private buildSelected(layout: Layout): void {
     const def = this.selected && BALANCE.buildings.find((b) => b.id === this.selected);
-    if (!def) return;
+    if (!def) {
+      this.cardAt = null;
+      this.placing = null;
+      this.buildingCard.hide();
+      this.deps.display.setHighlight(null);
+      return;
+    }
     const stage = layout.stage;
     const gap = this.s(10);
     const pad = this.s(8);
@@ -1098,6 +1112,66 @@ export class PlanetScene extends Phaser.Scene {
       this.relayout();
     });
     this.addCard(def, { x: rect.x + pad, y: rect.y + this.s(40), w: rect.w - 2 * pad, h: cardH });
+    // Karta budowli (HTML): po prawej stronie planety na szerokim miejscu, u góry na wąskim.
+    const narrow = stage.w < 600;
+    const cardW = narrow ? stage.w - 2 * gap : Math.min(310, stage.w * 0.4);
+    const top = stage.y + gap;
+    this.cardAt = {
+      x: narrow ? stage.x + gap : stage.x + stage.w - cardW - gap,
+      y: top,
+      w: cardW,
+      maxH: Math.max(160, narrow ? (rect.y - top) * 0.6 : rect.y - top - gap),
+    };
+    this.cardRefreshAt = 0;
+  }
+
+  /** Włącz / wyłącz wybór pola: złote obrysy wolnych pól dedykowanego terenu na planecie. */
+  private togglePlacing(): void {
+    const id = this.selected;
+    if (this.placing || !id) {
+      this.placing = null;
+    } else {
+      const choice = this.deps.controller.placement(id);
+      if (!choice.needed || choice.cells.length === 0) return;
+      this.placing = { id, cells: choice.cells };
+      this.showToast(`Dotknij złote pole (${choice.terrain ?? 'teren budynku'}) — tam stanie poz. ${choice.level}.`, 'info', 3200);
+    }
+    this.cardRefreshAt = 0;
+    this.refreshBuildingCard();
+  }
+
+  /** Dotknięcie planety w trybie wyboru: trafione złote pole → budowa tam; obok — podpowiedź. */
+  private placeAt(x: number, y: number): void {
+    const placing = this.placing!;
+    const cell = this.deps.display.pickCell(x / this.dpr, y / this.dpr, placing.cells);
+    if (cell === null) {
+      this.showToast('Dotknij jedno ze złotych pól — albo „Anuluj wybór miejsca” w karcie.', 'info', 2600);
+      return;
+    }
+    const result = this.deps.controller.upgradeAt(placing.id, cell);
+    this.placing = null;
+    this.showToast(result.message, result.ok ? 'ok' : 'error', 3000);
+    if (result.ok) this.deps.display.showBuilding(placing.id);
+    this.cardRefreshAt = 0;
+    this.relayout();
+  }
+
+  /** Karta budowli i obrys jej pól: odświeżane najwyżej co sekundę; schowane, gdy otwarty jest inny ekran. */
+  private refreshBuildingCard(): void {
+    const id = this.selected;
+    if (!id || !this.cardAt || this.screenOpen || this.overlay) {
+      this.buildingCard.hide();
+      if (!id) this.deps.display.setHighlight(null);
+      return;
+    }
+    const now = Date.now();
+    if (now - this.cardRefreshAt < 1000) return;
+    this.cardRefreshAt = now;
+    const controller = this.deps.controller;
+    if (this.placing && this.placing.id !== id) this.placing = null;
+    this.buildingCard.show(controller.buildingCard(id), this.cardAt, !!this.placing);
+    if (this.placing) this.deps.display.setHighlight(this.placing.cells, 'choice');
+    else this.deps.display.setHighlight(controller.footprint(id));
   }
 
   /** Karta wewnątrz panelu: jaśniejsza ramka, bez osobnej strefy (panel już blokuje gesty). */
@@ -1167,6 +1241,7 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   private refreshValues(): void {
+    this.refreshBuildingCard();
     if (this.planetPending) return;
     const controller = this.deps.controller;
     const rates = controller.rates;
@@ -1174,10 +1249,12 @@ export class PlanetScene extends Phaser.Scene {
     this.refreshAiBubble();
     const construction = controller.economy.construction;
     const progress = controller.buildProgress(now);
+    const colony = controller.colony();
     this.deps.display.setStructures(
       controller.economy.levels,
       construction ? { building: construction.building, targetLevel: construction.targetLevel, progress } : null,
-      controller.colony().plots,
+      colony.plots,
+      colony.complexes,
     );
     if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
       this.relayout();
@@ -1605,11 +1682,8 @@ export class PlanetScene extends Phaser.Scene {
         (v) => this.applySetting(id, { priority: v }),
       );
     }
-    const terrain: Partial<Record<BuildingId, string>> = {
-      metalMine: 'wzgórza',
-      crystalMine: 'doliny, góry i lód',
-      powerPlant: 'brzeg (przy wodzie, lodzie albo lawie)',
-    };
+    // Dedykowany teren (v0.38.2): wybór pola i łączenie w kompleks tylko na nim.
+    const terrain = TERRAIN_NAMES;
     const lines: string[] = [];
     if (consumes) lines.push(`Energia: dostaje ${pct(info.energyEfficiency)} potrzebnej.`);
     lines.push(`Pola: ${info.groups} (każde mieści 3 poziomy)${info.onIce > 0 ? `, w tym ${info.onIce} na lodzie` : ''}.`);
@@ -1622,7 +1696,19 @@ export class PlanetScene extends Phaser.Scene {
     // Zburzenie poziomu (v0.35): zwalnia pole, gdy grupa budowli się zmniejsza — bez zwrotu surowców.
     const canDemolish = info.level > (id === 'storage' ? 1 : 0);
     if (canDemolish) lines.push('Zburzenie: −1 poziom od razu, bez zwrotu surowców; pole zwalnia się, gdy grupa 3 poziomów maleje.');
+    // Kompleks (v0.38): rodziny z `data/complexes.ts` — okno z podglądem i decyzją.
+    const complex = c.complexView(id);
+    if (complex) lines.push(`${complex.name}: ${complex.count > 0 ? `${complex.count} (+${complex.bonus}% z ${complex.levelsIn} poziomów)` : complex.candidate ? 'można połączyć pola' : 'brak'}.`);
     add(lines.join('\n'), 12, COLORS.stone, {}, gap * 1.5);
+    if (complex) {
+      const open = new Button(this, pad, y, w - 2 * pad, buttonH, complex.name, this.dpr, () => {
+        this.demolishArmed = null;
+        this.closeOverlay();
+        this.openComplex(id);
+      }, this.s(14));
+      items.push(open.setStyle(complex.candidate && complex.unlocked ? 'primary' : 'secondary'));
+      y += buttonH + gap;
+    }
     if (canDemolish) {
       const armed = this.demolishArmed === id;
       const demolish = new Button(this, pad, y, this.px(this.s(170)), buttonH, armed ? 'Na pewno?' : `Zburz poz. ${info.level}`, this.dpr, () => this.onDemolish(id), this.s(14));
@@ -1654,6 +1740,35 @@ export class PlanetScene extends Phaser.Scene {
    * (drugie dotknięcie potwierdza — przez ten czas planeta nie ma premii).
    */
   private closeAsteroid: (() => void) | null = null;
+  /** Karta budowli obok przybliżonej planety i jej miejsce (v0.38.1). */
+  private readonly buildingCard = new BuildingCardView(
+    () => {
+      this.selected = null;
+      this.placing = null;
+      this.relayout();
+    },
+    () => this.togglePlacing(),
+  );
+  /** Tryb wyboru pola dla następnego poziomu wybranej budowli (v0.38.2). */
+  private placing: { id: BuildingId; cells: number[] } | null = null;
+  private cardAt: CardPlacement | null = null;
+  private cardRefreshAt = 0;
+
+  /** Okno „Kompleks” (HTML) budynku aktywnej planety. */
+  private openComplex(id: BuildingId): void {
+    const c = this.deps.controller;
+    this.closeAsteroid?.();
+    this.closeAsteroid = openComplexPanel({
+      view: () => c.complexView(id)!,
+      merge: () => c.mergeComplex(id),
+      split: () => c.splitComplex(id),
+      onDone: (message) => {
+        this.closeAsteroid = null;
+        this.showToast(message, 'ok', 3600);
+        this.relayout();
+      },
+    });
+  }
 
   /** Stan wydobycia w kosmosie w jednym wierszu: stacja na pasie i holownik po kometę (v0.37.1). */
   private beltText(): string {

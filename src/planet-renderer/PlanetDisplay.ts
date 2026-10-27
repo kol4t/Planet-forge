@@ -1,5 +1,6 @@
 import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import type { Plots } from '../core/colony/plots.ts';
+import type { Complex } from '../core/colony/complexes.ts';
 import type { StructureHit } from './pick.ts';
 
 export type { StructureHit };
@@ -12,7 +13,7 @@ export interface PlanetDisplay {
    * Poziomy budynków → widoczna zabudowa kolonii, plus rusztowanie trwającej budowy.
    * Wywołuj śmiało co klatkę/odświeżenie (porównuje zmiany).
    */
-  setStructures(levels: BuildingLevels, site?: BuildSite | null, plots?: Plots): void;
+  setStructures(levels: BuildingLevels, site?: BuildSite | null, plots?: Plots, complexes?: readonly Complex[]): void;
   /** Budowla pod punktem (x, y w pikselach CSS) albo null — wybór budynku dotknięciem (przy każdym przybliżeniu). */
   pickStructure(x: number, y: number): StructureHit | null;
   /**
@@ -32,6 +33,13 @@ export interface PlanetDisplay {
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */
   setGridVisible(visible: boolean): void;
+  /**
+   * Obrys pól: zajętość wybranej budowli (`footprint`, turkus, jeden kontur) albo pola do wyboru miejsca
+   * budowy (`choice`, złote obrysy każdego pola, v0.38.2); null — bez obrysu.
+   */
+  setHighlight(cells: readonly number[] | null, mode?: 'footprint' | 'choice'): void;
+  /** Pole z `cells` pod palcem (x, y w pikselach CSS) albo null — wybór miejsca budowy (v0.38.2). */
+  pickCell(x: number, y: number, cells: readonly number[]): number | null;
   /** Wstrzymaj autoobrót (pokazany budynek nie ucieka z kadru); dotyk albo reset go zwalnia. */
   holdSpin(hold: boolean): void;
   /** Płynny powrót do widoku startowego: przybliżenie 1×, biegun u góry. */

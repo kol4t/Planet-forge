@@ -5,17 +5,18 @@ import { BALANCE } from '../data/balance.ts';
 import { createAtmosphere } from './atmosphere.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
+import type { Complex } from '../core/colony/complexes.ts';
 import { layoutFromPlots, plotsKey, type ColonyLayout } from './colony.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
-import { borderStates, FIELD_COLORS, FIELD_LINE } from './fieldOverlay.ts';
+import { borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type HighlightMode } from './fieldOverlay.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { ZoomSmoother } from './input/zoom.ts';
 import { AdaptiveResolution } from './adaptiveResolution.ts';
 import { visibleStructures } from './colony.ts';
-import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
+import { levelsWithSite, pickCell, pickStructureHit, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { buildLowPolyLand, shapedRadius } from './lowPoly.ts';
 import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler } from './surface.ts';
@@ -60,7 +61,7 @@ export class PlanetView implements PlanetDisplay {
   /** Obrót planety wokół osi. */
   private readonly spinGroup = new THREE.Group();
   private readonly rotator = new DragRotator(prefersReducedMotion() ? { idleSpin: 0 } : {});
-  private readonly colony = new ColonyMeshes(BUILDING_IDS);
+  private readonly colony = new ColonyMeshes(BUILDING_IDS, prefersReducedMotion());
   private planetObjects: THREE.Object3D[] = [];
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
@@ -84,6 +85,11 @@ export class PlanetView implements PlanetDisplay {
   private fieldColors: LineSegmentsGeometry | null = null;
   private readonly lineMaterials: LineMaterial[] = [];
   private gridVisible = false;
+  private readonly still = prefersReducedMotion();
+  /** Obrys zajętości wybranej budowli (v0.38.1): linie nad terenem, przebudowywane przy zmianie pól. */
+  private highlight: { key: string; object: THREE.Group; material: LineMaterial } | null = null;
+  /** Punkt granicy podniesiony nad teren (ten sam co dla siatki pól). */
+  private liftPoint: ((p: readonly [number, number, number]) => number[]) | null = null;
   private spinHeld = false;
   private readonly resolution = new AdaptiveResolution();
   private readonly reducedMotion = prefersReducedMotion();
@@ -146,6 +152,7 @@ export class PlanetView implements PlanetDisplay {
     // Budowle stoją na powierzchni 3D (tarasy i wyższe góry), nie na gładkiej wersji z 2D.
     this.shaped = { ...sampler, radius: (h) => shapedRadius(planet, h) };
     this.grid = fieldGrid(planet);
+    this.setHighlight(null);
     this.plotsKey = '';
     this.layout = layoutFromPlots(this.grid, {}, this.shaped, BUILDING_IDS);
     this.colony.setLayout(this.layout);
@@ -155,6 +162,40 @@ export class PlanetView implements PlanetDisplay {
   setGridVisible(visible: boolean): void {
     this.gridVisible = visible;
     if (this.fieldLines) this.fieldLines.visible = visible;
+  }
+
+  setHighlight(cells: readonly number[] | null, mode: HighlightMode = 'footprint'): void {
+    const key = cells && cells.length > 0 ? `${mode}:${cells.join(',')}` : '';
+    if (key === (this.highlight?.key ?? '')) return;
+    if (this.highlight) {
+      this.highlight.object.parent?.remove(this.highlight.object);
+      disposeObject(this.highlight.object);
+      const at = this.lineMaterials.indexOf(this.highlight.material);
+      if (at >= 0) this.lineMaterials.splice(at, 1);
+      this.highlight = null;
+    }
+    if (!key || !this.grid || !this.liftPoint) return;
+    const positions: number[] = [];
+    for (const i of mode === 'choice' ? cellBorders(this.grid, cells!) : outlineBorders(this.grid, cells!)) {
+      const border = this.grid.borders[i]!;
+      positions.push(...this.liftPoint(border.from), ...this.liftPoint(border.to));
+    }
+    const line = (width: number, color: string, opacity: number, order: number) => {
+      const geometry = new LineSegmentsGeometry();
+      geometry.setPositions(positions);
+      const material = new LineMaterial({ linewidth: width, color, transparent: true, opacity, depthWrite: false, toneMapped: false });
+      material.resolution.set(this.width, this.height);
+      this.lineMaterials.push(material);
+      const object = new LineSegments2(geometry, material);
+      object.renderOrder = order;
+      return { object, material };
+    };
+    const halo = line(HIGHLIGHT.halo, HIGHLIGHT.haloColor, HIGHLIGHT.haloAlpha, 3);
+    const main = mode === 'choice' ? line(CHOICE.width, CHOICE.color, 0.95, 4) : line(HIGHLIGHT.width, HIGHLIGHT.color, 0.95, 4);
+    const group = new THREE.Group().add(halo.object, main.object);
+    group.name = 'highlight';
+    this.spinGroup.add(group);
+    this.highlight = { key, object: group, material: main.material };
   }
 
   /** Obrysy pól jako jedna siatka linii tuż nad terenem (jeden draw call; ukryta, gdy siatka wyłączona). */
@@ -173,6 +214,7 @@ export class PlanetView implements PlanetDisplay {
     };
     // Granice pól lądu i lodu (wzdłuż brzegów) — woda i lawa nie mają pól.
     for (const border of grid.borders) positions.push(...lift(border.from), ...lift(border.to));
+    this.liftPoint = lift;
     this.lineMaterials.length = 0;
     const line = (width: number, color: string | null, opacity: number, order: number) => {
       const geometry = new LineSegmentsGeometry();
@@ -215,12 +257,12 @@ export class PlanetView implements PlanetDisplay {
     this.fieldColors.setColors(colors);
   }
 
-  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots): void {
+  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = []): void {
     if (plots && this.grid && this.shaped) {
-      const key = plotsKey(plots, BUILDING_IDS);
+      const key = plotsKey(plots, BUILDING_IDS, complexes);
       if (key !== this.plotsKey) {
         this.plotsKey = key;
-        this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS);
+        this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS, complexes);
         this.colony.updateLayout(this.layout);
         this.colorFieldLines(plots);
       }
@@ -243,6 +285,21 @@ export class PlanetView implements PlanetDisplay {
       projection: { kind: 'perspective' as const, f, d: this.camera.position.z },
     };
     return pickStructureHit(this.layout, levelsWithSite(this.levels, this.site), view, x, y, undefined, true);
+  }
+
+  pickCell(x: number, y: number, cells: readonly number[]): number | null {
+    if (!this.grid) return null;
+    const f = this.height / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
+    const view = {
+      cx: this.focus.cx,
+      cy: this.focus.cy,
+      yaw: this.rotator.yaw,
+      pitch: this.rotator.pitch,
+      tilt: this.axialTilt,
+      projection: { kind: 'perspective' as const, f, d: this.camera.position.z },
+    };
+    const r = this.focus.r * this.zoom;
+    return pickCell(this.grid.cells.map((c) => c.center), cells, view, x, y, Math.max(30, r * 0.14));
   }
 
   showBuilding(id: BuildingId, index?: number): boolean {
@@ -361,6 +418,7 @@ export class PlanetView implements PlanetDisplay {
     // Lawa „oddycha”: animowany tylko kolor materiału (bez przeliczania geometrii).
     if (this.lava) (this.lava.material as THREE.MeshBasicMaterial).color.setScalar(0.85 + 0.15 * Math.sin(this.time * 1.6));
     this.colony.update(dt);
+    if (this.highlight && !this.still) this.highlight.material.opacity = 0.75 + 0.25 * Math.sin(this.time * 2.2);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -369,6 +427,7 @@ export class PlanetView implements PlanetDisplay {
     cancelAnimationFrame(this.frame);
     for (const object of this.planetObjects) disposeObject(object);
     if (this.fieldLines) disposeObject(this.fieldLines);
+    if (this.highlight) disposeObject(this.highlight.object);
     this.colony.dispose();
     this.renderer.dispose();
   }

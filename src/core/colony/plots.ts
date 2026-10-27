@@ -18,14 +18,32 @@ export const groupsFor = (level: number) => Math.ceil(Math.max(0, Math.floor(lev
 export const OFF_SITE_FACTOR = 0.75;
 
 /**
- * Teren, na którym budynek pracuje w pełni: kopalnie metalu — wzgórza; kryształy — doliny, góry i lód;
- * elektrownie — brzeg (przy wodzie, lodzie albo lawie). Reszta — dowolny ląd.
+ * Dedykowany teren budynku (decyzja właściciela 2026-10-27, v0.38.2): kryształy — lód, metal — wzgórza
+ * i góry, elektrownie — równiny; reszta — dowolny ląd. Poza nim budynek stoi, ale pracuje słabiej
+ * (`OFF_SITE_FACTOR`); wybór pola przez gracza i łączenie w kompleks — tylko na dedykowanym terenie.
  */
 export function suits(id: BuildingId, cell: FieldCell): boolean {
-  if (id === 'metalMine') return cell.kind === 'land' && cell.terrain === 'hill';
-  if (id === 'crystalMine') return cell.kind === 'ice' || (cell.kind === 'land' && (cell.terrain === 'valley' || cell.terrain === 'mountain'));
-  if (id === 'powerPlant') return cell.kind === 'land' && cell.coast;
+  if (id === 'metalMine') return cell.kind === 'land' && (cell.terrain === 'hill' || cell.terrain === 'mountain');
+  if (id === 'crystalMine') return cell.kind === 'ice';
+  if (id === 'powerPlant') return cell.kind === 'land' && cell.terrain === 'plain';
   return cell.kind === 'land';
+}
+
+/** Nazwa dedykowanego terenu (do komunikatów). */
+export const TERRAIN_NAMES: Partial<Record<BuildingId, string>> = {
+  metalMine: 'wzgórza i góry',
+  crystalMine: 'lód',
+  powerPlant: 'równiny',
+};
+
+/** Wolne pola dedykowanego terenu, na których gracz może postawić następną grupę budynku (v0.38.2). */
+export function choiceCells(grid: FieldGrid, plots: Plots, id: BuildingId, rules: BuildRules = {}, reserved: ReadonlySet<number> = new Set()): number[] {
+  const taken = new Set<number>([...reserved, ...Object.values(plots).flatMap((l) => l ?? [])]);
+  const out: number[] = [];
+  grid.cells.forEach((cell, i) => {
+    if (!taken.has(i) && canStand(id, cell, rules) && suits(id, cell)) out.push(i);
+  });
+  return out;
 }
 
 /** Czy budynek może stanąć na polu: ląd (zgodnie z `BuildRules`), a kryształy także na lodzie. */
@@ -37,9 +55,10 @@ export function canStand(id: BuildingId, cell: FieldCell, rules: BuildRules = {}
  * Zajęte pola, które liczą się do limitu: ląd, a po „Budowie na lodzie” także lód
  * (bez niej kryształy na lodzie stoją poza limitem).
  */
-export function usedLandFields(grid: FieldGrid, plots: Plots, rules: BuildRules = {}): number {
+export function usedLandFields(grid: FieldGrid, plots: Plots, rules: BuildRules = {}, reserved: Iterable<number> = []): number {
   let used = 0;
-  for (const list of Object.values(plots)) {
+  // Pola wspólnych konstrukcji kompleksów (v0.38) liczą się jak zabudowane.
+  for (const list of [...Object.values(plots), [...reserved]]) {
     for (const cell of list ?? []) {
       const kind = grid.cells[cell]?.kind;
       if (kind && isBuildable(kind, rules)) used++;
@@ -55,9 +74,19 @@ const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
  * nadmiar (np. anulowana budowa) zdejmuje od końca. Istniejące przydziały zostają bez zmian.
  * Gdy wolnych pól brak (stary zapis z większą liczbą poziomów), część grup po prostu nie stoi.
  */
-export function reconcilePlots(grid: FieldGrid, plots: Plots, levels: BuildingLevels, order: readonly BuildingId[], rules: BuildRules = {}): Plots {
+export function reconcilePlots(
+  grid: FieldGrid,
+  plots: Plots,
+  levels: BuildingLevels,
+  order: readonly BuildingId[],
+  rules: BuildRules = {},
+  reserved: ReadonlySet<number> = new Set(),
+  /** Pole wybrane przez gracza dla następnej grupy budynku (v0.38.2) — używane, gdy wolne i dozwolone. */
+  preferred: Partial<Record<BuildingId, number>> = {},
+): Plots {
   const result: Plots = {};
-  const taken = new Set<number>();
+  // Pola zarezerwowane przez kompleksy (v0.38) nie trafiają do żadnej grupy.
+  const taken = new Set<number>(reserved);
   for (const id of order) {
     // Pola spoza siatki, podwójne albo niedozwolone (np. po zmianie terenu) odrzucamy.
     const list = (plots[id] ?? []).filter((cell) => cell >= 0 && cell < grid.cells.length && !taken.has(cell) && canStand(id, grid.cells[cell]!, rules));
@@ -69,7 +98,9 @@ export function reconcilePlots(grid: FieldGrid, plots: Plots, levels: BuildingLe
     const list = result[id]!;
     const want = groupsFor(levels[id] ?? 0);
     while (list.length < want) {
-      const cell = nextCell(grid, id, list, taken, index, order.length, rules);
+      const wish = preferred[id];
+      const ok = wish !== undefined && wish >= 0 && wish < grid.cells.length && !taken.has(wish) && canStand(id, grid.cells[wish]!, rules);
+      const cell = ok ? wish : nextCell(grid, id, list, taken, index, order.length, rules);
       if (cell < 0) break;
       list.push(cell);
       taken.add(cell);
@@ -79,9 +110,17 @@ export function reconcilePlots(grid: FieldGrid, plots: Plots, levels: BuildingLe
 }
 
 /** Czy następny poziom budynku zmieści się na planecie (wolne miejsce w grupie albo wolne pole). */
-export function hasRoomFor(grid: FieldGrid, plots: Plots, levels: BuildingLevels, id: BuildingId, order: readonly BuildingId[], rules: BuildRules = {}): boolean {
+export function hasRoomFor(
+  grid: FieldGrid,
+  plots: Plots,
+  levels: BuildingLevels,
+  id: BuildingId,
+  order: readonly BuildingId[],
+  rules: BuildRules = {},
+  reserved: ReadonlySet<number> = new Set(),
+): boolean {
   const next = { ...levels, [id]: (levels[id] ?? 0) + 1 };
-  const placed = reconcilePlots(grid, plots, next, order, rules);
+  const placed = reconcilePlots(grid, plots, next, order, rules, reserved);
   return (placed[id]?.length ?? 0) >= groupsFor(next[id]);
 }
 
@@ -89,7 +128,13 @@ export function hasRoomFor(grid: FieldGrid, plots: Plots, levels: BuildingLevels
  * Dopasowanie budynku do terenu 0..1: poziomy w grupach na pasującym terenie liczą się w 100%,
  * na innym — `OFF_SITE_FACTOR`. Poziomy bez pola (stary zapis) — jak na pasującym terenie.
  */
-export function siteFactors(grid: FieldGrid, plots: Plots, levels: BuildingLevels): Partial<Record<BuildingId, number>> {
+export function siteFactors(
+  grid: FieldGrid,
+  plots: Plots,
+  levels: BuildingLevels,
+  /** Dodatkowy mnożnik poziomów na polu (premia kompleksu, v0.38). */
+  cellBonus: (id: BuildingId, cell: number) => number = () => 1,
+): Partial<Record<BuildingId, number>> {
   const out: Partial<Record<BuildingId, number>> = {};
   for (const [id, raw] of Object.entries(levels) as [BuildingId, number][]) {
     const level = Math.max(0, Math.floor(raw ?? 0));
@@ -97,7 +142,7 @@ export function siteFactors(grid: FieldGrid, plots: Plots, levels: BuildingLevel
     let sum = 0;
     for (let l = 0; l < level; l++) {
       const cell = plots[id]?.[Math.floor(l / LEVELS_PER_FIELD)];
-      sum += cell === undefined || suits(id, grid.cells[cell]!) ? 1 : OFF_SITE_FACTOR;
+      sum += (cell === undefined || suits(id, grid.cells[cell]!) ? 1 : OFF_SITE_FACTOR) * (cell === undefined ? 1 : cellBonus(id, cell));
     }
     out[id] = Math.round((sum / level) * 1000) / 1000;
   }

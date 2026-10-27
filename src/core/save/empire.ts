@@ -12,6 +12,8 @@ import { parseComets } from '../economy/comets.ts';
 import type { AsteroidStation, CometHaul, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
+import { parseComplexes, type Complex } from '../colony/complexes.ts';
+import { COMPLEX_FAMILIES } from '../../data/complexes.ts';
 
 export const EMPIRE_VERSION = 2;
 export const EMPIRE_KEY = 'planet-forge.empire.v1';
@@ -32,6 +34,8 @@ export interface SlotSave {
   plots?: Plots;
   /** Wersja siatki pól, do której należy `plots` (od v0.26.3; inna lub brak = przydział od nowa). */
   plotsGrid?: number;
+  /** Kompleksy przemysłowe (od v0.38; numery pól — ważne z tą samą wersją siatki co `plots`). */
+  complexes?: Complex[];
   /**
    * Zajęte i wszystkie pola lądu z ostatniego przeliczenia (od v0.30) — lista planet nie liczy siatek
    * nieaktywnych planet przy starcie. Ważne tylko z tą samą wersją siatki (`plotsGrid`).
@@ -152,6 +156,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(raw.research ? { research: parseResearch(raw.research) } : {}),
       ...(raw.plots ? { plots: parsePlots(raw.plots) } : {}),
       ...(isNum(raw.plotsGrid) ? { plotsGrid: raw.plotsGrid } : {}),
+      ...(parseComplexes(raw.complexes, COMPLEX_FAMILIES).length > 0 ? { complexes: parseComplexes(raw.complexes, COMPLEX_FAMILIES) } : {}),
       ...(isFieldCount(raw.fields?.used) && isFieldCount(raw.fields?.buildable) ? { fields: { used: raw.fields.used, buildable: raw.fields.buildable } } : {}),
       ...(parseSpecialization(raw.specialization) ? { specialization: parseSpecialization(raw.specialization) } : {}),
       ...(parseStation(raw.asteroidStation) ? { asteroidStation: parseStation(raw.asteroidStation) } : {}),
