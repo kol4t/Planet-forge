@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.39: przemysł, krok 2 — wielka fabryka metalu
+
+- Druga rodzina kompleksów z danych (`COMPLEX_FAMILIES`) bez nowej logiki łączenia — ten sam `mergeCandidate`, teren z `suits` (wzgórza i góry). Wygląd rodziny opisuje `FAMILY_LOOK` (kolory rotora, poświaty, rur, szybkość) — kolejne rodziny (elektrownie, v0.40) dopisują wpis.
+- **Tryby pracy** jako dane rodziny (`modes`: mnożnik wydobycia i energii). Wydobycie idzie przez `siteFactor` (jak premia), energia przez nowe opcjonalne `EconomyState.energyFactor` (ważone udziałem poziomów w kompleksie). Podgląd trybu liczy `productionRates` z hipotetycznym zestawem kompleksów — ten sam tor co gra, więc liczby w oknie = liczby w pasku. Przy niedoborze energii „Oszczędzanie” może dać więcej metalu niż „Maksymalna” — świadomie, okno to mówi.
+- Poprawka: odczyt zapisu odrzucał `siteFactor` > 1, więc premia kompleksu znikała po wczytaniu do najbliższego przeliczenia; teraz dopuszczalne 0–5 (też `energyFactor`).
+- Wartości (koszt 3000/1500, +30%, tryby 1,25/1,6 i 0,8/0,5) — robocze.
+
 ## 2026-10-27 — v0.38.2: dedykowany teren, wybór pola, animacja łączenia
 
 - Właściciel: „budynki mają animacje łączenia się; gracz decyduje, na którym budynku/obszarze powstaje kolejny poziom; dozwolone na dedykowanym terenie: kryształ — lód, metal — wzgórza/góry, elektrownia — równiny”. Zapytany o planety bez lodu wybrał: **budowa wszędzie (75% poza terenem), wybór pola i łączenie tylko na dedykowanym terenie**.

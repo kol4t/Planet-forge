@@ -25,7 +25,7 @@ Prompt właściciela (2026-10-27): budowle mają łączyć się w widoczne kompl
 
 1. **v0.38 — wiertła kryształu** ✔ (ta wersja): wiertło z szybem na pełnym polu (2D i 3D, obracająca się głowica), kompleks wiertniczy (podgląd, koszt, decyzja, rozłączenie), pole szybu liczone do zajętości, +30% wydobycia, zapis i rozpad kompleksu po zburzeniu, badanie „Wspólne szyby”.
 1a. **v0.38.1–v0.38.2** ✔: karta budowli, obrys zajętości, dedykowany teren (kryształ — lód, metal — wzgórza/góry, elektrownia — równiny), wybór pola przez gracza, animacja łączenia.
-2. **v0.39 — kopalnie metalu:** zakład metalurgiczny (pełne pola), wielka fabryka (rodzina w `COMPLEX_FAMILIES`, większy footprint), ekran fabryki z trybami (np. maksymalna produkcja / oszczędzanie energii — mierzalne przez `siteFactor` i energię).
+2. ✔ **v0.39 — kopalnie metalu:** zakład metalurgiczny (pełne pola), wielka fabryka (rodzina w `COMPLEX_FAMILIES`, większy footprint), ekran fabryki z trybami (np. maksymalna produkcja / oszczędzanie energii — mierzalne przez `siteFactor` i energię).
 3. **v0.40 — energetyka:** węzły i słupy Tesli (pełne pola elektrowni, kompleks z przesyłem), wyładowania lekkie (bez cząsteczek).
 4. **v0.41 — poziomy wizualne:** progi 1–30 w konfiguracji (`visualTier`), moduły dokładane do modeli (platformy, hale, przewody).
 5. **v0.42+ — transformacja terenu:** lokalne materiały wokół kompleksów (warstwa nad terenem, odtwarzana z zapisu), potem megakompleksy i energia gwiazdy (badania).

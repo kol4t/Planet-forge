@@ -16,11 +16,13 @@ export class BuildingCardView {
   private key = '';
   private readonly onClose: () => void;
   private readonly onChoose: () => void;
+  private readonly onFactory: () => void;
 
-  /** `onChoose` — przycisk „Wybierz miejsce” (v0.38.2): tryb wyboru pola dla następnego poziomu. */
-  constructor(onClose: () => void, onChoose: () => void) {
+  /** `onChoose` — „Wybierz miejsce” (v0.38.2); `onFactory` — ekran fabryki (v0.39). */
+  constructor(onClose: () => void, onChoose: () => void, onFactory: () => void) {
     this.onClose = onClose;
     this.onChoose = onChoose;
+    this.onFactory = onFactory;
     this.root.id = 'building-card';
     this.root.setAttribute('role', 'dialog');
     this.root.setAttribute('aria-label', 'Karta budowli');
@@ -52,6 +54,7 @@ export class BuildingCardView {
       row('Zajętość pól', `${card.fields} ${card.fields === 1 ? 'pole' : card.fields < 5 && card.fields > 1 ? 'pola' : 'pól'} · planeta ${card.planetFields.used}/${card.planetFields.buildable}`, 'teal') +
       (card.next ? `<div class="bc-next"><span>Następny krok</span>${esc(card.next)}</div>` : '') +
       `</section>` +
+      (card.factory ? `<button type="button" class="bc-choose bc-factory">${esc(card.factory[0]!.toUpperCase() + card.factory.slice(1))}</button>` : '') +
       // Wybór pola dla poziomu otwierającego nowe pole — tylko na dedykowanym terenie (v0.38.2).
       (card.placement
         ? card.placement.cells > 0
@@ -61,7 +64,8 @@ export class BuildingCardView {
         : '') +
       (stages ? `<h3>Rozwój</h3><ol class="bc-stages">${stages}</ol>` : '');
     this.root.querySelector('.bc-close')!.addEventListener('click', () => this.onClose());
-    this.root.querySelector('.bc-choose')?.addEventListener('click', () => this.onChoose());
+    this.root.querySelector('.bc-choose:not(.bc-factory)')?.addEventListener('click', () => this.onChoose());
+    this.root.querySelector('.bc-factory')?.addEventListener('click', () => this.onFactory());
   }
 
   hide(): void {

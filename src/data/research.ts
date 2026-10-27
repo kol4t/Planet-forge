@@ -154,6 +154,9 @@ const NODES: readonly ResearchNodeDef[] = [
   node('productivity', 4, -3, 'crystal-complex', 'Wspólne szyby', 'Inżynieria wydobywcza: trzy sąsiednie pola wierteł kryształu łączą się w kompleks ze wspólnym szybem.', ['mining-2'], [
     { kind: 'unlock', feature: 'crystal-complex' },
   ]),
+  node('productivity', 3, -3, 'metal-factory', 'Metalurgia przemysłowa', 'Inżynieria wydobywcza: trzy sąsiednie zakłady na wzgórzach i w górach łączą się w wielką fabrykę z trybami pracy.', ['mining-1'], [
+    { kind: 'unlock', feature: 'metal-factory' },
+  ]),
   ...lane('productivity', -1, 2, 'prod-core', [
     ['energy-1', 'Sieci nadprzewodzące', 'Energetyka: mniej strat na przesyle.', [{ kind: 'energyUse', percent: -10 }]],
     ['energy-2', 'Ogniwa fuzyjne', 'Energetyka: wydajniejsze elektrownie.', [output('energy', 15)]],
