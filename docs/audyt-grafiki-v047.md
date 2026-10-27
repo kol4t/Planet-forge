@@ -156,3 +156,24 @@ trójkątów; poz. 25 — 43 → **48 rysowań**, 114,8 → **111,9 tys.** trój
 
 Znane: moduł przy brzegu jeziora może częściowo wystawać nad wodę (stoi na najbliższym suchym punkcie pola);
 modele zastąpiły hale i fabrykę z v0.39 (`createFactory`, `createFoundry` — usunięte).
+
+## Wynik — rodzina kryształowa (ten sam standard, tylko 3D)
+
+Zmienione: `planet-renderer/colonyMeshes.ts` — rozmieszczenie metalu uogólnione do „rodzin” (`FAMILIES`: główna konstrukcja
+etapu, jej wielkość, moduł na polu, pola pominięte, układ taśm); kryształy dostały własne modele. Bez zmian: mechanika,
+pola, zapisy, 2D, teren wyrobiska (tarasy z v0.40), pozostałe budynki. Stare modele `createRig`, `createHub` — usunięte.
+
+| Etap (poz.) | Główna konstrukcja | Pozostałe pola |
+|---|---|---|
+| Wiertło (1–5) | ażurowa wieża wiertnicza nad otworem (obracająca się głowica), szopa sprężarki, świecące kryształy | stanowiska na krawędzi (płyta, mała wieża, szopa, kryształy) |
+| Szyb wiertniczy (6–11) | pierścień platformy wokół otwartego szybu, dwie wieże, świecąca kolumna kryształu, belka nad szybem | stanowiska; taśmy między nimi |
+| Odkrywka (12–19) | stacja na dnie wyrobiska: wysoki słup kryształu, krąg kruszarek, rampa, obracający się pierścień | na krawędzi na przemian stanowiska i przetwórnie (zbiorniki z lodu, hala ze świecącym oknem); co trzecie pole na tarasach — mała wiertnia; taśmy wokół wyrobiska |
+| Megaodkrywka (20+) | gromada pięciu wielkich kryształów na dnie, dwie wysokie wieże i obracająca się suwnica z pierścieniem | jak odkrywka |
+
+Wielkość głównej konstrukcji: 1,6 / 2,0 / 2,7 / 3,4 promienia pola. Taśmy kryształów łączą tylko moduły (nie biegną przez
+wyrobisko do dna).
+
+Koszt grafiki (przeglądarka, planeta startowa, metal i kryształy na tym samym poziomie, reszta kolonii jak w prototypie B):
+poz. 3 — 39 → **43 rysowania**, 83,2 → 83,3 tys. trójkątów; poz. 25 — 48 → **52 rysowania**, 122,3 → **124,4 tys.** trójkątów.
+Na iPadzie v0.46 zmierzono 28 rysowań przy 56 kl./s — zapas jest, ale każda kolejna rodzina dodaje ~4 rysowania;
+przy reszcie rodzin trzeba będzie łączyć części modeli (np. światło i obrót w jednej siatce).
