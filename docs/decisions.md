@@ -8,8 +8,9 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
   3D w 14 podetapach, bez zmian mechaniki, kosztów, produkcji, pól ani zapisu; najpierw audyt, potem prototyp planety
   i jednej rodziny budynków (metal), dopiero potem reszta.
 - Pomiar właściciela na iPadzie (v0.46): 2D 54 / 24 kl./s, 3D 56 / 15 kl./s, 28 rysowań, 68 tys. trójkątów — `docs/PERFORMANCE.md`.
-- Audyt 0.47.01 i plan prototypów: `docs/audyt-grafiki-v047.md`. Do decyzji: progi etapów wyglądu (gra 1/6/12/20 vs propozycja 2/4/8/16)
-  i czy 3D ma zostać domyślne po v0.47.
+- Audyt 0.47.01 i plan prototypów: `docs/audyt-grafiki-v047.md`. **Decyzja właściciela: progi wyglądu budynków = etapy gry 1 / 6 / 12 / 20**
+  (nowa sylwetka razem z większym obszarem i nazwą etapu). Otwarte: czy 3D ma zostać domyślne po v0.47.
+- Prototyp A (planeta) zaakceptowany i opublikowany jako v0.47.0.
 
 ## 2026-10-27 — v0.46: audyt projektu (prompt właściciela „AUDYT PROJEKTU”)
 

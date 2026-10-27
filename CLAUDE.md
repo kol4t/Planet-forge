@@ -14,12 +14,16 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.46 — opublikowana)
+## Stan obecny (v0.47.0 — opublikowana: prototyp A grafiki 3D; dalej v0.47 — prototyp B na gałęzi `claude/grafika-v047`)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
 historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_ISSUES.md`, nazwy a lore — `LORE_TOUCHPOINTS.md`.
 
+- **v0.47 — jakość grafiki 3D** (prompt właściciela, 14 podetapów, plan i audyt: `docs/audyt-grafiki-v047.md`): prototyp A
+  (planeta: normalne faset ku górze, kolor z wygładzonej wysokości, grunt kompleksów jako płyta, chmury znikają przy zbliżeniu,
+  gładki ocean, światło wypełniające) — opublikowany jako v0.47.0. **Progi wyglądu budynków = etapy gry 1 / 6 / 12 / 20**
+  (decyzja właściciela). Dalej: prototyp B — rodzina metalowa (standard modelu: platforma, bryła, detal, światło).
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
