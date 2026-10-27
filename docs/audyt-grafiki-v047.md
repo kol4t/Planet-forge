@@ -130,3 +130,29 @@ Zmienione: `planet-renderer/lowPoly.ts`, `planet-renderer/PlanetView.ts` (+ test
 Nie ruszone w A: tarasy (#10 — po usunięciu czarnych ścian wyglądają akceptowalnie), linie pól (#11 — podetap 0.47.06),
 zabudowa (#7, #8 — prototyp B). Rysowania i trójkąty: te same siatki (nowe światło nie dodaje rysowań) — pomiar na iPadzie
 u właściciela (Diagnostyka → „grafika 3D”).
+
+## Wynik prototypu B — rodzina metalowa (0.47.07–0.47.09, tylko 3D)
+
+Decyzja właściciela: **wygląd zmienia się razem z etapami gry, poz. 1 / 6 / 12 / 20.** Zmienione:
+`planet-renderer/colonyMeshes.ts`, `planet-renderer/colony.ts` (`ComplexSpot.r` — promień pola), test w `tests/colony.test.ts`.
+Bez zmian: mechanika, pola, zapisy, 2D, pozostałe rodziny budynków.
+
+**Standard modelu** (do przeniesienia na inne rodziny): PLATFORMA (płyta wpuszczona w teren) → BRYŁA (sylwetka etapu) →
+DETAL (kominy, zbiorniki, taśmy, dźwigi) → ŚWIATŁO (okna pieców, wyloty kominów — pulsują; „Ogranicz ruch” — stałe).
+Wielkość z promienia pola (nie stała): główna konstrukcja 1,7 / 2,2 / 2,8 / 3,6 promienia pola, moduły ≈ 2/3 pola.
+
+| Etap (poz.) | Główna konstrukcja | Pozostałe pola |
+|---|---|---|
+| Kopalnia (1–5) | szyb z wieżą wyciągową, budynek maszyny z dźwigiem, hałda, dwa pojazdy | place z hałdami rudy |
+| Zakład przetwórczy (6–11) | dwie hale, zbiorniki, komin, mała wieża szybu z taśmociągiem do hali | na przemian hale ze zbiornikami i place; **taśmociągi** do centrum |
+| Huta (12–19) | dwa wielkie piece ze złotymi pierścieniami, trzy kominy, odlewnia, kadzie, kanał z metalem (światło) | głównie hale, co trzecie pole plac; taśmociągi |
+| Megakompleks (20+) | dwupoziomowa platforma, dominująca wieża centralna, cztery piece z kominami i łącznikami, obracająca się suwnica | jak huta |
+
+Taśmociągi: każdy moduł łączy się z najbliższym już postawionym bliżej środka (drzewo transportu do głównej konstrukcji),
+deterministycznie z układu pól; bez taśmy przez uskok terenu. Moduły nie stoją na polach zasłoniętych główną konstrukcją.
+
+Koszt grafiki (przeglądarka, planeta startowa z pełną kolonią): kopalnia metalu poz. 3 — 39 → **43 rysowania**, 88,5 → 88,6 tys.
+trójkątów; poz. 25 — 43 → **48 rysowań**, 114,8 → **111,9 tys.** trójkątów. W budżecie (+≤ 8 rysowań).
+
+Znane: moduł przy brzegu jeziora może częściowo wystawać nad wodę (stoi na najbliższym suchym punkcie pola);
+modele zastąpiły hale i fabrykę z v0.39 (`createFactory`, `createFoundry` — usunięte).

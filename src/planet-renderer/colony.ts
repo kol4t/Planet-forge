@@ -21,6 +21,8 @@ export interface ComplexSpot {
   spin: number;
   /** Odległość od środka kompleksu: 0 — środek, 1 — skraj obszaru. */
   t: number;
+  /** Promień kątowy pola (rad) — modele 3D dopasowują do niego wielkość (v0.47). */
+  r: number;
 }
 
 export interface ColonyComplex {
@@ -157,7 +159,14 @@ export function layoutFromPlots(
     const spots = cells
       .map((cell) => {
         const dir = dryPoint(grid, cell, sampler);
-        return { cell, dir, surface: surfaceAt(dir), spin: hash01(cell, 5) * Math.PI * 2, t: radius > 0 ? Math.min(1, angleBetween(core, dir) / radius) : 0 };
+        return {
+          cell,
+          dir,
+          surface: surfaceAt(dir),
+          spin: hash01(cell, 5) * Math.PI * 2,
+          t: radius > 0 ? Math.min(1, angleBetween(core, dir) / radius) : 0,
+          r: grid.cells[cell]!.radius,
+        };
       })
       .sort((a, b) => a.t - b.t || a.cell - b.cell);
     const index = complexes.length;
