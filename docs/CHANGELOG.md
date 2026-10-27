@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.47.4 — grafika 3D, magazyn, kolektor, laboratorium i wyrobisko — 2026-10-27
+
+- Magazyn (skład → magazyn → terminal z żurawiem → megaskład z wieżą silosów), kolektor antymaterii (pułapka → kolektor → pole pułapek → megakolektor), laboratorium (pracownia → laboratorium z anteną → instytut → kampus) w 3D według standardu modelu; wszystkie budynki w `FAMILIES`.
+- Wyrobisko kryształów jako prawdziwa dziura: głębsza z każdym poziomem (do 0,14 promienia planety), więcej tarasów, skalne ściany ciemniejsze z głębokością; może zejść poniżej poziomu morza (tafla oceanu nad nią wycięta).
+- Moduły na polach bez części obracanej (mniej rysowań: 47 w najbardziej rozbudowanej kolonii).
+- 2D, mechanika, pola i zapisy bez zmian.
+
 ## v0.47.3 — grafika 3D, elektrownia i fundamenty — 2026-10-27
 
 - Elektrownia w 3D (poz. 1 / 6 / 12 / 20): chłodnia i hala turbin → węzeł energetyczny → wielka elektrownia z kopułą reaktora → megasieć z wieżą Tesli; pola paneli słonecznych i stacje przesyłowe, węzły Tesli po usprawnieniu.

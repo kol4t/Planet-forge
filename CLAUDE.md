@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.47.3 — opublikowana: grafika 3D — planeta, metal, kryształy, elektrownia)
+## Stan obecny (v0.47.4 — opublikowana: grafika 3D — planeta i wszystkie budynki)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -28,7 +28,7 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   rozmieszczenie wspólne `FAMILIES` w `colonyMeshes.ts`) — v0.47.2. Elektrownia (chłodnie → reaktor → megasieć Tesli,
   panele i stacje przesyłowe; puste części modeli bez rysowania), fundamenty (teren wyrównany, budowle w wolnym miejscu
   własnego obszaru, bez nachodzenia na siebie) — v0.47.3. Magazyn, kolektor antymaterii i laboratorium (wszystkie budynki
-  w `FAMILIES`) — gałąź `claude/grafika-v047`.
+  w `FAMILIES`), wyrobisko kryształów jako dziura głębsza z poziomem (do 0,14 promienia, ocean nad nią wycięty) — v0.47.4.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
@@ -58,7 +58,7 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   migracje starych zapisów; uszkodzony zapis → kopia `planet-forge.empire.broken` + komunikat; nieudany zapis → komunikat (v0.46).
 - **PWA**: manifest, ikony, service worker (offline, pasek „Dostępna aktualizacja”). **Zgłoszenia**: Ustawienia → „Zgłoś /
   diagnostyka” (GitHub Issue, diagnostyka z płynnością i — w 3D — liczbą rysowań i tekstur).
-- **Testy**: 298 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
+- **Testy**: 301 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
 - **Wydajność** (symulacja, nie iPad): siatka pól ~190 ms na komputerze (najdroższa część zmiany planety), 3D ~43 rysowania /
   105 tys. trójkątów, brak wycieków przy zmianie planety — `docs/PERFORMANCE.md`. Ostatni pomiar na iPadzie: v0.21 (58–59 kl./s).
 
