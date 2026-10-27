@@ -74,6 +74,8 @@ import { findSpecialization, SPECIALIZATION_RULES, SPECIALIZATIONS } from '../da
 import { RARE_OBJECTS, ZONE_LABELS } from '../data/galaxy.ts';
 import { checkShipment, transportSeconds } from '../core/economy/transport.ts';
 import { launchComet } from '../core/economy/comets.ts';
+import { findEffects, findInterval, rollFind, type FindsState } from '../core/economy/finds.ts';
+import { FIND_DEFS, FIND_RULES } from '../data/finds.ts';
 import { stationCost, stationLevelAt, stationOutput, upgradeStation, withStation } from '../core/economy/asteroids.ts';
 import { distanceFrom, expeditionStats, planExpedition, resolveExpedition, type ExpeditionPlan, type ExpeditionStats } from '../core/galaxy/expeditions.ts';
 import type { KnownSystem } from '../core/galaxy/galaxyIndex.ts';
@@ -400,6 +402,9 @@ export class GameController {
   private shipments: Shipment[] = [];
   /** Holowniki po komety (v0.37.1) — najwyżej jeden na planetę. */
   private comets: CometHaul[] = [];
+  /** Znaleziska megakompleksów (v0.43.1) — wspólne dla imperium. */
+  private finds: FindsState = { items: {}, next: {} };
+  private findCache: { items: Record<string, number>; effects: ResearchEffect[]; key: string } | null = null;
   private readonly shipmentListeners = new Set<(text: string) => void>();
   /** Dostawy rozliczone podczas nieobecności (do jednorazowego komunikatu). */
   shipmentsWhileAway: string[] = [];
@@ -430,6 +435,7 @@ export class GameController {
       this.expeditions = saved.expeditions ?? [];
       this.shipments = saved.shipments ?? [];
       this.comets = saved.comets ?? [];
+      this.finds = saved.finds ?? { items: {}, next: {} };
       this.journal = saved.journal ?? [];
       this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
@@ -443,7 +449,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -492,10 +498,12 @@ export class GameController {
     const own = activeSpecializationEffects(slot.specialization, this.siteOf(slot.address), at);
     // Premie z danych naukowych rzadkich obiektów (v0.34.4) — dla każdej planety imperium.
     const rare = this.rareEffects();
-    const effects = [...own, ...rare.effects];
+    // Znaleziska megakompleksów (v0.43.1) — też dla każdej planety imperium.
+    const found = this.findEffectsCached();
+    const effects = [...own, ...rare.effects, ...found.effects];
     // Stacja na pasie asteroid (v0.37): urobek doliczony do przyrostu podstawowego planety.
     const station = stationLevelAt(slot.asteroid, at);
-    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}`;
+    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}`;
     const hit = this.balanceCache.get(slot);
     if (hit && hit.done === slot.research.done && hit.spec === spec) return hit.balance;
     const balance = withStation(applyResearch(BALANCE, slot.research.done, effects), station);
@@ -715,7 +723,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     if (done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
     for (const text of delivered) for (const listener of this.shipmentListeners) listener(text);
@@ -1718,6 +1726,77 @@ export class GameController {
     return this.rareCache;
   }
 
+  /** Efekty zebranych znalezisk i klucz do pamięci balansu (liczone raz na zmianę zbioru). */
+  private findEffectsCached(): { effects: ResearchEffect[]; key: string } {
+    if (this.findCache?.items === this.finds.items) return this.findCache;
+    this.findCache = { items: this.finds.items, effects: findEffects(this.finds.items), key: JSON.stringify(this.finds.items) };
+    return this.findCache;
+  }
+
+  /** Megakompleksy imperium: klucz znalezisk, planeta i rodzina. */
+  private megaSites(): { key: string; slot: Slot; family: string; name: string }[] {
+    const out: { key: string; slot: Slot; family: string; name: string }[] = [];
+    for (const slot of this.slots) {
+      const seen = new Set<number>();
+      for (const c of slot.complexes ?? []) {
+        if (c.mega === undefined || seen.has(c.mega)) continue;
+        seen.add(c.mega);
+        const family = COMPLEX_FAMILIES.find((f) => f.id === c.family);
+        out.push({ key: `${slot.planet.seed}:${c.mega}`, slot, family: c.family, name: family?.megaName ?? 'Megakompleks' });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Znaleziska do `now` (v0.43.1): każdy megakompleks co kilka godzin coś znajduje — także podczas
+   * nieobecności (najwyżej 20 naraz). Zwraca komunikaty; wpisy trafiają do dziennika.
+   */
+  private processFinds(now: number): string[] {
+    const texts: string[] = [];
+    const sites = this.megaSites();
+    const next: Record<string, number> = {};
+    let items = this.finds.items;
+    for (const site of sites) {
+      let at = this.finds.next[site.key] ?? now + findInterval(site.key, now);
+      for (let n = 0; at <= now && n < 20; n++) {
+        const def = rollFind(site.key, at, site.family, items);
+        if (def) {
+          items = { ...items, [def.id]: (items[def.id] ?? 0) + 1 };
+          const text = `Znalezisko (${FIND_RULES.rarityNames[def.rarity]}) — ${site.name}, ${site.slot.planet.displayName}: ${def.name}. ${def.description}`;
+          this.log('find', text, at);
+          texts.push(`Znalezisko! ${def.name} (${site.name}).`);
+        }
+        at += findInterval(site.key, at);
+      }
+      next[site.key] = at;
+    }
+    // Terminy tylko istniejących megakompleksów (rozłączone wypadają).
+    this.finds = { items, next };
+    return texts;
+  }
+
+  /** Zebrane znaleziska i terminy następnych (okno „Znaleziska”). */
+  findsView(now = Date.now()): {
+    items: { name: string; rarity: string; description: string; count: number; max: number; effect: string }[];
+    total: number;
+    upcoming: { name: string; planet: string; secondsLeft: number }[];
+  } {
+    const items = FIND_DEFS.map((f) => ({
+      name: f.name,
+      rarity: FIND_RULES.rarityNames[f.rarity],
+      description: f.description,
+      count: this.finds.items[f.id] ?? 0,
+      max: f.max,
+      effect: describeEffectList([f.effect]),
+    }));
+    return {
+      items,
+      total: items.reduce((n, i) => n + i.count, 0),
+      upcoming: this.megaSites().map((s) => ({ name: s.name, planet: s.slot.planet.displayName, secondsLeft: Math.max(0, ((this.finds.next[s.key] ?? now) - now) / 1000) })),
+    };
+  }
+
   /** Spis układów, o których gracz coś wie (do wyszukiwarki i filtrów mapy, v0.34.5). */
   knownSystemsList(): KnownSystem[] {
     const own = new Set(this.ownSystems());
@@ -1879,6 +1958,7 @@ export class GameController {
     this.expeditions = result.data.expeditions ?? [];
     this.shipments = result.data.shipments ?? [];
     this.comets = result.data.comets ?? [];
+    this.finds = result.data.finds ?? { items: {}, next: {} };
     this.journal = result.data.journal ?? [];
     this.aiLevels = result.data.ai ?? { ...DEFAULT_AI_LEVELS };
     this.active = result.data.active;
@@ -1891,6 +1971,7 @@ export class GameController {
     this.processExpeditions(now);
     this.processShipments(now);
     this.processComets(now);
+    this.processFinds(now);
     this.offlineGain = null;
     this.completedWhileAway = null;
     this.log('empire', 'Wczytano zapis gry.', now);
@@ -1914,6 +1995,7 @@ export class GameController {
       expeditions: this.expeditions,
       shipments: this.shipments,
       comets: this.comets,
+      finds: this.finds,
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,
@@ -2263,6 +2345,9 @@ export class GameController {
     const mega = megaId(all[pair.pair[0]]!, all[pair.pair[1]]!);
     slot.complexes = all.map((c, i) => (pair.pair.includes(i) ? { ...c, mega } : c));
     syncPlots(slot, this.buildRules);
+    // Pierwsze znalezisko za kilka godzin od połączenia.
+    const key = `${slot.planet.seed}:${mega}`;
+    this.finds = { ...this.finds, next: { ...this.finds.next, [key]: now + findInterval(key, now) } };
     this.log('build', `${this.planet.displayName}: ${family.megaName.toLowerCase()} — połączono dwa kompleksy.`, now);
     this.save();
     this.emit();

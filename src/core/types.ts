@@ -555,7 +555,7 @@ export interface ColonyMission {
   cost: Resources;
 }
 
-export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai' | 'expedition';
+export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai' | 'expedition' | 'find';
 
 /** Stacja wydobywcza na pasie asteroid układu planety (v0.37); `level` działa od `readyAt`, wcześniej `level − 1`. */
 export interface AsteroidStation {

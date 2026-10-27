@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
+import { openFindsPanel } from '../ui/findsPanel.ts';
 import { openFactoryPanel } from '../ui/factoryPanel.ts';
 import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
 import { BuildingCardView, type CardPlacement } from '../ui/buildingCard.ts';
@@ -1787,6 +1788,10 @@ export class PlanetScene extends Phaser.Scene {
       split: () => c.splitComplex(id),
       mergeMega: () => c.mergeMega(id),
       splitMega: () => c.splitMega(id),
+      finds: () => c.findsView().total,
+      openFinds: () => {
+        this.closeAsteroid = openFindsPanel(() => c.findsView());
+      },
       onDone: (message) => {
         this.closeAsteroid = null;
         this.showToast(message, 'ok', 3600);

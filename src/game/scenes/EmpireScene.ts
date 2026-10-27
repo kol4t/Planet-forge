@@ -23,6 +23,7 @@ const KIND_COLOR: Record<JournalKind, number> = {
   empire: COLORS.antimatterHex,
   ai: 0xb9a8f0,
   expedition: 0x8fd0c8,
+  find: 0xe6c77a,
 };
 
 interface CardLive {

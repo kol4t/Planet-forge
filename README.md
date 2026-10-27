@@ -458,4 +458,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 247. Bezpośrednio pod konstrukcjami grunt zostaje czysty (wolny krąg), zmiana sięga też trochę na sąsiednie pola.
 248. Zamknij i otwórz grę — teren wygląda tak samo. „Rozłącz” kompleks — grunt wraca do zwykłego.
 
+### Od 0.43: megakompleksy i znaleziska
+
+250. Badania → Produktywność → „Megastruktury” (po „Głębokich szybach”). Postaw dwa kompleksy tej samej rodziny obok siebie (np. dwie wielkie fabryki).
+251. Produkcja → suwaki kopalni → „Wielka fabryka” → sekcja „Megakompleks metalowy”: zysk wydobycia i koszt → „Połącz w megakompleks”. Na planecie konstrukcje główne wyrastają od nowa (większe), a między nimi biegnie główny przewód. Wydobycie w pasku rośnie o tyle, ile pokazało okno.
+252. W tym samym oknie „Znaleziska (N)”: lista znalezisk (nieznane przygaszone) i czas do następnego. Po kilku godzinach (także przy zamkniętej grze) pojawia się komunikat „Znalezisko! …” i wpis w dzienniku („Imperium” → „Dziennik”).
+253. Premia znaleziska działa od razu na wszystkich planetach (np. „Stop o nieznanym składzie” +2% metalu).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

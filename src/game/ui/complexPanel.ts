@@ -10,6 +10,9 @@ export interface ComplexPanelOptions {
   /** Megakompleks (v0.43). */
   mergeMega: () => ActionMessage;
   splitMega: () => ActionMessage;
+  /** Znaleziska (v0.43.1): liczba zebranych i otwarcie okna. */
+  finds: () => number;
+  openFinds: () => void;
   onDone: (message: string) => void;
 }
 
@@ -37,6 +40,7 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
           <button type="button" class="tp-primary cp-mega-merge">Połącz w megakompleks</button>
           <button type="button" class="tp-secondary cp-mega-split">Rozłącz</button>
         </div>
+        <div class="tp-actions"><button type="button" class="tp-secondary cp-finds"></button></div>
       </div>
       <div class="tp-actions"><button type="button" class="tp-secondary cp-close">Zamknij</button></div>
     </div>`;
@@ -85,7 +89,7 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
   megaBox.hidden = v.count === 0;
   q('.cp-mega-head').textContent = mega.name;
   q('.cp-mega').textContent =
-    `Dwa stykające się kompleksy łączą się w megakompleks: premia ich poziomów rośnie z +${v.bonus}% do +${mega.bonus}%.\n` +
+    `Dwa stykające się kompleksy łączą się w megakompleks: premia ich poziomów rośnie z +${v.bonus}% do +${mega.bonus}%, a głębokie wykopy co kilka godzin przynoszą rzadkie znaleziska.\n` +
     (mega.count > 0 ? `Stoi: ${mega.count}.\n` : '') +
     (!mega.unlocked
       ? `Najpierw zbadaj ${mega.research}.`
@@ -98,6 +102,12 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
   megaMerge.disabled = !mega.unlocked || !mega.candidate;
   megaSplit.disabled = mega.count === 0;
   megaMerge.addEventListener('click', act(options.mergeMega));
+  const finds = q<HTMLButtonElement>('.cp-finds');
+  finds.textContent = `Znaleziska (${options.finds()})`;
+  finds.addEventListener('click', () => {
+    close();
+    options.openFinds();
+  });
   let megaArmed = false;
   megaSplit.addEventListener('click', () => {
     if (!megaArmed) {

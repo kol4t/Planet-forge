@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.43–v0.43.1: megakompleksy i znaleziska
+
+- Właściciel: megakompleks ma dawać „większą premię wydobycia, rzadsze przedmioty/artefakty, ewentualnie coś ekstra”. Megakompleks = dwa stykające się kompleksy tej samej rodziny (nie nowe pola — sąsiedztwo już istniejących), premia +60% zamiast +30%; „ekstra” = znaleziska i większa, połączona sylwetka na planecie.
+- Znaleziska a lore: kanon (K-011, K-012) mówi o ruinach i niepewnych świadectwach, ale zabrania dopisywania faktów o dawnej cywilizacji bez decyzji. Dlatego nazwy i opisy są robocze i dwuznaczne („może zapis, może przypadek”), premie są gospodarcze/naukowe (filtr K-011 pkt 3). Do weryfikacji w Projekcie lore.
+- Mechanika: zawsze coś (bez pustych losowań), co 4–8 h na megakompleks, deterministycznie z chwili — offline i po wczytaniu ten sam wynik. Limity sztuk; po zebraniu pospolitych pula zawęża się do rzadszych (świadomie: długa gra nagradza wytrwałość). Liczby robocze.
+
 ## 2026-10-27 — v0.42: przemysł, krok 5 — przemieniony teren
 
 - Plan mówił „warstwa nad terenem, odtwarzana z zapisu”: teren planety (generator, `SURFACE_VERSION`) zostaje nietknięty, a zmiana jest osobną warstwą elementów stojących na powierzchni — liczoną z kompleksów, które już są w zapisie. Zero nowych pól zapisu, zero ryzyka dla starych zapisów.
