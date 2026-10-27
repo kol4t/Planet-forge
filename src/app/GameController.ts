@@ -1012,8 +1012,11 @@ export class GameController {
     return { ok: true, message: 'Zapisano ustawienie SI.' };
   }
 
+  /** Planety (seed), na których gracz anulował badanie — SI wstrzymuje tam regułę „Badania” do ręcznego wyboru. */
+  private readonly aiResearchHold = new Set<string>();
+
   private aiSuggestions(): AiSuggestion[] {
-    return suggest({
+    const all = suggest({
       economy: this.economy,
       planet: this.planet,
       balance: this.balance,
@@ -1021,6 +1024,8 @@ export class GameController {
       labLevel: this.labLevel,
       hasRoom: this.roomCheck(this.slots[this.active]!),
     });
+    // Gracz anulował badanie na tej planecie → SI nie zajmuje Laboratorium, dopóki gracz sam czegoś nie wybierze.
+    return this.aiResearchHold.has(this.planet.seed) ? all.filter((s) => s.rule !== 'research') : all;
   }
 
   /** Bieżąca propozycja SI do pokazania graczowi (bez reguł „działa samo” i odrzuconych na chwilę). */
@@ -1471,6 +1476,7 @@ export class GameController {
     this.tick(now);
     const result = startResearch(this.research, this.economy, id, this.labLevel, this.planet.seed, now, this.balance);
     if (!result.ok) return result;
+    this.aiResearchHold.delete(this.planet.seed);
     this.research = result.research;
     this.economy = result.economy;
     this.save();
@@ -1490,6 +1496,7 @@ export class GameController {
     };
     this.economy = { ...this.economy, antimatter: this.economy.antimatter + c.antimatter };
     this.research = { ...this.research, current: null };
+    this.aiResearchHold.add(this.planet.seed);
     this.save();
     this.emit();
     const where = payer === this.slots[this.active] ? '' : ` (na planetę ${payer.planet.displayName})`;

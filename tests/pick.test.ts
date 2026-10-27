@@ -17,6 +17,7 @@ const colony: ColonyLayout = {
   },
   rigs: [],
   hubs: [],
+  marks: [],
 };
 const levels = { metalMine: 2, crystalMine: 1, powerPlant: 1, storage: 1, antimatterCollector: 0, laboratory: 0 } as BuildingLevels;
 const ortho: PickView = { cx: 500, cy: 400, yaw: 0, pitch: 0, tilt: 0, projection: { kind: 'ortho', r: 300 } };
