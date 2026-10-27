@@ -315,6 +315,7 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
           'build-water': 'pola na płytkiej wodzie przy brzegu',
           transport: 'transportowce — przesyłanie metalu i kryształów między Twoimi planetami',
           'asteroid-mining': 'stacja wydobywcza na pasie asteroid (w układzie z Twoją planetą)',
+          'comet-capture': 'holownik po kometę — metal i kryształy w każdym układzie',
           'extreme-astrophysics': 'odczyt pulsarów i czarnych dziur — ich zbadanie daje premie z danych naukowych',
         }[e.feature];
     }

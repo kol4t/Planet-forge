@@ -882,9 +882,9 @@ export class PlanetScene extends Phaser.Scene {
     y += TOUCH + this.s(10);
     // Pas asteroid (od v0.37): stan stacji i okno budowy.
     const belt = this.deps.controller.asteroidView();
-    this.text(box.x + pad, y + this.s(4), 'PAS ASTEROID', 9.5, COLORS.muted, { fontStyle: '600' });
+    this.text(box.x + pad, y + this.s(4), 'KOSMOS', 9.5, COLORS.muted, { fontStyle: '600' });
     this.beltRow = this.text(box.x + pad, y + this.s(18), this.beltText(), 13, belt.target > 0 ? COLORS.text : COLORS.stone, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
-    this.addButton(box.x + pad + w - specW, y, specW, TOUCH, 'Stacja', belt.hasBelt && belt.unlocked && belt.target === 0 && !belt.takenBy ? 'primary' : 'secondary', () => this.openAsteroid(), 12.5);
+    this.addButton(box.x + pad + w - specW, y, specW, TOUCH, 'Wydobycie', (belt.hasBelt && belt.unlocked && belt.target === 0 && !belt.takenBy) || (this.deps.controller.cometView().unlocked && !this.deps.controller.cometView().flying) ? 'primary' : 'secondary', () => this.openAsteroid(), 12.5);
     y += TOUCH + this.s(10);
     this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
     y += this.s(15);
@@ -1655,13 +1655,18 @@ export class PlanetScene extends Phaser.Scene {
    */
   private closeAsteroid: (() => void) | null = null;
 
-  /** Stan stacji na pasie asteroid w jednym wierszu. */
+  /** Stan wydobycia w kosmosie w jednym wierszu: stacja na pasie i holownik po kometę (v0.37.1). */
   private beltText(): string {
     const belt = this.deps.controller.asteroidView();
-    if (!belt.hasBelt) return 'brak pasa w układzie';
-    if (belt.target === 0) return belt.takenBy ? `stacja planety ${belt.takenBy}` : belt.unlocked ? 'bez stacji — zbuduj' : 'po badaniu „Górnictwo asteroid”';
-    if (belt.target > belt.level) return `stacja → poz. ${belt.target} · ${formatDuration(belt.secondsLeft)}`;
-    return `stacja poz. ${belt.level} · +${formatInt((belt.output.metal + belt.output.crystal) * 60)}/h`;
+    const comet = this.deps.controller.cometView();
+    const cometPart = comet.flying ? `kometa ${formatDuration(comet.flying.secondsLeft)}` : comet.unlocked ? 'holownik gotowy' : null;
+    let beltPart: string;
+    if (!belt.hasBelt) beltPart = cometPart ? 'bez pasa' : 'brak pasa w układzie';
+    else if (belt.target === 0) beltPart = belt.takenBy ? `stacja planety ${belt.takenBy}` : belt.unlocked ? 'bez stacji' : 'pas bez stacji';
+    else if (belt.target > belt.level) beltPart = cometPart ? `stacja → ${belt.target}` : `stacja → poz. ${belt.target} · ${formatDuration(belt.secondsLeft)}`;
+    else beltPart = cometPart ? `stacja ${belt.level}` : `stacja poz. ${belt.level} · +${formatInt((belt.output.metal + belt.output.crystal) * 60)}/h`;
+    // Jeden wiersz (krótkie formy, gdy działa też holownik).
+    return cometPart ? `${beltPart} · ${cometPart}` : beltPart;
   }
 
   /** Okno „Pas asteroid” (HTML) — stacja wydobywcza aktywnej planety. */
@@ -1672,6 +1677,8 @@ export class PlanetScene extends Phaser.Scene {
       planetName: c.planet.displayName,
       view: () => c.asteroidView(),
       upgrade: () => c.upgradeAsteroidStation(),
+      comet: () => c.cometView(),
+      launchComet: () => c.launchComet(),
       onDone: (message) => {
         this.closeAsteroid = null;
         this.showToast(message, 'ok', 3200);

@@ -205,7 +205,11 @@ html, body {
   text-align: left;
 }
 #text-panel .sp-name { font-size: 15px; color: var(--text); }
-#text-panel .ap-status, #text-panel .ap-next { white-space: pre-line; }
+#text-panel .ap-status, #text-panel .ap-next, #text-panel .ap-comet { white-space: pre-line; }
+#text-panel .tp-actions[hidden], #text-panel .tp-hint[hidden] { display: none; }
+#text-panel .ap-head { margin: 14px 0 6px; font: 600 12px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif; letter-spacing: 1.2px; text-transform: uppercase; color: #8ea6a0; }
+#text-panel .ap-head:first-of-type { margin-top: 4px; }
+#text-panel .tp-actions + .ap-head { border-top: 1px solid #2b4846; padding-top: 14px; }
 #text-panel .tr-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 6px 0 10px; font-size: 15px; color: var(--text); }
 #text-panel .tr-value { color: var(--gold); font-variant-numeric: tabular-nums; }
 #text-panel .tr-row input { grid-column: 1 / -1; width: 100%; height: 44px; margin: 0; accent-color: var(--teal); }

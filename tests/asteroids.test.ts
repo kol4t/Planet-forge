@@ -90,3 +90,55 @@ test('asteroidy: kontroler — układ bez pasa, stacja na planecie z pasem, urob
     assert.deepEqual(saved?.slots[0]?.asteroidStation, { level: 1, readyAt: ready });
   });
 });
+
+test('komety: holownik — badanie, jeden naraz, koszt, ładunek deterministyczny w granicach, zapis', async () => {
+  const { cometCargo, launchComet, parseComets } = await import('../src/core/economy/comets.ts');
+  const c = BALANCE.comet;
+  const ctx = { unlocked: true, busy: false, stock: rich, now: 1000 };
+  assert.match((launchComet('1:16:4', { ...ctx, unlocked: false }, BALANCE) as { message: string }).message, /Przechwyt komet/);
+  assert.match((launchComet('1:16:4', { ...ctx, busy: true }, BALANCE) as { message: string }).message, /już leci/);
+  assert.match((launchComet('1:16:4', { ...ctx, stock: { metal: 0, crystal: 0 } }, BALANCE) as { message: string }).message, /brakuje: 200 metalu, 100 kryształów/);
+  const ok = launchComet('1:16:4', ctx, BALANCE);
+  assert.ok(ok.ok);
+  if (!ok.ok) return;
+  assert.equal(ok.haul.returnsAt, 1000 + c.seconds * 1000);
+  assert.deepEqual(ok.haul.cargo, cometCargo('1:16:4', 1000, BALANCE));
+  for (let t = 0; t < 50; t++) {
+    const cargo = cometCargo('1:16:4', t * 7919, BALANCE);
+    assert.ok(cargo.metal >= c.cargoMin.metal && cargo.metal <= c.cargoMax.metal);
+    assert.ok(cargo.crystal >= c.cargoMin.crystal && cargo.crystal <= c.cargoMax.crystal);
+  }
+  assert.deepEqual(parseComets([ok.haul]), [ok.haul]);
+  assert.deepEqual(parseComets([{ ...ok.haul, planet: 'x' }, { ...ok.haul, returnsAt: 0 }]), []);
+  // Badanie wcześnie w drzewie: wymaga tylko Górnictwa asteroid i Eksploracji (most).
+  assert.deepEqual(findResearch('station-comet')!.requires, ['station-1', 'explore-1']);
+});
+
+test('komety: kontroler — także w układzie bez pasa, powrót raz z ładunkiem, nieobecność', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    assert.equal(game.asteroidView(0).hasBelt, false);
+    assert.match(game.launchComet(0).message, /Przechwyt komet/);
+    game.research = { done: ['station-1', 'explore-1', 'station-comet'], current: null };
+    const before = game.economy.stock;
+    const sent = game.launchComet(0);
+    assert.ok(sent.ok, sent.message);
+    assert.equal(game.launchComet(0).ok, false, 'jeden holownik naraz');
+    const cargo = game.cometView(0).flying!.cargo;
+    assert.equal(game.cometsView(0).length, 1);
+    const back = BALANCE.comet.seconds * 1000;
+    const texts: string[] = [];
+    game.onShipmentArrived((t) => texts.push(t));
+    game.tick(back);
+    game.tick(back + 1);
+    assert.equal(texts.length, 1);
+    assert.match(texts[0]!, /Kometa przyholowana/);
+    assert.equal(game.cometsView().length, 0);
+    assert.ok(game.economy.stock.metal >= before.metal - BALANCE.comet.cost.metal + cargo.metal - 1e-6);
+    // Drugi holownik wraca podczas nieobecności.
+    assert.ok(game.launchComet(back + 2).ok);
+    const later = new GameController(back * 3);
+    assert.equal(later.shipmentsWhileAway.length, 1);
+    assert.match(later.shipmentsWhileAway[0]!, /Kometa/);
+  });
+});

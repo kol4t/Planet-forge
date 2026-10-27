@@ -1,6 +1,6 @@
 {
   "name": "planet-forge",
-  "version": "0.37.0",
+  "version": "0.37.1",
   "private": true,
   "description": "Planet Forge — przeglądarkowa strategia sci-fi z jedną planetą 3D (iPad / Safari).",
   "type": "module",

@@ -255,7 +255,9 @@ const NODES: readonly ResearchNodeDef[] = [
     { kind: 'asteroidOutput', percent: 50 },
   ]),
   { ...node('station', 2, 1, 'station-orbit', 'Moduł orbitalny', 'Pierwszy moduł stacji kosmicznej nad planetą.', ['station-1'], []), soon: true },
-  { ...node('station', 4, 0, 'station-comet', 'Przechwyt komet', 'Holowanie komet — surowce także w układach bez pasa.', ['station-refine', 'probe-1'], []), soon: true },
+  node('station', 2, 0, 'station-comet', 'Przechwyt komet', 'Holownik przyciąga kometę — surowce w każdym układzie, także bez pasa.', ['station-1', 'explore-1'], [
+    { kind: 'unlock', feature: 'comet-capture' },
+  ]),
   { ...node('station', 3, 1, 'station-2', 'Dok handlowy', 'Stacja przyjmuje statki kupców.', ['station-orbit'], []), soon: true },
   { ...node('station', 4, 1, 'station-3', 'Rynek galaktyczny', 'Handel z kupcami i szlaki handlowe.', ['station-2'], []), soon: true },
   master('station', 'station-master', 'Planeta-stacja', 'Gwiazda mistrzowska Stacji i handlu.', ['station-3', 'station-comet']),

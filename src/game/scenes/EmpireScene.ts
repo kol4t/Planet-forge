@@ -78,7 +78,7 @@ export class EmpireScene extends OverlayScene {
   /** Statki w drodze: kolonizacyjne, ekspedycje i transportowce (wiersze nad alertami). */
   private travelling(): number {
     const c = this.deps.controller;
-    return c.missionsView().length + c.expeditionsView().length + c.shipmentsView().length;
+    return c.missionsView().length + c.expeditionsView().length + c.shipmentsView().length + c.cometsView().length;
   }
 
   create(): void {
@@ -643,6 +643,7 @@ export class EmpireScene extends OverlayScene {
       [
         ...missions.map((m) => `Statek kolonizacyjny: ${m.fromName} → ${m.targetName} · ${formatDuration(m.secondsLeft)}`),
         ...c.expeditionsView().map((e) => `Ekspedycja: ${e.name} · powrót za ${formatDuration(e.secondsLeft)}`),
+        ...c.cometsView().map((h) => `Holownik po kometę: ${h.planetName} · ${formatDuration(h.secondsLeft)}`),
         ...c.shipmentsView().map((t) => `Transportowiec: ${t.fromName} → ${t.toName} · ${formatInt(t.cargo.metal + t.cargo.crystal)} · ${formatDuration(t.secondsLeft)}`),
       ].join('\n'),
     );

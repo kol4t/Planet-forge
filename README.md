@@ -403,4 +403,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 220. Planeta w układzie z pasem (Mapa → układ z pierścieniem okruchów; kolonizacja statkiem): „Stacja” → okno z urobkiem i kosztem → „Zbuduj stację”. Wiersz odlicza budowę, potem pokazuje „stacja poz. N · +…/h”; metal i kryształy rosną szybciej, złoża planety się nie zmniejszają.
 221. Imperium: znaczek „pas asteroid N” na karcie planety. Mapa → układ → dotknij pas: kto ma stację i przycisk „Do planety”.
 
+### Od 0.37.1: Przechwyt komet
+
+222. Badania → „Stacja i handel” → „Przechwyt komet” (po „Górnictwie asteroid”; wymaga też „Napędu międzygwiezdnego” z Eksploracji).
+223. Panel „Planeta”: wiersz „KOSMOS” (np. „bez pasa · holownik gotowy”) → „Wydobycie” → okno z sekcjami „Pas asteroid” i „Kometa”. Na planecie bez pasa sekcja pasa tylko wyjaśnia, gdzie można postawić stację.
+224. „Wyślij holownik”: koszt schodzi od razu, wiersz pokazuje „kometa 59:59”, w „Imperium” — „Holownik po kometę: …”. Po godzinie komunikat „Kometa przyholowana…” i więcej metalu i kryształów; działa też przy zamkniętej grze.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

@@ -70,6 +70,7 @@ import {
 import { findSpecialization, SPECIALIZATION_RULES, SPECIALIZATIONS } from '../data/specializations.ts';
 import { RARE_OBJECTS, ZONE_LABELS } from '../data/galaxy.ts';
 import { checkShipment, transportSeconds } from '../core/economy/transport.ts';
+import { launchComet } from '../core/economy/comets.ts';
 import { stationCost, stationLevelAt, stationOutput, upgradeStation, withStation } from '../core/economy/asteroids.ts';
 import { distanceFrom, expeditionStats, planExpedition, resolveExpedition, type ExpeditionPlan, type ExpeditionStats } from '../core/galaxy/expeditions.ts';
 import type { KnownSystem } from '../core/galaxy/galaxyIndex.ts';
@@ -77,7 +78,7 @@ import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownC
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { AsteroidStation, Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { AsteroidStation, Balance, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -324,6 +325,8 @@ export class GameController {
   private expeditions: Expedition[] = [];
   /** Transportowce w drodze (v0.36). */
   private shipments: Shipment[] = [];
+  /** Holowniki po komety (v0.37.1) — najwyżej jeden na planetę. */
+  private comets: CometHaul[] = [];
   private readonly shipmentListeners = new Set<(text: string) => void>();
   /** Dostawy rozliczone podczas nieobecności (do jednorazowego komunikatu). */
   shipmentsWhileAway: string[] = [];
@@ -353,6 +356,7 @@ export class GameController {
       this.missions = saved.missions ?? [];
       this.expeditions = saved.expeditions ?? [];
       this.shipments = saved.shipments ?? [];
+      this.comets = saved.comets ?? [];
       this.journal = saved.journal ?? [];
       this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
@@ -366,7 +370,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = this.processShipments(now);
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -637,7 +641,8 @@ export class GameController {
     if (done) this.logBuild(done, before.construction!.finishesAt);
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
-    const delivered = this.processShipments(now);
+    // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
+    const delivered = [...this.processShipments(now), ...this.processComets(now)];
     const aiDone = this.runAutoAi(now);
     if (done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
     for (const text of delivered) for (const listener of this.shipmentListeners) listener(text);
@@ -1254,15 +1259,82 @@ export class GameController {
         continue;
       }
       const slot = this.slots[index]!;
-      const economy =
-        index === this.active || slot.economy.lastUpdate >= shipment.arrivesAt
-          ? slot.economy
-          : this.advanceSlot(slot, slot.economy, shipment.arrivesAt, catchUpBalance);
-      slot.economy = { ...economy, stock: { metal: economy.stock.metal + metal, crystal: economy.stock.crystal + crystal } };
+      this.deliver(index, shipment.cargo, shipment.arrivesAt);
       const text = returned
         ? `Transportowiec wrócił na ${slot.planet.displayName} — odbiorcy już nie ma. Ładunek rozładowany.`
         : `Transportowiec dotarł na ${slot.planet.displayName}: +${metal} metalu, +${crystal} kryształów.`;
       this.log('ship', text, shipment.arrivesAt);
+      texts.push(text);
+    }
+    return texts;
+  }
+
+  /** Ładunek do magazynu planety: nieaktywna najpierw nadrabia czas do chwili przylotu. */
+  private deliver(index: number, cargo: Resources, at: number): void {
+    const slot = this.slots[index]!;
+    const economy =
+      index === this.active || slot.economy.lastUpdate >= at ? slot.economy : this.advanceSlot(slot, slot.economy, at, catchUpBalance);
+    slot.economy = { ...economy, stock: { metal: economy.stock.metal + cargo.metal, crystal: economy.stock.crystal + cargo.crystal } };
+  }
+
+  // ——— przechwyt komet (v0.37.1) ———
+
+  /** Holownik aktywnej planety: odblokowanie, lot w toku, koszt i czas, możliwy ładunek. */
+  cometView(now = Date.now()): {
+    unlocked: boolean;
+    flying: { secondsLeft: number; cargo: Resources } | null;
+    cost: Resources;
+    seconds: number;
+    cargoMin: Resources;
+    cargoMax: Resources;
+  } {
+    const c = this.balance.comet;
+    const haul = this.comets.find((h) => h.planet === this.address);
+    return {
+      unlocked: this.unlocked('comet-capture'),
+      flying: haul ? { secondsLeft: Math.max(0, (haul.returnsAt - now) / 1000), cargo: haul.cargo } : null,
+      cost: c.cost,
+      seconds: c.seconds,
+      cargoMin: c.cargoMin,
+      cargoMax: c.cargoMax,
+    };
+  }
+
+  /** Holowniki w drodze (do „Imperium”). */
+  cometsView(now = Date.now()): { planetName: string; secondsLeft: number }[] {
+    return this.comets.map((h) => ({ planetName: this.slotName(h.planet), secondsLeft: Math.max(0, (h.returnsAt - now) / 1000) }));
+  }
+
+  /** Wysłanie holownika z aktywnej planety (koszt od razu, ładunek po powrocie). */
+  launchComet(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const result = launchComet(
+      this.address,
+      { unlocked: this.unlocked('comet-capture'), busy: this.comets.some((h) => h.planet === this.address), stock: this.economy.stock, now },
+      this.balance,
+    );
+    if (!result.ok) return result;
+    const cost = this.balance.comet.cost;
+    const stock = this.economy.stock;
+    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
+    this.comets.push(result.haul);
+    this.log('ship', `${this.planet.displayName}: holownik wyruszył po kometę.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Holownik leci po kometę — wróci za ${Math.ceil(this.balance.comet.seconds / 60)} min.` };
+  }
+
+  /** Powroty holowników do `now`: ładunek do magazynu planety (usunięta planeta — ładunek przepada). */
+  private processComets(now: number): string[] {
+    const texts: string[] = [];
+    for (const haul of [...this.comets].sort((a, b) => a.returnsAt - b.returnsAt)) {
+      if (haul.returnsAt > now) continue;
+      this.comets = this.comets.filter((h) => h !== haul);
+      const index = this.slotAt(haul.planet);
+      if (index < 0) continue;
+      this.deliver(index, haul.cargo, haul.returnsAt);
+      const text = `Kometa przyholowana na ${this.slots[index]!.planet.displayName}: +${haul.cargo.metal} metalu, +${haul.cargo.crystal} kryształów.`;
+      this.log('ship', text, haul.returnsAt);
       texts.push(text);
     }
     return texts;
@@ -1726,6 +1798,7 @@ export class GameController {
     this.missions = result.data.missions ?? [];
     this.expeditions = result.data.expeditions ?? [];
     this.shipments = result.data.shipments ?? [];
+    this.comets = result.data.comets ?? [];
     this.journal = result.data.journal ?? [];
     this.aiLevels = result.data.ai ?? { ...DEFAULT_AI_LEVELS };
     this.active = result.data.active;
@@ -1737,6 +1810,7 @@ export class GameController {
     this.processMissions(now);
     this.processExpeditions(now);
     this.processShipments(now);
+    this.processComets(now);
     this.offlineGain = null;
     this.completedWhileAway = null;
     this.log('empire', 'Wczytano zapis gry.', now);
@@ -1759,6 +1833,7 @@ export class GameController {
       discoveries: this.discoveries,
       expeditions: this.expeditions,
       shipments: this.shipments,
+      comets: this.comets,
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,

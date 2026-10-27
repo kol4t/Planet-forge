@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.37.1: Przechwyt komet
+
+- Cel: wydobycie w kosmosie także dla układów bez pasa (w tym startowego 1:16). Komety to akcja, nie stały urobek: holownik z planety (jeden naraz) leci 60 min i wraca z ładunkiem — trzeba go wysyłać ponownie, więc stacja na pasie pozostaje lepszym, stałym źródłem.
+- Ładunek ustalany przy wysłaniu (`createRng('kometa|adres|chwila')`), zapisany w holowniku — wynik nie zależy od chwili otwarcia gry. Dostawa jak transportowce (`deliver`: nieaktywna planeta nadrabia czas do chwili powrotu); usunięta planeta — ładunek przepada.
+- Badanie na pierścieniu 2 (wcześnie w drzewie): Górnictwo asteroid + most z Eksploracji (Napęd międzygwiezdny). Wszystkie liczby robocze.
+
 ## 2026-10-27 — v0.37: Górnictwo asteroid
 
 - **Gdzie** (decyzja właściciela): stacja tylko w układzie, w którym gracz ma planetę, i tylko gdy układ ma pas (46 ze 100 układów; startowy 1:16 — nie). Jeden pas = jedna stacja (przypisana do jednej planety). Układy bez pasa — później Przechwyt komet.

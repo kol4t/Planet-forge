@@ -302,6 +302,11 @@ export interface Balance {
    * `cost` × costGrowth^(n − 1), budowa trwa `secondsPerLevel` × n.
    */
   asteroid: { output: Resources; growth: number; cost: Resources; costGrowth: number; secondsPerLevel: number; maxLevel: number };
+  /**
+   * Przechwyt komet (v0.37.1): holownik z planety (jeden naraz na planetę) leci `seconds`, kosztuje `cost`,
+   * przywozi losowy ładunek w granicach `cargoMin`–`cargoMax` (z adresu i chwili wysłania). Działa w każdym układzie.
+   */
+  comet: { cost: Resources; seconds: number; cargoMin: Resources; cargoMax: Resources };
   /** Transportowce (v0.36): ładowność jednego lotu (metal + kryształy), czas lotu = base + odległość × perUnit, ile naraz. */
   transport: { capacity: number; baseSeconds: number; secondsPerUnit: number; maxActive: number };
   /** Statek kolonizacyjny (kolonizacja innych układów): koszt i czas lotu = base + odległość × perUnit. */
@@ -342,7 +347,7 @@ export type ResearchEffect =
   | { kind: 'unlock'; feature: UnlockFeature };
 
 /** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
-export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport' | 'asteroid-mining';
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport' | 'asteroid-mining' | 'comet-capture';
 
 /**
  * Rzadki obiekt astronomiczny (v0.34.4): rodzaj gwiazdy, którego bez badania „Astrofizyka ekstremalna”
@@ -554,6 +559,14 @@ export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'e
 export interface AsteroidStation {
   level: number;
   readyAt: number;
+}
+
+/** Holownik po kometę (v0.37.1): wraca na planetę `planet` z ładunkiem ustalonym przy wysłaniu. */
+export interface CometHaul {
+  planet: string;
+  departedAt: number;
+  returnsAt: number;
+  cargo: Resources;
 }
 
 /** Transport surowców między planetami gracza (v0.36). */

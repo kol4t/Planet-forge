@@ -8,7 +8,8 @@ import { parseStation } from '../economy/asteroids.ts';
 import { parseDiscoveries, type Discoveries } from '../galaxy/discovery.ts';
 import { parseExpeditions } from '../galaxy/expeditions.ts';
 import { parseShipments } from '../economy/transport.ts';
-import type { AsteroidStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import { parseComets } from '../economy/comets.ts';
+import type { AsteroidStation, CometHaul, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 
@@ -67,6 +68,8 @@ export interface EmpireSave {
   expeditions?: Expedition[];
   /** Transportowce w drodze (od v0.36; brak = żadnych). */
   shipments?: Shipment[];
+  /** Holowniki po komety (od v0.37.1; brak = żadnych). */
+  comets?: CometHaul[];
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -170,6 +173,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseDiscoveries(data.discoveries) ? { discoveries: parseDiscoveries(data.discoveries)! } : {}),
     ...(parseExpeditions(data.expeditions).length > 0 ? { expeditions: parseExpeditions(data.expeditions) } : {}),
     ...(parseShipments(data.shipments).length > 0 ? { shipments: parseShipments(data.shipments) } : {}),
+    ...(parseComets(data.comets).length > 0 ? { comets: parseComets(data.comets) } : {}),
   };
 }
 
