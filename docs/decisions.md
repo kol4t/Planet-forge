@@ -2,6 +2,18 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.46: audyt projektu (prompt właściciela „AUDYT PROJEKTU”)
+
+- **Playwright jako devDependency** (`playwright@1.63.0`, dokładna wersja zgodna z przeglądarką w środowisku): zrzuty ekranów w 7 rozmiarach (`scripts/screens.ts`) i pomiary wydajności (`scripts/perf.ts`) w przeglądarce bezgłowej. Tylko narzędzie programisty — nie trafia do gry (`dist/` bez zmian w zależnościach), nie jest potrzebny do `npm run check`. Pomiary w przeglądarce bezgłowej to symulacja, nie pomiar iPada.
+- **Zasada okien:** naraz jeden panel z dolnego paska albo wybrany budynek; wyjątek — Produkcja obok karty budowli (bez okienka „Budynek”, karta w panelu w złotej ramce); dymek SI chowa się przy wybranym budynku i przy otwartym panelu na telefonie. Powód: zrzuty właściciela z iPada — kilka okien zasłaniało planetę.
+- **Uszkodzony zapis** trafia pod `planet-forge.empire.broken` zamiast przepaść (wcześniej nowa gra nadpisywała go po ≤ 10 s); kopia jedzie w zgłoszeniu z „Dołącz zapis”.
+- **Limit nieobecności** (8 h + badania) liczony raz dla całego naliczenia planety, także gdy po drodze kończy się zmiana specjalizacji, stacja albo kolektor (wcześniej każdy odcinek miał osobny limit).
+- **Start z kolejki** sprawdza pola (`advance(…, limits)`), jak ręczne ulepszenie.
+- **Czas budowy na przycisku** „Ulepsz do N · m:ss” (zamiast w linii kosztu, gdzie przeskakiwał do nowego wiersza); wąska karta ma wysokość na dwa wiersze efektu i kosztu (`cardHeight`, `CARD_WIDE`).
+- **Dostęp `window.__planetForge`** tylko w `npm run dev` (`__PWA__` = false) — dla skryptów pomiarowych; w opublikowanej grze nie istnieje.
+- **Siatka pól szybciej, wynik identyczny** (sprawdzone hashem) — bez zmiany `FIELD_GRID_VERSION`. Szybszy algorytm zmieniający kształt pól — tylko po decyzji (`docs/KNOWN_ISSUES.md`).
+- **Dokumentacja** w `docs/` (ARCHITECTURE, MECHANICS, BALANCE — generowane, RENDERING, UI, SAVE_FORMAT, TESTING, PERFORMANCE, CHANGELOG, KNOWN_ISSUES, LORE_TOUCHPOINTS); dawny README → `docs/lista-kontrolna-historia.md`, nowy README z aktualną listą kontrolną.
+
 ## 2026-10-27 — v0.45: budynek rośnie w jeden kompleks (zgłoszenie właściciela)
 
 - **Audyt — dlaczego v0.38–v0.43 nie zwiększyły pól ani nie połączyły budowli:** zajętość była stałą regułą „jedno pole na 3 poziomy” (`groupsFor` w `plots.ts`), a każde nowe pole wybierał `nextCell` osobno — najbliżej „dzielnicy”, ale bez wymogu sąsiedztwa. Kompleksy dokładały tylko jedno pole szybu i rysowały rury między niezależnymi polami; poziomy wizualne i przemieniony teren zmieniały wygląd tych samych pól. Naprawa przyczyny: liczba pól z etapów i jeden spójny obszar na budynek (`core/economy/footprint.ts`, `core/colony/plots.ts`), a renderery rysują kompleks jako jeden obiekt.
