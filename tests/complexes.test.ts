@@ -218,3 +218,17 @@ test('sieć Tesli (v0.40): łączenie węzłów elektrowni na równinach, +energ
     assert.equal(layout.rigs.filter((r) => r.building === 'powerPlant').length, 4, 'poz. 12 = 4 pełne pola');
   });
 });
+
+test('poziomy wizualne (v0.41): etap co 5 poziomów, karta pokazuje bieżący i następny', async () => {
+  const { visualTier, VISUAL_TIERS } = await import('../src/data/industry.ts');
+  assert.equal(VISUAL_TIERS.length, 6);
+  assert.deepEqual([0, 1, 5, 6, 10, 11, 16, 21, 26, 30, 40].map(visualTier), [1, 1, 1, 2, 2, 3, 4, 5, 6, 6, 6]);
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 12 } };
+    const look = game.buildingCard('metalMine').look;
+    assert.deepEqual(look, { tier: 3, max: 6, name: 'Hale boczne', nextFrom: 16, nextName: 'Przewody i maszt' });
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 30 } };
+    assert.equal(game.buildingCard('metalMine').look.nextFrom, null);
+  });
+});

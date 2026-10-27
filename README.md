@@ -442,4 +442,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 241. Po „Połącz w kompleks” wieża wyrasta, a potem między jej kulą i węzłami zaczynają przeskakiwać błękitne wyładowania (zmieniają kształt, chwilami gasną). Energia w pasku rośnie o tyle, ile pokazało okno.
 242. Ustawienia → „Ogranicz ruch”: wyładowania stoją w miejscu jako proste linie.
 
+### Od 0.41: poziomy wizualne
+
+243. Dotknij wiertło, zakład albo węzeł Tesli na planecie — w karcie wiersz „Wygląd: etap N/6” i od którego poziomu będzie następny.
+244. Co 5 poziomów (6, 11, 16, 21, 26) pełne pola i kompleksy tego budynku dostają moduły: platforma ze złotą krawędzią → hale boczne → przewody i maszt z migającym światłem → złote zbiorniki → złote łuki nad konstrukcją (2D i 3D).
+245. Płynność w 3D przy wielu konstrukcjach — bez widocznego spadku względem v0.40.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

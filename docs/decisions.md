@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.41: przemysł, krok 4 — poziomy wizualne
+
+- Prompt: „poziomy 1–30”. Gra ma poziom budynku na całej planecie (nie na budowli), więc etap wyglądu wynika z poziomu budynku: 6 etapów co 5 poziomów (`VISUAL_TIERS`, robocze). Moduły tylko na pełnych polach i w kompleksach — małe budowle (poz. 1–2 na polu) bez zmian, żeby nie zagracić planety.
+- Wydajność: etap jest wspólny dla wszystkich konstrukcji budynku → jeden InstancedMesh z podmienianą geometrią na rodzaj (6 meshy łącznie, rysowane tylko od etapu 2). Geometrie etapów budowane raz przy starcie.
+- Tylko wygląd: bez wpływu na produkcję i zapis (etap liczony z `levels`).
+
 ## 2026-10-27 — v0.40: przemysł, krok 3 — sieć Tesli
 
 - Trzecia rodzina z danych (`COMPLEX_FAMILIES`) — bez zmian w logice łączenia; teren z `suits` (równiny). Premia działa na produkcję energii tym samym `siteFactor` co wydobycie kopalń.

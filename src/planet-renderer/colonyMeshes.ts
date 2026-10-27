@@ -4,6 +4,7 @@ import type { BuildingId, BuildingLevels } from '../core/types.ts';
 import type { BuildSite } from './PlanetDisplay.ts';
 import { groupFull, MAX_STRUCTURES, RIG_BUILDINGS, visibleStructures, type ColonyLayout } from './colony.ts';
 import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
+import { VISUAL_TIERS, visualTier } from '../data/industry.ts';
 
 // Zabudowa kolonii na powierzchni planety: każdy typ budynku = 2 InstancedMesh
 // (bryła + światła), czyli stała liczba draw calli niezależnie od poziomów.
@@ -323,7 +324,49 @@ const MAX_ARCS = 72 * ARC_SEGMENTS;
 /** Zmiana kształtu wyładowań co tyle sekund (lekki efekt bez cząsteczek). */
 const ARC_TICK = 0.09;
 
+/**
+ * Moduły poziomów wizualnych (v0.41): geometria narastająca — etap N zawiera moduły etapów 2..N.
+ * Wszystkie konstrukcje jednego budynku mają ten sam poziom, więc wystarczy podmienić geometrię
+ * jednego InstancedMesh na rodzaj (bez nowych draw calli przy kolejnych etapach).
+ */
+function createTierModules(tier: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  if (tier >= 2) {
+    parts.push(paint(at(new THREE.CylinderGeometry(0.72, 0.76, 0.06, 8), 0, 0.03, 0), STEEL));
+    parts.push(paint(at(new THREE.CylinderGeometry(0.77, 0.77, 0.025, 8, 1, true), 0, 0.06, 0), GOLD));
+  }
+  if (tier >= 3) {
+    parts.push(paint(at(new THREE.BoxGeometry(0.18, 0.14, 0.26), 0.62, 0.13, 0.1, 0.3), STEEL));
+    parts.push(paint(at(new THREE.BoxGeometry(0.2, 0.03, 0.28), 0.62, 0.215, 0.1, 0.3), GOLD));
+    parts.push(paint(at(new THREE.BoxGeometry(0.16, 0.12, 0.22), -0.6, 0.12, -0.22, -0.5), STEEL));
+    parts.push(paint(at(new THREE.BoxGeometry(0.18, 0.03, 0.24), -0.6, 0.195, -0.22, -0.5), GOLD));
+  }
+  if (tier >= 4) {
+    for (let k = 0; k < 6; k++) {
+      const a = (k * Math.PI) / 3 + Math.PI / 6;
+      parts.push(paint(at(new THREE.BoxGeometry(0.04, 0.04, 0.3), Math.cos(a) * 0.69, 0.09, Math.sin(a) * 0.69, -a), STEEL));
+    }
+    parts.push(paint(at(new THREE.CylinderGeometry(0.015, 0.025, 0.7, 4), -0.3, 0.4, 0.58), STEEL));
+    parts.push(paint(at(new THREE.BoxGeometry(0.12, 0.02, 0.02), -0.3, 0.68, 0.58), GOLD));
+    parts.push(paint(at(new THREE.BoxGeometry(0.04, 0.04, 0.04), -0.3, 0.77, 0.58), GOLD));
+  }
+  if (tier >= 5) {
+    parts.push(paint(at(new THREE.CylinderGeometry(0.08, 0.08, 0.2, 8), 0.45, 0.13, -0.52), GOLD));
+    parts.push(paint(at(new THREE.CylinderGeometry(0.07, 0.07, 0.17, 8), 0.26, 0.12, -0.64), GOLD));
+    parts.push(paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.32, 8), -0.64, 0.19, 0.3), STEEL));
+    parts.push(paint(at(new THREE.ConeGeometry(0.06, 0.08, 8), -0.64, 0.39, 0.3), GOLD));
+  }
+  if (tier >= 6) {
+    // Dwa złote łuki nośne nad konstrukcją (połówki torusa w płaszczyznach pionowych).
+    parts.push(paint(at(new THREE.TorusGeometry(0.66, 0.022, 4, 14, Math.PI), 0, 0.06, 0), GOLD));
+    parts.push(paint(at(new THREE.TorusGeometry(0.66, 0.022, 4, 14, Math.PI), 0, 0.06, 0, Math.PI / 2), GOLD));
+  }
+  return prepare(parts);
+}
+
 interface BigMeshes {
+  /** Moduły poziomu wizualnego (v0.41); geometria wg etapu budynku. */
+  modules: THREE.InstancedMesh;
   body: THREE.InstancedMesh;
   pit: THREE.InstancedMesh;
   rotor: THREE.InstancedMesh;
@@ -374,6 +417,8 @@ export class ColonyMeshes {
     h1: new THREE.Vector3(),
   };
   private readonly tmpColor = new THREE.Color();
+  /** Geometria modułów dla etapów 2..max (indeks = etap). */
+  private readonly tierGeometry = VISUAL_TIERS.map((_, i) => (i >= 1 ? createTierModules(i + 1) : null));
 
   /** `still` — „Ogranicz ruch”: głowice wierteł nie obracają się. */
   private readonly still: boolean;
@@ -416,14 +461,17 @@ export class ColonyMeshes {
     // Wiertła, zakłady i huby kompleksów (v0.38–v0.39): po 4 InstancedMesh na rodzaj (bryła, wnętrze/bramy,
     // ruchoma głowica/dźwig, świecące elementy) + wspólne rury i taśmociągi (kolor na instancję).
     const big = (shape: BigShape, count: number, rotor: string, glow: string): BigMeshes => {
+      const bodyMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3, flatShading: true, side: THREE.DoubleSide });
       const meshes = {
+        modules: new THREE.InstancedMesh(this.tierGeometry[1]!, bodyMaterial.clone(), count),
         body: new THREE.InstancedMesh(shape.body, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3, flatShading: true, side: THREE.DoubleSide }), count),
         pit: new THREE.InstancedMesh(shape.pit, new THREE.MeshStandardMaterial({ color: '#0b1517', roughness: 1, metalness: 0, side: THREE.DoubleSide }), count),
         rotor: new THREE.InstancedMesh(shape.rotor, new THREE.MeshBasicMaterial({ color: rotor, toneMapped: false }), count),
         glow: new THREE.InstancedMesh(shape.glow, new THREE.MeshBasicMaterial({ color: glow, toneMapped: false }), count),
         current: new Float32Array(count),
       };
-      for (const mesh of [meshes.body, meshes.pit, meshes.rotor, meshes.glow]) {
+      bodyMaterial.dispose();
+      for (const mesh of [meshes.modules, meshes.body, meshes.pit, meshes.rotor, meshes.glow]) {
         mesh.count = 0;
         mesh.frustumCulled = false;
         this.object.add(mesh);
@@ -589,6 +637,7 @@ export class ColonyMeshes {
       p.copy(n).multiplyScalar(surface - size * 0.06);
       s.setScalar(Math.max(next * size, 1e-5));
       m.compose(p, q, s);
+      meshes.modules.setMatrixAt(i, m);
       meshes.body.setMatrixAt(i, m);
       meshes.pit.setMatrixAt(i, m);
       meshes.glow.setMatrixAt(i, m);
@@ -613,9 +662,13 @@ export class ColonyMeshes {
       hubs.forEach((hub, i) => {
         if (hub.building === id) place(family.hubs, h++, hub.dir, hub.surface, hub.spin, Math.min(1, growth[i]! * 2), HUB_SIZE, family.speed * 0.6);
       });
+      const tier = visualTier(this.levels![id] ?? 0);
       for (const [meshes, count] of [[family.rigs, rigs.length], [family.hubs, h]] as const) {
         meshes.body.count = meshes.pit.count = meshes.rotor.count = meshes.glow.count = count;
-        for (const mesh of [meshes.body, meshes.pit, meshes.rotor, meshes.glow]) mesh.instanceMatrix.needsUpdate = true;
+        const geometry = this.tierGeometry[tier - 1];
+        if (geometry && meshes.modules.geometry !== geometry) meshes.modules.geometry = geometry;
+        meshes.modules.count = geometry ? count : 0;
+        for (const mesh of [meshes.modules, meshes.body, meshes.pit, meshes.rotor, meshes.glow]) mesh.instanceMatrix.needsUpdate = true;
       }
     }
     // Rury: prosty odcinek nad gruntem od szybu głównego do każdego wiertła kompleksu.
@@ -728,7 +781,14 @@ export class ColonyMeshes {
 
   dispose(): void {
     (this.scaffold.material as THREE.Material).dispose();
-    const big = [...this.families.values()].flatMap((f) => [f.rigs, f.hubs]).flatMap((b) => [b.body, b.pit, b.rotor, b.glow]);
+    const all = [...this.families.values()].flatMap((f) => [f.rigs, f.hubs]);
+    // Geometria modułów jest wspólna — zwalniana raz (niżej), nie przy każdym mesh.
+    for (const b of all) {
+      (b.modules.material as THREE.Material).dispose();
+      b.modules.dispose();
+    }
+    for (const g of this.tierGeometry) g?.dispose();
+    const big = all.flatMap((b) => [b.body, b.pit, b.rotor, b.glow]);
     for (const mesh of [...big, this.pipes, this.arcs]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();

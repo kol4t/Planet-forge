@@ -1,3 +1,4 @@
+import { visualTier } from '../data/industry.ts';
 import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
@@ -448,10 +449,51 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     };
     const draw = (building: BuildingId, x: number, y: number, n: number, speed: number, alpha: number) =>
       building === 'metalMine' ? hall(x, y, n, alpha) : building === 'powerPlant' ? tower(x, y, n, alpha) : pit(x, y, n, STRUCTURE_COLORS[building], speed, alpha);
+    // Moduły poziomów wizualnych (v0.41) wokół konstrukcji: platforma, hale, maszt, zbiorniki, złota rama.
+    const modules = (px: number, py: number, n: number, tier: number, alpha: number) => {
+      if (tier < 2) return;
+      const x0 = snapX(px - (n * pixel) / 2);
+      const y0 = snapY(py - (n * pixel) / 2);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#3c4543';
+      ctx.fillRect(x0 - pixel, y0 + (n - 1) * pixel, (n + 2) * pixel, 2 * pixel);
+      ctx.fillStyle = '#c9a24a';
+      ctx.fillRect(x0 - pixel, y0 + (n + 1) * pixel, (n + 2) * pixel, pixel);
+      if (tier >= 3) {
+        ctx.fillStyle = '#6f7b78';
+        ctx.fillRect(x0 - 3 * pixel, y0 + (n - 2) * pixel, 2 * pixel, 2 * pixel);
+        ctx.fillRect(x0 + (n + 1) * pixel, y0 + (n - 2) * pixel, 2 * pixel, 2 * pixel);
+        ctx.fillStyle = '#c9a24a';
+        ctx.fillRect(x0 - 3 * pixel, y0 + (n - 3) * pixel, 2 * pixel, pixel);
+        ctx.fillRect(x0 + (n + 1) * pixel, y0 + (n - 3) * pixel, 2 * pixel, pixel);
+      }
+      if (tier >= 4) {
+        ctx.fillStyle = '#6f7b78';
+        ctx.fillRect(x0 + (n + 2) * pixel, y0 - 2 * pixel, pixel, (n - 1) * pixel);
+        ctx.fillStyle = '#e6c77a';
+        ctx.globalAlpha = alpha * (now > 0 && Math.floor(now / 700 + px) % 2 ? 0.35 : 1);
+        ctx.fillRect(x0 + (n + 2) * pixel, y0 - 3 * pixel, pixel, pixel);
+        ctx.globalAlpha = alpha;
+      }
+      if (tier >= 5) {
+        ctx.fillStyle = '#c9a24a';
+        ctx.fillRect(x0 - 3 * pixel, y0 + n * pixel, 2 * pixel, pixel);
+        ctx.fillRect(x0 + (n + 1) * pixel, y0 + n * pixel, 2 * pixel, pixel);
+      }
+      if (tier >= 6) {
+        // Złota rama: rogi i środki boków ramki szerszej o 2 piksele.
+        ctx.fillStyle = '#e6c77a';
+        const w = n + 4;
+        for (const [fx, fy] of [[0, 0], [w - 1, 0], [Math.floor(w / 2), 0], [0, Math.floor(w / 2) - 1], [w - 1, Math.floor(w / 2) - 1]] as const) {
+          ctx.fillRect(x0 + (fx - 2) * pixel, y0 + (fy - 3) * pixel, pixel, pixel);
+        }
+      }
+    };
     for (const rig of this.colony.rigs) {
       if (!groupFull(level(rig.building), rig.group)) continue;
       const p = toScreen(rig.dir);
       if (p.depth < 0.08) continue;
+      modules(p.x, p.y, 7, visualTier(level(rig.building)), Math.min(1, p.depth * 2.5));
       draw(rig.building, p.x, p.y, 7, 0.9, Math.min(1, p.depth * 2.5));
     }
     for (const hub of this.colony.hubs) {
@@ -459,6 +501,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       if (h.depth < 0.08) continue;
       // Szyb / hala główna rośnie od 3 do 9 pikseli (nieparzyście — środek zostaje na miejscu).
       const size = 3 + 2 * Math.round(3 * Math.min(1, growth(hub) * 2));
+      if (growth(hub) >= 0.5) modules(h.x, h.y, size, visualTier(level(hub.building)), Math.min(1, h.depth * 2.5));
       draw(hub.building, h.x, h.y, size, 0.6, Math.min(1, h.depth * 2.5));
     }
     // Wyładowania sieci Tesli: łamana z pikseli od szczytu wieży przesyłowej do szczytów węzłów, kształt

@@ -2,7 +2,7 @@ import { buildableCount, cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type Bu
 import { choiceCells, hasRoomFor, LEVELS_PER_FIELD, reconcilePlots, siteFactors, suits, TERRAIN_NAMES, usedLandFields, type Plots } from '../core/colony/plots.ts';
 import { complexBonus, mergeCandidate, reservedCells, validComplexes, type Complex } from '../core/colony/complexes.ts';
 import { COMPLEX_FAMILIES, complexMode, findFamily } from '../data/complexes.ts';
-import { INDUSTRY_STAGES } from '../data/industry.ts';
+import { INDUSTRY_STAGES, VISUAL_TIERS, visualTier } from '../data/industry.ts';
 import {
   advance,
   buildSeconds,
@@ -139,6 +139,8 @@ export interface BuildingCard {
   placement: { level: number; cells: number; terrain: string | null } | null;
   /** Kompleks z ekranem zarządzania (v0.39, np. wielka fabryka) — nazwa przycisku albo null. */
   factory: string | null;
+  /** Poziom wizualny konstrukcji (v0.41): etap 1..max, nazwa i od którego poziomu następny. */
+  look: { tier: number; max: number; name: string; nextFrom: number | null; nextName: string | null };
 }
 
 /** Ekran fabryki (v0.39): kompleksy budynku z trybami pracy i ich mierzalnym skutkiem. */
@@ -2040,6 +2042,11 @@ export class GameController {
       planetFields: this.fields,
       stages,
       next,
+      look: (() => {
+        const tier = visualTier(level);
+        const nextTier = VISUAL_TIERS[tier];
+        return { tier, max: VISUAL_TIERS.length, name: VISUAL_TIERS[tier - 1]!.name, nextFrom: nextTier?.from ?? null, nextName: nextTier?.name ?? null };
+      })(),
       factory: findFamily(id)?.modes && complexes > 0 ? `Ekran: ${findFamily(id)!.name.toLowerCase()}` : null,
       placement: (() => {
         const p = this.placement(id);
