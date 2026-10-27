@@ -6,7 +6,7 @@ import { PLANET_DEFINITIONS } from '../src/data/planets.ts';
 import { fieldGrid } from '../src/core/colony/fieldGrid.ts';
 import { reconcilePlots } from '../src/core/colony/plots.ts';
 import { angleBetween, cellLookup, layoutFromPlots, offsetOnSphere } from '../src/planet-renderer/colony.ts';
-import { complexGround, pitDepth } from '../src/planet-renderer/complexLook.ts';
+import { complexGround, pitDepth, pitDepthMax, pitSink3d } from '../src/planet-renderer/complexLook.ts';
 import { facingAngles } from '../src/planet-renderer/PlanetDisplay.ts';
 import { createSurfaceSampler } from '../src/planet-renderer/surface.ts';
 
@@ -147,4 +147,27 @@ test('wolne miejsce budowli (v0.47): w promieniu `free` tylko suchy ląd własne
     layout.complexes.map((c) => c.spots.map((s) => s.cell)),
   );
   assert.ok(flat.complexes.every((c) => c.free === 0 && c.spots.every((s) => s.free === 0)));
+});
+
+test('wyrobisko kryształów w 3D (v0.47): dziura głębsza z poziomem, najgłębiej w środku, 0 poza wyrobiskiem', () => {
+  const planet = generatePlanet(PLANET_DEFINITIONS[0]!, 'PF-PIT');
+  const grid = fieldGrid(planet);
+  let previous = 0;
+  for (const level of [1, 6, 12, 20, 30]) {
+    const levels = { metalMine: 5, crystalMine: level, powerPlant: 0, storage: 0, antimatterCollector: 0, laboratory: 0 };
+    const plots = reconcilePlots(grid, {}, levels, IDS);
+    const pit = layoutFromPlots(grid, plots, createSurfaceSampler(planet), IDS, levels).complexes.find((c) => c.building === 'crystalMine')!;
+    const floor = pitSink3d(pit, pit.core);
+    assert.equal(floor, pitDepthMax(level), `poz. ${level}: dno w środku`);
+    assert.ok(floor > previous, `poz. ${level}: głębiej niż na niższym poziomie`);
+    previous = floor;
+    assert.equal(pitSink3d(pit, offsetOnSphere(pit.core, 0.3, pit.radius * 0.99)), 0, 'skraj obszaru — poza wyrobiskiem');
+    let last = Infinity;
+    for (let k = 0; k <= 20; k++) {
+      const d = pitSink3d(pit, offsetOnSphere(pit.core, 0.3, (pit.radius * k) / 20));
+      assert.ok(d <= last + 1e-12, 'płyciej od środka ku krawędzi');
+      last = d;
+    }
+  }
+  assert.ok(previous >= 0.1, 'na wysokim poziomie dziura sięga wyraźnie poniżej poziomu morza');
 });

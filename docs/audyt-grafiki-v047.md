@@ -232,3 +232,17 @@ Wszystkie sześć budynków ma już modele według standardu (`FAMILIES` obejmuj
 Moduły na polach nie mają już części obracanej (pierścienie, czasze i pręty — nieruchome w bryle): mniej rysowań.
 Koszt (przeglądarka, planeta startowa, wszystkie sześć budynków na tym samym poziomie): poz. 3 — 30 → **37 rysowań**,
 poz. 25 — 37 → **47 rysowań**, trójkąty 140,4 → **145,5 tys.** (większość to teren). W budżecie (~48).
+
+## Wyrobisko kryształów — prawdziwa dziura (prośba właściciela)
+
+„Budynki mają naruszać strukturę planety w głąb; przy ekstraktorze kryształów ma być widoczna dziura, im wyższy poziom,
+tym głębsza.” Zmiany (tylko 3D, `complexLook.ts`, `PlanetView.ts`):
+
+- Głębokość z **poziomu**, nie z etapu: `pitDepthMax(level)` = 0,016 + 0,004 × poziom, najwyżej 0,14 promienia planety
+  (poz. 1 ≈ 0,02, poz. 10 ≈ 0,06, poz. 20 ≈ 0,1, poz. 30 ≈ 0,136); tarasów 3 → 9 (co 4 poziomy) — `pitSink3d`.
+- Dziura może zejść **poniżej poziomu morza** (najniżej promień 0,82): tafla oceanu i morza lawy jest nad wyrobiskiem
+  wycięta w shaderze (`cutOcean` — jeden warunek, bez dodatkowych rysowań).
+- Ściany: skała ciemniejsza z głębokością, tarasy na przemian jaśniejsze (warstwy), dno ciemne; budowle w wyrobisku
+  stoją na nowym dnie (fundamenty nie podnoszą ich do poziomu morza).
+- Test: dno najgłębsze w środku, głębiej z każdym progiem poziomu, 0 poza wyrobiskiem, na wysokim poziomie ≥ 0,1.
+- 2D bez zmian (wzór gruntu z tarasami jak dotąd).
