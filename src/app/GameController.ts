@@ -77,6 +77,7 @@ import { launchComet } from '../core/economy/comets.ts';
 import { findEffects, findInterval, rollFind, type FindsState } from '../core/economy/finds.ts';
 import { FIND_DEFS, FIND_RULES } from '../data/finds.ts';
 import { stationCost, stationLevelAt, stationOutput, upgradeStation, withStation } from '../core/economy/asteroids.ts';
+import { collectorCost, collectorLevelAt, collectorOutput, starFactor, upgradeCollector, withStarEnergy, type StarCollector } from '../core/economy/starEnergy.ts';
 import { distanceFrom, expeditionStats, planExpedition, resolveExpedition, type ExpeditionPlan, type ExpeditionStats } from '../core/galaxy/expeditions.ts';
 import type { KnownSystem } from '../core/galaxy/galaxyIndex.ts';
 import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownCount, raiseDiscovery, rareBonuses, type Discoveries, type DiscoveryLevel } from '../core/galaxy/discovery.ts';
@@ -115,6 +116,8 @@ interface Slot {
   specialization?: PlanetSpecialization;
   /** Stacja wydobywcza na pasie asteroid układu (od v0.37). */
   asteroid?: AsteroidStation;
+  /** Kolektor energii gwiazdy na orbicie (od v0.44). */
+  collector?: StarCollector;
   /** Kompleksy przemysłowe na polach planety (od v0.38). */
   complexes?: Complex[];
   /** Pole wybrane przez gracza dla następnej grupy budynku (v0.38.2, do chwili przydziału — bez zapisu). */
@@ -503,10 +506,12 @@ export class GameController {
     const effects = [...own, ...rare.effects, ...found.effects];
     // Stacja na pasie asteroid (v0.37): urobek doliczony do przyrostu podstawowego planety.
     const station = stationLevelAt(slot.asteroid, at);
-    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}`;
+    // Energia gwiazdy (v0.44): kolektory wszystkich planet gracza w tym układzie.
+    const star = Math.round(this.starEnergyAt(slot, at) * 1000) / 1000;
+    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}|s${star}`;
     const hit = this.balanceCache.get(slot);
     if (hit && hit.done === slot.research.done && hit.spec === spec) return hit.balance;
-    const balance = withStation(applyResearch(BALANCE, slot.research.done, effects), station);
+    const balance = withStarEnergy(withStation(applyResearch(BALANCE, slot.research.done, effects), station), star);
     this.balanceCache.set(slot, { done: slot.research.done, spec, balance });
     return balance;
   }
@@ -529,13 +534,91 @@ export class GameController {
    */
   private advanceSlot(slot: Slot, economy: EconomyState, now: number, adjust: (b: Balance) => Balance = (b) => b): EconomyState {
     let e = economy;
-    const splits = [slot.specialization?.readyAt, slot.asteroid?.readyAt]
+    const splits = [slot.specialization?.readyAt, slot.asteroid?.readyAt, ...this.systemSlots(slot).map((s) => s.collector?.readyAt)]
       .filter((t): t is number => t !== undefined && t > e.lastUpdate && t <= now)
       .sort((a, b) => a - b);
     for (const ready of splits) {
       if (ready > e.lastUpdate) e = advance(e, slot.planet, ready, adjust(this.balanceFor(slot, e.lastUpdate)));
     }
     return advance(e, slot.planet, now, adjust(this.balanceFor(slot, e.lastUpdate)));
+  }
+
+  // ——— energia gwiazdy (v0.44) ———
+
+  /** Planety gracza w tym samym układzie co `slot` (razem z nim). */
+  private systemSlots(slot: Slot): Slot[] {
+    const system = parseAddress(slot.address)?.system;
+    if (system === undefined) return [slot];
+    return this.slots.filter((s) => s === slot || parseAddress(s.address)?.system === system);
+  }
+
+  /** Mnożnik jasności gwiazdy układu planety (brak adresu — jak żółta gwiazda). */
+  private starFactorOf(slot: Slot): number {
+    const where = parseAddress(slot.address);
+    const star = where ? this.galaxy.systems[where.system - 1]?.star : undefined;
+    return starFactor(star ? findStar(star).luminosity : 1);
+  }
+
+  /** Energia gwiazdy dla planety w chwili `at`: suma kolektorów planet gracza w układzie. */
+  private starEnergyAt(slot: Slot, at: number): number {
+    const factor = this.starFactorOf(slot);
+    return this.systemSlots(slot).reduce((sum, s) => sum + collectorOutput(collectorLevelAt(s.collector, at), BALANCE, factor), 0);
+  }
+
+  /** Kolektor aktywnej planety i energia gwiazdy w układzie (okno „Kosmos”). */
+  collectorView(now = Date.now()): {
+    unlocked: boolean;
+    star: string;
+    factor: number;
+    level: number;
+    target: number;
+    secondsLeft: number;
+    maxLevel: number;
+    output: number;
+    nextOutput: number;
+    nextCost: Resources;
+    nextSeconds: number;
+    systemEnergy: number;
+    planets: number;
+  } {
+    const slot = this.slots[this.active]!;
+    const c = slot.collector;
+    const level = collectorLevelAt(c, now);
+    const factor = this.starFactorOf(slot);
+    const next = (c?.level ?? 0) + 1;
+    const where = parseAddress(slot.address);
+    const star = where ? this.galaxy.systems[where.system - 1]?.star : undefined;
+    return {
+      unlocked: this.unlocked('star-energy'),
+      star: star ? findStar(star).label : 'gwiazda',
+      factor,
+      level,
+      target: c?.level ?? 0,
+      secondsLeft: c ? Math.max(0, (c.readyAt - now) / 1000) : 0,
+      maxLevel: BALANCE.starCollector.maxLevel,
+      output: collectorOutput(level, BALANCE, factor),
+      nextOutput: collectorOutput(next, BALANCE, factor),
+      nextCost: collectorCost(next, BALANCE),
+      nextSeconds: BALANCE.starCollector.secondsPerLevel * next,
+      systemEnergy: this.starEnergyAt(slot, now),
+      planets: this.systemSlots(slot).length,
+    };
+  }
+
+  /** Budowa albo rozbudowa kolektora energii gwiazdy (koszt płaci aktywna planeta). */
+  upgradeStarCollector(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    const result = upgradeCollector(slot.collector, { unlocked: this.unlocked('star-energy'), stock: this.economy.stock, now }, BALANCE);
+    if (!result.ok) return result;
+    if (!fitsInStorage(this.economy, result.cost, this.balance)) return { ok: false, message: `Za mały magazyn (${this.capacity}). Najpierw rozbuduj Magazyn.` };
+    // Inne planety układu nadrabiają czas przed zmianą energii (ich podział czasu też widzi `readyAt`).
+    this.economy = { ...this.economy, stock: { metal: this.economy.stock.metal - result.cost.metal, crystal: this.economy.stock.crystal - result.cost.crystal } };
+    slot.collector = result.collector;
+    this.log('build', `${this.planet.displayName}: kolektor energii gwiazdy — budowa poz. ${result.collector.level}.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Kolektor energii gwiazdy: budowa poz. ${result.collector.level} (${Math.ceil(result.seconds / 60)} min).` };
   }
 
   // ——— stacja na pasie asteroid (v0.37) ———
@@ -757,12 +840,15 @@ export class GameController {
     const wasPending = ready !== undefined && ready > this.economy.lastUpdate && ready <= now;
     const station = slot.asteroid;
     const stationDone = !!station && station.readyAt > this.economy.lastUpdate && station.readyAt <= now;
+    const collector = slot.collector;
+    const collectorDone = !!collector && collector.readyAt > this.economy.lastUpdate && collector.readyAt <= now;
     this.economy = this.advanceSlot(slot, this.economy, now);
     if (wasPending) {
       const name = findSpecialization(slot.specialization!.id)?.name ?? '';
       this.log('empire', `${this.planet.displayName}: specjalizacja ${name} działa.`, ready);
     }
     if (stationDone) this.log('build', `${this.planet.displayName}: stacja na pasie asteroid — poziom ${station!.level} gotowy.`, station!.readyAt);
+    if (collectorDone) this.log('build', `${this.planet.displayName}: kolektor energii gwiazdy — poziom ${collector!.level} gotowy.`, collector!.readyAt);
     return completed;
   }
 
@@ -2016,6 +2102,7 @@ export class GameController {
         ...(slot.fields ? { fields: slot.fields } : {}),
         ...(slot.specialization ? { specialization: slot.specialization } : {}),
         ...(slot.asteroid ? { asteroidStation: slot.asteroid } : {}),
+        ...(slot.collector ? { starCollector: slot.collector } : {}),
       })),
     };
   }
@@ -2104,7 +2191,7 @@ export class GameController {
     const complexes = (this.slots[this.active]!.complexes ?? []).filter((c) => c.building === id).length;
     const megas = (this.slots[this.active]!.complexes ?? []).filter((c) => c.building === id && c.mega !== undefined).length;
     const reached = (when: string) =>
-      when === 'built' ? level >= 1 : when === 'full-group' ? level >= 3 : when === 'complex' ? complexes > 0 : when === 'mega' ? megas > 0 : false;
+      when === 'built' ? level >= 1 : when === 'full-group' ? level >= 3 : when === 'complex' ? complexes > 0 : when === 'mega' ? megas > 0 : when === 'star' ? (this.slots[this.active]!.collector?.level ?? 0) > 0 : false;
     const list = INDUSTRY_STAGES[id] ?? [];
     const lastReached = list.map((st) => reached(st.when)).lastIndexOf(true);
     const nextIndex = list.findIndex((st, i) => i > lastReached && st.when !== 'soon');
@@ -2122,6 +2209,8 @@ export class GameController {
       const view = this.complexView(id);
       const family = findFamily(id);
       next = !view?.unlocked ? `Zbadaj ${family?.research ?? 'badanie kompleksu'}.` : view.candidate ? `Gotowe do połączenia: Zarządzanie → ${family?.name ?? 'Kompleks'}.` : (view.reason ?? null);
+    } else if (nextStage?.when === 'star') {
+      next = this.unlocked('star-energy') ? 'Zbuduj kolektor: Planeta → Kosmos → „Energia gwiazdy”.' : 'Zbadaj „Energia gwiazdy” (Badania → Produktywność).';
     } else if (nextStage?.when === 'mega') {
       const mega = this.complexView(id)?.mega;
       next = !mega?.unlocked ? `Zbadaj ${MEGA_RULES.research}.` : mega.candidate ? `Gotowe: Zarządzanie → ${findFamily(id)?.name ?? 'Kompleks'} → „Połącz w megakompleks”.` : (mega.reason ?? null);
@@ -2497,6 +2586,7 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       ...(slot.plotsGrid === FIELD_GRID_VERSION && slot.complexes?.length ? { complexes: slot.complexes } : {}),
       ...(slot.specialization ? { specialization: slot.specialization } : {}),
       ...(slot.asteroidStation ? { asteroid: slot.asteroidStation } : {}),
+      ...(slot.starCollector ? { collector: slot.starCollector } : {}),
     });
   }
   return slots;

@@ -890,7 +890,7 @@ export class PlanetScene extends Phaser.Scene {
     const belt = this.deps.controller.asteroidView();
     this.text(box.x + pad, y + this.s(4), 'KOSMOS', 9.5, COLORS.muted, { fontStyle: '600' });
     this.beltRow = this.text(box.x + pad, y + this.s(18), this.beltText(), 13, belt.target > 0 ? COLORS.text : COLORS.stone, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
-    this.addButton(box.x + pad + w - specW, y, specW, TOUCH, 'Wydobycie', (belt.hasBelt && belt.unlocked && belt.target === 0 && !belt.takenBy) || (this.deps.controller.cometView().unlocked && !this.deps.controller.cometView().flying) ? 'primary' : 'secondary', () => this.openAsteroid(), 12.5);
+    this.addButton(box.x + pad + w - specW, y, specW, TOUCH, 'Kosmos', (this.deps.controller.collectorView().unlocked && this.deps.controller.collectorView().target === 0) || (belt.hasBelt && belt.unlocked && belt.target === 0 && !belt.takenBy) || (this.deps.controller.cometView().unlocked && !this.deps.controller.cometView().flying) ? 'primary' : 'secondary', () => this.openAsteroid(), 12.5);
     y += TOUCH + this.s(10);
     this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
     y += this.s(15);
@@ -1275,6 +1275,8 @@ export class PlanetScene extends Phaser.Scene {
       colony.plots,
       colony.complexes,
     );
+    // Kolektor energii gwiazdy na orbicie (v0.44) — tani zapis liczby; renderer przebudowuje tylko przy zmianie.
+    this.deps.display.setOrbital(controller.collectorView(now).level);
     if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
       this.relayout();
       return;
@@ -1810,8 +1812,10 @@ export class PlanetScene extends Phaser.Scene {
     else if (belt.target === 0) beltPart = belt.takenBy ? `stacja planety ${belt.takenBy}` : belt.unlocked ? 'bez stacji' : 'pas bez stacji';
     else if (belt.target > belt.level) beltPart = cometPart ? `stacja → ${belt.target}` : `stacja → poz. ${belt.target} · ${formatDuration(belt.secondsLeft)}`;
     else beltPart = cometPart ? `stacja ${belt.level}` : `stacja poz. ${belt.level} · +${formatInt((belt.output.metal + belt.output.crystal) * 60)}/h`;
-    // Jeden wiersz (krótkie formy, gdy działa też holownik).
-    return cometPart ? `${beltPart} · ${cometPart}` : beltPart;
+    // Jeden wiersz (krótkie formy, gdy działa też holownik); kolektor energii gwiazdy (v0.44) na końcu.
+    const star = this.deps.controller.collectorView();
+    const starPart = star.target > 0 ? ` · kolektor ${star.target > star.level ? `→ ${star.target}` : star.level}` : '';
+    return (cometPart ? `${beltPart} · ${cometPart}` : beltPart) + starPart;
   }
 
   /** Okno „Pas asteroid” (HTML) — stacja wydobywcza aktywnej planety. */
@@ -1824,6 +1828,8 @@ export class PlanetScene extends Phaser.Scene {
       upgrade: () => c.upgradeAsteroidStation(),
       comet: () => c.cometView(),
       launchComet: () => c.launchComet(),
+      collector: () => c.collectorView(),
+      upgradeCollector: () => c.upgradeStarCollector(),
       onDone: (message) => {
         this.closeAsteroid = null;
         this.showToast(message, 'ok', 3200);

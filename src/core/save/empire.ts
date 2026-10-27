@@ -46,6 +46,8 @@ export interface SlotSave {
   specialization?: PlanetSpecialization;
   /** Stacja wydobywcza na pasie asteroid (od v0.37; brak albo błędna = brak stacji). */
   asteroidStation?: AsteroidStation;
+  /** Kolektor energii gwiazdy na orbicie (od v0.44; brak albo błędny = brak kolektora). */
+  starCollector?: AsteroidStation;
 }
 
 export interface EmpireSave {
@@ -163,6 +165,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(isFieldCount(raw.fields?.used) && isFieldCount(raw.fields?.buildable) ? { fields: { used: raw.fields.used, buildable: raw.fields.buildable } } : {}),
       ...(parseSpecialization(raw.specialization) ? { specialization: parseSpecialization(raw.specialization) } : {}),
       ...(parseStation(raw.asteroidStation) ? { asteroidStation: parseStation(raw.asteroidStation) } : {}),
+      ...(parseStation(raw.starCollector) ? { starCollector: parseStation(raw.starCollector) } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;

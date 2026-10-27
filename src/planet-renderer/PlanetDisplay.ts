@@ -33,6 +33,8 @@ export interface PlanetDisplay {
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */
   setGridVisible(visible: boolean): void;
+  /** Kolektor energii gwiazdy na orbicie (v0.44): poziom 0 = brak. */
+  setOrbital(level: number): void;
   /**
    * Obrys pól: zajętość wybranej budowli (`footprint`, turkus, jeden kontur) albo pola do wyboru miejsca
    * budowy (`choice`, złote obrysy każdego pola, v0.38.2); null — bez obrysu.

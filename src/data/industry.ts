@@ -7,7 +7,7 @@ export interface IndustryStage {
   /** Zajętość pól (opis). */
   footprint: string;
   description: string;
-  when: 'built' | 'full-group' | 'complex' | 'mega' | 'soon';
+  when: 'built' | 'full-group' | 'complex' | 'mega' | 'star' | 'soon';
 }
 
 /**
@@ -58,6 +58,6 @@ export const INDUSTRY_STAGES: Partial<Record<BuildingId, readonly IndustryStage[
     { name: 'Węzeł Tesli', footprint: '1 pole (3 poziomy)', description: 'Pełne pole (poz. 3, 6, 9…): wieża z pierścieniem i świecącą kulą.', when: 'full-group' },
     { name: 'Sieć Tesli', footprint: '4 pola', description: '3 sąsiednie węzły + wieża przesyłowa, wyładowania między wieżami, +30% energii.', when: 'complex' },
     { name: 'Megasieć Tesli', footprint: '8 pól', description: '2 stykające się sieci Tesli, +60% energii.', when: 'mega' },
-    { name: 'Energia gwiazdy', footprint: 'wkrótce', description: 'Przesył energii z orbity.', when: 'soon' },
+    { name: 'Energia gwiazdy', footprint: 'orbita', description: 'Kolektor na orbicie zasila wszystkie Twoje planety w układzie (Planeta → Kosmos).', when: 'star' },
   ],
 };

@@ -309,6 +309,13 @@ export interface Balance {
    * przywozi losowy ładunek w granicach `cargoMin`–`cargoMax` (z adresu i chwili wysłania). Działa w każdym układzie.
    */
   comet: { cost: Resources; seconds: number; cargoMin: Resources; cargoMax: Resources };
+  /**
+   * Kolektor energii gwiazdy (v0.44): energia = `output` × poz. × growth^(poz − 1) × mnożnik jasności gwiazdy,
+   * dla każdej planety gracza w układzie; koszt `cost` × costGrowth^(n − 1), budowa `secondsPerLevel` × n.
+   */
+  starCollector: { output: number; growth: number; cost: Resources; costGrowth: number; secondsPerLevel: number; maxLevel: number };
+  /** Energia z zewnątrz planety (kolektory gwiazdy układu) doliczana do produkcji energii (v0.44; brak = 0). */
+  extraEnergy?: number;
   /** Transportowce (v0.36): ładowność jednego lotu (metal + kryształy), czas lotu = base + odległość × perUnit, ile naraz. */
   transport: { capacity: number; baseSeconds: number; secondsPerUnit: number; maxActive: number };
   /** Statek kolonizacyjny (kolonizacja innych układów): koszt i czas lotu = base + odległość × perUnit. */
@@ -349,7 +356,7 @@ export type ResearchEffect =
   | { kind: 'unlock'; feature: UnlockFeature };
 
 /** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
-export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport' | 'asteroid-mining' | 'comet-capture' | 'crystal-complex' | 'metal-factory' | 'tesla-grid' | 'megastructures';
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport' | 'asteroid-mining' | 'comet-capture' | 'crystal-complex' | 'metal-factory' | 'tesla-grid' | 'megastructures' | 'star-energy';
 
 /**
  * Rzadki obiekt astronomiczny (v0.34.4): rodzaj gwiazdy, którego bez badania „Astrofizyka ekstremalna”

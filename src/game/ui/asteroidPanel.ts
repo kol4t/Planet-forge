@@ -9,6 +9,9 @@ export interface AsteroidPanelOptions {
   upgrade: () => ActionMessage;
   comet: () => ReturnType<GameController['cometView']>;
   launchComet: () => ActionMessage;
+  /** Energia gwiazdy (v0.44): kolektor na orbicie. */
+  collector: () => ReturnType<GameController['collectorView']>;
+  upgradeCollector: () => ActionMessage;
   onDone: (message: string) => void;
 }
 
@@ -17,7 +20,7 @@ export function openAsteroidPanel(options: AsteroidPanelOptions): () => void {
   root.id = 'text-panel';
   root.innerHTML = `
     <div class="tp-box fb-box" role="dialog" aria-modal="true" aria-labelledby="ap-title">
-      <h2 id="ap-title">Wydobycie w kosmosie</h2>
+      <h2 id="ap-title">Kosmos wokół planety</h2>
       <h3 class="ap-head">Pas asteroid</h3>
       <p class="tp-hint ap-status"></p>
       <p class="tp-hint ap-next"></p>
@@ -27,6 +30,10 @@ export function openAsteroidPanel(options: AsteroidPanelOptions): () => void {
       <p class="tp-hint ap-comet"></p>
       <p class="tp-error ap-comet-error" hidden></p>
       <div class="tp-actions"><button type="button" class="tp-primary ap-launch"></button></div>
+      <h3 class="ap-head">Energia gwiazdy</h3>
+      <p class="tp-hint ap-star"></p>
+      <p class="tp-error ap-star-error" hidden></p>
+      <div class="tp-actions"><button type="button" class="tp-primary ap-collector"></button></div>
       <div class="tp-actions"><button type="button" class="tp-secondary">Zamknij</button></div>
     </div>`;
   const close = () => root.remove();
@@ -38,6 +45,9 @@ export function openAsteroidPanel(options: AsteroidPanelOptions): () => void {
   const cometError = root.querySelector<HTMLElement>('.ap-comet-error')!;
   const launch = root.querySelector<HTMLButtonElement>('.ap-launch')!;
   const perHour = (perMinute: number) => formatInt(perMinute * 60);
+  const starText = root.querySelector<HTMLElement>('.ap-star')!;
+  const starError = root.querySelector<HTMLElement>('.ap-star-error')!;
+  const collectorButton = root.querySelector<HTMLButtonElement>('.ap-collector')!;
 
   const render = () => {
     const v = options.view();
@@ -84,6 +94,25 @@ export function openAsteroidPanel(options: AsteroidPanelOptions): () => void {
       cometError.textContent = 'Najpierw zbadaj „Przechwyt komet” (Badania → Stacja i handel).';
       cometError.hidden = false;
     }
+    // Kolektor energii gwiazdy (v0.44): zasila wszystkie Twoje planety w układzie.
+    const s = options.collector();
+    const shared = s.planets > 1 ? `każdą z ${s.planets} Twoich planet w tym układzie` : 'wszystkie Twoje planety w tym układzie — teraz tylko tę';
+    const factor = `${s.star}: mnożnik jasności ×${s.factor.toFixed(2).replace('.', ',')}`;
+    const now = s.target === 0
+      ? `Kolektor na orbicie zbiera światło gwiazdy i zasila ${shared}. ${factor}.`
+      : `Kolektor poz. ${s.level}${s.target > s.level ? ` · rozbudowa do poz. ${s.target}: ${formatDuration(s.secondsLeft)}` : ''}: +${formatInt(s.output)} energii (${factor}).\n` +
+        `Energia gwiazdy w układzie: +${formatInt(s.systemEnergy)} — zasila ${shared}.`;
+    const top = s.target >= s.maxLevel;
+    starText.textContent = top
+      ? `${now}\nNajwyższy poziom (${s.maxLevel}).`
+      : `${now}\nPoziom ${s.target + 1}: +${formatInt(s.nextOutput)} energii · koszt ${formatInt(s.nextCost.metal)} metalu · ${formatInt(s.nextCost.crystal)} kryształów · ${formatDuration(s.nextSeconds)}.`;
+    const building = s.target > s.level;
+    collectorButton.textContent = top ? 'Najwyższy poziom' : building ? 'Trwa rozbudowa' : s.target === 0 ? 'Zbuduj kolektor' : `Rozbuduj do poz. ${s.target + 1}`;
+    collectorButton.disabled = top || building || !s.unlocked;
+    if (!s.unlocked) {
+      starError.textContent = 'Najpierw zbadaj „Energia gwiazdy” (Badania → Produktywność).';
+      starError.hidden = false;
+    }
   };
 
   root.querySelector('.tp-secondary')!.addEventListener('click', close);
@@ -95,6 +124,16 @@ export function openAsteroidPanel(options: AsteroidPanelOptions): () => void {
     if (!result.ok) {
       error.textContent = result.message;
       error.hidden = false;
+      return;
+    }
+    close();
+    options.onDone(result.message);
+  });
+  collectorButton.addEventListener('click', () => {
+    const result = options.upgradeCollector();
+    if (!result.ok) {
+      starError.textContent = result.message;
+      starError.hidden = false;
       return;
     }
     close();
