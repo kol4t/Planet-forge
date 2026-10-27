@@ -2,6 +2,12 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.47.2 — grafika 3D, rodzina kryształowa — 2026-10-27
+
+- Kopalnia kryształów w 3D według standardu modelu, sylwetki na poz. 1 / 6 / 12 / 20: wiertło z wieżą wiertniczą → szyb wiertniczy ze świecącą kolumną → odkrywka ze stacją i słupem kryształu na dnie → megaodkrywka z gromadą kryształów i suwnicą.
+- Stanowiska i przetwórnie na krawędzi wyrobiska, małe wiertnie na tarasach, taśmy wokół wyrobiska; rozmieszczenie wspólne z metalem (`FAMILIES`); +4 rysowania.
+- 2D, mechanika, pola i zapisy bez zmian.
+
 ## v0.47.1 — grafika 3D, prototyp B (rodzina metalowa) — 2026-10-27
 
 - Kopalnia metalu w 3D według standardu modelu (platforma, bryła, detal, światło), wielkość z promienia pola.

@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.47.1 — opublikowana: prototypy A i B grafiki 3D)
+## Stan obecny (v0.47.2 — opublikowana: grafika 3D — planeta, metal, kryształy)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -24,7 +24,8 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   (planeta: normalne faset ku górze, kolor z wygładzonej wysokości, grunt kompleksów jako płyta, chmury znikają przy zbliżeniu,
   gładki ocean, światło wypełniające) — opublikowany jako v0.47.0. **Progi wyglądu budynków = etapy gry 1 / 6 / 12 / 20**
   (decyzja właściciela). Prototyp B — rodzina metalowa w 3D (standard modelu: platforma, bryła, detal, światło; kopalnia →
-  zakład → huta → megakompleks, moduły i taśmociągi) — v0.47.1. Dalej: ten sam standard dla kryształów, elektrowni i reszty.
+  zakład → huta → megakompleks, moduły i taśmociągi) — v0.47.1. Kryształy (wiertło → szyb → odkrywka → megaodkrywka,
+  rozmieszczenie wspólne `FAMILIES` w `colonyMeshes.ts`) — v0.47.2. Dalej: elektrownia i reszta.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
