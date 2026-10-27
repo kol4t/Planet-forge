@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingId } from '../core/types.ts';
 import type { BuildSite } from './PlanetDisplay.ts';
-import type { ColonyComplex, ColonyLayout, Vec3 } from './colony.ts';
+import { offsetOnSphere, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
 import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
-import { pitShare } from './complexLook.ts';
+import { pitShare, pitSink3d } from './complexLook.ts';
+import { shaftAngle } from './drill.ts';
 
 // Zabudowa kompleksów na powierzchni planety 3D (v0.45): każdy budynek to jeden kompleks na swoim obszarze pól —
 // główna konstrukcja w środku (rośnie z etapem) i zabudowa w jego wnętrzu. Grunt kompleksu (dachy, drogi, odkrywka)
@@ -1093,6 +1094,19 @@ const SPOT_EXTENT = 0.55;
 const CORE_EXTENT = 0.56;
 /** Najmniejszy moduł (× promień pola) i najmniejsza główna konstrukcja (× docelowa) — mniejsze byłyby nieczytelne. */
 const SPOT_MIN = 0.7;
+/** Czy odcinek a–b (po sferze, próbkowany) przechodzi bliżej niż `reach` od środka otworu. */
+function crossesHole(a: Vec3, b: Vec3, center: Vec3, reach: number): boolean {
+  for (let k = 0; k <= 8; k++) {
+    const t = k / 8;
+    const q: Vec3 = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    const l = Math.hypot(q[0], q[1], q[2]) || 1;
+    if (angleOf([q[0] / l, q[1] / l, q[2] / l], center) < reach) return true;
+  }
+  return false;
+}
+
+/** Odstęp głównej konstrukcji od otworu odwiertu (rad). */
+const HOLE_GAP = 0.012;
 /** Odstęp między płytami sąsiednich budowli (rad). */
 const PAD_GAP = 0.004;
 const CORE_MIN_SHARE = 0.5;
@@ -1304,12 +1318,22 @@ export class ColonyMeshes {
     const coreR = coreSpot?.r ?? 0.1;
     // Nie większa niż wolne miejsce wokół środka (bez wystawania poza obszar, nad wodę i na uskok), ale czytelna.
     const want = coreR * family.coreScale[stage]! * (c.mega ? 1.1 : 1);
-    const coreSize = Math.max(want * CORE_MIN_SHARE, Math.min(want, c.free / CORE_EXTENT));
+    let coreSize = Math.max(want * CORE_MIN_SHARE, Math.min(want, c.free / CORE_EXTENT));
+    let coreDir = c.core;
+    // Odwiert (v0.48): środek dna niecki zajmuje otwór studni — główna konstrukcja stoi obok niego, na dnie niecki.
+    const hole = c.building === 'crystalMine' ? shaftAngle(c.level, c.radius * pitShare(c.stage)) : 0;
+    if (hole > 0) {
+      const room = Math.max(0.02, c.radius * pitShare(c.stage) * 0.8 - hole - HOLE_GAP);
+      coreSize = Math.min(coreSize, room / (2 * CORE_EXTENT));
+      coreDir = offsetOnSphere(c.core, coreSpot?.spin ?? 0, hole + HOLE_GAP + coreSize * CORE_EXTENT);
+    }
+    const coreSurface = hole > 0 ? c.surface - pitSink3d(c, coreDir) : c.surface - this.sink(c.core);
     const coreKind = family.cores[stage]!;
-    this.kinds.get(coreKind)!.items.push({ building: c.building, dir: c.core, surface: c.surface - this.sink(c.core), spin: coreSpot?.spin ?? 0, size: coreSize, pad: coreSize * CORE_EXTENT });
+    this.kinds.get(coreKind)!.items.push({ building: c.building, dir: coreDir, surface: coreSurface, spin: coreSpot?.spin ?? 0, size: coreSize, pad: coreSize * CORE_EXTENT });
     // Zajęte koła (środek, zasięg): nowa płyta nie może dotknąć żadnej postawionej — zmniejsza się albo pole zostaje puste.
-    const taken: { dir: Vec3; reach: number }[] = [{ dir: c.core, reach: coreSize * CORE_EXTENT }];
-    const placed: { dir: Vec3; surface: number }[] = family.beltsToCore ? [{ dir: c.core, surface: c.surface - this.sink(c.core) }] : [];
+    const taken: { dir: Vec3; reach: number }[] = [{ dir: coreDir, reach: coreSize * CORE_EXTENT }];
+    if (hole > 0) taken.push({ dir: c.core, reach: hole });
+    const placed: { dir: Vec3; surface: number }[] = family.beltsToCore ? [{ dir: coreDir, surface: coreSurface }] : [];
     c.spots.forEach((spot, k) => {
       if (k === 0 || family.skip?.(c, spot, k)) return;
       let room = spot.free;
@@ -1333,8 +1357,8 @@ export class ColonyMeshes {
             best = q;
           }
         }
-        // Bez taśmy przez uskok terenu (wisiałaby albo ginęła w zboczu).
-        if (Math.abs(best.surface - surface) < 0.012 && this.belts.length < MAX_BELTS) {
+        // Bez taśmy przez uskok terenu (wisiałaby albo ginęła w zboczu) i nad otworem odwiertu.
+        if (Math.abs(best.surface - surface) < 0.012 && this.belts.length < MAX_BELTS && !(hole > 0 && crossesHole(spot.dir, best.dir, c.core, hole + HOLE_GAP))) {
           this.belts.push({ building: c.building, from: spot.dir, to: best.dir, surface: (best.surface + surface) / 2, width: spot.r * 0.5 });
         }
       }

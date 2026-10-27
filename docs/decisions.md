@@ -2,6 +2,19 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.48: odwiert planetarny i odsłonięte jądro (prompt właściciela)
+
+- Właściciel: zamiast ciemnego obszaru — prawdziwe wgłębienie geometryczne przy ekstraktorze kryształów, głębsze z poziomem,
+  na najwyższym etapie odsłaniające jądro; 8 etapów, wygląd zależny od typu planety; bez zmian ekonomii i zapisu.
+- Decyzja techniczna: bez wymiany renderera. Krater = niecka w siatce lądu (v0.47); **otwór** = wierzchołki lądu z wnętrza
+  otworu przypięte do okręgu krawędzi (ścianka całkiem w otworze — zerowa powierzchnia), więc pierwotna powierzchnia nie
+  przechodzi przez otwór; **studnia** = osobna, lokalna siatka (`planet-renderer/drill.ts`) zaczynająca się dokładnie na
+  tym okręgu (nie walec wciśnięty w kulę), z półkami na granicach warstw i nieregularnymi ścianami; etap 8 — jaskinia
+  płaszcza (kula od środka, z otworem) i jądro w środku planety. Światło jądra **wpieczone** w kolory ścian (bez
+  dynamicznego światła — koszt na iPadzie); blask (pęknięcia, rozgrzane dno, jądro) bez cieniowania. +2 rysowania.
+- Etapy odwiertu z poziomu: 1 / 3 / 6 / 9 / 12 / 16 / 22 / 30 (`src/data/drill.ts`, robocze); kolory warstw wg typu
+  planety (`DRILL_LOOKS`, nowy typ = nowy wpis). Główna konstrukcja kryształów stoi obok otworu, na dnie krateru.
+
 ## 2026-10-27 — v0.47: plan dopracowania grafiki 3D (prompt właściciela)
 
 - Właściciel: kierunek artystyczny bez zmian (ciemny kosmos, turkus, złoto, low-poly, przemysł); v0.47 = jakość wykonania

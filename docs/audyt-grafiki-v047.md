@@ -253,3 +253,28 @@ krawędzi), liczony od wysokości środka kompleksu, nie od lokalnego terenu; g�
 0,24 promienia (poz. 31+); najniżej promień 0,74. Obniżany jest **cały teren w zasięgu niecki** (także jeziorka i pola
 spoza obszaru — bez „wysp”), obrysy wewnątrz niecki pominięte. Wewnątrz niecki bez modułów (strome ściany) — na dnie
 tylko główna konstrukcja; budowle stoją na nowym dnie (`pitSink` liczy różnicę terenu i dna).
+
+## v0.48 — odwiert planetarny i odsłonięte jądro (prompt właściciela)
+
+Audyt: ląd = jedna siatka (dwudziestościan, ~34 tys. trójkątów, każdy z własnymi wierzchołkami), ocean = osobna kula
+(1,001), wnętrze planety puste (przez otwór byłoby widać kosmos), budowle i obrysy w grupie obracającej się z planetą.
+Decyzja i jej uzasadnienie — `docs/decisions.md` (2026-10-27, v0.48).
+
+| Etap (od poz.) | Wygląd |
+|---|---|
+| 1 (1) | płytki krater, urządzenia wiertnicze na powierzchni |
+| 2 (3) – 3 (6) | otwór studni w dnie krateru, płytko; grube warstwy skorupy |
+| 4 (9) | wyraźna studnia (dno ~0,8 promienia), półka na granicy warstw |
+| 5 (12) | głębiej; pierwsze świecące pęknięcia (oznaki ciepła) |
+| 6 (16) | płaszcz w ścianach, poświata przy dnie |
+| 7 (22) | rozgrzane, świecące dno z odłamkami; więcej pęknięć |
+| 8 (30) | szeroki otwór, jaskinia płaszcza (kula od środka) i świecące jądro w środku planety (promień 0,3) |
+
+- Pliki: `src/data/drill.ts` (etapy, kolory wg typu planety), `src/planet-renderer/drill.ts` (czysta geometria),
+  `PlanetView.ts` (otwór w lądzie, siatki odwiertu, krater w barwach skorupy, klucz przebudowy z etapem odwiertu),
+  `colonyMeshes.ts` (główna konstrukcja obok otworu, taśmy nie przechodzą nad otworem), `complexLook.ts` (głębokość
+  krateru z etapu odwiertu). Testy: `tests/drill.test.ts` (etapy, głębokość, ściany pod krawędzią, okrąg przypięcia,
+  jądro w środku, ≥ 3 warstwy, deterministyczność, wygląd dla każdego typu planety).
+- Koszt (przeglądarka, wszystkie budynki poz. 25 / 30): **49 rysowań** (było 47), trójkąty ~127 tys. (było ~145 tys. —
+  bez modułów we wnętrzu krateru). Siatki odwiertu tworzone tylko przy zmianie etapu.
+- Ograniczenia — `docs/KNOWN_ISSUES.md`.

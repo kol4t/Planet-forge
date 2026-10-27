@@ -29,6 +29,8 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   panele i stacje przesyłowe; puste części modeli bez rysowania), fundamenty (teren wyrównany, budowle w wolnym miejscu
   własnego obszaru, bez nachodzenia na siebie) — v0.47.3. Magazyn, kolektor antymaterii i laboratorium (wszystkie budynki
   w `FAMILIES`), wyrobisko kryształów jako dziura głębsza z poziomem (do 0,14 promienia, ocean nad nią wycięty) — v0.47.4.
+- **v0.48 — odwiert planetarny** (gałąź `claude/grafika-v047`): krater kryształów przechodzi w studnię w głąb planety,
+  8 etapów z poziomu (`src/data/drill.ts`), warstwy wg typu planety, na etapie 8 jądro (`planet-renderer/drill.ts`).
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody

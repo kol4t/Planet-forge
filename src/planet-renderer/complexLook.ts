@@ -3,6 +3,7 @@
 // Kopalnia metalu: gęsta zabudowa przemysłowa (dachy złote i szare, drogi, żar okien pieców) — gęstsza z etapem.
 // Ekstraktor kryształów: odkrywka — tarasowe pierścienie schodzące w głąb (ciemniej ku środkowi), świecące kryształy
 // na dnie, zabudowa na krawędzi; dziura rośnie z etapem. Pozostałe budynki — spójny grunt w tym samym stylu.
+import { CRATER_DEPTH, drillStage } from './drill.ts';
 import type { ColonyComplex, Vec3 } from './colony.ts';
 import { angleBetween, hash01 } from './colony.ts';
 
@@ -72,10 +73,10 @@ export const pitTerraces = (stage: number) => 2 + Math.max(0, Math.min(3, stage)
 /**
  * Wyrobisko kryształów w 3D (v0.47, prośba i szkic właściciela): równa, wyraźna niecka w planecie — kulisty profil
  * (płaskie dno, coraz bardziej strome ściany przy krawędzi), liczony od wysokości środka kompleksu, nie od lokalnego
- * terenu (bez „nienaturalnego” wgłębienia wzgórz). Głębsza z każdym poziomem: od ~0,03 promienia planety (poz. 1)
- * do 0,24 (poz. 31+). Może zejść poniżej poziomu morza (tafla oceanu nad nią wycięta — PlanetView).
+ * terenu. Od v0.48 to krater odwiertu: głębokość z etapu odwiertu (`drill.ts`, 8 etapów z poziomu), a w jego dnie
+ * zaczyna się studnia w głąb planety. Może zejść poniżej poziomu morza (tafla oceanu nad nią wycięta — PlanetView).
  */
-export const pitDepthMax = (level: number) => Math.min(0.24, 0.023 + 0.007 * Math.max(1, level));
+export const pitDepthMax = (level: number) => CRATER_DEPTH[drillStage(level)]!;
 
 /** Głębokość niecki w punkcie (ułamek promienia planety, poniżej wysokości środka kompleksu); 0 poza wyrobiskiem. */
 export function pitSink3d(c: ColonyComplex, p: Vec3): number {

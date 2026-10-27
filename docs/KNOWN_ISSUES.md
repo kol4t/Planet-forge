@@ -23,6 +23,11 @@ Stan: v0.46 (audyt). Naprawione w audycie — `docs/CHANGELOG.md` (v0.46). Tu: c
 
 ## Znane ograniczenia (świadome, drobne)
 
+- **Odwiert (v0.48, tylko 3D)**: światło jądra jest wpieczone w kolory ścian (nie ma prawdziwego źródła światła — koszt
+  na iPadzie); siatka pól (Planeta → siatka) nie omija krateru i otworu (linie nad dziurą); w 2D bez otworu (tarcza
+  pokazuje odkrywkę wzorem gruntu); krater wysokiego etapu zajmuje dużą część kompleksu (wcześniejsze moduły z jego
+  wnętrza znikają).
+
 - **Kilka budów ukończonych pod nieobecność** (kolejka): komunikat „Podczas nieobecności” i dziennik wymieniają tylko
   pierwszą. Poziomy i zasoby są liczone poprawnie.
 - **Pomiary wydajności z audytu to symulacja** (przeglądarka bezgłowa, CPU spowolniony 4×, 3D programowo) — nie
