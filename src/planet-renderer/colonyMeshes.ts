@@ -1097,7 +1097,7 @@ const SPOT_MIN = 0.7;
 const PAD_GAP = 0.004;
 const CORE_MIN_SHARE = 0.5;
 
-/** Pole w wyrobisku (teren obniżony tarasami do `pitShare` promienia kompleksu) — z marginesem na krawędź. */
+/** Pole w wyrobisku (niecka do `pitShare` promienia kompleksu) — z marginesem na krawędź. */
 const inPit = (c: ColonyComplex, spot: ColonyComplex['spots'][number]) => spot.t < pitShare(c.stage) + 0.04;
 
 const FAMILIES: Record<BuildingId, Family> = {
@@ -1113,9 +1113,8 @@ const FAMILIES: Record<BuildingId, Family> = {
     cores: ['crystalDrillRig', 'crystalShaft', 'pitStation', 'crystalMega'],
     coreScale: [1.6, 2.0, 2.7, 3.4],
     spot: (stage, k) => (stage <= 1 ? 'crystalOutpost' : k % 2 === 0 ? 'crystalRefinery' : 'crystalOutpost'),
-    // Od odkrywki co trzecie pole na tarasach wyrobiska dostaje małą wiertnię; na wcześniejszych etapach wnętrze zajmuje szyb.
-    skip: (c, spot, k) => inPit(c, spot) && (c.stage < 2 || k % 3 !== 0),
-    spotScale: (c, spot) => (inPit(c, spot) ? 0.9 : SPOT_SCALE),
+    // Wnętrze niecki (strome, gładkie ściany) bez modułów — na dnie stoi tylko główna konstrukcja.
+    skip: (c, spot) => inPit(c, spot),
     beltsToCore: false,
   },
   // Elektrownia → węzeł → wielka elektrownia → megasieć; pola paneli i stacje przesyłowe, po „Sieci Tesli” co czwarte — węzeł Tesli.

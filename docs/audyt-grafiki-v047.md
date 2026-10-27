@@ -246,3 +246,10 @@ tym głębsza.” Zmiany (tylko 3D, `complexLook.ts`, `PlanetView.ts`):
   stoją na nowym dnie (fundamenty nie podnoszą ich do poziomu morza).
 - Test: dno najgłębsze w środku, głębiej z każdym progiem poziomu, 0 poza wyrobiskiem, na wysokim poziomie ≥ 0,1.
 - 2D bez zmian (wzór gruntu z tarasami jak dotąd).
+
+Poprawka po szkicu właściciela (v0.47.4 na iPadzie: wgłębienie „nienaturalne” przy wzgórzu — schodki obniżały teren
+razem z jego nierównościami). Teraz **równa niecka**: kulisty profil `√(1 − s²)` (płaskie dno, strome ściany przy
+krawędzi), liczony od wysokości środka kompleksu, nie od lokalnego terenu; głębokość 0,023 + 0,007 × poziom, najwyżej
+0,24 promienia (poz. 31+); najniżej promień 0,74. Obniżany jest **cały teren w zasięgu niecki** (także jeziorka i pola
+spoza obszaru — bez „wysp”), obrysy wewnątrz niecki pominięte. Wewnątrz niecki bez modułów (strome ściany) — na dnie
+tylko główna konstrukcja; budowle stoją na nowym dnie (`pitSink` liczy różnicę terenu i dna).

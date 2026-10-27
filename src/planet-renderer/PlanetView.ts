@@ -358,12 +358,17 @@ export class PlanetView implements PlanetDisplay {
     };
   }
 
-  /** Obniżenie terenu odkrywki w punkcie (tarasy, głębsze z etapem). */
+  /** O ile niecka obniża teren w punkcie (budowle w niej stoją na jej dnie) — jak w `paintLand`. */
   private pitSink(layout: ColonyLayout): (dir: Vec3) => number {
     const complexAt = this.complexAt(layout);
+    const sampler = this.shaped;
     return (dir) => {
       const c = complexAt(...dir);
-      return c ? pitSink3d(c, dir) : 0;
+      const depth = c ? pitSink3d(c, dir) : 0;
+      if (!c || depth <= 0 || !sampler) return 0;
+      const level = Math.max(sampler.height(...dir), sampler.lakeLevel(...dir));
+      const ground = sampler.isLand(level) ? sampler.radius(level) : 1.001;
+      return Math.max(0, ground - Math.max(PIT_MIN_RADIUS, Math.min(ground, c.surface - depth)));
     };
   }
 
@@ -380,6 +385,8 @@ export class PlanetView implements PlanetDisplay {
     pos.set(land.positions);
     col.set(land.colors);
     const complexAt = this.complexAt(layout);
+    // Niecka kryształów obejmuje cały teren w swoim zasięgu (także jeziorka i pola spoza obszaru) — bez „wysp”.
+    const pit = layout.complexes.find((c) => c.building === 'crystalMine') ?? null;
     for (let t = 0; t < pos.length; t += 9) {
       const mx = pos[t]! + pos[t + 3]! + pos[t + 6]!;
       const my = pos[t + 1]! + pos[t + 4]! + pos[t + 7]!;
@@ -387,30 +394,32 @@ export class PlanetView implements PlanetDisplay {
       const len = Math.hypot(mx, my, mz) || 1;
       const dir: Vec3 = [mx / len, my / len, mz / len];
       const cell = lookup(...dir);
-      const c = complexAt(...dir);
+      const sunk = pit ? pitSink3d(pit, dir) : 0;
+      const c = sunk > 0 ? pit : complexAt(...dir);
       if (!c) continue;
       // Ścianki lądu (~0,03 rad) są ok. 3× większe niż działki wzoru zabudowy (`complexGround`) — w 3D wzór dawał
-      // szachownicę (v0.47). Grunt = spokojna płyta w kolorze budynku, lekko inna na każdym polu; odkrywka zachowuje
-      // tarasy (wzór o niskiej częstotliwości), bez świecących kryształów na pojedynczych ściankach. Szczegół — zabudowa 3D.
+      // szachownicę (v0.47). Grunt = spokojna płyta w kolorze budynku, lekko inna na każdym polu. Szczegół — zabudowa 3D.
       const base = GROUND_BASE[c.building];
       const tone = 0.93 + 0.14 * hash01(cell, 7);
-      // Wyrobisko: skała ciemniejsza z głębokością, tarasy na przemian jaśniejsze (warstwy), dno — ciemne.
-      const sunk = pitSink3d(c, dir);
+      // Niecka: skała coraz ciemniejsza ku dnu, środek dna — ciemny.
       const deep = sunk / pitDepthMax(c.level);
-      const strata = Math.round(deep * 9) % 2 === 0 ? 1 : 0.88;
-      const rgb = sunk <= 0 ? base.map((v) => Math.min(1, v * tone)) : deep >= 0.999 ? PIT_FLOOR : PIT_ROCK.map((v) => v * (1 - 0.55 * deep) * strata * tone);
+      const rgb = sunk <= 0 ? base.map((v) => Math.min(1, v * tone)) : deep >= 0.97 ? PIT_FLOOR : PIT_ROCK.map((v) => v * (1 - 0.5 * deep) * tone);
       for (let v = 0; v < 3; v++) {
         const i = t + v * 3;
         col[i] = rgb[0]!;
         col[i + 1] = rgb[1]!;
         col[i + 2] = rgb[2]!;
-        if (c.building !== 'crystalMine') continue;
-        // Wyrobisko: wierzchołek obniżony schodkami tarasów — także poniżej poziomu morza (ocean nad nim wycięty).
+      }
+    }
+    // Niecka: każdy wierzchołek w jej zasięgu na kulistym profilu poniżej wysokości środka kompleksu (równo, niezależnie
+    // od wzgórz), nigdy wyżej niż teren — także poniżej poziomu morza (ocean nad nią wycięty). Decyzja tylko z położenia
+    // wierzchołka, więc ścianki zostają szczelne.
+    if (pit) {
+      for (let i = 0; i < pos.length; i += 3) {
         const r = Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!);
-        const vd: Vec3 = [pos[i]! / r, pos[i + 1]! / r, pos[i + 2]! / r];
-        const depth = pitSink3d(c, vd);
+        const depth = pitSink3d(pit, [pos[i]! / r, pos[i + 1]! / r, pos[i + 2]! / r]);
         if (depth <= 0) continue;
-        const target = Math.max(PIT_MIN_RADIUS, r - depth) / r;
+        const target = Math.max(PIT_MIN_RADIUS, Math.min(r, pit.surface - depth)) / r;
         pos[i] = pos[i]! * target;
         pos[i + 1] = pos[i + 1]! * target;
         pos[i + 2] = pos[i + 2]! * target;
@@ -475,9 +484,13 @@ export class PlanetView implements PlanetDisplay {
     }
     if (!this.grid || !this.liftPoint || layout.complexes.length === 0) return;
     const positions: number[] = [];
+    // Obrysy wewnątrz niecki kryształów (np. wokół jeziorek) wisiałyby nad nią — pomijane; obrys krawędzi zostaje.
+    const pit = layout.complexes.find((c) => c.building === 'crystalMine');
+    const inPit = (p: Vec3) => !!pit && pitSink3d(pit, p) > 0;
     for (const c of layout.complexes) {
       for (const i of outlineBorders(this.grid, c.cells)) {
         const border = this.grid.borders[i]!;
+        if (inPit(border.from) || inPit(border.to)) continue;
         positions.push(...this.liftPoint(border.from), ...this.liftPoint(border.to));
       }
     }
@@ -690,7 +703,7 @@ const GROUND_BASE: Record<BuildingId, readonly [number, number, number]> = {
 const PIT_FLOOR: readonly number[] = [0.07, 0.13, 0.16];
 const PIT_ROCK: readonly number[] = [0.5, 0.46, 0.44];
 /** Najgłębszy punkt wyrobiska (promień) — zapas nad środkiem planety. */
-const PIT_MIN_RADIUS = 0.82;
+const PIT_MIN_RADIUS = 0.74;
 
 /**
  * Tafla oceanu (i morza lawy) z otworem: piksele w stożku `cut` (kierunek, cos kąta) są odrzucane, więc wyrobisko
