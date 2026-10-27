@@ -1,25 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { BuildingLevels } from '../src/core/types.ts';
-import type { ColonyLayout, ColonySlot } from '../src/planet-renderer/colony.ts';
-import { pickStructure, pickStructureHit, projectPoint, type PickView } from '../src/planet-renderer/pick.ts';
+import { fieldGrid } from '../src/core/colony/fieldGrid.ts';
+import { reconcilePlots } from '../src/core/colony/plots.ts';
+import { generatePlanet } from '../src/core/generation/generatePlanet.ts';
+import type { BuildingId } from '../src/core/types.ts';
+import { STARTER } from '../src/data/planets.ts';
+import { layoutFromPlots } from '../src/planet-renderer/colony.ts';
+import { pickComplex, projectPoint, type PickView } from '../src/planet-renderer/pick.ts';
+import { facingAngles } from '../src/planet-renderer/PlanetDisplay.ts';
+import { createSurfaceSampler } from '../src/planet-renderer/surface.ts';
 
-const slot = (dir: [number, number, number]): ColonySlot => ({ dir, surface: 1.02, spin: 0, size: 1, onLand: true });
-const colony: ColonyLayout = {
-  center: [0, 0, 1],
-  slots: {
-    metalMine: [slot([0, 0, 1]), slot([0.2, 0, 0.98])],
-    crystalMine: [slot([0, 0, -1])],
-    powerPlant: [slot([-0.3, 0.1, 0.95])],
-    storage: [],
-    antimatterCollector: [slot([0.5, 0, 0.87])],
-    laboratory: [],
-  },
-  rigs: [],
-  hubs: [],
-  marks: [],
-};
-const levels = { metalMine: 2, crystalMine: 1, powerPlant: 1, storage: 1, antimatterCollector: 0, laboratory: 0 } as BuildingLevels;
 const ortho: PickView = { cx: 500, cy: 400, yaw: 0, pitch: 0, tilt: 0, projection: { kind: 'ortho', r: 300 } };
 
 test('rzut 2D: środek tarczy, przód widoczny, tył ukryty', () => {
@@ -49,20 +40,27 @@ test('perspektywa 3D: środek planety w punkcie ostrości, punkty boczne bliżej
   assert.equal(projectPoint([1, 0, 0], persp).visible, false, 'krawędź widoczna z bliska tylko z przodu');
 });
 
-test('wybór: najbliższa widoczna budowla w promieniu dotyku', () => {
-  assert.equal(pickStructure(colony, levels, ortho, 503, 402), 'metalMine');
-  const power = projectPoint([-0.3, 0.1, 0.95], ortho);
-  assert.equal(pickStructure(colony, levels, ortho, power.x + 5, power.y), 'powerPlant');
-  assert.equal(pickStructure(colony, levels, ortho, 900, 100), null, 'pusty kosmos');
-  // Trafienie wskazuje konkretną budowlę (numer w dzielnicy) — kamera może do niej podjechać.
-  const hit = pickStructureHit(colony, levels, ortho, power.x + 5, power.y);
-  assert.equal(hit?.id, 'powerPlant');
-  assert.ok(hit && hit.index >= 0 && colony.slots.powerPlant[hit.index]);
-  // Kolektor ma poziom 0 — jego budowli nie ma na planecie.
-  const collector = projectPoint([0.5, 0, 0.87], ortho);
-  assert.notEqual(pickStructure(colony, levels, ortho, collector.x, collector.y), 'antimatterCollector');
-  // Ekstraktor jest po drugiej stronie; po obrocie o 180° widać go.
-  assert.equal(pickStructure(colony, levels, { ...ortho, yaw: Math.PI }, 500, 400), 'crystalMine');
+test('wybór (v0.45): dotknięcie dowolnego miejsca obszaru kompleksu wybiera budynek; pusty teren i druga strona — nic', () => {
+  const planet = generatePlanet(STARTER.definition, STARTER.seed);
+  const grid = fieldGrid(planet);
+  const ids: BuildingId[] = ['metalMine', 'crystalMine'];
+  const levels = { metalMine: 12, crystalMine: 6 } as BuildingLevels;
+  const plots = reconcilePlots(grid, {}, levels, ids);
+  const colony = layoutFromPlots(grid, plots, createSurfaceSampler(planet), ids, levels);
+  const metal = colony.complexes.find((c) => c.building === 'metalMine')!;
+  // Planeta obrócona tak, że środek huty jest w środku tarczy.
+  const { yaw, pitch } = facingAngles(metal.core, 0, 0);
+  const view = { ...ortho, yaw, pitch };
+  for (const spot of metal.spots) {
+    const p = projectPoint(spot.dir, view);
+    if (!p.visible) continue;
+    assert.equal(pickComplex(colony, grid, view, p.x + 3, p.y - 2)?.id, 'metalMine', 'każde pole obszaru');
+  }
+  assert.equal(pickComplex(colony, grid, view, 2000, 2000), null, 'poza planetą');
+  // Druga strona planety: środek huty niewidoczny.
+  const back = { ...view, yaw: yaw + Math.PI };
+  const c = projectPoint(metal.core, back);
+  assert.equal(c.visible, false);
 });
 
 test('pokazanie budowli: przy nachylonej osi (3D) i lift 0 budowla trafia dokładnie w środek tarczy', async () => {

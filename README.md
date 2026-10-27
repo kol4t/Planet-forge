@@ -472,4 +472,14 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 256. Po ukończeniu budowy (odliczanie w oknie): wokół planety krąży mały satelita ze złotymi lustrami (2D i 3D, za planetą znika), energia w pasku u góry rośnie, w wierszu KOSMOS „kolektor 1”.
 257. Druga planeta w tym samym układzie (np. skolonizowana z mapy) też dostaje tę energię — okno pokazuje „zasila każdą z N Twoich planet”.
 
+### Od 0.45: budynek rośnie w jeden kompleks
+
+258. Licznik POLA u góry: suma pól wszystkich kompleksów (np. kopalnia metalu poz. 13 = 17 pól) — dużo więcej niż przedtem.
+259. Podnieś kopalnię metalu z poz. 5 na 6: obszar rośnie z 3 do 6 pól (jeden kawałek, obok dotychczasowego), na planecie przybywa zabudowy; od poz. 12 — „Huta” (16 pól), od 20 — „Megakompleks metalowy” (40–50 pól).
+260. Ekstraktor kryształów: z wiertła robi się jedna duża odkrywka — tarasowe pierścienie schodzące w głąb, świecące kryształy na dnie, wieża wiertnicza w środku, maszyny na krawędzi (2D; w 3D teren naprawdę schodzi stopniami).
+261. Wokół każdego kompleksu subtelny turkusowy obrys całego obszaru; brak pasków i rur między budowlami.
+262. Przy dużym przybliżeniu dotknij dowolne miejsce kompleksu — otwiera się karta budynku z etapem („Wygląd: etap N/4”) i liczbą pól.
+263. Gdy obok kompleksu brakuje wolnych pól na kolejny etap, „Ulepsz” pokazuje komunikat: ile pól potrzeba i ile brakuje.
+264. Stary zapis: poziomy zostają, obszary układają się od nowa od miejsca, gdzie stał budynek; działające kompleksy (premie, tryby, megakompleks) zostają.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

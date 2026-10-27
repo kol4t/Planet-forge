@@ -1,3 +1,4 @@
+import { noRoomMessage } from './footprint.ts';
 import { BALANCE } from '../../data/balance.ts';
 import type { Balance, BuildingDef, BuildingId, BuildingLevels, BuildingSettings, Construction, EconomyState, Planet, Resources, YieldId } from '../types.ts';
 
@@ -21,7 +22,7 @@ export type UpgradeFailure = 'unknown-building' | 'max-level' | 'not-enough-reso
 
 /**
  * Ograniczenia planety przy budowie: czy następny poziom budynku zmieści się na polach planety
- * (każde pole mieści 3 poziomy jednego budynku; brak = bez limitu).
+ * (obszar budynku rośnie z etapem — `core/economy/footprint.ts`; brak = bez limitu).
  */
 export interface BuildLimits {
   hasRoom?: (id: BuildingId, levels: BuildingLevels) => boolean;
@@ -348,7 +349,7 @@ export function enqueueBuilding(
     return { ok: false, state, reason: 'max-level', message: `${def.name}: osiągnięto maksymalny poziom.` };
   }
   if (limits.hasRoom && !limits.hasRoom(id, levels)) {
-    return { ok: false, state, reason: 'no-fields', message: `${def.name}: brak wolnego pola na kolejny poziom.` };
+    return { ok: false, state, reason: 'no-fields', message: noRoomMessage(id, def.name, levels[id] ?? 0) };
   }
   const cost = upgradeCost(id, level, balance);
   const cap = capacityAtLevel(levels.storage ?? 1, balance);
@@ -408,7 +409,7 @@ export function upgradeBuilding(
       ok: false,
       state,
       reason: 'no-fields',
-      message: `${def.name}: brak wolnego pola. Każde pole mieści 3 poziomy jednego budynku — wolne pola się skończyły.`,
+      message: noRoomMessage(id, def.name, state.levels[id] ?? 0),
     };
   }
   const cost = upgradeCost(id, level, balance);

@@ -1,8 +1,10 @@
-import { buildableCount, cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type BuildRules, type FieldGrid } from '../core/colony/fieldGrid.ts';
-import { choiceCells, hasRoomFor, LEVELS_PER_FIELD, reconcilePlots, siteFactors, suits, TERRAIN_NAMES, usedLandFields, type Plots } from '../core/colony/plots.ts';
-import { complexBonus, megaCandidate, megaId, mergeCandidate, reservedCells, validComplexes, validMegas, type Complex } from '../core/colony/complexes.ts';
-import { COMPLEX_FAMILIES, complexMode, findFamily, MEGA_RULES } from '../data/complexes.ts';
-import { INDUSTRY_STAGES, VISUAL_TIERS, visualTier } from '../data/industry.ts';
+import { cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type BuildRules, type FieldGrid } from '../core/colony/fieldGrid.ts';
+import { choiceCells, fieldCapacity, hasRoomFor, PLOTS_LAYOUT, reconcilePlots, siteFactors, suits, TERRAIN_NAMES, usedLandFields, type Plots } from '../core/colony/plots.ts';
+import { fieldsFor, nextStageFrom, stageName, stageOf } from '../core/economy/footprint.ts';
+import { FOOTPRINT, STAGE_NAMES } from '../data/footprint.ts';
+import { COMPLEX_STAGE, complexCandidate, MEGA_STAGE, megaCandidate, validComplexes, type Complex } from '../core/colony/complexes.ts';
+import { COMPLEX_FAMILIES, complexMode, findFamily, MEGA_RULES, type ComplexFamily } from '../data/complexes.ts';
+import { INDUSTRY_STAGES } from '../data/industry.ts';
 import {
   advance,
   buildSeconds,
@@ -169,25 +171,27 @@ export interface FactoryView {
 /** Kompleks budynku na aktywnej planecie (okno „Kompleks”, v0.38). */
 export interface ComplexView {
   name: string;
-  hubName: string;
   unlocked: boolean;
   /** Badanie, które odblokowuje rodzinę (tekst do komunikatu). */
   research: string;
   /** Co kompleks zwiększa (opis zysku w oknie). */
   resource: 'metal' | 'crystal' | 'energy';
-  /** Ile kompleksów już stoi i ile poziomów obejmują. */
-  count: number;
-  levelsIn: number;
+  /** Czy kompleks działa na tym budynku (od v0.45 — ulepszenie całego budynku). */
+  active: boolean;
+  /** Etap budynku teraz i etap (poziom), od którego kompleks jest dostępny. */
+  stage: string;
+  needStage: string;
+  needLevel: number;
   bonus: number;
-  groups: number;
-  extraFields: number;
   cost: Resources;
-  /** Możliwe połączenie albo powód, dlaczego go nie ma. */
-  candidate: { cells: number[]; hubs: number[]; gainPerMinute: number } | null;
+  /** Możliwe uruchomienie (z zyskiem) albo powód, dlaczego go nie ma. */
+  candidate: { gainPerMinute: number } | null;
   reason: string | null;
   fields: { used: number; buildable: number };
-  /** Megakompleks (v0.43): ile stoi, czy można połączyć następny (z zyskiem) albo dlaczego nie. */
-  mega: { name: string; unlocked: boolean; research: string; bonus: number; cost: Resources; count: number; candidate: { gainPerMinute: number } | null; reason: string | null };
+  /** Pola obszaru budynku. */
+  buildingFields: number;
+  /** Megakompleks: czy działa, czy można go uruchomić (z zyskiem) albo dlaczego nie. */
+  mega: { name: string; unlocked: boolean; research: string; bonus: number; cost: Resources; active: boolean; candidate: { gainPerMinute: number } | null; reason: string | null };
 }
 
 /** Stacja na pasie asteroid aktywnej planety (panel „Planeta”, v0.37). */
@@ -231,9 +235,9 @@ export interface BuildingInfo {
   settings: BuildingSettings;
   /** Ile potrzebnej energii budynek dostaje 0..1 (zależy od pierwszeństwa przy niedoborze). */
   energyEfficiency: number;
-  /** Dopasowanie do terenu 0..1 (grupy na niepasującym terenie pracują słabiej). */
+  /** Dopasowanie do terenu 0..1 (pola obszaru na niepasującym terenie pracują słabiej). */
   siteFactor: number;
-  /** Zajęte pola (grupy do 3 poziomów) i ile z nich stoi na pasującym terenie / na lodzie. */
+  /** Pola obszaru budynku (v0.45: jeden spójny kompleks) i ile z nich stoi na pasującym terenie / na lodzie. */
   groups: number;
   suitedGroups: number;
   onIce: number;
@@ -256,9 +260,9 @@ export interface DepositInfo {
 export interface FieldsInfo {
   /** Wszystkie pola siatki (z wodą, lodem i lawą między polami lądu). */
   total: number;
-  /** Pola lądu — na nich wolno budować; ich liczba wynika z seeda planety (30–200). */
+  /** Pola do zabudowy: ląd (po badaniu także lód) i lód zajęty przez kryształy; ląd wynika z seeda planety (30–200). */
   buildable: number;
-  /** Zajęte pola lądu (każde mieści grupę do 3 poziomów jednego budynku; kryształy na lodzie się nie liczą). */
+  /** Zajęte pola — suma obszarów wszystkich budynków (v0.45, także kryształy na lodzie). */
   used: number;
 }
 
@@ -1823,12 +1827,10 @@ export class GameController {
   private megaSites(): { key: string; slot: Slot; family: string; name: string }[] {
     const out: { key: string; slot: Slot; family: string; name: string }[] = [];
     for (const slot of this.slots) {
-      const seen = new Set<number>();
       for (const c of slot.complexes ?? []) {
-        if (c.mega === undefined || seen.has(c.mega)) continue;
-        seen.add(c.mega);
+        if (!c.mega) continue;
         const family = COMPLEX_FAMILIES.find((f) => f.id === c.family);
-        out.push({ key: `${slot.planet.seed}:${c.mega}`, slot, family: c.family, name: family?.megaName ?? 'Megakompleks' });
+        out.push({ key: `${slot.planet.seed}:${c.building}`, slot, family: c.family, name: family?.megaName ?? 'Megakompleks' });
       }
     }
     return out;
@@ -2098,6 +2100,7 @@ export class GameController {
         // Bez przeliczania siatek wszystkich planet przy każdym zapisie — aktywna jest dopasowywana na bieżąco.
         plots: slot.plots,
         plotsGrid: FIELD_GRID_VERSION,
+        plotsLayout: PLOTS_LAYOUT,
         ...(slot.complexes?.length ? { complexes: slot.complexes } : {}),
         ...(slot.fields ? { fields: slot.fields } : {}),
         ...(slot.specialization ? { specialization: slot.specialization } : {}),
@@ -2140,15 +2143,16 @@ export class GameController {
   // ——— wybór pola przez gracza (v0.38.2) ———
 
   /**
-   * Czy następny poziom budynku otworzy nowe pole i gdzie gracz może je postawić: wolne pola dedykowanego
-   * terenu (kryształy — lód, metal — wzgórza i góry, elektrownia — równiny). Tylko gdy nic się teraz nie buduje.
+   * Czy następny poziom budynku dołoży pola do jego obszaru i w które wolne pola dedykowanego terenu, stykające się
+   * z obszarem, gracz może go poprowadzić (kryształy — lód, metal — wzgórza i góry, elektrownia — równiny).
+   * Tylko gdy nic się teraz nie buduje.
    */
   placement(id: BuildingId): { needed: boolean; cells: number[]; terrain: string | null; level: number } {
     const slot = this.slots[this.active]!;
     const level = this.economy.levels[id] ?? 0;
-    const needed = !this.economy.construction && level % LEVELS_PER_FIELD === 0 && level < this.balance.maxLevel;
+    const needed = !this.economy.construction && fieldsFor(id, level + 1) > fieldsFor(id, level) && level < this.balance.maxLevel;
     const plots = syncPlots(slot, this.buildRules);
-    const cells = needed ? choiceCells(fieldGrid(slot.planet), plots, id, this.buildRules, reservedCells(slot.complexes ?? [])) : [];
+    const cells = needed ? choiceCells(fieldGrid(slot.planet), plots, id, this.buildRules) : [];
     return { needed, cells, terrain: TERRAIN_NAMES[id] ?? null, level: level + 1 };
   }
 
@@ -2156,7 +2160,7 @@ export class GameController {
   upgradeAt(id: BuildingId, cell: number, now = Date.now()): UpgradeResult {
     const choice = this.placement(id);
     if (!choice.needed || !choice.cells.includes(cell)) {
-      return { ok: false, state: this.economy, reason: 'busy', message: 'Tego pola nie można wybrać — tylko wolne pola dedykowanego terenu.' } as UpgradeResult;
+      return { ok: false, state: this.economy, reason: 'busy', message: 'Tego pola nie można wybrać — tylko wolne pola dedykowanego terenu obok budynku.' } as UpgradeResult;
     }
     const slot = this.slots[this.active]!;
     slot.preferred = { ...slot.preferred, [id]: cell };
@@ -2168,11 +2172,10 @@ export class GameController {
 
   // ——— karta budowli i zajętość pól (v0.38.1) ———
 
-  /** Pola zajęte przez budynek na aktywnej planecie: jego grupy i pola wspólnych konstrukcji kompleksów. */
+  /** Pola zajęte przez budynek na aktywnej planecie: jego obszar (jeden spójny kawałek, v0.45). */
   footprint(id: BuildingId): number[] {
     const slot = this.slots[this.active]!;
-    const plots = syncPlots(slot, this.buildRules);
-    return [...(plots[id] ?? []), ...(slot.complexes ?? []).filter((c) => c.building === id).flatMap((c) => c.hubs)];
+    return [...(syncPlots(slot, this.buildRules)[id] ?? [])];
   }
 
   /** Parametry budowli (różnica produkcji z budynkiem i bez niego — jeden tor liczenia z gospodarką) i etapy rozwoju. */
@@ -2188,10 +2191,11 @@ export class GameController {
     else if (def.produces === 'energy') output = `+${Math.round(now.energyProduced - without.energyProduced)} energii`;
     else if (def.produces === 'antimatter') output = `+${per(now.antimatterPerHour - without.antimatterPerHour)} antymaterii/h`;
     const use = now.energyUsed - without.energyUsed;
-    const complexes = (this.slots[this.active]!.complexes ?? []).filter((c) => c.building === id).length;
-    const megas = (this.slots[this.active]!.complexes ?? []).filter((c) => c.building === id && c.mega !== undefined).length;
+    const own = (this.slots[this.active]!.complexes ?? []).find((c) => c.building === id);
+    const complexes = own ? 1 : 0;
+    const stage = stageOf(id, level);
     const reached = (when: string) =>
-      when === 'built' ? level >= 1 : when === 'full-group' ? level >= 3 : when === 'complex' ? complexes > 0 : when === 'mega' ? megas > 0 : when === 'star' ? (this.slots[this.active]!.collector?.level ?? 0) > 0 : false;
+      when === 'built' ? stage >= 0 : when === 'full-group' ? stage >= 1 : when === 'complex' ? stage >= 2 : when === 'mega' ? stage >= 3 : when === 'star' ? (this.slots[this.active]!.collector?.level ?? 0) > 0 : false;
     const list = INDUSTRY_STAGES[id] ?? [];
     const lastReached = list.map((st) => reached(st.when)).lastIndexOf(true);
     const nextIndex = list.findIndex((st, i) => i > lastReached && st.when !== 'soon');
@@ -2203,22 +2207,20 @@ export class GameController {
     }));
     let next: string | null = null;
     const nextStage = list[nextIndex];
-    if (nextStage?.when === 'built') next = 'Ulepsz do poz. 1.';
-    else if (nextStage?.when === 'full-group') next = `Ulepsz do poz. 3 — pole zapełni się trzema poziomami.`;
-    else if (nextStage?.when === 'complex') {
-      const view = this.complexView(id);
-      const family = findFamily(id);
-      next = !view?.unlocked ? `Zbadaj ${family?.research ?? 'badanie kompleksu'}.` : view.candidate ? `Gotowe do połączenia: Zarządzanie → ${family?.name ?? 'Kompleks'}.` : (view.reason ?? null);
-    } else if (nextStage?.when === 'star') {
+    const nextFrom = nextStageFrom(id, level);
+    if (nextStage?.when === 'star') {
       next = this.unlocked('star-energy') ? 'Zbuduj kolektor: Planeta → Kosmos → „Energia gwiazdy”.' : 'Zbadaj „Energia gwiazdy” (Badania → Produktywność).';
-    } else if (nextStage?.when === 'mega') {
-      const mega = this.complexView(id)?.mega;
-      next = !mega?.unlocked ? `Zbadaj ${MEGA_RULES.research}.` : mega.candidate ? `Gotowe: Zarządzanie → ${findFamily(id)?.name ?? 'Kompleks'} → „Połącz w megakompleks”.` : (mega.reason ?? null);
-    }
+    } else if (nextStage && nextFrom !== null) {
+      next = `Ulepsz do poz. ${nextFrom} — etap „${nextStage.name}”: ${fieldsFor(id, nextFrom)} pól.`;
+    } else if (level === 0) next = 'Ulepsz do poz. 1.';
+    // Ulepszenie kompleksu (premia, tryby) i megakompleks — decyzja gracza na etapie budynku.
+    const view = this.complexView(id);
+    if (view && !own && view.candidate) next = `${next ? `${next}\n` : ''}Gotowe: Zarządzanie → ${view.name} (+${view.bonus}%).`;
+    else if (view?.active && view.mega.candidate) next = `${next ? `${next}\n` : ''}Gotowe: Zarządzanie → ${view.mega.name} (+${view.mega.bonus}%).`;
     return {
       name: def.name,
       level,
-      stage: lastReached >= 0 ? list[lastReached]!.name : null,
+      stage: stage >= 0 ? stageName(id, level) : null,
       description: def.description,
       output: level > 0 ? output : null,
       energy: level > 0 && use > 0.05 ? `−${Math.round(use)} energii` : null,
@@ -2227,9 +2229,9 @@ export class GameController {
       stages,
       next,
       look: (() => {
-        const tier = visualTier(level);
-        const nextTier = VISUAL_TIERS[tier];
-        return { tier, max: VISUAL_TIERS.length, name: VISUAL_TIERS[tier - 1]!.name, nextFrom: nextTier?.from ?? null, nextName: nextTier?.name ?? null };
+        // Wygląd = etap kompleksu (v0.45): od którego poziomu następny.
+        const from = nextStageFrom(id, level);
+        return { tier: stage + 1, max: STAGE_NAMES[id].length, name: stageName(id, level) || '—', nextFrom: from, nextName: from === null ? null : stageName(id, from) };
       })(),
       factory: findFamily(id)?.modes && complexes > 0 ? `Ekran: ${findFamily(id)!.name.toLowerCase()}` : null,
       placement: (() => {
@@ -2241,74 +2243,62 @@ export class GameController {
 
   // ——— kompleksy przemysłowe (v0.38) ———
 
-  /** Stan kompleksów budynku na aktywnej planecie i następne możliwe połączenie (z podglądem zysku). */
+  /** Wydobycie (albo energia) budynku z kompleksu — do podglądu zysku. */
+  private familyGain(family: ComplexFamily, r: Rates): number {
+    return family.building === 'powerPlant' ? r.energyProduced : family.building === 'metalMine' ? r.metal : r.crystal;
+  }
+
+  /** Kompleks budynku na aktywnej planecie (ulepszenie całego budynku, v0.45) i megakompleks — stan, warunki, zysk. */
   complexView(id: BuildingId): ComplexView | null {
     const family = findFamily(id);
     if (!family) return null;
     const slot = this.slots[this.active]!;
-    const grid = fieldGrid(slot.planet);
-    const plots = syncPlots(slot, this.buildRules);
-    const mine = (slot.complexes ?? []).filter((c) => c.family === family.id);
-    const unlocked = this.unlocked(family.unlock);
-    const found = mergeCandidate(grid, plots, this.economy.levels, slot.complexes ?? [], family, this.buildRules);
-    let candidate: ComplexView['candidate'] = null;
-    if (found.ok) {
-      // Podgląd: wydobycie z dodatkowym kompleksem (te same reguły co po połączeniu).
-      const next = [...(slot.complexes ?? []), { family: family.id, building: id, cells: found.cells, hubs: found.hubs }];
-      const factors = siteFactors(grid, plots, this.economy.levels, complexCellBonus(next));
-      const after = productionRates({ ...this.economy, siteFactor: factors }, this.planet, this.balance);
-      const gain = (r: Rates) => (family.building === 'powerPlant' ? r.energyProduced : family.building === 'metalMine' ? r.metal : r.crystal);
-      candidate = { cells: found.cells, hubs: found.hubs, gainPerMinute: gain(after) - gain(this.rates) };
-    }
+    syncPlots(slot, this.buildRules);
+    const all = slot.complexes ?? [];
+    const own = all.find((c) => c.building === id);
+    const levels = this.economy.levels;
+    const names = STAGE_NAMES[id];
+    const found = complexCandidate(all, levels, family, names, FOOTPRINT[id][COMPLEX_STAGE]!.from);
+    const candidate = found.ok ? { gainPerMinute: this.familyGain(family, this.ratesWith([...all, { family: family.id, building: id }])) - this.familyGain(family, this.rates) } : null;
+    const mega = megaCandidate(all, levels, family, names, FOOTPRINT[id][MEGA_STAGE]!.from);
+    const megaGain = mega.ok ? this.familyGain(family, this.ratesWith(all.map((c) => (c.building === id ? { ...c, mega: true } : c)))) - this.familyGain(family, this.rates) : 0;
     return {
       name: family.name,
-      hubName: family.hubName,
-      unlocked,
+      unlocked: this.unlocked(family.unlock),
       research: family.research,
       resource: family.building === 'powerPlant' ? 'energy' : family.building === 'metalMine' ? 'metal' : 'crystal',
-      count: mine.length,
-      levelsIn: mine.length * family.groups * 3,
+      active: !!own,
+      stage: stageName(id, levels[id] ?? 0),
+      needStage: names[COMPLEX_STAGE]!,
+      needLevel: FOOTPRINT[id][COMPLEX_STAGE]!.from,
       bonus: family.bonus,
-      groups: family.groups,
-      extraFields: family.extraFields,
       cost: family.cost,
       candidate,
       reason: found.ok ? null : found.reason,
       fields: fieldsOf(slot, true, this.buildRules),
-      mega: (() => {
-        const all = slot.complexes ?? [];
-        const pair = megaCandidate(grid, all, family.id);
-        let candidate: ComplexView['mega']['candidate'] = null;
-        if (pair.ok) {
-          const id = megaId(all[pair.pair[0]]!, all[pair.pair[1]]!);
-          const next = all.map((c, i) => (pair.pair.includes(i) ? { ...c, mega: id } : c));
-          const gain = (r: Rates) => (family.building === 'powerPlant' ? r.energyProduced : family.building === 'metalMine' ? r.metal : r.crystal);
-          candidate = { gainPerMinute: gain(this.ratesWith(next)) - gain(this.rates) };
-        }
-        return {
-          name: family.megaName,
-          unlocked: this.unlocked(MEGA_RULES.unlock),
-          research: MEGA_RULES.research,
-          bonus: MEGA_RULES.bonus,
-          cost: MEGA_RULES.cost,
-          count: new Set(mine.filter((c) => c.mega !== undefined).map((c) => c.mega)).size,
-          candidate,
-          reason: pair.ok ? null : pair.reason,
-        };
-      })(),
+      buildingFields: slot.plots[id]?.length ?? 0,
+      mega: {
+        name: family.megaName,
+        unlocked: this.unlocked(MEGA_RULES.unlock),
+        research: MEGA_RULES.research,
+        bonus: MEGA_RULES.bonus,
+        cost: MEGA_RULES.cost,
+        active: !!own?.mega,
+        candidate: mega.ok ? { gainPerMinute: megaGain } : null,
+        reason: mega.ok ? null : mega.reason,
+      },
     };
   }
 
-  /** Produkcja i energia planety przy danym zestawie kompleksów (podgląd trybów — te same reguły co gra). */
+  /** Produkcja i energia planety przy danym zestawie kompleksów (podgląd — te same reguły co gra). */
   private ratesWith(complexes: readonly Complex[]): Rates {
     const slot = this.slots[this.active]!;
-    const grid = fieldGrid(slot.planet);
-    const siteFactor = siteFactors(grid, slot.plots, this.economy.levels, complexCellBonus(complexes));
-    const energyFactor = complexEnergyFactors(complexes, this.economy.levels);
+    const siteFactor = siteFactors(fieldGrid(slot.planet), slot.plots, this.economy.levels, complexBuildingBonus(complexes));
+    const energyFactor = complexEnergyFactors(complexes);
     return productionRates({ ...this.economy, siteFactor, energyFactor }, this.planet, this.balance);
   }
 
-  /** Ekran fabryki: kompleksy budynku, ich tryby pracy i skutek każdego trybu (wydobycie, energia). */
+  /** Ekran fabryki: kompleks budynku, jego tryby pracy i skutek każdego trybu (wydobycie, energia). */
   factoryView(id: BuildingId): FactoryView | null {
     const family = findFamily(id);
     if (!family?.modes) return null;
@@ -2319,8 +2309,8 @@ export class GameController {
     const rates = this.rates;
     return {
       name: family.name,
-      hubName: family.hubName,
-      bonus: family.bonus,
+      hubName: stageName(id, this.economy.levels[id] ?? 0).toLowerCase(),
+      bonus: all.find((c) => c.building === id)?.mega ? MEGA_RULES.bonus : family.bonus,
       outputPerMinute: rates.fromDeposits[resource],
       energyUse: rates.energyUsed,
       energyEfficiency: rates.efficiencyBy[id] ?? 1,
@@ -2330,8 +2320,8 @@ export class GameController {
           : [
               {
                 index,
-                levels: c.cells.length * LEVELS_PER_FIELD,
-                fields: c.cells.length + c.hubs.length,
+                levels: this.economy.levels[id] ?? 0,
+                fields: slot.plots[id]?.length ?? 0,
                 mode: complexMode(family, c.mode).id,
                 modes: family.modes!.map((m) => {
                   const r = this.ratesWith(all.map((x, i) => (i === index ? { ...x, mode: m.id } : x)));
@@ -2366,51 +2356,57 @@ export class GameController {
     return { ok: true, message: `${family.name}: tryb „${def.name}”.` };
   }
 
-  /** Połączenie pełnych grup w kompleks (decyzja gracza): warunki → koszt → kompleks od razu. */
-  mergeComplex(id: BuildingId, now = Date.now()): ActionMessage {
-    this.tick(now);
-    const family = findFamily(id);
-    if (!family) return { ok: false, message: 'Ten budynek nie tworzy kompleksów.' };
-    if (!this.unlocked(family.unlock)) return { ok: false, message: `Najpierw zbadaj ${family.research}.` };
-    const view = this.complexView(id)!;
-    if (!view.candidate) return { ok: false, message: view.reason ?? 'Brak pól do połączenia.' };
-    const cost = family.cost;
+  /** Pobranie kosztu z aktywnej planety albo czytelny błąd. */
+  private payFor(cost: Resources, name: string): ActionMessage | null {
     if (!fitsInStorage(this.economy, cost, this.balance)) return { ok: false, message: `Za mały magazyn (${this.capacity}). Najpierw rozbuduj Magazyn.` };
     const stock = this.economy.stock;
     if (stock.metal < cost.metal || stock.crystal < cost.crystal) {
       const missing: string[] = [];
       if (stock.metal < cost.metal) missing.push(`${Math.ceil(cost.metal - stock.metal)} metalu`);
       if (stock.crystal < cost.crystal) missing.push(`${Math.ceil(cost.crystal - stock.crystal)} kryształów`);
-      return { ok: false, message: `${family.name} — brakuje: ${missing.join(', ')}.` };
+      return { ok: false, message: `${name} — brakuje: ${missing.join(', ')}.` };
     }
-    const slot = this.slots[this.active]!;
     this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
-    slot.complexes = [...(slot.complexes ?? []), { family: family.id, building: id, cells: view.candidate.cells, hubs: view.candidate.hubs }];
-    syncPlots(slot, this.buildRules);
-    this.log('build', `${this.planet.displayName}: ${family.name.toLowerCase()} — połączono ${family.groups} pola.`, now);
-    this.save();
-    this.emit();
-    return { ok: true, message: `Połączono — ${family.name}: +${family.bonus}% ${family.building === 'powerPlant' ? 'energii' : 'wydobycia'} z ${family.groups * 3} poziomów, ${family.hubName} zajmuje ${family.extraFields} pole.` };
+    return null;
   }
 
-  /** Rozłączenie ostatniego kompleksu budynku (bez zwrotu kosztu; pole wspólnej konstrukcji się zwalnia). */
+  /** Uruchomienie kompleksu na budynku (decyzja gracza: badanie, etap, koszt) — premia dla całego budynku. */
+  mergeComplex(id: BuildingId, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const family = findFamily(id);
+    if (!family) return { ok: false, message: 'Ten budynek nie tworzy kompleksów.' };
+    if (!this.unlocked(family.unlock)) return { ok: false, message: `Najpierw zbadaj ${family.research}.` };
+    const view = this.complexView(id)!;
+    if (!view.candidate) return { ok: false, message: view.reason ?? 'Kompleks jest niedostępny.' };
+    const failed = this.payFor(family.cost, family.name);
+    if (failed) return failed;
+    const slot = this.slots[this.active]!;
+    slot.complexes = [...(slot.complexes ?? []), { family: family.id, building: id }];
+    syncPlots(slot, this.buildRules);
+    this.log('build', `${this.planet.displayName}: ${family.name.toLowerCase()} — uruchomiono.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Uruchomiono — ${family.name}: +${family.bonus}% ${family.building === 'powerPlant' ? 'energii' : 'wydobycia'} całego budynku.` };
+  }
+
+  /** Wyłączenie kompleksu budynku (bez zwrotu kosztu; razem z megakompleksem). */
   splitComplex(id: BuildingId, now = Date.now()): ActionMessage {
     this.tick(now);
     const slot = this.slots[this.active]!;
     const list = slot.complexes ?? [];
-    const index = list.map((c) => c.building).lastIndexOf(id);
-    if (index < 0) return { ok: false, message: 'Nie ma kompleksu do rozłączenia.' };
-    const name = COMPLEX_FAMILIES.find((f) => f.id === list[index]!.family)?.name ?? 'Kompleks';
-    const rest = list.filter((_, i) => i !== index);
+    const own = list.find((c) => c.building === id);
+    if (!own) return { ok: false, message: 'Nie ma kompleksu do wyłączenia.' };
+    const name = COMPLEX_FAMILIES.find((f) => f.id === own.family)?.name ?? 'Kompleks';
+    const rest = list.filter((c) => c !== own);
     slot.complexes = rest.length > 0 ? rest : undefined;
     syncPlots(slot, this.buildRules);
-    this.log('build', `${this.planet.displayName}: ${name.toLowerCase()} rozłączony.`, now);
+    this.log('build', `${this.planet.displayName}: ${name.toLowerCase()} wyłączony.`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `${name} rozłączony — pola znów pracują osobno.` };
+    return { ok: true, message: `${name} wyłączony — budynek pracuje bez premii kompleksu.` };
   }
 
-  /** Połączenie dwóch stykających się kompleksów w megakompleks (v0.43): warunki → koszt → od razu. */
+  /** Uruchomienie megakompleksu (v0.43, od v0.45 na najwyższym etapie budynku): +60%, znaleziska. */
   mergeMega(id: BuildingId, now = Date.now()): ActionMessage {
     this.tick(now);
     const family = findFamily(id);
@@ -2419,54 +2415,44 @@ export class GameController {
     const slot = this.slots[this.active]!;
     syncPlots(slot, this.buildRules);
     const all = slot.complexes ?? [];
-    const pair = megaCandidate(fieldGrid(slot.planet), all, family.id);
-    if (!pair.ok) return { ok: false, message: pair.reason };
-    const cost = MEGA_RULES.cost;
-    if (!fitsInStorage(this.economy, cost, this.balance)) return { ok: false, message: `Za mały magazyn (${this.capacity}). Najpierw rozbuduj Magazyn.` };
-    const stock = this.economy.stock;
-    if (stock.metal < cost.metal || stock.crystal < cost.crystal) {
-      const missing: string[] = [];
-      if (stock.metal < cost.metal) missing.push(`${Math.ceil(cost.metal - stock.metal)} metalu`);
-      if (stock.crystal < cost.crystal) missing.push(`${Math.ceil(cost.crystal - stock.crystal)} kryształów`);
-      return { ok: false, message: `${family.megaName} — brakuje: ${missing.join(', ')}.` };
-    }
-    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
-    const mega = megaId(all[pair.pair[0]]!, all[pair.pair[1]]!);
-    slot.complexes = all.map((c, i) => (pair.pair.includes(i) ? { ...c, mega } : c));
+    const check = megaCandidate(all, this.economy.levels, family, STAGE_NAMES[id], FOOTPRINT[id][MEGA_STAGE]!.from);
+    if (!check.ok) return { ok: false, message: check.reason };
+    const failed = this.payFor(MEGA_RULES.cost, family.megaName);
+    if (failed) return failed;
+    slot.complexes = all.map((c) => (c.building === id ? { ...c, mega: true } : c));
     syncPlots(slot, this.buildRules);
-    // Pierwsze znalezisko za kilka godzin od połączenia.
-    const key = `${slot.planet.seed}:${mega}`;
+    // Pierwsze znalezisko za kilka godzin od uruchomienia.
+    const key = `${slot.planet.seed}:${id}`;
     this.finds = { ...this.finds, next: { ...this.finds.next, [key]: now + findInterval(key, now) } };
-    this.log('build', `${this.planet.displayName}: ${family.megaName.toLowerCase()} — połączono dwa kompleksy.`, now);
+    this.log('build', `${this.planet.displayName}: ${family.megaName.toLowerCase()} — uruchomiono.`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `Połączono — ${family.megaName}: premia +${MEGA_RULES.bonus}% w obu kompleksach.` };
+    return { ok: true, message: `Uruchomiono — ${family.megaName}: premia +${MEGA_RULES.bonus}% i znaleziska.` };
   }
 
-  /** Rozłączenie ostatniego megakompleksu budynku (kompleksy zostają, bez zwrotu kosztu). */
+  /** Wyłączenie megakompleksu (kompleks zostaje, bez zwrotu kosztu). */
   splitMega(id: BuildingId, now = Date.now()): ActionMessage {
     this.tick(now);
     const family = findFamily(id);
     const slot = this.slots[this.active]!;
     const list = slot.complexes ?? [];
-    const last = [...list].reverse().find((c) => c.building === id && c.mega !== undefined);
-    if (!family || !last) return { ok: false, message: 'Nie ma megakompleksu do rozłączenia.' };
+    if (!family || !list.some((c) => c.building === id && c.mega)) return { ok: false, message: 'Nie ma megakompleksu do wyłączenia.' };
     slot.complexes = list.map((c) => {
-      if (c.mega !== last.mega) return c;
+      if (c.building !== id) return c;
       const { mega: _gone, ...rest } = c;
       return rest;
     });
     syncPlots(slot, this.buildRules);
-    this.log('build', `${this.planet.displayName}: ${family.megaName.toLowerCase()} rozłączony.`, now);
+    this.log('build', `${this.planet.displayName}: ${family.megaName.toLowerCase()} wyłączony.`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `${family.megaName} rozłączony — kompleksy pracują osobno (+${family.bonus}%).` };
+    return { ok: true, message: `${family.megaName} wyłączony — działa sam kompleks (+${family.bonus}%).` };
   }
 
-  /** Czy następny poziom budynku zmieści się na polach planety (grupy po 3 poziomy; siatka liczona raz na planetę). */
+  /** Czy następny poziom budynku zmieści się na planecie (obszar rośnie o pola z etapu; siatka liczona raz na planetę). */
   private roomCheck(slot: Slot): (id: BuildingId, levels: BuildingLevels) => boolean {
     const rules = this.buildRules;
-    return (id, levels) => hasRoomFor(fieldGrid(slot.planet), slot.plots, levels, id, BUILDING_ORDER, rules, reservedCells(slot.complexes ?? []));
+    return (id, levels) => hasRoomFor(fieldGrid(slot.planet), slot.plots, levels, id, BUILDING_ORDER, rules);
   }
 
   /** Gdzie wolno budować (v0.35): „Budowa na lodzie” — wszystkie budynki także na polach lodu (całe imperium). */
@@ -2501,7 +2487,7 @@ function fieldsOf(slot: Slot, active: boolean, rules: BuildRules): { used: numbe
   if (!grid && slot.fields) return slot.fields;
   const ready = grid ?? fieldGrid(slot.planet);
   const plots = active ? syncPlots(slot, rules) : slot.plots;
-  slot.fields = { used: usedLandFields(ready, plots, rules, reservedCells(slot.complexes ?? [])), buildable: buildableCount(ready, rules) };
+  slot.fields = { used: usedLandFields(ready, plots), buildable: fieldCapacity(ready, plots, rules) };
   return slot.fields;
 }
 
@@ -2509,22 +2495,22 @@ function syncPlots(slot: Slot, rules: BuildRules): Plots {
   const c = slot.economy.construction;
   const levels = c ? { ...slot.economy.levels, [c.building]: Math.max(slot.economy.levels[c.building] ?? 0, c.targetLevel) } : slot.economy.levels;
   const grid = fieldGrid(slot.planet);
-  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, reservedCells(slot.complexes ?? []), slot.preferred);
-  // Wybrane pole użyte — wybór dotyczy tylko jednej grupy.
+  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, slot.preferred);
+  // Wybrane pole użyte — wybór dotyczy tylko jednego pola.
   if (slot.preferred) {
     for (const [id, cell] of Object.entries(slot.preferred) as [BuildingId, number][]) {
       if ((slot.plots[id] ?? []).includes(cell)) delete slot.preferred[id];
     }
   }
-  // Kompleks rozpada się, gdy któraś jego grupa przestanie być pełna (np. zburzenie poziomu) — v0.38.
+  // Kompleks znika, gdy budynek przestaje stać (zburzenie do poziomu 0).
   if (slot.complexes?.length) {
-    const valid = validMegas(grid, validComplexes(slot.complexes, slot.plots, slot.economy.levels));
+    const valid = validComplexes(slot.complexes, slot.economy.levels);
     slot.complexes = valid.length > 0 ? valid : undefined;
   }
-  // Dopasowanie do terenu (poziomy w grupach na niepasującym terenie produkują słabiej) i premia kompleksów.
-  const factors = siteFactors(grid, slot.plots, slot.economy.levels, complexCellBonus(slot.complexes ?? []));
+  // Dopasowanie obszaru do terenu (pola na niepasującym terenie produkują słabiej) i premia kompleksu.
+  const factors = siteFactors(grid, slot.plots, slot.economy.levels, complexBuildingBonus(slot.complexes ?? []));
   if (JSON.stringify(factors) !== JSON.stringify(slot.economy.siteFactor ?? {})) slot.economy = { ...slot.economy, siteFactor: factors };
-  const energy = complexEnergyFactors(slot.complexes ?? [], slot.economy.levels);
+  const energy = complexEnergyFactors(slot.complexes ?? []);
   if (JSON.stringify(energy) !== JSON.stringify(slot.economy.energyFactor ?? {})) {
     const { energyFactor: _old, ...rest } = slot.economy;
     slot.economy = Object.keys(energy).length > 0 ? { ...rest, energyFactor: energy } : rest;
@@ -2534,33 +2520,31 @@ function syncPlots(slot: Slot, rules: BuildRules): Plots {
 
 const BUILDING_ORDER: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
 
-/** Premia kompleksów dla poziomów na polu (procent z danych rodziny). */
-function complexCellBonus(complexes: readonly Complex[]): (id: BuildingId, cell: number) => number {
-  const bonusOf = (family: string) => COMPLEX_FAMILIES.find((f) => f.id === family)?.bonus ?? 0;
-  // Premia kompleksu (w megakompleksie — większa, v0.43) × wydobycie trybu pracy (v0.39).
-  return (id, cell) => {
-    const c = complexes.find((x) => x.building === id && x.cells.includes(cell));
-    const mode = c ? complexMode(COMPLEX_FAMILIES.find((f) => f.id === c.family), c.mode) : null;
-    const bonus = c?.mega !== undefined ? 1 + MEGA_RULES.bonus / 100 : complexBonus(complexes, id, cell, bonusOf);
-    return bonus * (mode?.output ?? 1);
+/** Premia kompleksu dla całego budynku (megakompleks — większa) × wydobycie trybu pracy (v0.39). */
+function complexBuildingBonus(complexes: readonly Complex[]): (id: BuildingId) => number {
+  return (id) => {
+    const c = complexes.find((x) => x.building === id);
+    if (!c) return 1;
+    const family = COMPLEX_FAMILIES.find((f) => f.id === c.family);
+    const bonus = c.mega ? MEGA_RULES.bonus : (family?.bonus ?? 0);
+    return (1 + bonus / 100) * complexMode(family, c.mode).output;
   };
 }
 
-/**
- * Mnożnik energii budynku z trybów pracy jego kompleksów (v0.39): poziomy w kompleksie zużywają
- * energię × tryb, reszta — zwykle; średnia ważona liczbą poziomów.
- */
-function complexEnergyFactors(complexes: readonly Complex[], levels: BuildingLevels): Partial<Record<BuildingId, number>> {
+/** Mnożnik energii budynku z trybu pracy jego kompleksu (v0.39; od v0.45 cały budynek). */
+function complexEnergyFactors(complexes: readonly Complex[]): Partial<Record<BuildingId, number>> {
   const out: Partial<Record<BuildingId, number>> = {};
   for (const c of complexes) {
-    const family = COMPLEX_FAMILIES.find((f) => f.id === c.family);
-    const mode = complexMode(family, c.mode);
-    if (mode.energy === 1) continue;
-    const level = Math.max(1, levels[c.building] ?? 1);
-    const inside = c.cells.length * LEVELS_PER_FIELD;
-    out[c.building] = (out[c.building] ?? 1) + (inside / level) * (mode.energy - 1);
+    const mode = complexMode(COMPLEX_FAMILIES.find((f) => f.id === c.family), c.mode);
+    if (mode.energy !== 1) out[c.building] = mode.energy;
   }
-  for (const id of Object.keys(out) as BuildingId[]) out[id] = Math.round(out[id]! * 1000) / 1000;
+  return out;
+}
+
+/** Migracja układu pól (v0.45): z dawnych pól budynku zostaje pierwsze — od niego rośnie nowy, spójny obszar. */
+function anchorsOnly(plots: Plots): Plots {
+  const out: Plots = {};
+  for (const [id, list] of Object.entries(plots) as [BuildingId, number[]][]) if (list?.length) out[id] = [list[0]!];
   return out;
 }
 
@@ -2579,11 +2563,12 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       economy: slot.economy,
       address: slot.planet.address ?? '',
       research: slot.research ?? EMPTY_RESEARCH,
-      // Przydział z innej wersji siatki wskazywałby inne pola — budowle dostają pola od nowa.
-      plots: slot.plotsGrid === FIELD_GRID_VERSION ? (slot.plots ?? {}) : {},
-      ...(slot.plotsGrid === FIELD_GRID_VERSION && slot.fields ? { fields: slot.fields } : {}),
-      // Kompleksy wskazują numery pól — ważne tylko z tą samą wersją siatki (jak przydział pól).
-      ...(slot.plotsGrid === FIELD_GRID_VERSION && slot.complexes?.length ? { complexes: slot.complexes } : {}),
+      // Przydział z innej wersji siatki wskazywałby inne pola — budowle dostają pola od nowa. Stary układ pól
+      // (pole na każde 3 poziomy, sprzed v0.45): obszar rośnie od nowa od pierwszego pola budynku (migracja).
+      plots: slot.plotsGrid !== FIELD_GRID_VERSION ? {} : slot.plotsLayout === PLOTS_LAYOUT ? (slot.plots ?? {}) : anchorsOnly(slot.plots ?? {}),
+      ...(slot.plotsGrid === FIELD_GRID_VERSION && slot.plotsLayout === PLOTS_LAYOUT && slot.fields ? { fields: slot.fields } : {}),
+      // Kompleksy od v0.45 nie wskazują pól — przechodzą z każdego zapisu (postęp gracza zostaje).
+      ...(slot.complexes?.length ? { complexes: slot.complexes } : {}),
       ...(slot.specialization ? { specialization: slot.specialization } : {}),
       ...(slot.asteroidStation ? { asteroid: slot.asteroidStation } : {}),
       ...(slot.starCollector ? { collector: slot.starCollector } : {}),

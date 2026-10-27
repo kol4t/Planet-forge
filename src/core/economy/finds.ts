@@ -48,7 +48,7 @@ export function parseFinds(raw: any): FindsState {
     if (Number.isInteger(n) && n > 0) items[f.id] = Math.min(n, f.max);
   }
   if (raw?.next && typeof raw.next === 'object') {
-    for (const [k, v] of Object.entries(raw.next)) if (/^.+:\d+$/.test(k) && typeof v === 'number' && Number.isFinite(v)) next[k] = v;
+    for (const [k, v] of Object.entries(raw.next)) if (/^.+:[A-Za-z0-9]+$/.test(k) && typeof v === 'number' && Number.isFinite(v)) next[k] = v;
   }
   return { items, next };
 }

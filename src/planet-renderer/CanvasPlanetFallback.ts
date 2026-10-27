@@ -1,14 +1,14 @@
-import { visualTier } from '../data/industry.ts';
 import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
-import { collectorOrbit, groupFull, hubKey, layoutFromPlots, plotsKey, RIG_BUILDINGS, visibleStructures, type ColonyHub, type ColonyLayout } from './colony.ts';
+import { cellLookup, collectorOrbit, hash01, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
+import { complexGround } from './complexLook.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
-import { levelsWithSite, pickCell, pickStructureHit, type StructureHit } from './pick.ts';
-import { facingAngles, focusLift, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
+import { pickCell, pickComplex, type StructureHit } from './pick.ts';
+import { facingAngles, focusLift, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
 import { ZoomSmoother } from './input/zoom.ts';
 import type { RGB, SurfaceSampler } from './surface.ts';
@@ -21,6 +21,8 @@ const BUFFER = 180;
 /** Przy przybliżeniu rozdzielczość rośnie maks. do BUFFER × 1,6 (koszt rysowania ~2,6×). */
 const MAX_BUFFER_SCALE = 1.6;
 const BUILDING_IDS: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
+/** Wyrastanie kompleksu po wzroście (ms). */
+const GROW_MS = 1400;
 
 export class CanvasPlanetFallback implements PlanetDisplay {
   readonly kind = 'canvas2d' as const;
@@ -53,9 +55,12 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private gridVisible = false;
   /** Obrys zajętości wybranej budowli: klucz pól i odcinki granic (v0.38.1). */
   private highlight: { key: string; borders: number[]; mode: HighlightMode } | null = null;
-  /** Animacja łączenia (v0.38.2): chwila pojawienia się każdego szybu głównego (z wczytanej gry — dawno). */
-  private readonly hubBirth = new Map<string, number>();
-  private hubsSeeded = false;
+  /** Wyrastanie kompleksów (v0.45): chwila ostatniego wzrostu obszaru albo zmiany etapu każdego budynku. */
+  private readonly grownAt = new Map<BuildingId, number>();
+  private seeded = false;
+  /** Obrys wszystkich kompleksów (odcinki granic siatki) i mapa „punkt → pole” dla gruntu kompleksów. */
+  private outlines: number[] = [];
+  private lookup: CellLookup | null = null;
   private spinHeld = false;
   private readonly reducedMotion = prefersReducedMotion();
   private orbital = 0;
@@ -76,9 +81,11 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.sampler = this.look.sampler;
     this.grid = fieldGrid(planet);
     this.highlight = null;
-    this.hubBirth.clear();
-    this.hubsSeeded = false;
+    this.grownAt.clear();
+    this.seeded = false;
     this.plotsKey = '';
+    this.outlines = [];
+    this.lookup = cellLookup(this.grid);
     this.colony = layoutFromPlots(this.grid, {}, this.sampler, BUILDING_IDS);
     this.atmosphere = this.look.atmosphere;
     this.lastDrawn = { yaw: NaN, pitch: NaN };
@@ -86,15 +93,19 @@ export class CanvasPlanetFallback implements PlanetDisplay {
 
   setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = []): void {
     if (plots && this.grid && this.sampler) {
-      const key = plotsKey(plots, BUILDING_IDS, complexes);
+      const key = plotsKey(plots, BUILDING_IDS, levels, complexes);
       if (key !== this.plotsKey) {
+        const before = new Map((this.colony?.complexes ?? []).map((c) => [c.building, `${c.cells.length}@${c.stage}`]));
         this.plotsKey = key;
-        this.colony = layoutFromPlots(this.grid, plots, this.sampler, BUILDING_IDS, complexes);
-        for (const hub of this.colony.hubs) {
-          const key = hubKey(hub);
-          if (!this.hubBirth.has(key)) this.hubBirth.set(key, this.hubsSeeded && !this.reducedMotion ? performance.now() : -1e9);
+        this.colony = layoutFromPlots(this.grid, plots, this.sampler, BUILDING_IDS, levels, complexes);
+        this.outlines = this.colony.complexes.flatMap((c) => outlineBorders(this.grid!, c.cells));
+        // Kompleks, który urósł albo zmienił etap, wyrasta od nowa (z wczytanej gry — od razu).
+        for (const c of this.colony.complexes) {
+          if (this.seeded && before.get(c.building) !== `${c.cells.length}@${c.stage}`) this.grownAt.set(c.building, performance.now());
         }
-        if (Object.values(plots).some((l) => (l?.length ?? 0) > 0)) this.hubsSeeded = true;
+        this.seeded = true;
+        // Grunt kompleksów jest w tarczy — trzeba ją narysować od nowa.
+        this.lastDrawn = { yaw: NaN, pitch: NaN };
       }
       this.plots = plots;
     }
@@ -103,20 +114,16 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   }
 
   pickStructure(x: number, y: number): StructureHit | null {
-    if (!this.colony || !this.levels) return null;
+    if (!this.colony || !this.grid) return null;
     const { yaw, pitch } = this.rotator;
     const view = { cx: this.focus.cx, cy: this.focus.cy, yaw, pitch, tilt: 0, projection: { kind: 'ortho' as const, r: this.focus.r * this.zoom } };
-    return pickStructureHit(this.colony, levelsWithSite(this.levels, this.site), view, x, y);
+    return pickComplex(this.colony, this.grid, view, x, y);
   }
 
-  showBuilding(id: BuildingId, index?: number): boolean {
-    const slots = this.colony?.slots[id];
-    if (!slots?.length) return false;
-    const level = this.site?.building === id ? this.site.targetLevel : (this.levels?.[id] ?? 0);
-    const count = Math.min(visibleStructures(level), slots.length);
-    if (count === 0) return false;
-    const slot = slots[Math.max(0, Math.min(index ?? count - 1, count - 1))]!;
-    const { yaw, pitch } = facingAngles(slot.dir, 0, focusLift(this.zoomer.target));
+  showBuilding(id: BuildingId): boolean {
+    const c = this.colony?.complexes.find((x) => x.building === id);
+    if (!c) return false;
+    const { yaw, pitch } = facingAngles(c.core, 0, focusLift(this.zoomer.target));
     this.rotator.turnTo(yaw, pitch, performance.now());
     return true;
   }
@@ -315,7 +322,22 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     if (!this.look) return;
     const image = this.bctx.createImageData(this.size, this.size);
     const { yaw, pitch } = this.rotator;
-    renderDisc(image.data, this.size, this.look, yaw, pitch);
+    const colony = this.colony;
+    const lookup = this.lookup;
+    const overlay =
+      colony && lookup && colony.complexes.length > 0
+        ? (x: number, y: number, z: number) => {
+            const cell = lookup(x, y, z);
+            const index = cell >= 0 ? colony.owner[cell]! : -1;
+            if (index < 0) return null;
+            const c = colony.complexes[index]!;
+            // Nowy kompleks wyrasta: grunt pojawia się punkt po punkcie.
+            const grow = this.growth(c.building);
+            if (grow < 1 && hash01(Math.floor(x * 400) * 7 + Math.floor(z * 400), 3) > grow) return null;
+            return complexGround(c, [x, y, z]);
+          }
+        : undefined;
+    renderDisc(image.data, this.size, this.look, yaw, pitch, overlay);
     this.bctx.putImageData(image, 0, 0);
     this.lastDrawn = { yaw, pitch };
   }
@@ -324,8 +346,13 @@ export class CanvasPlanetFallback implements PlanetDisplay {
    * Budowle jako kwadratowe „piksele” wyrównane do siatki pikseli planety (styl pixel-art).
    * Plac budowy: złota ramka, którą wypełnia postęp od dołu.
    */
+  /**
+   * Zabudowa kompleksów (v0.45) na wierzchu tarczy: jeden obiekt na budynek — główna konstrukcja w środku
+   * obszaru (rośnie z etapem) i mniejsze w jego wnętrzu. Grunt kompleksu jest już w tarczy (`renderDisc`).
+   * Subtelny turkusowy obrys całego obszaru. Bez pasków i rur między budowlami.
+   */
   private drawStructures(): void {
-    if (!this.colony || !this.levels) return;
+    if (!this.colony || !this.levels || !this.grid) return;
     const { cx, cy: centerY } = this.focus;
     const r = this.focus.r * this.zoom;
     const { yaw, pitch } = this.rotator;
@@ -340,223 +367,174 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const top = centerY - r;
     const snapX = (x: number) => left + Math.floor((x - left) / pixel) * pixel;
     const snapY = (y: number) => top + Math.floor((y - top) / pixel) * pixel;
-    const cell = pixel * 2; // budowla = 2 × 2 piksele planety
-    const toScreen = ([px, py, pz]: readonly [number, number, number]) => {
+    const toScreen = ([px, py, pz]: readonly number[]) => {
       // Planeta → ekran (obrót, potem pochylenie).
-      const sx = px * cy + pz * sy;
-      const hz = -px * sy + pz * cy;
-      return { x: cx + sx * r, y: centerY - (py * cp - hz * sp) * r, depth: py * sp + hz * cp };
+      const sx = px! * cy + pz! * sy;
+      const hz = -px! * sy + pz! * cy;
+      return { x: cx + sx * r, y: centerY - (py! * cp - hz * sp) * r, depth: py! * sp + hz * cp };
     };
-    // Pełne pole wierteł kryształu (v0.38) to jedno wiertło z szybem zamiast trzech małych budowli.
-    const level = (id: BuildingId) => this.levels![id] ?? 0;
-    const rigged = (id: BuildingId, i: number) => RIG_BUILDINGS.includes(id) && groupFull(level(id), Math.floor(i / 3));
-    for (const id of BUILDING_IDS) {
-      const slots = this.colony.slots[id] ?? [];
-      const count = Math.min(visibleStructures(this.levels[id] ?? 0), slots.length);
-      ctx.fillStyle = STRUCTURE_COLORS[id].light;
-      for (let i = 0; i < count; i++) {
-        if (rigged(id, i)) continue;
-        const p = toScreen(slots[i]!.dir);
-        if (p.depth < 0.08) continue;
-        ctx.globalAlpha = Math.min(1, p.depth * 2.5);
-        ctx.fillRect(snapX(p.x - pixel / 2), snapY(p.y - pixel / 2), cell, cell);
-      }
-    }
-    // Szyby w pikselach: ciemne wnętrze, obręcz, światło obiegające obręcz (praca wiertła).
-    // „Ogranicz ruch” — szyby bez obiegającego światła i pulsowania.
     const now = this.reducedMotion ? 0 : performance.now();
-    const pit = (px: number, py: number, n: number, colors: { body: string; light: string }, speed: number, alpha: number) => {
-      const x0 = snapX(px - (n * pixel) / 2);
-      const y0 = snapY(py - (n * pixel) / 2);
-      ctx.globalAlpha = alpha;
-      // Obręcz bez narożników — szyb jest okrągławy, nie kwadratowy.
-      ctx.fillStyle = colors.body;
-      ctx.fillRect(x0 + pixel, y0, (n - 2) * pixel, n * pixel);
-      ctx.fillRect(x0, y0 + pixel, n * pixel, (n - 2) * pixel);
-      ctx.fillStyle = '#071012';
-      ctx.fillRect(x0 + pixel, y0 + pixel, (n - 2) * pixel, (n - 2) * pixel);
-      // Obręcz: piksele po obwodzie; jeden (dwa przy kompleksie) świecą i obiegają szyb.
-      const ring: [number, number][] = [];
-      for (let k = 1; k < n - 1; k++) ring.push([k, 0]);
-      for (let k = 1; k < n - 1; k++) ring.push([n - 1, k]);
-      for (let k = n - 2; k > 0; k--) ring.push([k, n - 1]);
-      for (let k = n - 2; k > 0; k--) ring.push([0, k]);
-      const step = Math.floor((now / 1000) * speed * ring.length) % ring.length;
-      ctx.fillStyle = colors.light;
-      for (const offset of n > 3 ? [0, ring.length / 2] : [0]) {
-        const [rx, ry] = ring[(step + offset) % ring.length]!;
-        ctx.fillRect(x0 + rx * pixel, y0 + ry * pixel, pixel, pixel);
-      }
-      // Hale przy krawędzi i kryształy wyrastające obok szybu (v0.38.1).
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = colors.body;
-      ctx.fillRect(x0 - 2 * pixel, y0 + pixel, 2 * pixel, 2 * pixel);
-      ctx.fillRect(x0 + n * pixel, y0 + (n - 3) * pixel, 2 * pixel, 2 * pixel);
-      ctx.fillStyle = '#6fe9ff';
-      ctx.fillRect(x0 + (n - 2) * pixel, y0 - pixel, pixel, pixel);
-      ctx.fillRect(x0 + pixel, y0 + n * pixel, pixel, pixel);
-      ctx.fillStyle = colors.light;
-      // Kryształ na dnie szybu pulsuje.
-      ctx.globalAlpha = alpha * (0.45 + 0.55 * Math.abs(Math.sin(now / 600 + px)));
-      const c = Math.floor(n / 2);
-      ctx.fillRect(x0 + c * pixel, y0 + c * pixel, pixel, pixel);
+    this.drawOutlines(toScreen);
+    const px = (x0: number, y0: number, dx: number, dy: number, w: number, h: number, color: string) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(x0 + dx * pixel, y0 + dy * pixel, w * pixel, h * pixel);
     };
-    // Postęp łączenia 0..1: szyb wyrasta w pierwszej połowie, rury biegną do wierteł w drugiej (2,4 s).
-    const growth = (hub: ColonyHub) => Math.min(1, (performance.now() - (this.hubBirth.get(hubKey(hub)) ?? -1e9)) / 2400);
-    // Przemieniony teren wokół kompleksów (v0.42): piksele gruntu pod konstrukcjami, po animacji łączenia.
-    const MARK_COLORS = { crystal: '#9fe9f2', slag: '#2b2622', charged: '#2f6f86' } as const;
-    for (const mark of this.colony.marks) {
-      const hub = this.colony.hubs[mark.hub];
-      if (!hub || growth(hub) * 2 - 1 < hash(mark.spin)) continue;
-      const p = toScreen(mark.dir);
-      if (p.depth < 0.08) continue;
-      ctx.globalAlpha = Math.min(1, p.depth * 2.5) * (mark.kind === 'slag' ? 0.85 : 0.75);
-      // Płyty sieci Tesli chwilami rozbłyskują.
-      ctx.fillStyle = mark.kind === 'charged' && now > 0 && hash(Math.floor(now / 250) + mark.spin * 7) < 0.04 ? '#bff6ff' : MARK_COLORS[mark.kind];
-      const big = mark.size > 1.1 && mark.kind !== 'crystal' ? 2 : 1;
-      ctx.fillRect(snapX(p.x - pixel / 2), snapY(p.y - pixel / 2), big * pixel, big * pixel);
-    }
-    for (const hub of this.colony.hubs) {
-      const h = toScreen(hub.dir);
-      if (h.depth < 0.08) continue;
-      const reach = Math.max(0, growth(hub) * 2 - 1);
-      if (reach <= 0) continue;
-      // Rury (kryształy) albo taśmociągi (metal — złote) od konstrukcji głównej do pól kompleksu.
-      ctx.fillStyle = hub.building === 'metalMine' ? '#c9a24a' : hub.building === 'powerPlant' ? '#2f3d44' : STRUCTURE_COLORS[hub.building].body;
-      ctx.globalAlpha = Math.min(1, h.depth * 2.5) * 0.9;
-      for (const member of hub.members) {
-        const m = toScreen(member);
-        const steps = Math.max(1, Math.ceil(Math.hypot(m.x - h.x, m.y - h.y) / pixel));
-        for (let k = 0; k <= steps * reach; k++) ctx.fillRect(snapX(h.x + ((m.x - h.x) * k) / steps), snapY(h.y + ((m.y - h.y) * k) / steps), pixel, pixel);
-      }
-    }
-    // Zakład metalu (v0.39): stalowa hala ze złotym dachem, żarzące się okna pieców i komin z iskrą.
-    const hall = (px: number, py: number, n: number, alpha: number) => {
-      const x0 = snapX(px - (n * pixel) / 2);
-      const y0 = snapY(py - (n * pixel) / 2);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = '#6f7b78';
-      ctx.fillRect(x0, y0 + pixel, n * pixel, (n - 1) * pixel);
-      ctx.fillStyle = '#c9a24a';
-      ctx.fillRect(x0, y0 + pixel, n * pixel, pixel);
-      ctx.fillStyle = '#3c4543';
-      ctx.fillRect(x0 + pixel, y0 - 2 * pixel, pixel, 3 * pixel);
-      // Okna pieców: co drugi piksel żarzy się i lekko mruga.
-      ctx.fillStyle = '#ff9a3c';
-      for (let k = 1; k < n - 1; k += 2) {
-        ctx.globalAlpha = alpha * (0.6 + 0.4 * Math.abs(Math.sin(now / 500 + k)));
-        ctx.fillRect(x0 + k * pixel, y0 + Math.ceil(n / 2) * pixel, pixel, pixel);
-      }
-      ctx.globalAlpha = alpha * (0.5 + 0.5 * Math.abs(Math.sin(now / 350 + px)));
-      ctx.fillRect(x0 + pixel, y0 - 3 * pixel, pixel, pixel);
-    };
-    // Węzeł Tesli (v0.40): stalowa wieża na podstawie, złoty pierścień, migocząca kula na szczycie.
-    const tower = (px: number, py: number, n: number, alpha: number) => {
-      const x0 = snapX(px - (n * pixel) / 2);
-      const y0 = snapY(py - (n * pixel) / 2);
-      const c = Math.floor(n / 2);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = '#6f7b78';
-      ctx.fillRect(x0 + pixel, y0 + (n - 1) * pixel, (n - 2) * pixel, pixel);
-      ctx.fillRect(x0 + c * pixel, y0, pixel, n * pixel);
-      ctx.fillStyle = '#c9a24a';
-      ctx.fillRect(x0 + (c - 1) * pixel, y0 + pixel, 3 * pixel, pixel);
-      ctx.fillRect(x0, y0 + (n - 2) * pixel, pixel, pixel);
-      ctx.fillStyle = '#bff6ff';
-      ctx.globalAlpha = alpha * (0.6 + 0.4 * Math.abs(Math.sin(now / 170 + px)));
-      ctx.fillRect(x0 + c * pixel, y0 - pixel, pixel, pixel);
-    };
-    const draw = (building: BuildingId, x: number, y: number, n: number, speed: number, alpha: number) =>
-      building === 'metalMine' ? hall(x, y, n, alpha) : building === 'powerPlant' ? tower(x, y, n, alpha) : pit(x, y, n, STRUCTURE_COLORS[building], speed, alpha);
-    // Moduły poziomów wizualnych (v0.41) wokół konstrukcji: platforma, hale, maszt, zbiorniki, złota rama.
-    const modules = (px: number, py: number, n: number, tier: number, alpha: number) => {
-      if (tier < 2) return;
-      const x0 = snapX(px - (n * pixel) / 2);
-      const y0 = snapY(py - (n * pixel) / 2);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = '#3c4543';
-      ctx.fillRect(x0 - pixel, y0 + (n - 1) * pixel, (n + 2) * pixel, 2 * pixel);
-      ctx.fillStyle = '#c9a24a';
-      ctx.fillRect(x0 - pixel, y0 + (n + 1) * pixel, (n + 2) * pixel, pixel);
-      if (tier >= 3) {
-        ctx.fillStyle = '#6f7b78';
-        ctx.fillRect(x0 - 3 * pixel, y0 + (n - 2) * pixel, 2 * pixel, 2 * pixel);
-        ctx.fillRect(x0 + (n + 1) * pixel, y0 + (n - 2) * pixel, 2 * pixel, 2 * pixel);
-        ctx.fillStyle = '#c9a24a';
-        ctx.fillRect(x0 - 3 * pixel, y0 + (n - 3) * pixel, 2 * pixel, pixel);
-        ctx.fillRect(x0 + (n + 1) * pixel, y0 + (n - 3) * pixel, 2 * pixel, pixel);
-      }
-      if (tier >= 4) {
-        ctx.fillStyle = '#6f7b78';
-        ctx.fillRect(x0 + (n + 2) * pixel, y0 - 2 * pixel, pixel, (n - 1) * pixel);
-        ctx.fillStyle = '#e6c77a';
-        ctx.globalAlpha = alpha * (now > 0 && Math.floor(now / 700 + px) % 2 ? 0.35 : 1);
-        ctx.fillRect(x0 + (n + 2) * pixel, y0 - 3 * pixel, pixel, pixel);
-        ctx.globalAlpha = alpha;
-      }
-      if (tier >= 5) {
-        ctx.fillStyle = '#c9a24a';
-        ctx.fillRect(x0 - 3 * pixel, y0 + n * pixel, 2 * pixel, pixel);
-        ctx.fillRect(x0 + (n + 1) * pixel, y0 + n * pixel, 2 * pixel, pixel);
-      }
-      if (tier >= 6) {
-        // Złota rama: rogi i środki boków ramki szerszej o 2 piksele.
-        ctx.fillStyle = '#e6c77a';
-        const w = n + 4;
-        for (const [fx, fy] of [[0, 0], [w - 1, 0], [Math.floor(w / 2), 0], [0, Math.floor(w / 2) - 1], [w - 1, Math.floor(w / 2) - 1]] as const) {
-          ctx.fillRect(x0 + (fx - 2) * pixel, y0 + (fy - 3) * pixel, pixel, pixel);
+    const blink = (phase: number, period = 600) => (now === 0 ? 1 : 0.45 + 0.55 * Math.abs(Math.sin(now / period + phase)));
+    for (const c of this.colony.complexes) {
+      const grow = this.growth(c.building);
+      if (grow <= 0) continue;
+      const core = toScreen(c.core);
+      // Zasięg obszaru w pikselach planety — zabudowa nie wychodzi poza obrys.
+      const span = Math.max(2, Math.floor((c.radius * r) / pixel));
+      const stage = c.stage + (c.mega ? 1 : 0);
+      // Zabudowa pól obszaru (pole = jedna konstrukcja z konturem): gęściej z etapem, odkrywka — tylko na krawędzi.
+      const every = stage >= 2 ? 1 : stage === 1 ? 2 : 0;
+      for (const [k, spot] of c.spots.entries()) {
+        if (k === 0 || every === 0 || k % every !== 0) continue;
+        if (c.building === 'crystalMine' && spot.t < 0.7) continue;
+        const p = toScreen(spot.dir);
+        if (p.depth < 0.1) continue;
+        const a = Math.min(1, p.depth * 2.5) * grow;
+        const x0 = snapX(p.x);
+        const y0 = snapY(p.y);
+        const ph = spot.cell * 1.7;
+        const parts: [number, number, number, number, string, number?][] = [];
+        const part = (dx: number, dy: number, w: number, h: number, color: string, glow?: number) => parts.push([dx, dy, w, h, color, glow]);
+        switch (c.building) {
+          case 'metalMine':
+            // Hala z kominem i żarem.
+            part(-1, -5, 1, 3, '#3c4543');
+            part(-1, -6, 1, 1, '#ff9a3c', ph);
+            part(-2, -2, 5, 3, '#6f7b78');
+            part(-2, -2, 5, 1, k % 3 === 0 ? '#8a9592' : '#c9a24a');
+            part(0, 0, 1, 1, '#ffb15a', ph + 1);
+            break;
+          case 'crystalMine':
+            // Wieża wiertnicza na krawędzi odkrywki.
+            part(0, -4, 1, 4, '#6f7b78');
+            part(-1, -4, 3, 1, '#d8b04a');
+            part(0, -5, 1, 1, '#9ff3ff', ph);
+            break;
+          case 'powerPlant':
+            // Chłodnia z parą.
+            part(-1, -2, 3, 3, '#8a9592');
+            part(0, -3, 1, 1, '#8a9592');
+            part(0, -4, 1, 1, '#e8f1ef', ph);
+            break;
+          case 'storage':
+            part(-1, -1, 3, 2, '#c9a24a');
+            break;
+          case 'antimatterCollector':
+            part(0, -2, 1, 2, '#6f7b78');
+            part(0, -3, 1, 1, '#d4b8ff', ph);
+            break;
+          case 'laboratory':
+            part(-1, -1, 3, 2, '#dfe7e6');
+            part(0, -2, 1, 1, '#5ff2e0', ph);
+            break;
+        }
+        ctx.globalAlpha = a * 0.85;
+        for (const [dx, dy, w, h] of parts) px(x0, y0, dx - 1, dy - 1, w + 2, h + 2, '#071012');
+        for (const [dx, dy, w, h, color, phase] of parts) {
+          ctx.globalAlpha = a * (phase === undefined ? 1 : blink(phase, 420));
+          px(x0, y0, dx, dy, w, h, color);
         }
       }
-    };
-    for (const rig of this.colony.rigs) {
-      if (!groupFull(level(rig.building), rig.group)) continue;
-      const p = toScreen(rig.dir);
-      if (p.depth < 0.08) continue;
-      modules(p.x, p.y, 7, visualTier(level(rig.building)), Math.min(1, p.depth * 2.5));
-      draw(rig.building, p.x, p.y, 7, 0.9, Math.min(1, p.depth * 2.5));
-    }
-    for (const hub of this.colony.hubs) {
-      const h = toScreen(hub.dir);
-      if (h.depth < 0.08) continue;
-      // Szyb / hala główna rośnie od 3 do 9 pikseli (nieparzyście — środek zostaje na miejscu).
-      const size = 3 + 2 * Math.round(3 * Math.min(1, growth(hub) * 2)) + (hub.mega ? 2 : 0);
-      if (growth(hub) >= 0.5) modules(h.x, h.y, size, visualTier(level(hub.building)), Math.min(1, h.depth * 2.5));
-      draw(hub.building, h.x, h.y, size, 0.6, Math.min(1, h.depth * 2.5));
-    }
-    // Wyładowania sieci Tesli: łamana z pikseli od szczytu wieży przesyłowej do szczytów węzłów, kształt
-    // zmienia się kilka razy na sekundę, część łuków chwilami gaśnie. „Ogranicz ruch” — prosta, stała.
-    const tick = Math.floor(now / 90);
-    const jitter = (v: number) => {
-      const t = Math.sin(v * 12.9898) * 43758.5453;
-      return t - Math.floor(t);
-    };
-    ctx.fillStyle = '#bff6ff';
-    this.colony.hubs.forEach((hub, hi) => {
-      if (hub.building !== 'powerPlant') return;
-      const h = toScreen(hub.dir);
-      const ready = growth(hub) * 2 - 1;
-      if (h.depth < 0.08 || ready <= 0) return;
-      hub.members.forEach((member, mi) => {
-        if (now > 0 && jitter(tick * 13.7 + mi * 5.3 + hi) < 0.3) return;
-        const m = toScreen(member);
-        const ax = h.x, ay = h.y - 4 * pixel, bx = m.x, by = m.y - 4 * pixel;
-        const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / pixel));
-        ctx.globalAlpha = Math.min(1, h.depth * 2.5) * 0.85;
-        let off = 0;
-        for (let k = 0; k <= steps * Math.min(1, ready); k++) {
-          if (now > 0 && k % 3 === 0) off = Math.round((jitter(tick * 31.7 + hi * 101 + mi * 17 + k) - 0.5) * 3);
-          const t = k / steps;
-          const side = k === 0 || k >= steps ? 0 : off;
-          ctx.fillRect(snapX(ax + (bx - ax) * t), snapY(ay + (by - ay) * t + side * pixel), pixel, pixel);
+      if (core.depth < 0.1) continue;
+      const alpha = Math.min(1, core.depth * 2.5) * grow;
+      const x0 = snapX(core.x);
+      const y0 = snapY(core.y);
+      // Główna konstrukcja z ciemnym konturem (odcina się od zabudowy gruntu); wielkość z etapu.
+      const rects: [number, number, number, number, string, number?][] = [];
+      const box = (dx: number, dy: number, w: number, h: number, color: string, glowPhase?: number) => rects.push([dx, dy, w, h, color, glowPhase]);
+      switch (c.building) {
+        case 'metalMine': {
+          // Huta: blok hal (stal, złote dachy pasami), kominy na całej szerokości, rząd okien pieców; rośnie z obszarem.
+          const w = Math.min(Math.max(4, span), Math.max(4 + stage * 3, Math.round(span * 0.35)));
+          const h = Math.max(3 + stage, Math.round(w * 0.4));
+          const left = -Math.floor(w / 2);
+          box(left, -h + 1, w, h, '#6f7b78');
+          for (let r = 0; r < h - 2; r += 3) box(left, -h + 1 + r, w, 1, '#c9a24a');
+          if (stage >= 2) box(left - 2, -1, 3, 2, '#8a9592');
+          for (let k = 0, dx = left + 1; dx < left + w - 1; k++, dx += 3) {
+            const ch = 3 + stage + (k % 3);
+            box(dx, -h + 1 - ch, 1, ch, '#3c4543');
+            box(dx, -h - ch, 1, 1, '#ff9a3c', k * 1.3);
+          }
+          for (let k = left + 1; k < left + w - 1; k += 2) box(k, -1, 1, 1, '#ffb15a', k * 0.7);
+          break;
         }
-      });
-    });
+        case 'crystalMine': {
+          // Wieża wiertnicza nad środkiem odkrywki: kratownica, świecący rdzeń, złota głowica i ramiona.
+          // Wieża rośnie z odkrywką (do ~0,4 promienia obszaru).
+          const h = Math.max(5 + stage * 3, Math.round(span * 0.3));
+          // Szersza kratownica przy większej odkrywce (nieparzysta szerokość — rdzeń w środku).
+          const half = 1 + Math.floor(h / 14);
+          box(-half, -h + 1, half * 2 + 1, h, '#4f5a58');
+          box(0, -h + 2, 1, h - 2, '#1a2224');
+          for (let k = 2; k < h - 1; k += 2) box(0, -h + 1 + k, 1, 1, '#6fe9ff', k * 0.4);
+          for (let k = 4; k < h - 2; k += 6) box(-half - 1, -h + 1 + k, half * 2 + 3, 1, '#c9a24a');
+          box(-half - 1, -h, half * 2 + 3, 1, '#c9a24a');
+          box(0, -h - 1, 1, 1, '#9ff3ff', 0);
+          break;
+        }
+        case 'powerPlant': {
+          // Wieża przesyłowa z jasną kulą (wyżej z etapem).
+          const h = 4 + stage * 2;
+          box(0, -h, 1, h + 1, '#6f7b78');
+          box(-1, -h + 1, 3, 1, '#c9a24a');
+          if (stage >= 1) box(-2, -h + 3, 5, 1, '#c9a24a');
+          box(0, -h - 1, 1, 1, '#bff6ff', 0);
+          break;
+        }
+        case 'storage': {
+          // Suwnica nad składem.
+          const w = Math.min(Math.max(4, span), 4 + stage * 2);
+          box(-Math.floor(w / 2), -4, w, 1, '#c9a24a');
+          box(-Math.floor(w / 2), -4, 1, 5, '#6f7b78');
+          box(Math.ceil(w / 2) - 1, -4, 1, 5, '#6f7b78');
+          break;
+        }
+        case 'antimatterCollector': {
+          const w = Math.max(3, Math.min(span, 3 + stage * 2) | 1);
+          box(-Math.floor(w / 2), 0, w, 1, '#8a6fd0');
+          box(0, -Math.floor(w / 2), 1, w, '#8a6fd0');
+          box(0, -Math.floor(w / 2) - 2, 1, 2, '#6f7b78');
+          box(0, -Math.floor(w / 2) - 3, 1, 1, '#f0e2ff', 0);
+          break;
+        }
+        case 'laboratory': {
+          const w = Math.max(3, Math.min(span, 3 + stage * 2) | 1);
+          box(-Math.floor(w / 2), -1, w, 2, '#dfe7e6');
+          box(-Math.floor(w / 2) + 1, -2, Math.max(1, w - 2), 1, '#dfe7e6');
+          box(0, -4, 1, 2, '#6f7b78');
+          box(0, -5, 1, 1, '#5ff2e0', 0);
+          break;
+        }
+      }
+      // Kontur: każdy prostokąt powiększony o piksel, ciemny; potem kolory (światła migają).
+      ctx.globalAlpha = alpha * 0.9;
+      for (const [dx, dy, w, h] of rects) px(x0, y0, dx - 1, dy - 1, w + 2, h + 2, '#071012');
+      for (const [dx, dy, w, h, color, phase] of rects) {
+        ctx.globalAlpha = alpha * (phase === undefined ? 1 : blink(phase, 380));
+        px(x0, y0, dx, dy, w, h, color);
+      }
+      // Dym z kominów huty: szare piksele unoszące się nad hutą.
+      if (c.building === 'metalMine' && now > 0) {
+        for (let k = 0; k < 2 + stage; k++) {
+          const f = ((now / 1600 + k * 0.37) % 1 + 1) % 1;
+          ctx.globalAlpha = alpha * 0.5 * (1 - f);
+          px(x0, y0, -Math.floor(Math.min(Math.max(4, span), 4 + stage * 3) / 2) + 1 + (k % (1 + stage)) * 2, -9 - stage * 2 - Math.floor(f * 6), 1, 1, '#c8d0ce');
+        }
+      }
+    }
     ctx.globalAlpha = 1;
+    // Plac budowy: migające złote rusztowanie na najnowszym polu obszaru budowanego budynku.
     const site = this.site;
-    const siteSlots = site && this.colony.slots[site.building];
-    if (site && siteSlots?.length) {
-      const index = Math.max(0, Math.min(visibleStructures(site.targetLevel), siteSlots.length) - 1);
-      const p = toScreen(siteSlots[index]!.dir);
+    const building = site && this.colony.complexes.find((c) => c.building === site.building);
+    if (site && building) {
+      const spot = building.spots.reduce((a, b) => (building.cells.indexOf(b.cell) > building.cells.indexOf(a.cell) ? b : a));
+      const p = toScreen(spot.dir);
       if (p.depth >= 0.08) {
         const size = pixel * 4;
         const x = snapX(p.x - size / 2);
@@ -573,6 +551,38 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     ctx.globalAlpha = 1;
   }
 
+  /** Subtelny turkusowy obrys każdego kompleksu — wokół całego obszaru, nie pojedynczych pól. */
+  private drawOutlines(toScreen: (p: readonly number[]) => { x: number; y: number; depth: number }): void {
+    if (!this.grid || this.outlines.length === 0) return;
+    const ctx = this.ctx;
+    ctx.beginPath();
+    for (const i of this.outlines) {
+      const border = this.grid.borders[i]!;
+      const a = toScreen(border.from);
+      const b = toScreen(border.to);
+      if (a.depth < 0.02 || b.depth < 0.02) continue;
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    }
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = '#041012';
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = HIGHLIGHT.color;
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  /** Wyrastanie kompleksu po zmianie etapu albo wzroście obszaru (0..1; „Ogranicz ruch” — od razu). */
+  private growth(id: BuildingId): number {
+    const born = this.grownAt.get(id);
+    if (born === undefined || this.reducedMotion) return 1;
+    return Math.min(1, (performance.now() - born) / GROW_MS);
+  }
+
   private loop(time: number): void {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
@@ -583,7 +593,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.rotator.spinFactor = this.spinHeld ? 0 : Math.min(1, Math.max(0, 2 - this.zoom));
     this.rotator.update(dt, time);
     if (this.zoomer.update(dt)) this.resizeBuffer();
+    const growing = [...this.grownAt.values()].some((t) => performance.now() - t < GROW_MS + 100);
     if (
+      growing ||
       Number.isNaN(this.lastDrawn.yaw) ||
       Math.abs(this.rotator.yaw - this.lastDrawn.yaw) > 0.01 ||
       Math.abs(this.rotator.pitch - this.lastDrawn.pitch) > 0.01
@@ -662,8 +674,3 @@ function prefersReducedMotion(): boolean {
   }
 }
 
-/** Szybki skrót 0..1 (tylko wygląd: kolejność pojawiania się i rozbłyski przemienionego terenu). */
-function hash(v: number): number {
-  const t = Math.sin(v * 12.9898) * 43758.5453;
-  return t - Math.floor(t);
-}
