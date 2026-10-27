@@ -16,7 +16,46 @@ export interface Complex {
   hubs: number[];
   /** Tryb pracy (v0.39, rodziny z trybami; brak = domyślny). */
   mode?: string;
+  /** Megakompleks (v0.43): wspólny numer dwóch stykających się kompleksów tej samej rodziny. */
+  mega?: number;
 }
+
+/** Czy dwa kompleksy stykają się (któreś ich pole — grupa albo hub — sąsiaduje z polem drugiego). */
+export function touching(grid: FieldGrid, a: Complex, b: Complex): boolean {
+  const other = new Set([...b.cells, ...b.hubs]);
+  return [...a.cells, ...a.hubs].some((cell) => grid.cells[cell]?.neighbors.some((n) => other.has(n)));
+}
+
+/**
+ * Megakompleksy, które nadal są ważne: dokładnie dwa kompleksy tej samej rodziny z tym samym numerem
+ * i stykające się. Inaczej znacznik znika (np. po rozpadzie jednego z kompleksów) — kompleksy zostają.
+ */
+export function validMegas(grid: FieldGrid, complexes: readonly Complex[]): Complex[] {
+  return complexes.map((c) => {
+    if (c.mega === undefined) return c;
+    const pair = complexes.filter((x) => x.mega === c.mega);
+    if (pair.length === 2 && pair[0]!.family === pair[1]!.family && touching(grid, pair[0]!, pair[1]!)) return c;
+    const { mega: _gone, ...rest } = c;
+    return rest;
+  });
+}
+
+export type MegaCandidate = { ok: true; pair: [number, number] } | { ok: false; reason: string };
+
+/** Następne możliwe połączenie w megakompleks: pierwsza para stykających się kompleksów rodziny spoza megakompleksów. */
+export function megaCandidate(grid: FieldGrid, complexes: readonly Complex[], family: string): MegaCandidate {
+  const free = complexes.map((c, i) => ({ c, i })).filter(({ c }) => c.family === family && c.mega === undefined);
+  if (free.length < 2) return { ok: false, reason: `Potrzeba 2 kompleksów poza megakompleksem — masz ${free.length}.` };
+  for (let a = 0; a < free.length; a++) {
+    for (let b = a + 1; b < free.length; b++) {
+      if (touching(grid, free[a]!.c, free[b]!.c)) return { ok: true, pair: [free[a]!.i, free[b]!.i] };
+    }
+  }
+  return { ok: false, reason: 'Kompleksy nie stykają się — megakompleks łączy dwa kompleksy, których pola leżą obok siebie.' };
+}
+
+/** Numer nowego megakompleksu: najmniejsze pole huba z pary (stały dla tej samej pary). */
+export const megaId = (a: Complex, b: Complex) => Math.min(...a.hubs, ...b.hubs);
 
 /** Pola z pełną grupą (3 poziomy) budynku `id`, w kolejności budowy. */
 export function fullGroupCells(plots: Plots, levels: BuildingLevels, id: BuildingId): number[] {
@@ -139,6 +178,7 @@ export function parseComplexes(raw: unknown, families: readonly ComplexFamily[])
     const family = families.find((f) => f.id === c?.family);
     if (!family || !ints(c.cells) || !ints(c.hubs)) return [];
     const mode = typeof c.mode === 'string' && family.modes?.some((m) => m.id === c.mode) ? { mode: c.mode as string } : {};
-    return [{ family: family.id, building: family.building, cells: [...c.cells], hubs: [...c.hubs], ...mode }];
+    const mega = Number.isInteger(c.mega) && c.mega >= 0 ? { mega: c.mega as number } : {};
+    return [{ family: family.id, building: family.building, cells: [...c.cells], hubs: [...c.hubs], ...mode, ...mega }];
   });
 }

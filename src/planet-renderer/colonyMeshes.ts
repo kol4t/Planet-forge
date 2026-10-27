@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingId, BuildingLevels } from '../core/types.ts';
 import type { BuildSite } from './PlanetDisplay.ts';
-import { groupFull, MAX_MARKS, MAX_STRUCTURES, RIG_BUILDINGS, visibleStructures, type ColonyLayout, type MarkKind } from './colony.ts';
+import { groupFull, hubKey, MAX_MARKS, MAX_STRUCTURES, RIG_BUILDINGS, visibleStructures, type ColonyLayout, type MarkKind } from './colony.ts';
 import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
 import { VISUAL_TIERS, visualTier } from '../data/industry.ts';
 
@@ -121,6 +121,8 @@ const MAX_HUBS = 24;
 const PIPE_SEGMENTS = 5;
 /** Czas animacji łączenia w kompleks (s). */
 const MERGE_SECONDS = 2.4;
+/** Konstrukcja główna megakompleksu jest większa (v0.43). */
+const MEGA_SCALE = 1.25;
 const MAX_PIPES = 72 * PIPE_SEGMENTS;
 
 type BigShape = { body: THREE.BufferGeometry; pit: THREE.BufferGeometry; rotor: THREE.BufferGeometry; glow: THREE.BufferGeometry };
@@ -648,7 +650,7 @@ export class ColonyMeshes {
   private registerHubs(): void {
     if (!this.layout) return;
     for (const hub of this.layout.hubs) {
-      const key = hub.dir.join(',');
+      const key = hubKey(hub);
       if (!this.hubGrowth.has(key)) this.hubGrowth.set(key, this.hubsSeeded && !this.still ? 0 : 1);
     }
     if (this.layout.hubs.length > 0 || Object.values(this.layout.slots).some((s) => s.length > 0)) this.hubsSeeded = true;
@@ -683,7 +685,7 @@ export class ColonyMeshes {
     };
     const hubs = layout.hubs.slice(0, MAX_HUBS);
     const growth = hubs.map((hub) => {
-      const key = hub.dir.join(',');
+      const key = hubKey(hub);
       const g = Math.min(1, (this.hubGrowth.get(key) ?? 1) + dt / MERGE_SECONDS);
       this.hubGrowth.set(key, g);
       return g;
@@ -694,7 +696,7 @@ export class ColonyMeshes {
       // Szyb / hala główna wyrasta w pierwszej połowie animacji łączenia, rury rosną w drugiej.
       let h = 0;
       hubs.forEach((hub, i) => {
-        if (hub.building === id) place(family.hubs, h++, hub.dir, hub.surface, hub.spin, Math.min(1, growth[i]! * 2), HUB_SIZE, family.speed * 0.6);
+        if (hub.building === id) place(family.hubs, h++, hub.dir, hub.surface, hub.spin, Math.min(1, growth[i]! * 2), HUB_SIZE * (hub.mega ? MEGA_SCALE : 1), family.speed * 0.6);
       });
       const tier = visualTier(this.levels![id] ?? 0);
       for (const [meshes, count] of [[family.rigs, rigs.length], [family.hubs, h]] as const) {

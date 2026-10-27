@@ -7,7 +7,7 @@ export interface IndustryStage {
   /** Zajętość pól (opis). */
   footprint: string;
   description: string;
-  when: 'built' | 'full-group' | 'complex' | 'soon';
+  when: 'built' | 'full-group' | 'complex' | 'mega' | 'soon';
 }
 
 /**
@@ -44,19 +44,20 @@ export const INDUSTRY_STAGES: Partial<Record<BuildingId, readonly IndustryStage[
     { name: 'Wiertła', footprint: '1 pole', description: 'Poziomy 1–2 na polu: małe wiertła.', when: 'built' },
     { name: 'Wiertło z szybem', footprint: '1 pole (3 poziomy)', description: 'Pełne pole (poz. 3, 6, 9…): szyb w gruncie i obracająca się głowica.', when: 'full-group' },
     { name: 'Kompleks wiertniczy', footprint: '4 pola', description: '3 sąsiednie pełne pola + szyb główny, +30% wydobycia.', when: 'complex' },
-    { name: 'Megakompleks kryształowy', footprint: 'wkrótce', description: 'Kilka kompleksów i wspólna infrastruktura.', when: 'soon' },
+    { name: 'Megakompleks kryształowy', footprint: '8 pól', description: '2 stykające się kompleksy wiertnicze, +60% wydobycia, głębokie wykopy.', when: 'mega' },
     { name: 'Transformacja terenu', footprint: 'wkrótce', description: 'Kryształowy krajobraz wokół kompleksów.', when: 'soon' },
   ],
   metalMine: [
     { name: 'Kopalnia', footprint: '1 pole', description: 'Poziomy 1–2 na polu: wejścia do kopalni na wzgórzach i w górach.', when: 'built' },
     { name: 'Zakład przetwórczy', footprint: '1 pole (3 poziomy)', description: 'Pełne pole (poz. 3, 6, 9…): hala, piece i kominy.', when: 'full-group' },
     { name: 'Wielka fabryka', footprint: '4 pola', description: '3 sąsiednie zakłady + hala główna, +30% metalu, ekran z trybami pracy.', when: 'complex' },
-    { name: 'Megakompleks metalowy', footprint: 'wkrótce', description: 'Pełny cykl produkcji metalu.', when: 'soon' },
+    { name: 'Megakompleks metalowy', footprint: '8 pól', description: '2 stykające się wielkie fabryki, +60% metalu, głębokie wykopy.', when: 'mega' },
   ],
   powerPlant: [
     { name: 'Elektrownia', footprint: '1 pole', description: 'Poziomy 1–2 na polu: chłodnie na równinach.', when: 'built' },
     { name: 'Węzeł Tesli', footprint: '1 pole (3 poziomy)', description: 'Pełne pole (poz. 3, 6, 9…): wieża z pierścieniem i świecącą kulą.', when: 'full-group' },
     { name: 'Sieć Tesli', footprint: '4 pola', description: '3 sąsiednie węzły + wieża przesyłowa, wyładowania między wieżami, +30% energii.', when: 'complex' },
+    { name: 'Megasieć Tesli', footprint: '8 pól', description: '2 stykające się sieci Tesli, +60% energii.', when: 'mega' },
     { name: 'Energia gwiazdy', footprint: 'wkrótce', description: 'Przesył energii z orbity.', when: 'soon' },
   ],
 };

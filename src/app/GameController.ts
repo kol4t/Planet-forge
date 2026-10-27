@@ -1,7 +1,7 @@
 import { buildableCount, cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type BuildRules, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import { choiceCells, hasRoomFor, LEVELS_PER_FIELD, reconcilePlots, siteFactors, suits, TERRAIN_NAMES, usedLandFields, type Plots } from '../core/colony/plots.ts';
-import { complexBonus, mergeCandidate, reservedCells, validComplexes, type Complex } from '../core/colony/complexes.ts';
-import { COMPLEX_FAMILIES, complexMode, findFamily } from '../data/complexes.ts';
+import { complexBonus, megaCandidate, megaId, mergeCandidate, reservedCells, validComplexes, validMegas, type Complex } from '../core/colony/complexes.ts';
+import { COMPLEX_FAMILIES, complexMode, findFamily, MEGA_RULES } from '../data/complexes.ts';
 import { INDUSTRY_STAGES, VISUAL_TIERS, visualTier } from '../data/industry.ts';
 import {
   advance,
@@ -181,6 +181,8 @@ export interface ComplexView {
   candidate: { cells: number[]; hubs: number[]; gainPerMinute: number } | null;
   reason: string | null;
   fields: { used: number; buildable: number };
+  /** Megakompleks (v0.43): ile stoi, czy można połączyć następny (z zyskiem) albo dlaczego nie. */
+  mega: { name: string; unlocked: boolean; research: string; bonus: number; cost: Resources; count: number; candidate: { gainPerMinute: number } | null; reason: string | null };
 }
 
 /** Stacja na pasie asteroid aktywnej planety (panel „Planeta”, v0.37). */
@@ -2018,8 +2020,9 @@ export class GameController {
     else if (def.produces === 'antimatter') output = `+${per(now.antimatterPerHour - without.antimatterPerHour)} antymaterii/h`;
     const use = now.energyUsed - without.energyUsed;
     const complexes = (this.slots[this.active]!.complexes ?? []).filter((c) => c.building === id).length;
+    const megas = (this.slots[this.active]!.complexes ?? []).filter((c) => c.building === id && c.mega !== undefined).length;
     const reached = (when: string) =>
-      when === 'built' ? level >= 1 : when === 'full-group' ? level >= 3 : when === 'complex' ? complexes > 0 : false;
+      when === 'built' ? level >= 1 : when === 'full-group' ? level >= 3 : when === 'complex' ? complexes > 0 : when === 'mega' ? megas > 0 : false;
     const list = INDUSTRY_STAGES[id] ?? [];
     const lastReached = list.map((st) => reached(st.when)).lastIndexOf(true);
     const nextIndex = list.findIndex((st, i) => i > lastReached && st.when !== 'soon');
@@ -2037,6 +2040,9 @@ export class GameController {
       const view = this.complexView(id);
       const family = findFamily(id);
       next = !view?.unlocked ? `Zbadaj ${family?.research ?? 'badanie kompleksu'}.` : view.candidate ? `Gotowe do połączenia: Zarządzanie → ${family?.name ?? 'Kompleks'}.` : (view.reason ?? null);
+    } else if (nextStage?.when === 'mega') {
+      const mega = this.complexView(id)?.mega;
+      next = !mega?.unlocked ? `Zbadaj ${MEGA_RULES.research}.` : mega.candidate ? `Gotowe: Zarządzanie → ${findFamily(id)?.name ?? 'Kompleks'} → „Połącz w megakompleks”.` : (mega.reason ?? null);
     }
     return {
       name: def.name,
@@ -2098,6 +2104,27 @@ export class GameController {
       candidate,
       reason: found.ok ? null : found.reason,
       fields: fieldsOf(slot, true, this.buildRules),
+      mega: (() => {
+        const all = slot.complexes ?? [];
+        const pair = megaCandidate(grid, all, family.id);
+        let candidate: ComplexView['mega']['candidate'] = null;
+        if (pair.ok) {
+          const id = megaId(all[pair.pair[0]]!, all[pair.pair[1]]!);
+          const next = all.map((c, i) => (pair.pair.includes(i) ? { ...c, mega: id } : c));
+          const gain = (r: Rates) => (family.building === 'powerPlant' ? r.energyProduced : family.building === 'metalMine' ? r.metal : r.crystal);
+          candidate = { gainPerMinute: gain(this.ratesWith(next)) - gain(this.rates) };
+        }
+        return {
+          name: family.megaName,
+          unlocked: this.unlocked(MEGA_RULES.unlock),
+          research: MEGA_RULES.research,
+          bonus: MEGA_RULES.bonus,
+          cost: MEGA_RULES.cost,
+          count: new Set(mine.filter((c) => c.mega !== undefined).map((c) => c.mega)).size,
+          candidate,
+          reason: pair.ok ? null : pair.reason,
+        };
+      })(),
     };
   }
 
@@ -2212,6 +2239,56 @@ export class GameController {
     return { ok: true, message: `${name} rozłączony — pola znów pracują osobno.` };
   }
 
+  /** Połączenie dwóch stykających się kompleksów w megakompleks (v0.43): warunki → koszt → od razu. */
+  mergeMega(id: BuildingId, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const family = findFamily(id);
+    if (!family) return { ok: false, message: 'Ten budynek nie tworzy kompleksów.' };
+    if (!this.unlocked(MEGA_RULES.unlock)) return { ok: false, message: `Najpierw zbadaj ${MEGA_RULES.research}.` };
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const all = slot.complexes ?? [];
+    const pair = megaCandidate(fieldGrid(slot.planet), all, family.id);
+    if (!pair.ok) return { ok: false, message: pair.reason };
+    const cost = MEGA_RULES.cost;
+    if (!fitsInStorage(this.economy, cost, this.balance)) return { ok: false, message: `Za mały magazyn (${this.capacity}). Najpierw rozbuduj Magazyn.` };
+    const stock = this.economy.stock;
+    if (stock.metal < cost.metal || stock.crystal < cost.crystal) {
+      const missing: string[] = [];
+      if (stock.metal < cost.metal) missing.push(`${Math.ceil(cost.metal - stock.metal)} metalu`);
+      if (stock.crystal < cost.crystal) missing.push(`${Math.ceil(cost.crystal - stock.crystal)} kryształów`);
+      return { ok: false, message: `${family.megaName} — brakuje: ${missing.join(', ')}.` };
+    }
+    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
+    const mega = megaId(all[pair.pair[0]]!, all[pair.pair[1]]!);
+    slot.complexes = all.map((c, i) => (pair.pair.includes(i) ? { ...c, mega } : c));
+    syncPlots(slot, this.buildRules);
+    this.log('build', `${this.planet.displayName}: ${family.megaName.toLowerCase()} — połączono dwa kompleksy.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Połączono — ${family.megaName}: premia +${MEGA_RULES.bonus}% w obu kompleksach.` };
+  }
+
+  /** Rozłączenie ostatniego megakompleksu budynku (kompleksy zostają, bez zwrotu kosztu). */
+  splitMega(id: BuildingId, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const family = findFamily(id);
+    const slot = this.slots[this.active]!;
+    const list = slot.complexes ?? [];
+    const last = [...list].reverse().find((c) => c.building === id && c.mega !== undefined);
+    if (!family || !last) return { ok: false, message: 'Nie ma megakompleksu do rozłączenia.' };
+    slot.complexes = list.map((c) => {
+      if (c.mega !== last.mega) return c;
+      const { mega: _gone, ...rest } = c;
+      return rest;
+    });
+    syncPlots(slot, this.buildRules);
+    this.log('build', `${this.planet.displayName}: ${family.megaName.toLowerCase()} rozłączony.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `${family.megaName} rozłączony — kompleksy pracują osobno (+${family.bonus}%).` };
+  }
+
   /** Czy następny poziom budynku zmieści się na polach planety (grupy po 3 poziomy; siatka liczona raz na planetę). */
   private roomCheck(slot: Slot): (id: BuildingId, levels: BuildingLevels) => boolean {
     const rules = this.buildRules;
@@ -2267,7 +2344,7 @@ function syncPlots(slot: Slot, rules: BuildRules): Plots {
   }
   // Kompleks rozpada się, gdy któraś jego grupa przestanie być pełna (np. zburzenie poziomu) — v0.38.
   if (slot.complexes?.length) {
-    const valid = validComplexes(slot.complexes, slot.plots, slot.economy.levels);
+    const valid = validMegas(grid, validComplexes(slot.complexes, slot.plots, slot.economy.levels));
     slot.complexes = valid.length > 0 ? valid : undefined;
   }
   // Dopasowanie do terenu (poziomy w grupach na niepasującym terenie produkują słabiej) i premia kompleksów.
@@ -2286,11 +2363,12 @@ const BUILDING_ORDER: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id)
 /** Premia kompleksów dla poziomów na polu (procent z danych rodziny). */
 function complexCellBonus(complexes: readonly Complex[]): (id: BuildingId, cell: number) => number {
   const bonusOf = (family: string) => COMPLEX_FAMILIES.find((f) => f.id === family)?.bonus ?? 0;
-  // Premia kompleksu × wydobycie trybu pracy (v0.39).
+  // Premia kompleksu (w megakompleksie — większa, v0.43) × wydobycie trybu pracy (v0.39).
   return (id, cell) => {
     const c = complexes.find((x) => x.building === id && x.cells.includes(cell));
     const mode = c ? complexMode(COMPLEX_FAMILIES.find((f) => f.id === c.family), c.mode) : null;
-    return complexBonus(complexes, id, cell, bonusOf) * (mode?.output ?? 1);
+    const bonus = c?.mega !== undefined ? 1 + MEGA_RULES.bonus / 100 : complexBonus(complexes, id, cell, bonusOf);
+    return bonus * (mode?.output ?? 1);
   };
 }
 

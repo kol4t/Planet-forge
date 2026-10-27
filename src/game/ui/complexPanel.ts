@@ -7,6 +7,9 @@ export interface ComplexPanelOptions {
   view: () => ComplexView;
   merge: () => ActionMessage;
   split: () => ActionMessage;
+  /** Megakompleks (v0.43). */
+  mergeMega: () => ActionMessage;
+  splitMega: () => ActionMessage;
   onDone: (message: string) => void;
 }
 
@@ -25,9 +28,17 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
       <p class="tp-error" hidden></p>
       <div class="tp-actions"><button type="button" class="tp-primary cp-merge"></button></div>
       <div class="tp-actions">
-        <button type="button" class="tp-secondary cp-close">Zamknij</button>
-        <button type="button" class="tp-secondary cp-split">Rozłącz</button>
+        <button type="button" class="tp-secondary cp-split">Rozłącz kompleks</button>
       </div>
+      <div class="cp-mega-box" hidden>
+        <h3 class="ap-head cp-mega-head"></h3>
+        <p class="tp-hint cp-mega"></p>
+        <div class="tp-actions">
+          <button type="button" class="tp-primary cp-mega-merge">Połącz w megakompleks</button>
+          <button type="button" class="tp-secondary cp-mega-split">Rozłącz</button>
+        </div>
+      </div>
+      <div class="tp-actions"><button type="button" class="tp-secondary cp-close">Zamknij</button></div>
     </div>`;
   const close = () => root.remove();
   const q = <T extends HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
@@ -68,6 +79,34 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
     options.onDone(result.message);
   };
   merge.addEventListener('click', act(options.merge));
+  // Megakompleks (v0.43): sekcja widoczna, gdy stoi choć jeden kompleks rodziny.
+  const mega = v.mega;
+  const megaBox = q<HTMLElement>('.cp-mega-box');
+  megaBox.hidden = v.count === 0;
+  q('.cp-mega-head').textContent = mega.name;
+  q('.cp-mega').textContent =
+    `Dwa stykające się kompleksy łączą się w megakompleks: premia ich poziomów rośnie z +${v.bonus}% do +${mega.bonus}%.\n` +
+    (mega.count > 0 ? `Stoi: ${mega.count}.\n` : '') +
+    (!mega.unlocked
+      ? `Najpierw zbadaj ${mega.research}.`
+      : mega.candidate
+        ? `Gotowe do połączenia: ${v.resource === 'energy' ? `energia +${formatInt(mega.candidate.gainPerMinute)}` : `wydobycie +${formatRate(mega.candidate.gainPerMinute)}/min`}.\n` +
+          `Koszt: ${formatInt(mega.cost.metal)} metalu · ${formatInt(mega.cost.crystal)} kryształów. Działa od razu, odwracalne (bez zwrotu kosztu).`
+        : (mega.reason ?? ''));
+  const megaMerge = q<HTMLButtonElement>('.cp-mega-merge');
+  const megaSplit = q<HTMLButtonElement>('.cp-mega-split');
+  megaMerge.disabled = !mega.unlocked || !mega.candidate;
+  megaSplit.disabled = mega.count === 0;
+  megaMerge.addEventListener('click', act(options.mergeMega));
+  let megaArmed = false;
+  megaSplit.addEventListener('click', () => {
+    if (!megaArmed) {
+      megaArmed = true;
+      megaSplit.textContent = 'Na pewno?';
+      return;
+    }
+    act(options.splitMega)();
+  });
   // Rozłączenie wymaga drugiego dotknięcia (premia przepada, koszt nie wraca).
   let armed = false;
   split.addEventListener('click', () => {

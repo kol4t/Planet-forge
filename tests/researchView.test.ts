@@ -18,8 +18,8 @@ test('badania — szlak do celu: niezbadane wymagania aż do jądra, bez zbadany
 });
 
 test('badania — postęp ramienia liczy tylko badania do zrobienia', () => {
-  assert.deepEqual(armProgress('productivity', []), { done: 0, total: 24 });
-  assert.deepEqual(armProgress('productivity', ['prod-core', 'mining-1', 'planet-1']), { done: 2, total: 24 });
+  assert.deepEqual(armProgress('productivity', []), { done: 0, total: 25 });
+  assert.deepEqual(armProgress('productivity', ['prod-core', 'mining-1', 'planet-1']), { done: 2, total: 25 });
   assert.equal(armProgress('station', []).total, 3, 'Stacja i handel: Górnictwo asteroid, Przechwyt komet, Rafinacja (reszta wkrótce)');
 });
 

@@ -157,6 +157,9 @@ const NODES: readonly ResearchNodeDef[] = [
   node('productivity', 3, -3, 'metal-factory', 'Metalurgia przemysłowa', 'Inżynieria wydobywcza: trzy sąsiednie zakłady na wzgórzach i w górach łączą się w wielką fabrykę z trybami pracy.', ['mining-1'], [
     { kind: 'unlock', feature: 'metal-factory' },
   ]),
+  node('productivity', 6, -3, 'megastructures', 'Megastruktury', 'Inżynieria wydobywcza: dwa stykające się kompleksy tej samej rodziny łączą się w megakompleks — większa premia i głębokie wykopy.', ['mining-3'], [
+    { kind: 'unlock', feature: 'megastructures' },
+  ]),
   node('productivity', 5, -3, 'tesla-grid', 'Przesył bezprzewodowy', 'Energetyka: trzy sąsiednie węzły elektrowni na równinach łączą się w sieć Tesli z wieżą przesyłową.', ['energy-2'], [
     { kind: 'unlock', feature: 'tesla-grid' },
   ]),
