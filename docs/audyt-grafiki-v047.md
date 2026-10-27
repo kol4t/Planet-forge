@@ -217,3 +217,18 @@ moduły). Teraz każda nowa płyta dostaje najwyżej tyle miejsca, ile zostało 
 zmniejsza się albo pole zostaje puste. Wolne miejsce głównej konstrukcji liczone bez kryterium uskoku (szeroki
 fundament i tak wyrównuje pod nią teren) — tylko granica obszaru i woda. Gdy środek obszaru leży blisko jego skraju,
 główna konstrukcja bywa mniejsza (najmniej połowa docelowej).
+
+## Wynik — magazyn, kolektor antymaterii, laboratorium (ten sam standard, tylko 3D)
+
+Wszystkie sześć budynków ma już modele według standardu (`FAMILIES` obejmuje każdy budynek); stare małe modele
+(`small()`, `plan()`) usunięte. Nazwy etapów — `src/data/footprint.ts` (robocze).
+
+| Budynek | Etapy (poz. 1 / 6 / 12 / 20) | Moduły na polach |
+|---|---|---|
+| Magazyn | skład (silosy, szopa, kontenery) → magazyn (długa hala, trzy silosy) → terminal (dwie hale, silosy, kontenery, żuraw wieżowy z obracającym się wysięgnikiem) → megaskład (wieża z koroną sześciu silosów i złotą kopułą, hale, place) | place kontenerów i silosy, taśmy do centrum |
+| Kolektor antymaterii | pułapka (iglica z kulą w wirującym pierścieniu) → kolektor (wyższa iglica, dwa pierścienie, trzy maszty) → pole pułapek (kopuła zabezpieczenia ze świecącym pasem w kręgu sześciu masztów) → megakolektor (wysoka iglica z trzema pierścieniami, cztery maszty) | maszty pułapek, od pola pułapek co trzecie — cewka |
+| Laboratorium | pracownia (budynek, kopuła obserwatorium, antena) → laboratorium (dwa budynki, kopuła, obracająca się czasza) → instytut (wieża z pasami świateł, dwie kopuły, pierścień) → kampus (wysoka wieża z kopułą i dwoma pierścieniami, cztery skrzydła) | budynki badawcze (turkusowe dachy), od laboratorium co trzecie — antena |
+
+Moduły na polach nie mają już części obracanej (pierścienie, czasze i pręty — nieruchome w bryle): mniej rysowań.
+Koszt (przeglądarka, planeta startowa, wszystkie sześć budynków na tym samym poziomie): poz. 3 — 30 → **37 rysowań**,
+poz. 25 — 37 → **47 rysowań**, trójkąty 140,4 → **145,5 tys.** (większość to teren). W budżecie (~48).
