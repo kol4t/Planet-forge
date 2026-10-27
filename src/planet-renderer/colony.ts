@@ -41,8 +41,10 @@ export interface ColonyHub {
   dir: Vec3;
   surface: number;
   spin: number;
-  /** Środki połączonych grup (do rur). */
+  /** Środki połączonych grup (do rur); w megakompleksie także konstrukcja główna drugiego kompleksu. */
   members: Vec3[];
+  /** Część megakompleksu (v0.43) — większa konstrukcja główna. */
+  mega: boolean;
 }
 
 /** Rodzaj przemienionego gruntu wokół kompleksu (v0.42): kryształowe wychodnie, żużel, naelektryzowane płyty. */
@@ -167,7 +169,13 @@ export function layoutFromPlots(
   const hubs: ColonyHub[] = complexes.flatMap((c) =>
     c.hubs.map((cell) => {
       const dir = fieldPoint(grid, cell);
-      return { building: c.building, dir, surface: surfaceAt(dir), spin: hash01(cell, 6) * Math.PI * 2, members: c.cells.map((m) => fieldPoint(grid, m)) };
+      const members = c.cells.map((m) => fieldPoint(grid, m));
+      // Megakompleks: główny przewód od huba z numerem megakompleksu do huba drugiego kompleksu (raz na parę).
+      if (c.mega === cell) {
+        const partner = complexes.find((x) => x !== c && x.mega === c.mega);
+        if (partner?.hubs[0] !== undefined) members.push(fieldPoint(grid, partner.hubs[0]));
+      }
+      return { building: c.building, dir, surface: surfaceAt(dir), spin: hash01(cell, 6) * Math.PI * 2, members, mega: c.mega !== undefined };
     }),
   );
   return { center: grid.cells[grid.colonyCenter]!.center, slots, rigs, hubs, marks: transformMarks(grid, complexes, surfaceAt) };
@@ -257,5 +265,8 @@ function groupDirs(grid: FieldGrid, cell: number): Vec3[] {
 
 /** Klucz zajętych pól — renderer przebudowuje kolonię tylko, gdy się zmienił. */
 export function plotsKey(plots: Plots, ids: readonly BuildingId[], complexes: readonly Complex[] = []): string {
-  return ids.map((id) => (plots[id] ?? []).join(',')).join('|') + '#' + complexes.map((c) => `${c.cells.join(',')}>${c.hubs.join(',')}`).join(';');
+  return ids.map((id) => (plots[id] ?? []).join(',')).join('|') + '#' + complexes.map((c) => `${c.cells.join(',')}>${c.hubs.join(',')}${c.mega !== undefined ? `^${c.mega}` : ''}`).join(';');
 }
+
+/** Klucz animacji łączenia huba: zmiana w megakompleks (v0.43) to nowe łączenie — konstrukcja wyrasta od nowa. */
+export const hubKey = (hub: ColonyHub) => hub.dir.join(',') + (hub.mega ? '|mega' : '');

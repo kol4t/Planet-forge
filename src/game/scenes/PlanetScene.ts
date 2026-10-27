@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
+import { openFindsPanel } from '../ui/findsPanel.ts';
 import { openFactoryPanel } from '../ui/factoryPanel.ts';
 import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
 import { BuildingCardView, type CardPlacement } from '../ui/buildingCard.ts';
@@ -1716,7 +1717,11 @@ export class PlanetScene extends Phaser.Scene {
     if (canDemolish) lines.push('Zburzenie: −1 poziom od razu, bez zwrotu surowców; pole zwalnia się, gdy grupa 3 poziomów maleje.');
     // Kompleks (v0.38): rodziny z `data/complexes.ts` — okno z podglądem i decyzją.
     const complex = c.complexView(id);
-    if (complex) lines.push(`${complex.name}: ${complex.count > 0 ? `${complex.count} (+${complex.bonus}% z ${complex.levelsIn} poziomów)` : complex.candidate ? 'można połączyć pola' : 'brak'}.`);
+    if (complex) {
+      lines.push(`${complex.name}: ${complex.count > 0 ? `${complex.count} (+${complex.bonus}% z ${complex.levelsIn} poziomów)` : complex.candidate ? 'można połączyć pola' : 'brak'}.`);
+      if (complex.mega.count > 0) lines.push(`${complex.mega.name}: ${complex.mega.count} (+${complex.mega.bonus}%).`);
+      else if (complex.mega.unlocked && complex.mega.candidate) lines.push(`${complex.mega.name}: można połączyć dwa kompleksy.`);
+    }
     add(lines.join('\n'), 12, COLORS.stone, {}, gap * 1.5);
     if (complex) {
       const open = new Button(this, pad, y, w - 2 * pad, buttonH, complex.name, this.dpr, () => {
@@ -1724,7 +1729,7 @@ export class PlanetScene extends Phaser.Scene {
         this.closeOverlay();
         this.openComplex(id);
       }, this.s(14));
-      items.push(open.setStyle(complex.candidate && complex.unlocked ? 'primary' : 'secondary'));
+      items.push(open.setStyle((complex.candidate && complex.unlocked) || (complex.mega.unlocked && complex.mega.candidate) ? 'primary' : 'secondary'));
       y += buttonH + gap;
     }
     if (canDemolish) {
@@ -1781,6 +1786,12 @@ export class PlanetScene extends Phaser.Scene {
       view: () => c.complexView(id)!,
       merge: () => c.mergeComplex(id),
       split: () => c.splitComplex(id),
+      mergeMega: () => c.mergeMega(id),
+      splitMega: () => c.splitMega(id),
+      finds: () => c.findsView().total,
+      openFinds: () => {
+        this.closeAsteroid = openFindsPanel(() => c.findsView());
+      },
       onDone: (message) => {
         this.closeAsteroid = null;
         this.showToast(message, 'ok', 3600);

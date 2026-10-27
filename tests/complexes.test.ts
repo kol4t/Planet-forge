@@ -112,7 +112,7 @@ test('karta budowli i obrys zajętości (v0.38.1): etapy, parametry z gospodarki
     game.economy = { ...game.economy, levels: { ...game.economy.levels, crystalMine: 9, storage: 6 }, stock: { metal: 9000, crystal: 9000 } };
     let card = game.buildingCard('crystalMine');
     assert.equal(card.stage, 'Wiertło z szybem');
-    assert.deepEqual(card.stages.map((s) => s.state), ['done', 'current', 'next', 'soon', 'soon']);
+    assert.deepEqual(card.stages.map((s) => s.state), ['done', 'current', 'next', 'locked', 'soon']);
     assert.match(card.next!, /Wspólne szyby/);
     assert.match(card.output!, /kryształów\/min/);
     assert.equal(card.fields, 3);
@@ -254,5 +254,75 @@ test('przemieniony teren (v0.42): wokół kompleksu, nie pod konstrukcjami, ten 
     const again = new GameController(1000);
     const col2 = again.colony();
     assert.deepEqual(layoutFromPlots(col2.grid, col2.plots, sampler, ['powerPlant'], col2.complexes).marks, layout.marks);
+  });
+});
+
+test('megakompleks (v0.43): dwa stykające się kompleksy, premia +60%, zapis, rozpad przy rozłączeniu', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.research = { done: ['metal-factory'], current: null };
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 18, powerPlant: 30, storage: 10 }, stock: { metal: 90000, crystal: 90000 } };
+    assert.ok(game.mergeComplex('metalMine', 0).ok);
+    assert.equal(game.complexView('metalMine')!.mega.reason, 'Potrzeba 2 kompleksów poza megakompleksem — masz 1.');
+    assert.ok(game.mergeComplex('metalMine', 0).ok);
+    assert.equal(game.mergeMega('metalMine', 0).ok, false, 'bez badania');
+    game.research = { done: ['metal-factory', 'megastructures'], current: null };
+    const view = game.complexView('metalMine')!.mega;
+    assert.ok(view.candidate && view.candidate.gainPerMinute > 0);
+    const before = game.rates.metal;
+    const stock = game.economy.stock.metal;
+    assert.ok(game.mergeMega('metalMine', 0).ok);
+    assert.equal(game.economy.stock.metal, stock - 6000);
+    assert.ok(Math.abs(game.rates.metal - before - view.candidate!.gainPerMinute) < 1e-6, 'podgląd = gra');
+    assert.equal(game.complexView('metalMine')!.mega.count, 1);
+    assert.equal(game.buildingCard('metalMine').stage, 'Megakompleks metalowy');
+    // Na planecie: główny przewód między konstrukcjami pary, obie oznaczone jako megakompleks.
+    const col = game.colony();
+    const layout = layoutFromPlots(col.grid, col.plots, createSurfaceSampler(game.planet), ['metalMine'], col.complexes);
+    assert.ok(layout.hubs.every((h) => h.mega));
+    assert.equal(layout.hubs.reduce((n, h) => n + h.members.length, 0), 3 + 3 + 1);
+    // Zapis i wczytanie.
+    const again = new GameController(1000);
+    assert.equal(again.complexView('metalMine')!.mega.count, 1);
+    // Rozłączenie kompleksu rozbija megakompleks (drugi kompleks zostaje).
+    assert.ok(again.splitComplex('metalMine', 2000).ok);
+    assert.equal(again.complexView('metalMine')!.mega.count, 0);
+    assert.equal(again.complexView('metalMine')!.count, 1);
+  });
+});
+
+test('znaleziska (v0.43.1): megakompleks co kilka godzin coś znajduje (też offline), premie, limity, zapis', async () => {
+  const { rollFind, findInterval, findEffects, parseFinds } = await import('../src/core/economy/finds.ts');
+  const { FIND_DEFS } = await import('../src/data/finds.ts');
+  // Deterministycznie, w granicach 4–8 h, tylko z puli rodziny, z limitem sztuk.
+  const a = findInterval('s:1', 1000);
+  assert.equal(a, findInterval('s:1', 1000));
+  assert.ok(a >= 4 * 3600_000 && a <= 8 * 3600_000);
+  for (let t = 0; t < 50; t++) {
+    const f = rollFind('s:1', t * 7777, 'metal-factory', {})!;
+    assert.ok(f.families.length === 0 || f.families.includes('metal-factory'), f.id);
+  }
+  const full = Object.fromEntries(FIND_DEFS.map((f) => [f.id, f.max]));
+  assert.equal(rollFind('s:1', 5, 'metal-factory', full), null, 'wszystko zebrane — nic nowego');
+  assert.deepEqual(findEffects({ 'unknown-alloy': 3 }), [{ kind: 'output', resource: 'metal', percent: 6 }]);
+  assert.deepEqual(parseFinds({ items: { 'unknown-alloy': 99, bogus: 2 }, next: { 'x:3': 5, bad: 1 } }), { items: { 'unknown-alloy': 5 }, next: { 'x:3': 5 } });
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.research = { done: ['metal-factory', 'megastructures'], current: null };
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 18, powerPlant: 30, storage: 10 }, stock: { metal: 90000, crystal: 90000 } };
+    assert.ok(game.mergeComplex('metalMine', 0).ok && game.mergeComplex('metalMine', 0).ok && game.mergeMega('metalMine', 0).ok);
+    assert.equal(game.findsView(0).total, 0);
+    assert.equal(game.findsView(0).upcoming.length, 1);
+    const metalBefore = game.balance.buildings.find((b) => b.id === 'metalMine')!.baseOutput;
+    // 2 doby nieobecności: kilka znalezisk, wpisy w dzienniku, premia w balansie.
+    const later = new GameController(48 * 3600_000);
+    const view = later.findsView(48 * 3600_000);
+    assert.ok(view.total >= 6 && view.total <= 12, `znalezisk: ${view.total}`);
+    assert.ok(later.journalEntries().some((e) => e.text.startsWith('Znalezisko (')));
+    const again = new GameController(48 * 3600_000 + 1);
+    assert.equal(again.findsView(48 * 3600_000 + 1).total, view.total, 'ten sam wynik po wczytaniu');
+    if (view.items.find((i) => i.name === 'Stop o nieznanym składzie')!.count > 0) {
+      assert.ok(later.balance.buildings.find((b) => b.id === 'metalMine')!.baseOutput > metalBefore, 'premia działa');
+    }
   });
 });

@@ -30,6 +30,8 @@ export interface ComplexFamily {
   unlock: UnlockFeature;
   /** Nazwa badania (do komunikatów) i jego ramię. */
   research: string;
+  /** Nazwa megakompleksu tej rodziny (v0.43). */
+  megaName: string;
   /** Tryby pracy (pierwszy = domyślny); brak — kompleks bez wyboru trybu. */
   modes?: readonly ComplexMode[];
   status: 'robocza';
@@ -47,6 +49,7 @@ export const COMPLEX_FAMILIES: readonly ComplexFamily[] = [
     cost: { metal: 1500, crystal: 2500 },
     unlock: 'crystal-complex',
     research: '„Wspólne szyby” (Badania → Produktywność)',
+    megaName: 'Megakompleks kryształowy',
     status: 'robocza',
   },
   {
@@ -60,6 +63,7 @@ export const COMPLEX_FAMILIES: readonly ComplexFamily[] = [
     cost: { metal: 3000, crystal: 1500 },
     unlock: 'metal-factory',
     research: '„Metalurgia przemysłowa” (Badania → Produktywność)',
+    megaName: 'Megakompleks metalowy',
     modes: [
       { id: 'balanced', name: 'Zrównoważony', description: 'Zwykła praca hal i pieców.', output: 1, energy: 1 },
       { id: 'max', name: 'Maksymalna produkcja', description: 'Piece na pełnej mocy: więcej metalu, dużo więcej energii.', output: 1.25, energy: 1.6 },
@@ -78,9 +82,22 @@ export const COMPLEX_FAMILIES: readonly ComplexFamily[] = [
     cost: { metal: 2000, crystal: 2000 },
     unlock: 'tesla-grid',
     research: '„Przesył bezprzewodowy” (Badania → Produktywność)',
+    megaName: 'Megasieć Tesli',
     status: 'robocza',
   },
 ];
+
+/**
+ * Megakompleks (v0.43, decyzja właściciela: większa premia + rzadkie znaleziska; liczby robocze):
+ * dwa stykające się kompleksy tej samej rodziny — premia ich poziomów rośnie z `bonus` rodziny do `bonus` tutaj.
+ */
+export const MEGA_RULES = {
+  bonus: 60,
+  cost: { metal: 6000, crystal: 6000 },
+  unlock: 'megastructures' as UnlockFeature,
+  research: '„Megastruktury” (Badania → Produktywność)',
+  status: 'robocza' as const,
+};
 
 /** Tryb kompleksu (nieznany albo brak — pierwszy z listy; rodziny bez trybów — neutralny). */
 export function complexMode(family: ComplexFamily | undefined, id: string | undefined): ComplexMode {

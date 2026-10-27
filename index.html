@@ -205,11 +205,19 @@ html, body {
   text-align: left;
 }
 #text-panel .sp-name { font-size: 15px; color: var(--text); }
-#text-panel .ap-status, #text-panel .ap-next, #text-panel .ap-comet, #text-panel .cp-next { white-space: pre-line; }
+#text-panel .ap-status, #text-panel .ap-next, #text-panel .ap-comet, #text-panel .cp-next, #text-panel .cp-mega { white-space: pre-line; }
 #text-panel .tp-actions[hidden], #text-panel .tp-hint[hidden] { display: none; }
 #text-panel .ap-head { margin: 14px 0 6px; font: 600 12px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif; letter-spacing: 1.2px; text-transform: uppercase; color: #8ea6a0; }
 #text-panel .ap-head:first-of-type { margin-top: 4px; }
 #text-panel .tp-actions + .ap-head { border-top: 1px solid #2b4846; padding-top: 14px; }
+#text-panel .cp-mega-box { border-top: 1px solid #2b4846; margin-top: 16px; }
+#text-panel .fd-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+#text-panel .fd-item { border: 1px solid #2b4846; border-radius: 10px; padding: 10px 12px; }
+#text-panel .fd-item.fd-unknown { opacity: 0.5; border-style: dashed; }
+#text-panel .fd-top { display: flex; justify-content: space-between; gap: 12px; color: #e6c77a; }
+#text-panel .fd-count { color: var(--text); font-variant-numeric: tabular-nums; }
+#text-panel .fd-item small { display: block; color: #8ea6a0; margin-top: 2px; }
+#text-panel .fd-item p { margin: 6px 0 0; color: var(--text); font-style: italic; line-height: 1.4; }
 #text-panel .tr-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 6px 0 10px; font-size: 15px; color: var(--text); }
 #text-panel .tr-value { color: var(--gold); font-variant-numeric: tabular-nums; }
 #text-panel .tr-row input { grid-column: 1 / -1; width: 100%; height: 44px; margin: 0; accent-color: var(--teal); }

@@ -9,6 +9,7 @@ import { parseDiscoveries, type Discoveries } from '../galaxy/discovery.ts';
 import { parseExpeditions } from '../galaxy/expeditions.ts';
 import { parseShipments } from '../economy/transport.ts';
 import { parseComets } from '../economy/comets.ts';
+import { parseFinds, type FindsState } from '../economy/finds.ts';
 import type { AsteroidStation, CometHaul, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
@@ -74,10 +75,12 @@ export interface EmpireSave {
   shipments?: Shipment[];
   /** Holowniki po komety (od v0.37.1; brak = żadnych). */
   comets?: CometHaul[];
+  /** Znaleziska megakompleksów i ich terminy (od v0.43.1; brak = żadnych). */
+  finds?: FindsState;
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
-const JOURNAL_KINDS: readonly JournalKind[] = ['build', 'research', 'colony', 'ship', 'away', 'empire', 'ai', 'expedition'];
+const JOURNAL_KINDS: readonly JournalKind[] = ['build', 'research', 'colony', 'ship', 'away', 'empire', 'ai', 'expedition', 'find'];
 /** Ile wpisów dziennika trzymamy (starsze wypadają). */
 export const JOURNAL_LIMIT = 80;
 
@@ -179,6 +182,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseExpeditions(data.expeditions).length > 0 ? { expeditions: parseExpeditions(data.expeditions) } : {}),
     ...(parseShipments(data.shipments).length > 0 ? { shipments: parseShipments(data.shipments) } : {}),
     ...(parseComets(data.comets).length > 0 ? { comets: parseComets(data.comets) } : {}),
+    ...(data.finds ? { finds: parseFinds(data.finds) } : {}),
   };
 }
 

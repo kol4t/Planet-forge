@@ -4,7 +4,7 @@ import { BALANCE } from '../data/balance.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
-import { groupFull, layoutFromPlots, plotsKey, RIG_BUILDINGS, visibleStructures, type ColonyLayout } from './colony.ts';
+import { groupFull, hubKey, layoutFromPlots, plotsKey, RIG_BUILDINGS, visibleStructures, type ColonyHub, type ColonyLayout } from './colony.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { levelsWithSite, pickCell, pickStructureHit, type StructureHit } from './pick.ts';
@@ -90,7 +90,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
         this.plotsKey = key;
         this.colony = layoutFromPlots(this.grid, plots, this.sampler, BUILDING_IDS, complexes);
         for (const hub of this.colony.hubs) {
-          const key = hub.dir.join(',');
+          const key = hubKey(hub);
           if (!this.hubBirth.has(key)) this.hubBirth.set(key, this.hubsSeeded && !this.reducedMotion ? performance.now() : -1e9);
         }
         if (Object.values(plots).some((l) => (l?.length ?? 0) > 0)) this.hubsSeeded = true;
@@ -396,7 +396,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       ctx.fillRect(x0 + c * pixel, y0 + c * pixel, pixel, pixel);
     };
     // Postęp łączenia 0..1: szyb wyrasta w pierwszej połowie, rury biegną do wierteł w drugiej (2,4 s).
-    const growth = (hub: { dir: readonly number[] }) => Math.min(1, (performance.now() - (this.hubBirth.get(hub.dir.join(',')) ?? -1e9)) / 2400);
+    const growth = (hub: ColonyHub) => Math.min(1, (performance.now() - (this.hubBirth.get(hubKey(hub)) ?? -1e9)) / 2400);
     // Przemieniony teren wokół kompleksów (v0.42): piksele gruntu pod konstrukcjami, po animacji łączenia.
     const MARK_COLORS = { crystal: '#9fe9f2', slag: '#2b2622', charged: '#2f6f86' } as const;
     for (const mark of this.colony.marks) {
@@ -513,7 +513,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const h = toScreen(hub.dir);
       if (h.depth < 0.08) continue;
       // Szyb / hala główna rośnie od 3 do 9 pikseli (nieparzyście — środek zostaje na miejscu).
-      const size = 3 + 2 * Math.round(3 * Math.min(1, growth(hub) * 2));
+      const size = 3 + 2 * Math.round(3 * Math.min(1, growth(hub) * 2)) + (hub.mega ? 2 : 0);
       if (growth(hub) >= 0.5) modules(h.x, h.y, size, visualTier(level(hub.building)), Math.min(1, h.depth * 2.5));
       draw(hub.building, h.x, h.y, size, 0.6, Math.min(1, h.depth * 2.5));
     }
