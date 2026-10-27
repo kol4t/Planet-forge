@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.46 — audyt projektu (w toku, gałąź `claude/audyt-v046`, czeka na akceptację)
+## v0.46 — audyt projektu — 2026-10-27
 
 - Zapis: uszkodzony zapis nie przepada (kopia `planet-forge.empire.broken`, komunikat, kopia w zgłoszeniu); komunikat o nieudanym zapisie (pełna pamięć / tryb prywatny).
 - Ekonomia: limit 8 h nieobecności liczony raz dla całego naliczenia (wcześniej mógł się podwoić); start budowy z kolejki sprawdza wolne pola.

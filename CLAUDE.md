@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.46 — audyt, gałąź `claude/audyt-v046`, czeka na akceptację; opublikowana v0.45)
+## Stan obecny (v0.46 — opublikowana)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -123,7 +123,7 @@ Grę testuje kilka osób; błędy i sugestie trafiają jako **GitHub Issues** (`
 Ukończone etapy (generator v0.18–v0.25, odnowa ekranów v0.29–v0.33, galaktyka v0.34–v0.34.5, nowe mechaniki v0.35–v0.37.1,
 przemysł v0.38–v0.45, audyt v0.46) — `docs/CHANGELOG.md`.
 
-1. **Akceptacja audytu v0.46** — test na iPadzie wg listy w `README.md` i pomiar płynności wg `docs/PERFORMANCE.md`;
+1. **Test v0.46 na iPadzie** (opublikowana) — lista w `README.md`, pomiar płynności wg `docs/PERFORMANCE.md`;
    decyzje z `docs/KNOWN_ISSUES.md` („Do decyzji”).
 2. **Raport v0.50 „Industrial Evolution”** (plan: `docs/plan-przemysl.md`) — podsumowanie przemysłu po v0.45.
 3. **Dokończenie UI** (etap 7): ikony na dolnym pasku, podział `PlanetScene.ts` (~2300 wierszy) na mniejsze pliki;

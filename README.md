@@ -3,7 +3,7 @@
 Przeglądarkowa strategia science-fiction projektowana pod **iPada (Safari)**. Gracz trzyma w dłoni planetę — obraca ją
 palcem, rozbudowuje kolonię (budynki rosną w kompleksy zajmujące pola), gospodaruje metalem, kryształami, energią
 i antymaterią, bada galaktykę technologii, odkrywa mapę 100 układów, zakłada kolejne kolonie i przewozi surowce.
-Wersja **0.46** (audyt; opublikowana 0.45). Interfejs po polsku.
+Wersja **0.46**. Interfejs po polsku.
 
 ## Jak zagrać
 
