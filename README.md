@@ -448,4 +448,8 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 244. Co 5 poziomów (6, 11, 16, 21, 26) pełne pola i kompleksy tego budynku dostają moduły: platforma ze złotą krawędzią → hale boczne → przewody i maszt z migającym światłem → złote zbiorniki → złote łuki nad konstrukcją (2D i 3D).
 245. Płynność w 3D przy wielu konstrukcjach — bez widocznego spadku względem v0.40.
 
+### Od 0.41.1: SI a anulowane badanie
+
+249. SI z regułą „Badania: działa samo”: anuluj trwające badanie → Laboratorium zostaje wolne (SI go nie zajmuje), wybierz dowolne inne badanie ręcznie → rusza; po jego zakończeniu SI znów sama dobiera badania.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

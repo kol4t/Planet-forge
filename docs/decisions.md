@@ -2,6 +2,10 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.41.1: SI nie wznawia anulowanego badania
+
+- Zgłoszenie właściciela: anulowanie badania (żeby wybrać inne) nic nie dawało — SI „działa samo” natychmiast zaczynała najtańsze badanie. Decyzja gracza ma pierwszeństwo: po anulowaniu SI czeka na ręczny wybór na tej planecie. Wstrzymanie żyje w pamięci (bez zmiany zapisu); po ponownym uruchomieniu gry SI znowu pilnuje wolnego Laboratorium.
+
 ## 2026-10-27 — v0.41: przemysł, krok 4 — poziomy wizualne
 
 - Prompt: „poziomy 1–30”. Gra ma poziom budynku na całej planecie (nie na budowli), więc etap wyglądu wynika z poziomu budynku: 6 etapów co 5 poziomów (`VISUAL_TIERS`, robocze). Moduły tylko na pełnych polach i w kompleksach — małe budowle (poz. 1–2 na polu) bez zmian, żeby nie zagracić planety.

@@ -123,3 +123,26 @@ test('kontroler: po „Autonomii” SI buduje podczas nieobecności (wpis w dzie
     assert.ok(later.economy.levels.powerPlant > 1, 'Elektrownia rozbudowana pod nieobecność');
   });
 });
+
+test('kontroler: po anulowaniu badania SI („działa samo”) nie zajmuje Laboratorium, dopóki gracz sam nie wybierze', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.economy = { ...game.economy, stock: { metal: 90000, crystal: 90000 }, levels: { ...game.economy.levels, laboratory: 6 } };
+    game.research = { done: ['ai-1', 'ai-2'], current: null };
+    assert.ok(game.setAiLevel('research', 'auto').ok);
+    game.tick(1000);
+    const byAi = game.research.current?.id;
+    assert.ok(byAi, 'SI sama zaczęła badanie');
+    assert.ok(game.cancelResearch(2000).ok);
+    game.tick(3000);
+    game.tick(60_000);
+    assert.equal(game.research.current, null, 'SI nie wznawia badania po anulowaniu przez gracza');
+    // Gracz wybiera inne badanie sam — działa, a potem SI wraca do pracy.
+    const mine = ['prod-core', 'planet-1'].find((id) => id !== byAi)!;
+    assert.ok(game.startResearch(mine, 61_000).ok);
+    assert.equal(game.research.current?.id, mine);
+    game.research = { ...game.research, current: null, done: [...game.research.done, mine] };
+    game.tick(62_000);
+    assert.ok(game.research.current, 'po ręcznym wyborze SI znów prowadzi badania');
+  });
+});
