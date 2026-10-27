@@ -211,3 +211,9 @@ przebijał płyty albo płyty wisiały. Przyczyna: wielkość budowli liczona ty
 - Test: punkty w promieniu `free` leżą na suchym lądzie własnego obszaru; 2D ma ten sam układ bez pomiaru.
 
 Koszt grafiki bez zmian (30 / 37 rysowań).
+
+Uzupełnienie po zrzucie z iPada (LHS-258 c, lodowa, v0.47.2): płyty nachodziły też **na siebie** (główna konstrukcja na
+moduły). Teraz każda nowa płyta dostaje najwyżej tyle miejsca, ile zostało do już postawionych (odstęp 0,004 rad) —
+zmniejsza się albo pole zostaje puste. Wolne miejsce głównej konstrukcji liczone bez kryterium uskoku (szeroki
+fundament i tak wyrównuje pod nią teren) — tylko granica obszaru i woda. Gdy środek obszaru leży blisko jego skraju,
+główna konstrukcja bywa mniejsza (najmniej połowa docelowej).

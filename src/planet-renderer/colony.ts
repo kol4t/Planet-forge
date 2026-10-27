@@ -161,11 +161,11 @@ export function layoutFromPlots(
   };
   const owner = new Int32Array(grid.cells.length).fill(-1);
   const lookup = cellLookup(grid);
-  /** Punkt w obszarze `cells`, na suchym lądzie i bez uskoku względem `base`. */
-  const fits = (cells: Set<number>, base: number) => (p: Vec3) => {
+  /** Punkt w obszarze `cells`, na suchym lądzie i (gdy `base` podane) bez uskoku względem niego. */
+  const fits = (cells: Set<number>, base?: number) => (p: Vec3) => {
     if (!cells.has(lookup(...p))) return false;
     const s = surfaceAt(p);
-    return s !== WATER && s - base < FREE_MAX_RISE && base - s < FREE_MAX_DROP;
+    return s !== WATER && (base === undefined || (s - base < FREE_MAX_RISE && base - s < FREE_MAX_DROP));
   };
   const complexes: ColonyComplex[] = [];
   for (const id of ids) {
@@ -220,7 +220,8 @@ export function layoutFromPlots(
       core,
       surface: surfaceAt(core),
       radius: Math.max(radius, 0.02),
-      free: measureFree ? freeRadius(core, Math.max(radius, 0.02), fits(cellSet, surfaceAt(core))) : 0,
+      // Główna konstrukcja: tylko obszar i woda — szeroki fundament wyrównuje pod nią teren (PlanetView).
+      free: measureFree ? freeRadius(core, Math.max(radius, 0.02), fits(cellSet)) : 0,
       spots,
       upgraded: !!upgrade,
       mega: !!upgrade?.mega,

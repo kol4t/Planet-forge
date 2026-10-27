@@ -726,6 +726,8 @@ const SPOT_EXTENT = 0.55;
 const CORE_EXTENT = 0.56;
 /** Najmniejszy moduł (× promień pola) i najmniejsza główna konstrukcja (× docelowa) — mniejsze byłyby nieczytelne. */
 const SPOT_MIN = 0.7;
+/** Odstęp między płytami sąsiednich budowli (rad). */
+const PAD_GAP = 0.004;
 const CORE_MIN_SHARE = 0.5;
 
 /** Pole w wyrobisku (teren obniżony tarasami do `pitShare` promienia kompleksu) — z marginesem na krawędź. */
@@ -949,18 +951,21 @@ export class ColonyMeshes {
     const coreSize = Math.max(want * CORE_MIN_SHARE, Math.min(want, c.free / CORE_EXTENT));
     const coreKind = family.cores[stage]!;
     this.kinds.get(coreKind)!.items.push({ building: c.building, dir: c.core, surface: c.surface - this.sink(c.core), spin: coreSpot?.spin ?? 0, size: coreSize, pad: coreSize * CORE_EXTENT });
-    // Pola zasłonięte przez główną konstrukcję zostają puste (bez nakładania brył).
-    const reach = coreSize * 0.55;
+    // Zajęte koła (środek, zasięg): nowa płyta nie może dotknąć żadnej postawionej — zmniejsza się albo pole zostaje puste.
+    const taken: { dir: Vec3; reach: number }[] = [{ dir: c.core, reach: coreSize * CORE_EXTENT }];
     const placed: { dir: Vec3; surface: number }[] = family.beltsToCore ? [{ dir: c.core, surface: c.surface - this.sink(c.core) }] : [];
     c.spots.forEach((spot, k) => {
-      if (k === 0 || angleOf(spot.dir, c.core) < reach + spot.r * 0.4 || family.skip?.(c, spot, k)) return;
-      // Moduł mieści się w wolnym miejscu pola; za ciasno — pole zostaje bez modułu.
-      const size = Math.min(spot.r * (family.spotScale?.(c, spot) ?? SPOT_SCALE), spot.free / SPOT_EXTENT);
+      if (k === 0 || family.skip?.(c, spot, k)) return;
+      let room = spot.free;
+      for (const t of taken) room = Math.min(room, angleOf(spot.dir, t.dir) - t.reach - PAD_GAP);
+      // Moduł mieści się w wolnym miejscu pola i między sąsiadami; za ciasno — pole zostaje bez modułu.
+      const size = Math.min(spot.r * (family.spotScale?.(c, spot) ?? SPOT_SCALE), room / SPOT_EXTENT);
       if (size < spot.r * SPOT_MIN) return;
       const kind = this.kinds.get(family.spot(stage, k, c))!;
       if (kind.items.length >= MAX_ITEMS) return;
       const surface = spot.surface - this.sink(spot.dir);
       kind.items.push({ building: c.building, dir: spot.dir, surface, spin: spot.spin, size, pad: size * SPOT_EXTENT });
+      taken.push({ dir: spot.dir, reach: size * SPOT_EXTENT });
       if (stage >= 1 && placed.length > 0 && !family.noBelts) {
         // Taśmociąg do najbliższego już postawionego modułu (spoty są posortowane od środka — drzewo transportu).
         let best = placed[0]!;
