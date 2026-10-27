@@ -158,8 +158,8 @@ const ORE = '#6e5b4a';
 const DARK = '#3a4241';
 
 /** Platforma: niska płyta wpuszczona w teren (zakrywa nierówności pod budowlą). */
-function slab(radius: number, sides: number, height = 0.08): THREE.BufferGeometry {
-  return paint(at(new THREE.CylinderGeometry(radius, radius * 1.06, height + 0.1, sides), 0, height / 2 - 0.05, 0), SLAB);
+function slab(radius: number, sides: number, height = 0.08, hex = SLAB): THREE.BufferGeometry {
+  return paint(at(new THREE.CylinderGeometry(radius, radius * 1.06, height + 0.1, sides), 0, height / 2 - 0.05, 0), hex);
 }
 
 /** Wieża wyciągowa szybu: dwie nogi (kozioł), belka, koło na szczycie. */
@@ -453,9 +453,10 @@ function createCrystalOutpost(): BigShape {
       ...derrick(-0.12, -0.1, 0.5, 0.12),
       paint(at(new THREE.BoxGeometry(0.26, 0.14, 0.2), 0.22, 0.13, 0.2), STEEL),
       paint(at(new THREE.BoxGeometry(0.28, 0.03, 0.22), 0.22, 0.215, 0.2), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.015, 0.015, 0.36, 4), -0.12, 0.25, -0.1), STEEL),
     ]),
     pit: prepare([]),
-    rotor: prepare([at(new THREE.CylinderGeometry(0.015, 0.015, 0.36, 4), -0.12, 0.25, -0.1)]),
+    rotor: prepare([]),
     glow: prepare([
       at(new THREE.OctahedronGeometry(0.06).scale(0.6, 1.8, 0.6), -0.3, 0.13, 0.26),
       at(new THREE.OctahedronGeometry(0.05).scale(0.6, 1.8, 0.6), 0.3, 0.11, -0.24),
@@ -627,9 +628,353 @@ function createSubstation(): BigShape {
   };
 }
 
-/** Wielkość konstrukcji (względem promienia planety): zabudowa wnętrza i główna konstrukcja. */
+// ——— Magazyn, kolektor antymaterii, laboratorium (v0.47) — ten sam standard modelu ———
+const RUST = '#9e5434';
+const TEAL = '#3d807a';
+const VIOLET_DARK = '#5e5577';
+const GLASS = '#cfe3e0';
+const ROOF_LIGHT = '#4f8580';
+const ROOF_LIGHT_DISH = '#dfe8e6';
+
+/** Silos z kopułą. */
+function silo(x: number, z: number, r: number, h: number, hex = CONCRETE): THREE.BufferGeometry[] {
+  return [
+    paint(at(new THREE.CylinderGeometry(r, r, h, 10), x, h / 2 + 0.06, z), hex),
+    paint(at(new THREE.SphereGeometry(r, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), x, h + 0.06, z), hex),
+  ];
+}
+
+/** Stos kontenerów: `n` warstw w kolorach z palety. */
+function containers(x: number, z: number, n: number, ry = 0, seed = 0): THREE.BufferGeometry[] {
+  const palette = [RUST, TEAL, GOLD, STEEL];
+  const out: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < 2; j++) out.push(paint(at(new THREE.BoxGeometry(0.2, 0.06, 0.08), x, 0.09 + i * 0.062, z + (j - 0.5) * 0.09, ry), palette[(i * 2 + j + seed) % palette.length]!));
+  }
+  return out;
+}
+
+/** Hala magazynowa z dachem dwuspadowym (złote kalenice). */
+function warehouse(x: number, z: number, w: number, d: number, h: number, ry = 0): THREE.BufferGeometry[] {
+  return [
+    paint(at(new THREE.BoxGeometry(w, h, d), x, h / 2 + 0.06, z, ry), STEEL),
+    paint(at(new THREE.CylinderGeometry(d * 0.55, d * 0.55, w, 3, 1).rotateZ(Math.PI / 2).scale(1, 0.35, 1), x, h + 0.075, z, ry), GOLD),
+  ];
+}
+
+/** Etap 1 — Skład: dwa silosy, szopa, kontenery. */
+function createStorageDepot(): BigShape {
+  return {
+    body: prepare([slab(0.46, 6), ...silo(-0.16, -0.1, 0.12, 0.3), ...silo(0.1, -0.2, 0.09, 0.22), ...warehouse(0.12, 0.18, 0.3, 0.16, 0.1), ...containers(-0.22, 0.2, 2)]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.BoxGeometry(0.04, 0.04, 0.04), -0.16, 0.5, -0.1)]),
+  };
+}
+
+/** Etap 2 — Magazyn: długa hala, trzy silosy, kontenery, maszt z lampą. */
+function createStorageHouse(): BigShape {
+  return {
+    body: prepare([
+      slab(0.5, 8),
+      ...warehouse(0.04, 0.16, 0.56, 0.22, 0.14),
+      ...silo(-0.26, -0.2, 0.11, 0.34),
+      ...silo(-0.02, -0.26, 0.1, 0.3),
+      ...silo(0.22, -0.22, 0.1, 0.26),
+      ...containers(0.36, -0.02, 2, 0.3, 1),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.BoxGeometry(0.4, 0.03, 0.01), 0.04, 0.14, 0.272), at(new THREE.BoxGeometry(0.04, 0.04, 0.04), -0.26, 0.56, -0.2)]),
+  };
+}
+
+/** Żuraw wieżowy: maszt w bryle, wysięgnik z przeciwwagą w części obracanej (wokół środka modelu). */
+function towerCrane(h: number): { body: THREE.BufferGeometry[]; rotor: THREE.BufferGeometry[] } {
+  return {
+    body: [paint(at(new THREE.BoxGeometry(0.05, h, 0.05), 0, h / 2 + 0.06, 0), GOLD)],
+    rotor: [
+      at(new THREE.BoxGeometry(0.62, 0.03, 0.04), 0.14, h + 0.08, 0),
+      at(new THREE.BoxGeometry(0.1, 0.06, 0.07), -0.14, h + 0.06, 0),
+      at(new THREE.BoxGeometry(0.01, 0.2, 0.01), 0.36, h - 0.04, 0),
+    ],
+  };
+}
+
+/** Etap 3 — Terminal magazynowy: dwie hale, krąg silosów, plac kontenerów, żuraw wieżowy w środku. */
+function createStorageTerminal(): BigShape {
+  const crane = towerCrane(0.7);
+  return {
+    body: prepare([
+      slab(0.54, 8),
+      ...warehouse(-0.1, 0.3, 0.5, 0.2, 0.16),
+      ...warehouse(0.3, -0.06, 0.4, 0.18, 0.14, Math.PI / 2),
+      ...silo(-0.3, -0.18, 0.1, 0.36),
+      ...silo(-0.12, -0.32, 0.1, 0.4),
+      ...silo(0.1, -0.36, 0.09, 0.32),
+      ...containers(-0.34, 0.08, 3, 0.2, 2),
+      ...containers(0.14, 0.18, 2, 0, 3),
+      ...crane.body,
+    ]),
+    pit: prepare([]),
+    rotor: prepare(crane.rotor),
+    glow: prepare([at(new THREE.BoxGeometry(0.36, 0.03, 0.01), -0.1, 0.16, 0.402), at(new THREE.BoxGeometry(0.03, 0.03, 0.03), 0.36, 0.7, 0)]),
+  };
+}
+
+/** Etap 4 — Megaskład: dwupoziomowa platforma, wieża z koroną silosów i złotą kopułą, hale, dwa place kontenerów, żuraw. */
+function createStorageMega(): BigShape {
+  const ring = [0, 1, 2, 3, 4, 5].flatMap((k) => {
+    const a = (k * Math.PI) / 3;
+    return silo(Math.cos(a) * 0.22, Math.sin(a) * 0.22, 0.08, 0.5);
+  });
+  const crane = towerCrane(1.0);
+  return {
+    body: prepare([
+      slab(0.58, 8),
+      paint(at(new THREE.CylinderGeometry(0.34, 0.38, 0.08, 8), 0, 0.12, 0), SLAB),
+      ...ring,
+      paint(at(new THREE.CylinderGeometry(0.1, 0.12, 0.78, 8), 0, 0.5, 0), STEEL),
+      paint(at(new THREE.SphereGeometry(0.12, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.88, 0), GOLD),
+      ...warehouse(0.42, 0.18, 0.3, 0.16, 0.12, 1.2).map((g) => g),
+      ...warehouse(-0.4, 0.22, 0.3, 0.16, 0.12, -1.2),
+      ...containers(0.04, 0.44, 3, 0, 1),
+      ...containers(0.06, -0.46, 3, 0, 2),
+      ...crane.body.map((g) => g.translate(0.4, 0, -0.3)),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([at(new THREE.TorusGeometry(0.16, 0.012, 3, 16).rotateX(Math.PI / 2), 0, 0.96, 0)]),
+    glow: prepare([at(new THREE.CylinderGeometry(0.125, 0.125, 0.03, 8, 1, true), 0, 0.7, 0), at(new THREE.BoxGeometry(0.03, 0.03, 0.03), 0, 1.02, 0)]),
+  };
+}
+
+/** Moduł: plac kontenerów. */
+function createContainerYard(): BigShape {
+  return {
+    body: prepare([paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), SLAB), ...containers(-0.2, -0.18, 3, 0, 0), ...containers(0.18, -0.16, 2, 0, 1), ...containers(-0.16, 0.22, 2, 0, 2), ...containers(0.22, 0.24, 1, 0, 3)]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.BoxGeometry(0.04, 0.04, 0.04), 0.4, 0.1, 0.4)]),
+  };
+}
+
+/** Moduł: silosy. */
+function createSiloModule(): BigShape {
+  return {
+    body: prepare([paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), SLAB), ...silo(-0.18, -0.14, 0.13, 0.32), ...silo(0.18, -0.12, 0.12, 0.28), ...silo(0, 0.2, 0.12, 0.24)]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.BoxGeometry(0.03, 0.03, 0.03), -0.18, 0.52, -0.14)]),
+  };
+}
+
+/** Iglica pułapki: trójnóg, smukła kolumna, złote kołnierze; kula światła w `glow` na wysokości `h`. */
+function spire(x: number, z: number, h: number, w: number): THREE.BufferGeometry[] {
+  const legs = [0, 1, 2].map((k) => {
+    const a = (k * Math.PI * 2) / 3;
+    return paint(at(new THREE.BoxGeometry(w * 0.3, h * 0.4, w * 0.3).rotateZ(-0.45), x + Math.cos(a) * w, h * 0.18 + 0.06, z + Math.sin(a) * w, -a), STEEL);
+  });
+  return [
+    ...legs,
+    paint(at(new THREE.CylinderGeometry(w * 0.2, w * 0.45, h, 6), x, h / 2 + 0.06, z), STEEL),
+    paint(at(new THREE.CylinderGeometry(w * 0.6, w * 0.6, 0.025, 8), x, h * 0.45 + 0.06, z), GOLD),
+    paint(at(new THREE.CylinderGeometry(w * 0.45, w * 0.45, 0.025, 8), x, h * 0.75 + 0.06, z), GOLD),
+  ];
+}
+
+/** Etap 1 — Pułapka: iglica z kulą antymaterii w pierścieniu. */
+function createTrap(): BigShape {
+  return {
+    body: prepare([slab(0.44, 6, 0.08, VIOLET_DARK), ...spire(0, 0, 0.7, 0.14), paint(at(new THREE.BoxGeometry(0.14, 0.1, 0.12), 0.26, 0.11, 0.14), STEEL)]),
+    pit: prepare([]),
+    rotor: prepare([at(new THREE.TorusGeometry(0.14, 0.014, 4, 16).rotateX(Math.PI / 2), 0, 0.84, 0)]),
+    glow: prepare([at(new THREE.IcosahedronGeometry(0.08, 1), 0, 0.84, 0), at(new THREE.BoxGeometry(0.08, 0.03, 0.01), 0.26, 0.12, 0.205)]),
+  };
+}
+
+/** Etap 2 — Kolektor: większa iglica z dwoma pierścieniami, trzy maszty pułapek wokół. */
+function createCollector(): BigShape {
+  const masts = [0, 1, 2].flatMap((k) => spire(Math.cos((k * Math.PI * 2) / 3 + 0.5) * 0.34, Math.sin((k * Math.PI * 2) / 3 + 0.5) * 0.34, 0.36, 0.06));
+  const orbs = [0, 1, 2].map((k) => at(new THREE.IcosahedronGeometry(0.04, 0), Math.cos((k * Math.PI * 2) / 3 + 0.5) * 0.34, 0.46, Math.sin((k * Math.PI * 2) / 3 + 0.5) * 0.34));
+  return {
+    body: prepare([slab(0.5, 8, 0.08, VIOLET_DARK), ...spire(0, 0, 0.86, 0.16), ...masts]),
+    pit: prepare([]),
+    rotor: prepare([at(new THREE.TorusGeometry(0.18, 0.015, 4, 18).rotateX(Math.PI / 2), 0, 1.02, 0), at(new THREE.TorusGeometry(0.12, 0.012, 4, 14).rotateX(Math.PI / 2 - 0.5), 0, 1.02, 0)]),
+    glow: prepare([at(new THREE.IcosahedronGeometry(0.1, 1), 0, 1.02, 0), ...orbs]),
+  };
+}
+
+/** Etap 3 — Pole pułapek: kopuła zabezpieczenia ze świecącym pasem w kręgu sześciu masztów. */
+function createTrapField(): BigShape {
+  const masts = [0, 1, 2, 3, 4, 5].flatMap((k) => spire(Math.cos((k * Math.PI) / 3) * 0.4, Math.sin((k * Math.PI) / 3) * 0.4, 0.42, 0.06));
+  const orbs = [0, 1, 2, 3, 4, 5].map((k) => at(new THREE.IcosahedronGeometry(0.045, 0), Math.cos((k * Math.PI) / 3) * 0.4, 0.52, Math.sin((k * Math.PI) / 3) * 0.4));
+  return {
+    body: prepare([
+      slab(0.54, 8, 0.08, VIOLET_DARK),
+      ...masts,
+      paint(at(new THREE.CylinderGeometry(0.22, 0.24, 0.1, 12), 0, 0.11, 0), STEEL),
+      paint(at(new THREE.SphereGeometry(0.21, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.16, 0), VIOLET_DARK),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([at(new THREE.TorusGeometry(0.3, 0.014, 4, 22).rotateX(Math.PI / 2), 0, 0.5, 0)]),
+    glow: prepare([...orbs, at(new THREE.CylinderGeometry(0.212, 0.212, 0.03, 12, 1, true), 0, 0.22, 0), at(new THREE.IcosahedronGeometry(0.06, 1), 0, 0.42, 0)]),
+  };
+}
+
+/** Etap 4 — Megakolektor: dwupoziomowa platforma, wysoka iglica z trzema pierścieniami i wielką kulą, cztery maszty. */
+function createCollectorMega(): BigShape {
+  const masts = [0, 1, 2, 3].flatMap((k) => spire(Math.cos((k * Math.PI) / 2 + Math.PI / 4) * 0.44, Math.sin((k * Math.PI) / 2 + Math.PI / 4) * 0.44, 0.5, 0.07));
+  const orbs = [0, 1, 2, 3].map((k) => at(new THREE.IcosahedronGeometry(0.05, 0), Math.cos((k * Math.PI) / 2 + Math.PI / 4) * 0.44, 0.62, Math.sin((k * Math.PI) / 2 + Math.PI / 4) * 0.44));
+  return {
+    body: prepare([slab(0.58, 8, 0.08, VIOLET_DARK), paint(at(new THREE.CylinderGeometry(0.3, 0.34, 0.08, 8), 0, 0.12, 0), SLAB), ...spire(0, 0, 1.2, 0.2), ...masts]),
+    pit: prepare([]),
+    rotor: prepare([
+      at(new THREE.TorusGeometry(0.26, 0.016, 4, 20).rotateX(Math.PI / 2), 0, 1.38, 0),
+      at(new THREE.TorusGeometry(0.2, 0.014, 4, 18).rotateX(Math.PI / 2 - 0.6), 0, 1.38, 0),
+      at(new THREE.TorusGeometry(0.2, 0.014, 4, 18).rotateX(Math.PI / 2 + 0.6), 0, 1.38, 0),
+    ]),
+    glow: prepare([at(new THREE.IcosahedronGeometry(0.14, 1), 0, 1.38, 0), ...orbs]),
+  };
+}
+
+/** Moduł: maszt pułapki na płycie. */
+function createTrapPylon(): BigShape {
+  return {
+    body: prepare([
+      paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), VIOLET_DARK),
+      ...spire(0, 0, 0.5, 0.1),
+      paint(at(new THREE.BoxGeometry(0.16, 0.1, 0.12), 0.26, 0.11, 0.24), STEEL),
+      // Pierścień nieruchomy (moduły bez części obracanej — mniej rysowań, v0.47).
+      paint(at(new THREE.TorusGeometry(0.1, 0.012, 4, 14).rotateX(Math.PI / 2), 0, 0.62, 0), GOLD),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.IcosahedronGeometry(0.06, 0), 0, 0.62, 0)]),
+  };
+}
+
+/** Moduł: cewka magnetyczna — pionowy pierścień na podporach, świecący środek. */
+function createMagCoil(): BigShape {
+  return {
+    body: prepare([
+      paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), VIOLET_DARK),
+      paint(at(new THREE.TorusGeometry(0.22, 0.05, 6, 16), 0, 0.34, 0), STEEL),
+      paint(at(new THREE.BoxGeometry(0.06, 0.16, 0.12), -0.2, 0.14, 0), GOLD),
+      paint(at(new THREE.BoxGeometry(0.06, 0.16, 0.12), 0.2, 0.14, 0), GOLD),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 12).rotateX(Math.PI / 2), 0, 0.34, 0)]),
+  };
+}
+
+/** Budynek badawczy: bryła z pasem okien (światło), jasny dach. */
+function researchBlock(x: number, z: number, w: number, d: number, h: number, ry = 0): { body: THREE.BufferGeometry[]; glow: THREE.BufferGeometry[] } {
+  return {
+    body: [paint(at(new THREE.BoxGeometry(w, h, d), x, h / 2 + 0.06, z, ry), GLASS), paint(at(new THREE.BoxGeometry(w * 1.04, 0.025, d * 1.04), x, h + 0.072, z, ry), ROOF_LIGHT)],
+    glow: [at(new THREE.BoxGeometry(w * 1.01, 0.025, d * 1.01), x, h * 0.6 + 0.06, z, ry)],
+  };
+}
+
+/** Kopuła obserwatorium ze szczeliną. */
+function observatory(x: number, z: number, r: number, y = 0.06): THREE.BufferGeometry[] {
+  return [
+    paint(at(new THREE.CylinderGeometry(r, r * 1.05, 0.08, 12), x, y + 0.04, z), STEEL),
+    paint(at(new THREE.SphereGeometry(r, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), x, y + 0.08, z), GLASS),
+    paint(at(new THREE.BoxGeometry(r * 0.3, r * 0.9, 0.02).rotateX(-0.6), x, y + 0.08 + r * 0.55, z + r * 0.5), DARK),
+  ];
+}
+
+/** Antena (czasza) — w części obracanej, wokół środka modelu; maszt w bryle. */
+function dish(h: number, r: number): { body: THREE.BufferGeometry[]; rotor: THREE.BufferGeometry[] } {
+  return {
+    body: [paint(at(new THREE.CylinderGeometry(0.02, 0.035, h, 6), 0, h / 2 + 0.06, 0), STEEL)],
+    rotor: [at(new THREE.SphereGeometry(r, 12, 4, 0, Math.PI * 2, 0, 0.9).rotateX(Math.PI).rotateX(-0.9), 0, h + 0.1, 0), at(new THREE.CylinderGeometry(0.008, 0.008, r * 1.1, 4).rotateX(-0.9), 0, h + 0.1 + r * 0.3, r * 0.2)],
+  };
+}
+
+/** Etap 1 — Pracownia: niski budynek, kopuła obserwatorium, maszt anteny. */
+function createWorkshop(): BigShape {
+  const b = researchBlock(0.14, 0.12, 0.32, 0.2, 0.12);
+  return {
+    body: prepare([slab(0.46, 6, 0.08, CONCRETE), ...b.body, ...observatory(-0.18, -0.12, 0.15), paint(at(new THREE.CylinderGeometry(0.01, 0.01, 0.3, 4), 0.26, 0.32, -0.16), STEEL)]),
+    pit: prepare([]),
+    rotor: prepare([at(new THREE.BoxGeometry(0.12, 0.012, 0.012), 0.26, 0.46, -0.16)]),
+    glow: prepare([...b.glow, at(new THREE.BoxGeometry(0.025, 0.025, 0.025), 0.26, 0.48, -0.16)]),
+  };
+}
+
+/** Etap 2 — Laboratorium: dwa budynki w kształcie L, kopuła, obracająca się antena w środku. */
+function createLab(): BigShape {
+  const a = researchBlock(-0.2, 0.22, 0.4, 0.18, 0.16);
+  const b = researchBlock(0.3, 0.02, 0.18, 0.36, 0.13);
+  const d = dish(0.3, 0.13);
+  return {
+    body: prepare([slab(0.5, 8, 0.08, CONCRETE), ...a.body, ...b.body, ...observatory(-0.24, -0.24, 0.14), ...d.body]),
+    pit: prepare([]),
+    rotor: prepare(d.rotor),
+    glow: prepare([...a.glow, ...b.glow]),
+  };
+}
+
+/** Etap 3 — Instytut: wieża z pasami światła, dwie kopuły, budynki, antena. */
+function createInstitute(): BigShape {
+  const tower = researchBlock(0, 0, 0.2, 0.2, 0.62);
+  const a = researchBlock(-0.3, 0.26, 0.32, 0.18, 0.16, 0.4);
+  const b = researchBlock(0.32, 0.24, 0.3, 0.16, 0.14, -0.4);
+  const d = dish(0.36, 0.12);
+  return {
+    body: prepare([slab(0.54, 8, 0.08, CONCRETE), ...tower.body, ...a.body, ...b.body, ...observatory(-0.3, -0.26, 0.13), ...observatory(0.3, -0.28, 0.11), ...d.body.map((g) => g.translate(0, 0, 0.36))]),
+    pit: prepare([]),
+    rotor: prepare([at(new THREE.TorusGeometry(0.17, 0.012, 3, 16).rotateX(Math.PI / 2), 0, 0.76, 0)]),
+    glow: prepare([...tower.glow, at(new THREE.BoxGeometry(0.205, 0.025, 0.205), 0, 0.3, 0), ...a.glow, ...b.glow]),
+  };
+}
+
+/** Etap 4 — Kampus badawczy: dwupoziomowa platforma, wysoka wieża z kopułą i pierścieniem, cztery budynki, dwie kopuły. */
+function createCampus(): BigShape {
+  const tower = researchBlock(0, 0, 0.24, 0.24, 0.9);
+  const wings = [0, 1, 2, 3].map((k) => researchBlock(Math.cos((k * Math.PI) / 2) * 0.4, Math.sin((k * Math.PI) / 2) * 0.4, 0.16, 0.3, 0.16, -(k * Math.PI) / 2));
+  return {
+    body: prepare([
+      slab(0.58, 8, 0.08, CONCRETE),
+      paint(at(new THREE.CylinderGeometry(0.28, 0.32, 0.08, 8), 0, 0.12, 0), CONCRETE),
+      ...tower.body,
+      ...observatory(0, 0, 0.12, 0.92),
+      ...wings.flatMap((w) => w.body),
+      ...observatory(0.32, 0.32, 0.1),
+      ...observatory(-0.32, -0.32, 0.1),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([at(new THREE.TorusGeometry(0.24, 0.014, 4, 18).rotateX(Math.PI / 2), 0, 0.8, 0), at(new THREE.TorusGeometry(0.2, 0.012, 4, 16).rotateX(Math.PI / 2), 0, 0.6, 0)]),
+    glow: prepare([...tower.glow, at(new THREE.BoxGeometry(0.245, 0.025, 0.245), 0, 0.4, 0), at(new THREE.BoxGeometry(0.245, 0.025, 0.245), 0, 0.75, 0), ...wings.flatMap((w) => w.glow)]),
+  };
+}
+
+/** Moduł: budynek badawczy na płycie. */
+function createLabBlock(): BigShape {
+  const a = researchBlock(-0.1, -0.06, 0.4, 0.3, 0.16);
+  return {
+    body: prepare([paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), CONCRETE), ...a.body, ...observatory(0.26, 0.24, 0.1)]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare(a.glow),
+  };
+}
+
+/** Moduł: antena radiowa na płycie (czasza obraca się). */
+function createDishModule(): BigShape {
+  const d = dish(0.34, 0.2);
+  return {
+    body: prepare([paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), CONCRETE), ...d.body, ...d.rotor.map((g) => paint(g, ROOF_LIGHT_DISH)), paint(at(new THREE.BoxGeometry(0.16, 0.1, 0.12), 0.28, 0.11, 0.26), STEEL)]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.BoxGeometry(0.1, 0.03, 0.01), 0.28, 0.12, 0.325)]),
+  };
+}
+
+/** Wielkość rusztowania budowy (względem promienia planety). */
 const SPOT_SIZE = 0.06;
-const CORE_SIZE = 0.1;
 /** Najwięcej instancji jednego rodzaju kształtu. */
 const MAX_ITEMS = 160;
 /** Najwięcej odcinków taśmociągów (wszystkie kompleksy metalu planety). */
@@ -663,9 +1008,24 @@ type KindId =
   | 'powerMega'
   | 'solarField'
   | 'substation'
-  | 'storage'
-  | 'antimatterCollector'
-  | 'laboratory';
+  | 'storageDepot'
+  | 'storageHouse'
+  | 'storageTerminal'
+  | 'storageMega'
+  | 'containerYard'
+  | 'siloModule'
+  | 'trap'
+  | 'collector'
+  | 'trapField'
+  | 'collectorMega'
+  | 'trapPylon'
+  | 'magCoil'
+  | 'workshop'
+  | 'lab'
+  | 'institute'
+  | 'campus'
+  | 'labBlock'
+  | 'dishModule';
 
 const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: string; speed: number }> = {
   crystalDrillRig: { shape: createCrystalDrillRig, rotor: '#8fa3a6', glow: '#6fe9ff', speed: 1.6 },
@@ -688,18 +1048,25 @@ const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: st
   powerMega: { shape: createPowerMega, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.5 },
   solarField: { shape: createSolarField, rotor: '#8fa3a6', glow: '#bff6ff', speed: 0 },
   substation: { shape: createSubstation, rotor: '#8fa3a6', glow: '#bff6ff', speed: 0 },
-  storage: { shape: () => small('storage'), rotor: '#c9a24a', glow: STRUCTURE_COLORS.storage.light, speed: 0 },
-  antimatterCollector: { shape: () => small('antimatterCollector'), rotor: '#c9a24a', glow: STRUCTURE_COLORS.antimatterCollector.light, speed: 0 },
-  laboratory: { shape: () => small('laboratory'), rotor: '#c9a24a', glow: STRUCTURE_COLORS.laboratory.light, speed: 0 },
+  storageDepot: { shape: createStorageDepot, rotor: '#c9a24a', glow: '#ffd27a', speed: 0 },
+  storageHouse: { shape: createStorageHouse, rotor: '#c9a24a', glow: '#ffd27a', speed: 0 },
+  storageTerminal: { shape: createStorageTerminal, rotor: '#c9a24a', glow: '#ffd27a', speed: 0.25 },
+  storageMega: { shape: createStorageMega, rotor: '#c9a24a', glow: '#ffd27a', speed: 0.3 },
+  containerYard: { shape: createContainerYard, rotor: '#c9a24a', glow: '#ffd27a', speed: 0 },
+  siloModule: { shape: createSiloModule, rotor: '#c9a24a', glow: '#ffd27a', speed: 0 },
+  trap: { shape: createTrap, rotor: '#c9a24a', glow: STRUCTURE_COLORS.antimatterCollector.light, speed: 0.9 },
+  collector: { shape: createCollector, rotor: '#c9a24a', glow: STRUCTURE_COLORS.antimatterCollector.light, speed: 0.7 },
+  trapField: { shape: createTrapField, rotor: '#c9a24a', glow: STRUCTURE_COLORS.antimatterCollector.light, speed: 0.4 },
+  collectorMega: { shape: createCollectorMega, rotor: '#c9a24a', glow: STRUCTURE_COLORS.antimatterCollector.light, speed: 0.5 },
+  trapPylon: { shape: createTrapPylon, rotor: '#c9a24a', glow: STRUCTURE_COLORS.antimatterCollector.light, speed: 1.1 },
+  magCoil: { shape: createMagCoil, rotor: '#c9a24a', glow: STRUCTURE_COLORS.antimatterCollector.light, speed: 0 },
+  workshop: { shape: createWorkshop, rotor: '#8fa3a6', glow: '#bfefff', speed: 0.6 },
+  lab: { shape: createLab, rotor: '#dfe8e6', glow: '#bfefff', speed: 0.35 },
+  institute: { shape: createInstitute, rotor: '#e6c77a', glow: '#bfefff', speed: 0.3 },
+  campus: { shape: createCampus, rotor: '#e6c77a', glow: '#bfefff', speed: 0.25 },
+  labBlock: { shape: createLabBlock, rotor: '#8fa3a6', glow: '#bfefff', speed: 0 },
+  dishModule: { shape: createDishModule, rotor: '#dfe8e6', glow: '#bfefff', speed: 0.3 },
 };
-
-/** Mały budynek jako „duży kształt”: bryła w kolorze budynku, światła; bez wnętrza i ruchomej części. */
-function small(id: BuildingId): BigShape {
-  const shape = createShapes()[id];
-  const empty = new THREE.BufferGeometry();
-  empty.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
-  return { body: paint(shape.body, STRUCTURE_COLORS[id].body), pit: empty, rotor: empty.clone(), glow: shape.light };
-}
 
 /**
  * Rodzina budynku zbudowana według standardu modelu (v0.47): główna konstrukcja na każdym etapie (poz. 1 / 6 / 12 / 20),
@@ -733,7 +1100,7 @@ const CORE_MIN_SHARE = 0.5;
 /** Pole w wyrobisku (teren obniżony tarasami do `pitShare` promienia kompleksu) — z marginesem na krawędź. */
 const inPit = (c: ColonyComplex, spot: ColonyComplex['spots'][number]) => spot.t < pitShare(c.stage) + 0.04;
 
-const FAMILIES: Partial<Record<BuildingId, Family>> = {
+const FAMILIES: Record<BuildingId, Family> = {
   // Kopalnia → zakład → huta → megakompleks (prototyp B); place na etapie kopalni, potem hale i place, od huty głównie hale.
   metalMine: {
     cores: ['mineHead', 'metalPlant', 'smelter', 'metalMega'],
@@ -759,22 +1126,31 @@ const FAMILIES: Partial<Record<BuildingId, Family>> = {
     beltsToCore: false,
     noBelts: true,
   },
+  // Skład → magazyn → terminal → megaskład; place kontenerów i silosy, taśmy do głównej konstrukcji.
+  storage: {
+    cores: ['storageDepot', 'storageHouse', 'storageTerminal', 'storageMega'],
+    coreScale: [1.6, 2.1, 2.7, 3.4],
+    spot: (stage, k) => (stage <= 0 ? 'containerYard' : k % 2 === 0 ? 'siloModule' : 'containerYard'),
+    beltsToCore: true,
+  },
+  // Pułapka → kolektor → pole pułapek → megakolektor; maszty pułapek, od pola pułapek co trzecie pole — cewka.
+  antimatterCollector: {
+    cores: ['trap', 'collector', 'trapField', 'collectorMega'],
+    coreScale: [1.6, 2.1, 2.7, 3.4],
+    spot: (stage, k) => (stage >= 2 && k % 3 === 0 ? 'magCoil' : 'trapPylon'),
+    beltsToCore: false,
+    noBelts: true,
+  },
+  // Pracownia → laboratorium → instytut → kampus; budynki badawcze, od laboratorium co trzecie pole — antena.
+  laboratory: {
+    cores: ['workshop', 'lab', 'institute', 'campus'],
+    coreScale: [1.6, 2.1, 2.7, 3.4],
+    spot: (stage, k) => (stage >= 1 && k % 3 === 0 ? 'dishModule' : 'labBlock'),
+    beltsToCore: false,
+    noBelts: true,
+  },
 };
 
-/** Co stoi w kompleksie: główna konstrukcja i rodzaj zabudowy wnętrza (od etapu — gęściej). */
-function plan(c: ColonyComplex): { core: KindId; spot: KindId | null; every: number; skipCenter: number } {
-  const every = c.stage >= 2 ? 1 : c.stage === 1 ? 2 : 0;
-  switch (c.building) {
-    case 'metalMine':
-      return { core: FAMILIES.metalMine!.cores[Math.max(0, Math.min(3, c.stage))]!, spot: null, every: 1, skipCenter: 0 };
-    case 'crystalMine':
-      return { core: FAMILIES.crystalMine!.cores[Math.max(0, Math.min(3, c.stage))]!, spot: null, every, skipCenter: 0 };
-    case 'powerPlant':
-      return { core: FAMILIES.powerPlant!.cores[Math.max(0, Math.min(3, c.stage))]!, spot: null, every, skipCenter: 0 };
-    default:
-      return { core: c.building as KindId, spot: c.building as KindId, every: c.stage >= 1 ? 2 : 0, skipCenter: 0 };
-  }
-}
 
 interface Item {
   building: BuildingId;
@@ -902,26 +1278,7 @@ export class ColonyMeshes {
       const sig = `${c.cells.length}@${c.stage}${c.mega ? '+' : ''}`;
       if (this.seeded && this.signature.get(c.building) !== sig && !this.still) this.grownAt.set(c.building, this.time);
       this.signature.set(c.building, sig);
-      const p = plan(c);
-      const family = FAMILIES[c.building];
-      if (family) {
-        this.addFamily(c, family);
-        continue;
-      }
-      const stage = c.stage + (c.mega ? 1 : 0);
-      const core = this.kinds.get(p.core)!;
-      const coreWant = CORE_SIZE * (0.75 + 0.3 * stage);
-      const coreSize = Math.max(coreWant * CORE_MIN_SHARE, Math.min(coreWant, c.free / CORE_EXTENT));
-      core.items.push({ building: c.building, dir: c.core, surface: c.surface - this.sink(c.core), spin: c.spots[0]?.spin ?? 0, size: coreSize, pad: coreSize * CORE_EXTENT });
-      if (p.spot && p.every > 0) {
-        const spot = this.kinds.get(p.spot)!;
-        c.spots.forEach((s, k) => {
-          if (k === 0 || k % p.every !== 0 || s.t < p.skipCenter || spot.items.length >= MAX_ITEMS) return;
-          const size = Math.min(SPOT_SIZE * (0.8 + 0.12 * stage), s.free / CORE_EXTENT);
-          if (size < SPOT_SIZE * 0.5) return;
-          spot.items.push({ building: c.building, dir: s.dir, surface: s.surface - this.sink(s.dir), spin: s.spin, size, pad: size * CORE_EXTENT });
-        });
-      }
+      this.addFamily(c, FAMILIES[c.building]);
     }
     this.seeded = true;
     this.conveyor.count = Math.min(this.belts.length, MAX_BELTS);

@@ -8,7 +8,7 @@ import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import type { Pad } from './colonyMeshes.ts';
 import { cellLookup, collectorOrbit, hash01, layoutFromPlots, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
-import { complexGround, pitDepth } from './complexLook.ts';
+import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -78,6 +78,8 @@ export class PlanetView implements PlanetDisplay {
   /** Przezroczystość chmur danej planety (z jej wyglądu) — mnożona przez wygaszanie przy przybliżeniu. */
   private cloudOpacity = 1;
   private clouds: THREE.Object3D | undefined;
+  /** Wycięcie tafli oceanu nad wyrobiskiem kryształów: kierunek środka i cos promienia kątowego (2 — brak wycięcia). */
+  private readonly oceanCut = { value: new THREE.Vector4(0, 1, 0, 2) };
   private lava: THREE.Mesh | undefined;
   private time = 0;
   /** Kompleksy kolonii — do wyboru budowli dotknięciem. */
@@ -161,6 +163,9 @@ export class PlanetView implements PlanetDisplay {
     this.clouds = this.planetObjects.find((o) => o.name === 'clouds');
     this.cloudOpacity = this.clouds ? ((this.clouds as THREE.Mesh).material as THREE.MeshStandardMaterial).opacity : 1;
     this.lava = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'lava' && o instanceof THREE.Mesh);
+    const ocean = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'ocean' && o instanceof THREE.Mesh);
+    this.oceanCut.value.set(0, 1, 0, 2);
+    if (ocean) cutOcean(ocean.material as THREE.MeshStandardMaterial, this.oceanCut);
     for (const object of this.planetObjects) {
       // Atmosfera nie musi się obracać z planetą (jest symetryczna).
       if (object.name === 'atmosphere' || object.name === 'haze') this.tiltGroup.add(object);
@@ -331,6 +336,10 @@ export class PlanetView implements PlanetDisplay {
     if (fresh) this.colony.setLayout(layout);
     else this.colony.updateLayout(layout);
     this.paintLand(layout, this.colony.pads());
+    // Wyrobisko może zejść poniżej poziomu morza — tafla oceanu nad nim jest wycięta.
+    const pit = layout.complexes.find((c) => c.building === 'crystalMine');
+    if (pit) this.oceanCut.value.set(...pit.core, Math.cos(pit.radius * pitShare(pit.stage)));
+    else this.oceanCut.value.set(0, 1, 0, 2);
     this.buildOutlines(layout);
   }
 
@@ -354,7 +363,7 @@ export class PlanetView implements PlanetDisplay {
     const complexAt = this.complexAt(layout);
     return (dir) => {
       const c = complexAt(...dir);
-      return c ? pitDepth(c, dir) * pitDepthScale(c) : 0;
+      return c ? pitSink3d(c, dir) : 0;
     };
   }
 
@@ -384,22 +393,24 @@ export class PlanetView implements PlanetDisplay {
       // szachownicę (v0.47). Grunt = spokojna płyta w kolorze budynku, lekko inna na każdym polu; odkrywka zachowuje
       // tarasy (wzór o niskiej częstotliwości), bez świecących kryształów na pojedynczych ściankach. Szczegół — zabudowa 3D.
       const base = GROUND_BASE[c.building];
-      const pit = pitDepth(c, dir) > 0;
-      const ground = pit ? complexGround(c, dir) : null;
       const tone = 0.93 + 0.14 * hash01(cell, 7);
-      const rgb = ground && ground.glow <= 0 ? ground.rgb : ground ? PIT_FLOOR : base.map((v) => Math.min(1, v * tone));
+      // Wyrobisko: skała ciemniejsza z głębokością, tarasy na przemian jaśniejsze (warstwy), dno — ciemne.
+      const sunk = pitSink3d(c, dir);
+      const deep = sunk / pitDepthMax(c.level);
+      const strata = Math.round(deep * 9) % 2 === 0 ? 1 : 0.88;
+      const rgb = sunk <= 0 ? base.map((v) => Math.min(1, v * tone)) : deep >= 0.999 ? PIT_FLOOR : PIT_ROCK.map((v) => v * (1 - 0.55 * deep) * strata * tone);
       for (let v = 0; v < 3; v++) {
         const i = t + v * 3;
         col[i] = rgb[0]!;
         col[i + 1] = rgb[1]!;
         col[i + 2] = rgb[2]!;
         if (c.building !== 'crystalMine') continue;
-        // Odkrywka: wierzchołek obniżony schodkami tarasów, najwyżej do poziomu tuż nad morzem.
+        // Wyrobisko: wierzchołek obniżony schodkami tarasów — także poniżej poziomu morza (ocean nad nim wycięty).
         const r = Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!);
         const vd: Vec3 = [pos[i]! / r, pos[i + 1]! / r, pos[i + 2]! / r];
-        const depth = pitDepth(c, vd) * pitDepthScale(c);
+        const depth = pitSink3d(c, vd);
         if (depth <= 0) continue;
-        const target = Math.max(1.004, r - depth) / r;
+        const target = Math.max(PIT_MIN_RADIUS, r - depth) / r;
         pos[i] = pos[i]! * target;
         pos[i + 1] = pos[i + 1]! * target;
         pos[i + 2] = pos[i + 2]! * target;
@@ -444,7 +455,7 @@ export class PlanetView implements PlanetDisplay {
         }
       }
       if (!best || sampler.lakeLevel(x, y, z) > sampler.height(x, y, z)) continue;
-      const target = Math.max(1.004, best.surface) / r;
+      const target = Math.max(PIT_MIN_RADIUS, best.surface) / r;
       pos[i] = pos[i]! * target;
       pos[i + 1] = pos[i + 1]! * target;
       pos[i + 2] = pos[i + 2]! * target;
@@ -675,11 +686,29 @@ const GROUND_BASE: Record<BuildingId, readonly [number, number, number]> = {
   laboratory: [0.6, 0.65, 0.64],
 };
 
-/** Dno odkrywki kryształów w 3D (zamiast świecących kryształów na pojedynczych ściankach). */
-/** Głębokość odkrywki (ułamek promienia planety) — rośnie z etapem. */
-const pitDepthScale = (c: ColonyComplex) => 0.012 + 0.005 * c.stage;
-
+/** Dno odkrywki kryształów w 3D (zamiast świecących kryształów na pojedynczych ściankach) i skała jej ścian. */
 const PIT_FLOOR: readonly number[] = [0.07, 0.13, 0.16];
+const PIT_ROCK: readonly number[] = [0.5, 0.46, 0.44];
+/** Najgłębszy punkt wyrobiska (promień) — zapas nad środkiem planety. */
+const PIT_MIN_RADIUS = 0.82;
+
+/**
+ * Tafla oceanu (i morza lawy) z otworem: piksele w stożku `cut` (kierunek, cos kąta) są odrzucane, więc wyrobisko
+ * poniżej poziomu morza nie jest „zalane”. Jeden warunek w shaderze — bez dodatkowych rysowań.
+ */
+function cutOcean(material: THREE.MeshStandardMaterial, cut: { value: THREE.Vector4 }): void {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uPitCut = cut;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPitDir;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPitDir = position;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPitDir;\nuniform vec4 uPitCut;')
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (dot(normalize(vPitDir), uPitCut.xyz) > uPitCut.w) discard;');
+  };
+  material.customProgramCacheKey = () => 'ocean-pit-cut';
+  material.needsUpdate = true;
+}
 
 function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Object3D[] {
   const v = planet.visual;

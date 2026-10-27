@@ -27,7 +27,8 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   zakład → huta → megakompleks, moduły i taśmociągi) — v0.47.1. Kryształy (wiertło → szyb → odkrywka → megaodkrywka,
   rozmieszczenie wspólne `FAMILIES` w `colonyMeshes.ts`) — v0.47.2. Elektrownia (chłodnie → reaktor → megasieć Tesli,
   panele i stacje przesyłowe; puste części modeli bez rysowania), fundamenty (teren wyrównany, budowle w wolnym miejscu
-  własnego obszaru, bez nachodzenia na siebie) — v0.47.3. Dalej: magazyn, kolektor, laboratorium.
+  własnego obszaru, bez nachodzenia na siebie) — v0.47.3. Magazyn, kolektor antymaterii i laboratorium (wszystkie budynki
+  w `FAMILIES`) — gałąź `claude/grafika-v047`.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody

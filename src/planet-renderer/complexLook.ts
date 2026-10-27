@@ -70,7 +70,24 @@ export const pitShare = (stage: number) => [0.42, 0.55, 0.66, 0.74][Math.max(0, 
 export const pitTerraces = (stage: number) => 2 + Math.max(0, Math.min(3, stage));
 
 /**
- * Głębokość odkrywki 0..1 w punkcie (1 — dno): tarasy schodkami. 0 poza odkrywką. Dla 3D — ile obniżyć teren.
+ * Wyrobisko kryształów w 3D (v0.47, prośba właściciela): prawdziwa dziura w planecie, głębsza z każdym poziomem —
+ * od ~0,02 promienia planety (poz. 1) do 0,14 (poz. 30+), z liczbą tarasów rosnącą co 4 poziomy. Może zejść poniżej
+ * poziomu morza (tafla oceanu jest nad wyrobiskiem wycięta — PlanetView).
+ */
+export const pitDepthMax = (level: number) => Math.min(0.14, 0.016 + 0.004 * Math.max(1, level));
+export const pitTerraces3d = (level: number) => Math.min(9, 3 + Math.floor(Math.max(1, level) / 4));
+
+/** Obniżenie terenu wyrobiska w 3D (ułamek promienia planety) w punkcie; 0 poza wyrobiskiem. */
+export function pitSink3d(c: ColonyComplex, p: Vec3): number {
+  if (c.building !== 'crystalMine') return 0;
+  const s = angleBetween(c.core, p) / (c.radius * pitShare(c.stage));
+  if (s >= 1) return 0;
+  const n = pitTerraces3d(c.level);
+  return (1 - Math.floor(s * n) / n) * pitDepthMax(c.level);
+}
+
+/**
+ * Głębokość odkrywki 0..1 w punkcie (1 — dno): tarasy schodkami. 0 poza odkrywką (wzór gruntu 2D).
  */
 export function pitDepth(c: ColonyComplex, p: Vec3): number {
   if (c.building !== 'crystalMine') return 0;
