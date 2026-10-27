@@ -37,14 +37,16 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
   q('#cp-title').textContent = v.name;
   q('.cp-about').textContent =
     `${v.groups} sąsiednie pełne pola (po 3 poziomy) łączą się wokół wspólnej konstrukcji — ${v.hubName} na wolnym polu obok. ` +
-    `Kompleks zajmuje ${v.groups + v.extraFields} pola zamiast ${v.groups}, a jego ${v.groups * 3} poziomów wydobywa o ${v.bonus}% więcej (zużycie energii bez zmian).`;
+    `Kompleks zajmuje ${v.groups + v.extraFields} pola zamiast ${v.groups}, a jego ${v.groups * 3} poziomów ${v.resource === 'energy' ? `daje o ${v.bonus}% więcej energii.` : `wydobywa o ${v.bonus}% więcej (zużycie energii bez zmian).`}`;
   q('.cp-now').textContent =
     v.count === 0 ? 'Jeszcze żadnego.' : `${v.count} · ${v.levelsIn} poziomów z premią +${v.bonus}%. Pola planety: ${v.fields.used} / ${v.fields.buildable} zajęte.`;
   const c = v.candidate;
   q('.cp-next').textContent = c
     ? `Gotowe do połączenia: ${v.groups} pola + ${v.hubName} (${v.extraFields} wolne pole).\n` +
       `Pola planety: ${v.fields.used} → ${v.fields.used + v.extraFields} / ${v.fields.buildable}.\n` +
-      `Wydobycie: +${formatRate(c.gainPerMinute)}/min (+${formatInt(c.gainPerMinute * 60)}/h).\n` +
+      (v.resource === 'energy'
+        ? `Energia: +${formatInt(c.gainPerMinute)}.\n`
+        : `Wydobycie: +${formatRate(c.gainPerMinute)}/min (+${formatInt(c.gainPerMinute * 60)}/h).\n`) +
       `Koszt: ${formatInt(v.cost.metal)} metalu · ${formatInt(v.cost.crystal)} kryształów. Działa od razu.\n` +
       `Odwracalne: „Rozłącz” przywraca osobne pola (bez zwrotu kosztu). Zburzenie poziomu w kompleksie też go rozłącza.`
     : (v.reason ?? '');

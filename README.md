@@ -435,4 +435,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 237. Dotknij halę główną → w karcie „Ekran: wielka fabryka” → okno z metalem, energią, premią, schematem i trzema trybami pracy. Dotknij „Oszczędzanie energii”: metal i zużycie energii w pasku u góry spadają dokładnie o tyle, ile pokazał tryb. „Maksymalna produkcja” — odwrotnie.
 238. Zamknij i otwórz grę ponownie: wybrany tryb i premia fabryki zostają (wcześniej premia kompleksu mogła zniknąć po wczytaniu).
 
+### Od 0.40: sieć Tesli (elektrownie)
+
+239. Elektrownia z pełnym polem (3 poziomy) to węzeł Tesli: wieża ze złotym pierścieniem i migocącą, jasną kulą na szczycie (2D i 3D).
+240. Badania → Produktywność → „Przesył bezprzewodowy” (po „Ogniwach fuzyjnych”). Potem Produkcja → suwaki elektrowni → „Sieć Tesli”: 3 sąsiednie węzły na równinach + wieża przesyłowa. Okno pokazuje „Energia: +N”.
+241. Po „Połącz w kompleks” wieża wyrasta, a potem między jej kulą i węzłami zaczynają przeskakiwać błękitne wyładowania (zmieniają kształt, chwilami gasną). Energia w pasku rośnie o tyle, ile pokazało okno.
+242. Ustawienia → „Ogranicz ruch”: wyładowania stoją w miejscu jako proste linie.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

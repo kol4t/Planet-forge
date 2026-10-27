@@ -8,6 +8,8 @@ import { deserializeEmpire, EMPIRE_KEY } from '../src/core/save/empire.ts';
 import { COMPLEX_FAMILIES, findFamily } from '../src/data/complexes.ts';
 import { STARTER } from '../src/data/planets.ts';
 import { findResearch } from '../src/data/research.ts';
+import { layoutFromPlots } from '../src/planet-renderer/colony.ts';
+import { createSurfaceSampler } from '../src/planet-renderer/surface.ts';
 
 function withMemoryStorage(run: () => void): void {
   const store = new Map<string, string>();
@@ -183,5 +185,36 @@ test('zapis (v0.39): premia kompleksu w siteFactor > 1 nie jest odrzucana', () =
     assert.ok(game.mergeComplex('crystalMine', 0).ok);
     const saved = deserializeEmpire(localStorage.getItem(EMPIRE_KEY))!;
     assert.ok((saved.slots[0]!.economy.siteFactor?.crystalMine ?? 0) > 1);
+  });
+});
+
+test('sieć Tesli (v0.40): łączenie węzłów elektrowni na równinach, +energia, etapy rozwoju', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, powerPlant: 12, storage: 7 }, stock: { metal: 50000, crystal: 50000 } };
+    const locked = game.complexView('powerPlant')!;
+    assert.equal(locked.unlocked, false);
+    assert.equal(locked.research, '„Przesył bezprzewodowy” (Badania → Produktywność)');
+    assert.equal(game.mergeComplex('powerPlant', 0).ok, false);
+    game.research = { done: ['tesla-grid'], current: null };
+    const view = game.complexView('powerPlant')!;
+    assert.equal(view.name, 'Sieć Tesli');
+    assert.equal(view.resource, 'energy');
+    assert.ok(view.candidate, view.reason ?? '');
+    const grid = game.colony().grid;
+    for (const c of [...view.candidate!.cells, ...view.candidate!.hubs]) assert.equal(grid.cells[c]!.terrain, 'plain');
+    const before = game.rates.energyProduced;
+    assert.ok(view.candidate!.gainPerMinute > 0);
+    assert.ok(game.mergeComplex('powerPlant', 0).ok);
+    assert.ok(Math.abs(game.rates.energyProduced - before - view.candidate!.gainPerMinute) < 1e-6, 'podgląd = gra');
+    const card = game.buildingCard('powerPlant');
+    assert.equal(card.factory, null, 'sieć bez trybów — bez ekranu fabryki');
+    assert.ok(card.stages.some((s) => s.name === 'Sieć Tesli' && s.state === 'current'));
+    // Na planecie: wieża przesyłowa z trzema węzłami.
+    const col = game.colony();
+    const layout = layoutFromPlots(col.grid, col.plots, createSurfaceSampler(game.planet), ['powerPlant'], col.complexes);
+    const hub = layout.hubs.find((h) => h.building === 'powerPlant')!;
+    assert.equal(hub.members.length, 3);
+    assert.equal(layout.rigs.filter((r) => r.building === 'powerPlant').length, 4, 'poz. 12 = 4 pełne pola');
   });
 });

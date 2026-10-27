@@ -166,6 +166,8 @@ export interface ComplexView {
   unlocked: boolean;
   /** Badanie, które odblokowuje rodzinę (tekst do komunikatu). */
   research: string;
+  /** Co kompleks zwiększa (opis zysku w oknie). */
+  resource: 'metal' | 'crystal' | 'energy';
   /** Ile kompleksów już stoi i ile poziomów obejmują. */
   count: number;
   levelsIn: number;
@@ -2064,14 +2066,15 @@ export class GameController {
       const next = [...(slot.complexes ?? []), { family: family.id, building: id, cells: found.cells, hubs: found.hubs }];
       const factors = siteFactors(grid, plots, this.economy.levels, complexCellBonus(next));
       const after = productionRates({ ...this.economy, siteFactor: factors }, this.planet, this.balance);
-      const resource = family.building === 'metalMine' ? 'metal' : 'crystal';
-      candidate = { cells: found.cells, hubs: found.hubs, gainPerMinute: after[resource] - this.rates[resource] };
+      const gain = (r: Rates) => (family.building === 'powerPlant' ? r.energyProduced : family.building === 'metalMine' ? r.metal : r.crystal);
+      candidate = { cells: found.cells, hubs: found.hubs, gainPerMinute: gain(after) - gain(this.rates) };
     }
     return {
       name: family.name,
       hubName: family.hubName,
       unlocked,
       research: family.research,
+      resource: family.building === 'powerPlant' ? 'energy' : family.building === 'metalMine' ? 'metal' : 'crystal',
       count: mine.length,
       levelsIn: mine.length * family.groups * 3,
       bonus: family.bonus,
@@ -2175,7 +2178,7 @@ export class GameController {
     this.log('build', `${this.planet.displayName}: ${family.name.toLowerCase()} — połączono ${family.groups} pola.`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `Połączono — ${family.name}: +${family.bonus}% wydobycia z ${family.groups * 3} poziomów, ${family.hubName} zajmuje ${family.extraFields} pole.` };
+    return { ok: true, message: `Połączono — ${family.name}: +${family.bonus}% ${family.building === 'powerPlant' ? 'energii' : 'wydobycia'} z ${family.groups * 3} poziomów, ${family.hubName} zajmuje ${family.extraFields} pole.` };
   }
 
   /** Rozłączenie ostatniego kompleksu budynku (bez zwrotu kosztu; pole wspólnej konstrukcji się zwalnia). */

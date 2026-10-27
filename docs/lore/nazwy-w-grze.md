@@ -18,6 +18,7 @@ Spis z 2026-10-22 (v0.21). **Nic tu nie jest kanonem** — wszystkie nazwy są r
 | **Profile powierzchni** (ziemiopodobny, pustynny, lodowy, oceaniczny, wulkaniczny, jałowy) — kategorie techniczne, gracz ich nie widzi (tylko atlas) | `src/data/profiles/` | R-003, O-004 |
 | **SI Matka**, „SI wykonawcze”, „Autonomia” | `src/data/research.ts`, `src/core/ai/advisor.ts`, `src/app/GameController.ts`, `src/game/scenes/PlanetScene.ts`, `EmpireScene.ts` | — |
 | **Dziennik ekspedycji** | `src/game/scenes/EmpireScene.ts`, `src/app/GameController.ts`, `src/core/save/empire.ts`, `src/game/ui/theme.ts` | K-008 (rama dziennika ekspedycji), O-207 |
+| **Przemysł**: „Kompleks wiertniczy”, „Wielka fabryka”, „Węzeł Tesli”, „Sieć Tesli” (robocze, z promptu właściciela v0.50) | `src/data/complexes.ts`, `src/data/industry.ts`, `src/data/research.ts` | — |
 | **„W klimacie OGame”** (opis gry) | `CLAUDE.md` („Czym jest gra”) | K-005, O-206 |
 
 Przy zmianie nazwy: zmieniaj tylko teksty widoczne dla gracza. Identyfikatory w kodzie i klucze zapisu (`'bot'`, `'alien'`, `empire.v1`, `antimatter`) zostają, żeby stare zapisy działały.

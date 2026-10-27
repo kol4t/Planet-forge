@@ -402,7 +402,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const reach = Math.max(0, growth(hub) * 2 - 1);
       if (reach <= 0) continue;
       // Rury (kryształy) albo taśmociągi (metal — złote) od konstrukcji głównej do pól kompleksu.
-      ctx.fillStyle = hub.building === 'metalMine' ? '#c9a24a' : STRUCTURE_COLORS[hub.building].body;
+      ctx.fillStyle = hub.building === 'metalMine' ? '#c9a24a' : hub.building === 'powerPlant' ? '#2f3d44' : STRUCTURE_COLORS[hub.building].body;
       ctx.globalAlpha = Math.min(1, h.depth * 2.5) * 0.9;
       for (const member of hub.members) {
         const m = toScreen(member);
@@ -430,8 +430,24 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       ctx.globalAlpha = alpha * (0.5 + 0.5 * Math.abs(Math.sin(now / 350 + px)));
       ctx.fillRect(x0 + pixel, y0 - 3 * pixel, pixel, pixel);
     };
+    // Węzeł Tesli (v0.40): stalowa wieża na podstawie, złoty pierścień, migocząca kula na szczycie.
+    const tower = (px: number, py: number, n: number, alpha: number) => {
+      const x0 = snapX(px - (n * pixel) / 2);
+      const y0 = snapY(py - (n * pixel) / 2);
+      const c = Math.floor(n / 2);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#6f7b78';
+      ctx.fillRect(x0 + pixel, y0 + (n - 1) * pixel, (n - 2) * pixel, pixel);
+      ctx.fillRect(x0 + c * pixel, y0, pixel, n * pixel);
+      ctx.fillStyle = '#c9a24a';
+      ctx.fillRect(x0 + (c - 1) * pixel, y0 + pixel, 3 * pixel, pixel);
+      ctx.fillRect(x0, y0 + (n - 2) * pixel, pixel, pixel);
+      ctx.fillStyle = '#bff6ff';
+      ctx.globalAlpha = alpha * (0.6 + 0.4 * Math.abs(Math.sin(now / 170 + px)));
+      ctx.fillRect(x0 + c * pixel, y0 - pixel, pixel, pixel);
+    };
     const draw = (building: BuildingId, x: number, y: number, n: number, speed: number, alpha: number) =>
-      building === 'metalMine' ? hall(x, y, n, alpha) : pit(x, y, n, STRUCTURE_COLORS[building], speed, alpha);
+      building === 'metalMine' ? hall(x, y, n, alpha) : building === 'powerPlant' ? tower(x, y, n, alpha) : pit(x, y, n, STRUCTURE_COLORS[building], speed, alpha);
     for (const rig of this.colony.rigs) {
       if (!groupFull(level(rig.building), rig.group)) continue;
       const p = toScreen(rig.dir);
@@ -445,6 +461,34 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const size = 3 + 2 * Math.round(3 * Math.min(1, growth(hub) * 2));
       draw(hub.building, h.x, h.y, size, 0.6, Math.min(1, h.depth * 2.5));
     }
+    // Wyładowania sieci Tesli: łamana z pikseli od szczytu wieży przesyłowej do szczytów węzłów, kształt
+    // zmienia się kilka razy na sekundę, część łuków chwilami gaśnie. „Ogranicz ruch” — prosta, stała.
+    const tick = Math.floor(now / 90);
+    const jitter = (v: number) => {
+      const t = Math.sin(v * 12.9898) * 43758.5453;
+      return t - Math.floor(t);
+    };
+    ctx.fillStyle = '#bff6ff';
+    this.colony.hubs.forEach((hub, hi) => {
+      if (hub.building !== 'powerPlant') return;
+      const h = toScreen(hub.dir);
+      const ready = growth(hub) * 2 - 1;
+      if (h.depth < 0.08 || ready <= 0) return;
+      hub.members.forEach((member, mi) => {
+        if (now > 0 && jitter(tick * 13.7 + mi * 5.3 + hi) < 0.3) return;
+        const m = toScreen(member);
+        const ax = h.x, ay = h.y - 4 * pixel, bx = m.x, by = m.y - 4 * pixel;
+        const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / pixel));
+        ctx.globalAlpha = Math.min(1, h.depth * 2.5) * 0.85;
+        let off = 0;
+        for (let k = 0; k <= steps * Math.min(1, ready); k++) {
+          if (now > 0 && k % 3 === 0) off = Math.round((jitter(tick * 31.7 + hi * 101 + mi * 17 + k) - 0.5) * 3);
+          const t = k / steps;
+          const side = k === 0 || k >= steps ? 0 : off;
+          ctx.fillRect(snapX(ax + (bx - ax) * t), snapY(ay + (by - ay) * t + side * pixel), pixel, pixel);
+        }
+      });
+    });
     ctx.globalAlpha = 1;
     const site = this.site;
     const siteSlots = site && this.colony.slots[site.building];

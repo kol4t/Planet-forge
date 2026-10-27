@@ -54,7 +54,7 @@ export interface ColonyLayout {
 }
 
 /** Budynki, których pełne pole zmienia się w większą konstrukcję (v0.38: wiertła kryształu, v0.39: zakłady metalu). */
-export const RIG_BUILDINGS: readonly BuildingId[] = ['crystalMine', 'metalMine'];
+export const RIG_BUILDINGS: readonly BuildingId[] = ['crystalMine', 'metalMine', 'powerPlant'];
 
 /** Czy grupa `group` jest pełna przy danym poziomie (wtedy rysujemy konstrukcję zamiast 3 budowli). */
 export const groupFull = (level: number, group: number) => Math.floor(level) >= (group + 1) * LEVELS_PER_FIELD;

@@ -25,8 +25,9 @@ export const INDUSTRY_STAGES: Partial<Record<BuildingId, readonly IndustryStage[
     { name: 'Megakompleks metalowy', footprint: 'wkrótce', description: 'Pełny cykl produkcji metalu.', when: 'soon' },
   ],
   powerPlant: [
-    { name: 'Elektrownia', footprint: '1 pole (3 poziomy)', description: 'Chłodnie na równinach.', when: 'built' },
-    { name: 'Węzeł energetyczny', footprint: 'wkrótce', description: 'Słup Tesli z pełnych pól (v0.40).', when: 'soon' },
-    { name: 'Sieć Tesli', footprint: 'wkrótce', description: 'Połączone węzły dla wielkich kompleksów.', when: 'soon' },
+    { name: 'Elektrownia', footprint: '1 pole', description: 'Poziomy 1–2 na polu: chłodnie na równinach.', when: 'built' },
+    { name: 'Węzeł Tesli', footprint: '1 pole (3 poziomy)', description: 'Pełne pole (poz. 3, 6, 9…): wieża z pierścieniem i świecącą kulą.', when: 'full-group' },
+    { name: 'Sieć Tesli', footprint: '4 pola', description: '3 sąsiednie węzły + wieża przesyłowa, wyładowania między wieżami, +30% energii.', when: 'complex' },
+    { name: 'Energia gwiazdy', footprint: 'wkrótce', description: 'Przesył energii z orbity.', when: 'soon' },
   ],
 };
