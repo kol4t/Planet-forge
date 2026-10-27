@@ -140,9 +140,11 @@ test('kontroler: po anulowaniu badania SI („działa samo”) nie zajmuje Labor
     // Gracz wybiera inne badanie sam — działa, a potem SI wraca do pracy.
     const mine = ['prod-core', 'planet-1'].find((id) => id !== byAi)!;
     assert.ok(game.startResearch(mine, 61_000).ok);
-    assert.equal(game.research.current?.id, mine);
+    // (funkcja — TypeScript zawęził `current` do null po wcześniejszym assert)
+    const current = () => game.research.current;
+    assert.equal(current()?.id, mine);
     game.research = { ...game.research, current: null, done: [...game.research.done, mine] };
     game.tick(62_000);
-    assert.ok(game.research.current, 'po ręcznym wyborze SI znów prowadzi badania');
+    assert.ok(current(), 'po ręcznym wyborze SI znów prowadzi badania');
   });
 });
