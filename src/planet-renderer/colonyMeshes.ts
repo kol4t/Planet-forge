@@ -147,36 +147,6 @@ function createTeslaNode(): BigShape {
   };
 }
 
-/** Wieża przesyłowa sieci Tesli (hub, v0.40): wysoka kratownica, dwa pierścienie, duża kula, transformatory. */
-function createTeslaTower(): BigShape {
-  const legs = [0, 1, 2, 3].map((k) => {
-    const a = (k * Math.PI) / 2 + Math.PI / 4;
-    return at(new THREE.BoxGeometry(0.05, 0.7, 0.05).rotateZ(-0.25), Math.cos(a) * 0.2, 0.4, Math.sin(a) * 0.2, -a);
-  });
-  return {
-    body: prepare([
-      paint(at(new THREE.CylinderGeometry(0.5, 0.56, 0.1, 8), 0, 0.05, 0), STEEL),
-      ...legs.map((g) => paint(g, STEEL)),
-      paint(at(new THREE.CylinderGeometry(0.04, 0.08, 0.86, 6), 0, 0.52, 0), STEEL),
-      paint(at(new THREE.BoxGeometry(0.34, 0.03, 0.03), 0, 0.42, 0), GOLD),
-      paint(at(new THREE.BoxGeometry(0.03, 0.03, 0.34), 0, 0.42, 0), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 8), 0, 0.62, 0), GOLD),
-      paint(at(new THREE.BoxGeometry(0.16, 0.14, 0.14), 0.36, 0.17, 0.12, 0.3), GOLD),
-      paint(at(new THREE.BoxGeometry(0.16, 0.14, 0.14), -0.34, 0.17, 0.16, -0.4), GOLD),
-      paint(at(new THREE.BoxGeometry(0.14, 0.1, 0.12), 0.05, 0.15, -0.38), STEEL),
-    ]),
-    pit: prepare([at(new THREE.CylinderGeometry(0.08, 0.08, 0.02, 8), 0, 0.5, 0), at(new THREE.CylinderGeometry(0.07, 0.07, 0.02, 8), 0, 0.72, 0)]),
-    rotor: prepare([
-      at(new THREE.TorusGeometry(0.2, 0.025, 4, 14).rotateX(Math.PI / 2), 0, 0.9, 0),
-      at(new THREE.TorusGeometry(0.13, 0.02, 4, 12).rotateX(Math.PI / 2), 0, 0.8, 0),
-    ]),
-    glow: prepare([
-      at(new THREE.IcosahedronGeometry(0.11, 0), 0, 1.0, 0),
-      at(new THREE.BoxGeometry(0.1, 0.03, 0.01), 0.36, 0.2, 0.195),
-      at(new THREE.BoxGeometry(0.1, 0.03, 0.01), -0.34, 0.2, 0.235),
-    ]),
-  };
-}
 
 
 // ——— Rodzina metalowa (v0.47, prototyp B) ———
@@ -510,6 +480,153 @@ function createCrystalRefinery(): BigShape {
   };
 }
 
+// ——— Rodzina energetyczna (v0.47) — standard modelu: PLATFORMA → BRYŁA → DETAL → ŚWIATŁO ———
+// Etapy (poz. 1 / 6 / 12 / 20): elektrownia → węzeł energetyczny → wielka elektrownia → megasieć. Na pozostałych polach
+// pola paneli i stacje przesyłowe; po usprawnieniu „Sieć Tesli” — także węzły Tesli.
+const CONCRETE = '#a7aea9';
+const PANEL = '#27405e';
+
+/** Chłodnia kominowa: talia u ~2/3 wysokości, otwarta u góry (wnętrze — ciemnoszary krążek). */
+function coolingTower(x: number, z: number, h: number, r: number): { body: THREE.BufferGeometry[]; pit: THREE.BufferGeometry[]; glow: THREE.BufferGeometry[] } {
+  return {
+    body: [
+      paint(at(new THREE.CylinderGeometry(r * 0.72, r, h * 0.65, 12, 1, true), x, h * 0.325, z), CONCRETE),
+      paint(at(new THREE.CylinderGeometry(r * 0.8, r * 0.72, h * 0.35, 12, 1, true), x, h * 0.825, z), CONCRETE),
+      paint(at(new THREE.CircleGeometry(r * 0.76, 12).rotateX(-Math.PI / 2), x, h * 0.86, z), DARK),
+    ],
+    pit: [],
+    // Ciepły blask z wnętrza na krawędzi.
+    glow: [at(new THREE.TorusGeometry(r * 0.8, 0.008, 3, 14).rotateX(Math.PI / 2), x, h, z)],
+  };
+}
+
+/** Hala turbin ze złotym dachem i świecącym pasem okien od strony +z. */
+function turbineHall(x: number, z: number, w: number, d: number, h: number, ry = 0): { body: THREE.BufferGeometry[]; glow: THREE.BufferGeometry[] } {
+  return {
+    body: [paint(at(new THREE.BoxGeometry(w, h, d), x, h / 2 + 0.06, z, ry), STEEL), paint(at(new THREE.BoxGeometry(w * 1.06, 0.03, d * 1.1), x, h + 0.075, z, ry), GOLD)],
+    glow: [at(new THREE.BoxGeometry(w * 0.8, 0.03, 0.01).translate(0, 0, d / 2 + 0.006), x, h * 0.6 + 0.06, z, ry)],
+  };
+}
+
+/** Słup przesyłowy: smukła kratownica ze złotymi poprzeczkami i izolatorami (światło). */
+function pylon(x: number, z: number, h: number): { body: THREE.BufferGeometry[]; glow: THREE.BufferGeometry[] } {
+  return {
+    body: [...derrick(x, z, h, 0.07), paint(at(new THREE.BoxGeometry(0.3, 0.02, 0.025), x, h * 0.85, z), GOLD), paint(at(new THREE.BoxGeometry(0.22, 0.02, 0.025), x, h * 0.62, z), GOLD)],
+    glow: [at(new THREE.BoxGeometry(0.02, 0.03, 0.02), x - 0.14, h * 0.82, z), at(new THREE.BoxGeometry(0.02, 0.03, 0.02), x + 0.14, h * 0.82, z)],
+  };
+}
+
+const parts = (...list: { body?: THREE.BufferGeometry[]; pit?: THREE.BufferGeometry[]; glow?: THREE.BufferGeometry[] }[]) => ({
+  body: list.flatMap((l) => l.body ?? []),
+  pit: list.flatMap((l) => l.pit ?? []),
+  glow: list.flatMap((l) => l.glow ?? []),
+});
+
+/** Etap 1 — Elektrownia: chłodnia, hala turbin z wentylatorem, transformator. */
+function createPowerStation(): BigShape {
+  const p = parts(coolingTower(-0.14, -0.06, 0.66, 0.2), turbineHall(0.22, 0.14, 0.3, 0.2, 0.16));
+  return {
+    body: prepare([slab(0.46, 6), ...p.body, paint(at(new THREE.BoxGeometry(0.1, 0.1, 0.1), 0.26, 0.11, -0.2), GOLD)]),
+    pit: prepare(p.pit),
+    rotor: prepare([at(new THREE.BoxGeometry(0.12, 0.012, 0.025), 0.22, 0.27, 0.14), at(new THREE.BoxGeometry(0.025, 0.012, 0.12), 0.22, 0.27, 0.14)]),
+    glow: prepare(p.glow),
+  };
+}
+
+/** Etap 2 — Węzeł energetyczny: dwie chłodnie, długa hala generatorów, plac transformatorów ze słupem. */
+function createPowerNode(): BigShape {
+  const p = parts(coolingTower(-0.2, -0.16, 0.72, 0.19), coolingTower(0.12, -0.26, 0.6, 0.16), turbineHall(0.02, 0.2, 0.48, 0.2, 0.18), pylon(-0.34, 0.24, 0.5));
+  const transformers = [0, 1, 2].map((k) => paint(at(new THREE.BoxGeometry(0.08, 0.09, 0.08), 0.3 + (k % 2) * 0.1, 0.1, -0.02 + k * 0.08), GOLD));
+  return {
+    body: prepare([slab(0.5, 8), ...p.body, ...transformers]),
+    pit: prepare(p.pit),
+    rotor: prepare([at(new THREE.BoxGeometry(0.14, 0.012, 0.025), -0.1, 0.29, 0.2), at(new THREE.BoxGeometry(0.14, 0.012, 0.025), 0.14, 0.29, 0.2)]),
+    glow: prepare(p.glow),
+  };
+}
+
+/** Etap 3 — Wielka elektrownia: kopuła reaktora ze świecącym pasem, trzy chłodnie, hala turbin. */
+function createPowerPlantLarge(): BigShape {
+  const p = parts(
+    coolingTower(-0.3, -0.18, 0.78, 0.17),
+    coolingTower(-0.02, -0.32, 0.7, 0.15),
+    coolingTower(0.28, -0.22, 0.74, 0.16),
+    turbineHall(0.2, 0.24, 0.34, 0.18, 0.16, 0.2),
+  );
+  return {
+    body: prepare([
+      slab(0.52, 8),
+      ...p.body,
+      paint(at(new THREE.CylinderGeometry(0.17, 0.18, 0.12, 12), -0.16, 0.12, 0.16), CONCRETE),
+      paint(at(new THREE.SphereGeometry(0.17, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), -0.16, 0.18, 0.16), CONCRETE),
+    ]),
+    pit: prepare(p.pit),
+    // Pierścień wokół kopuły obraca się wolno.
+    rotor: prepare([at(new THREE.TorusGeometry(0.22, 0.01, 3, 18).rotateX(Math.PI / 2), -0.16, 0.2, 0.16)]),
+    glow: prepare([...p.glow, at(new THREE.CylinderGeometry(0.182, 0.182, 0.025, 12, 1, true), -0.16, 0.15, 0.16)]),
+  };
+}
+
+/** Etap 4 — Megasieć: dwupoziomowa platforma, wieża przesyłowa Tesli z pierścieniami i kulą, cztery chłodnie. */
+function createPowerMega(): BigShape {
+  const towers = [0, 1, 2, 3].map((k) => {
+    const a = (k * Math.PI) / 2 + Math.PI / 4;
+    return coolingTower(Math.cos(a) * 0.36, Math.sin(a) * 0.36, 0.62, 0.13);
+  });
+  const legs = [0, 1, 2, 3].map((k) => {
+    const a = (k * Math.PI) / 2;
+    return paint(at(new THREE.BoxGeometry(0.04, 0.9, 0.04).rotateZ(-0.16), Math.cos(a) * 0.12, 0.56, Math.sin(a) * 0.12, -a), STEEL);
+  });
+  const p = parts(...towers);
+  return {
+    body: prepare([
+      slab(0.56, 8),
+      paint(at(new THREE.CylinderGeometry(0.24, 0.28, 0.08, 8), 0, 0.12, 0), SLAB),
+      ...p.body,
+      ...legs,
+      paint(at(new THREE.CylinderGeometry(0.035, 0.07, 1.1, 6), 0, 0.66, 0), STEEL),
+      paint(at(new THREE.CylinderGeometry(0.12, 0.12, 0.03, 8), 0, 0.6, 0), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.09, 0.09, 0.03, 8), 0, 0.88, 0), GOLD),
+    ]),
+    pit: prepare(p.pit),
+    rotor: prepare([
+      at(new THREE.TorusGeometry(0.24, 0.018, 4, 18).rotateX(Math.PI / 2), 0, 1.12, 0),
+      at(new THREE.TorusGeometry(0.16, 0.015, 4, 14).rotateX(Math.PI / 2), 0, 1.0, 0),
+    ]),
+    glow: prepare([...p.glow, at(new THREE.IcosahedronGeometry(0.11, 0), 0, 1.24, 0)]),
+  };
+}
+
+/** Moduł: pole paneli słonecznych — trzy rzędy pochylonych paneli w złotych ramach. */
+function createSolarField(): BigShape {
+  const rows = [-0.26, 0, 0.26].flatMap((z) => [
+    paint(at(new THREE.BoxGeometry(0.76, 0.02, 0.18).rotateX(-0.45), 0, 0.14, z), PANEL),
+    paint(at(new THREE.BoxGeometry(0.78, 0.015, 0.02), 0, 0.1, z + 0.08), GOLD),
+  ]);
+  return {
+    body: prepare([paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), SLAB), ...rows]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.BoxGeometry(0.06, 0.04, 0.06), 0.4, 0.1, 0.4)]),
+  };
+}
+
+/** Moduł: stacja przesyłowa — słup, transformatory, mała rozdzielnia. */
+function createSubstation(): BigShape {
+  const p = parts(pylon(-0.16, -0.12, 0.62), turbineHall(0.2, 0.18, 0.3, 0.2, 0.12));
+  return {
+    body: prepare([
+      paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), SLAB),
+      ...p.body,
+      paint(at(new THREE.BoxGeometry(0.1, 0.1, 0.1), 0.24, 0.11, -0.2), GOLD),
+      paint(at(new THREE.BoxGeometry(0.1, 0.1, 0.1), 0.1, 0.11, -0.26), GOLD),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare(p.glow),
+  };
+}
+
 /** Wielkość konstrukcji (względem promienia planety): zabudowa wnętrza i główna konstrukcja. */
 const SPOT_SIZE = 0.06;
 const CORE_SIZE = 0.1;
@@ -540,7 +657,12 @@ type KindId =
   | 'metalBlock'
   | 'metalYard'
   | 'teslaNode'
-  | 'teslaTower'
+  | 'powerStation'
+  | 'powerNode'
+  | 'powerLarge'
+  | 'powerMega'
+  | 'solarField'
+  | 'substation'
   | 'storage'
   | 'antimatterCollector'
   | 'laboratory';
@@ -560,7 +682,12 @@ const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: st
   metalBlock: { shape: createMetalBlock, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
   metalYard: { shape: createMetalYard, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
   teslaNode: { shape: createTeslaNode, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.8 },
-  teslaTower: { shape: createTeslaTower, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.5 },
+  powerStation: { shape: createPowerStation, rotor: '#8fa3a6', glow: '#ffd27a', speed: 2.4 },
+  powerNode: { shape: createPowerNode, rotor: '#8fa3a6', glow: '#ffd27a', speed: 2.4 },
+  powerLarge: { shape: createPowerPlantLarge, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.3 },
+  powerMega: { shape: createPowerMega, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.5 },
+  solarField: { shape: createSolarField, rotor: '#8fa3a6', glow: '#bff6ff', speed: 0 },
+  substation: { shape: createSubstation, rotor: '#8fa3a6', glow: '#bff6ff', speed: 0 },
   storage: { shape: () => small('storage'), rotor: '#c9a24a', glow: STRUCTURE_COLORS.storage.light, speed: 0 },
   antimatterCollector: { shape: () => small('antimatterCollector'), rotor: '#c9a24a', glow: STRUCTURE_COLORS.antimatterCollector.light, speed: 0 },
   laboratory: { shape: () => small('laboratory'), rotor: '#c9a24a', glow: STRUCTURE_COLORS.laboratory.light, speed: 0 },
@@ -581,13 +708,15 @@ function small(id: BuildingId): BigShape {
 interface Family {
   cores: readonly [KindId, KindId, KindId, KindId];
   coreScale: readonly [number, number, number, number];
-  spot: (stage: number, k: number) => KindId;
+  spot: (stage: number, k: number, c: ColonyComplex) => KindId;
   /** Pole bez modułu (np. większość wnętrza wyrobiska kryształów). */
   skip?: (c: ColonyComplex, spot: ColonyComplex['spots'][number], k: number) => boolean;
   /** Wielkość modułu względem promienia pola (domyślnie SPOT_SCALE). */
   spotScale?: (c: ColonyComplex, spot: ColonyComplex['spots'][number]) => number;
   /** Taśmociągi do głównej konstrukcji (metal) albo tylko między modułami — wokół wyrobiska (kryształy). */
   beltsToCore: boolean;
+  /** Bez taśmociągów (np. elektrownia — energia płynie słupami). */
+  noBelts?: boolean;
 }
 
 /** Moduł zabudowy na pozostałych polach ≈ 2/3 średnicy pola. */
@@ -614,6 +743,14 @@ const FAMILIES: Partial<Record<BuildingId, Family>> = {
     spotScale: (c, spot) => (inPit(c, spot) ? 0.9 : SPOT_SCALE),
     beltsToCore: false,
   },
+  // Elektrownia → węzeł → wielka elektrownia → megasieć; pola paneli i stacje przesyłowe, po „Sieci Tesli” co czwarte — węzeł Tesli.
+  powerPlant: {
+    cores: ['powerStation', 'powerNode', 'powerLarge', 'powerMega'],
+    coreScale: [1.6, 2.1, 2.7, 3.4],
+    spot: (stage, k, c) => (c.upgraded && k % 4 === 0 ? 'teslaNode' : stage <= 0 ? 'solarField' : k % (stage === 1 ? 2 : 3) === 0 ? 'substation' : 'solarField'),
+    beltsToCore: false,
+    noBelts: true,
+  },
 };
 
 /** Co stoi w kompleksie: główna konstrukcja i rodzaj zabudowy wnętrza (od etapu — gęściej). */
@@ -625,7 +762,7 @@ function plan(c: ColonyComplex): { core: KindId; spot: KindId | null; every: num
     case 'crystalMine':
       return { core: FAMILIES.crystalMine!.cores[Math.max(0, Math.min(3, c.stage))]!, spot: null, every, skipCenter: 0 };
     case 'powerPlant':
-      return { core: c.stage >= 1 ? 'teslaTower' : 'teslaNode', spot: 'teslaNode', every, skipCenter: 0 };
+      return { core: FAMILIES.powerPlant!.cores[Math.max(0, Math.min(3, c.stage))]!, spot: null, every, skipCenter: 0 };
     default:
       return { core: c.building as KindId, spot: c.building as KindId, every: c.stage >= 1 ? 2 : 0, skipCenter: 0 };
   }
@@ -764,7 +901,8 @@ export class ColonyMeshes {
       const count = Math.min(kind.items.length, MAX_ITEMS);
       for (const mesh of [kind.body, kind.pit, kind.rotor, kind.glow]) {
         mesh.count = count;
-        mesh.visible = count > 0;
+        // Pusta część modelu (np. bez obrotu) — bez rysowania: Three.js wywołuje rysowanie także dla 0 wierzchołków.
+        mesh.visible = count > 0 && mesh.geometry.getAttribute('position').count > 0;
       }
     }
     this.place(true);
@@ -787,11 +925,11 @@ export class ColonyMeshes {
     const placed: { dir: Vec3; surface: number }[] = family.beltsToCore ? [{ dir: c.core, surface: c.surface - this.sink(c.core) }] : [];
     c.spots.forEach((spot, k) => {
       if (k === 0 || angleOf(spot.dir, c.core) < reach + spot.r * 0.4 || family.skip?.(c, spot, k)) return;
-      const kind = this.kinds.get(family.spot(stage, k))!;
+      const kind = this.kinds.get(family.spot(stage, k, c))!;
       if (kind.items.length >= MAX_ITEMS) return;
       const surface = spot.surface - this.sink(spot.dir);
       kind.items.push({ building: c.building, dir: spot.dir, surface, spin: spot.spin, size: spot.r * (family.spotScale?.(c, spot) ?? SPOT_SCALE) });
-      if (stage >= 1 && placed.length > 0) {
+      if (stage >= 1 && placed.length > 0 && !family.noBelts) {
         // Taśmociąg do najbliższego już postawionego modułu (spoty są posortowane od środka — drzewo transportu).
         let best = placed[0]!;
         let bestA = Infinity;

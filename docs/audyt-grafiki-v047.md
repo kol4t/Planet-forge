@@ -177,3 +177,21 @@ Koszt grafiki (przeglądarka, planeta startowa, metal i kryształy na tym samym 
 poz. 3 — 39 → **43 rysowania**, 83,2 → 83,3 tys. trójkątów; poz. 25 — 48 → **52 rysowania**, 122,3 → **124,4 tys.** trójkątów.
 Na iPadzie v0.46 zmierzono 28 rysowań przy 56 kl./s — zapas jest, ale każda kolejna rodzina dodaje ~4 rysowania;
 przy reszcie rodzin trzeba będzie łączyć części modeli (np. światło i obrót w jednej siatce).
+
+## Wynik — rodzina energetyczna (ten sam standard, tylko 3D)
+
+Zmienione: `planet-renderer/colonyMeshes.ts` — elektrownia w `FAMILIES` (bez taśmociągów), nowe modele; stary hub
+`createTeslaTower` usunięty (węzeł Tesli zostaje jako moduł po usprawnieniu). Bez zmian: mechanika, pola, zapisy, 2D.
+
+| Etap (poz.) | Główna konstrukcja | Pozostałe pola |
+|---|---|---|
+| Elektrownia (1–5) | chłodnia kominowa (ciepły blask na krawędzi), hala turbin z wentylatorem, transformator | pola paneli słonecznych (trzy rzędy w złotych ramach) |
+| Węzeł energetyczny (6–11) | dwie chłodnie, długa hala generatorów, plac transformatorów ze słupem | na przemian panele i stacje przesyłowe (słup, rozdzielnia) |
+| Wielka elektrownia (12–19) | kopuła reaktora ze świecącym pasem i obracającym się pierścieniem, trzy chłodnie, hala turbin | głównie panele, co trzecie pole stacja |
+| Megasieć (20+) | dwupoziomowa platforma, wieża przesyłowa Tesli (dwa pierścienie, kula światła), cztery chłodnie | jak wyżej |
+
+Po usprawnieniu „Sieć Tesli” co czwarte pole dostaje węzeł Tesli. Wielkość głównej konstrukcji: 1,6 / 2,1 / 2,7 / 3,4 promienia pola.
+
+**Oszczędność rysowań:** puste części modeli (np. model bez obracającej się części) były rysowane mimo 0 wierzchołków —
+teraz są ukryte. Koszt (przeglądarka, planeta startowa, metal, kryształy i elektrownia na tym samym poziomie):
+poz. 3 — 39 (v0.47.2) → **30 rysowań**; poz. 25 — 52 → **37 rysowań**; trójkąty bez zmian (~75 / ~125 tys.).
