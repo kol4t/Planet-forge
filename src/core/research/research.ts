@@ -320,6 +320,7 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
           'metal-factory': 'łączenie trzech sąsiednich zakładów metalu w wielką fabrykę z trybami pracy',
           'tesla-grid': 'łączenie trzech sąsiednich węzłów elektrowni w sieć Tesli',
           megastructures: 'łączenie dwóch stykających się kompleksów w megakompleks',
+          'star-energy': 'kolektor energii gwiazdy na orbicie planety',
           'extreme-astrophysics': 'odczyt pulsarów i czarnych dziur — ich zbadanie daje premie z danych naukowych',
         }[e.feature];
     }

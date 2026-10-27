@@ -18,6 +18,7 @@ export const BALANCE: Balance = {
   researchTimeFactor: 1,
   deposits: { perHundredFields: { metal: 2_000_000, crystal: 1_200_000 } },
   asteroid: { output: { metal: 20, crystal: 10 }, growth: 1.1, cost: { metal: 800, crystal: 500 }, costGrowth: 1.6, secondsPerLevel: 120, maxLevel: 10 },
+  starCollector: { output: 30, growth: 1.1, cost: { metal: 1200, crystal: 800 }, costGrowth: 1.6, secondsPerLevel: 150, maxLevel: 10 },
   comet: { cost: { metal: 200, crystal: 100 }, seconds: 3600, cargoMin: { metal: 400, crystal: 600 }, cargoMax: { metal: 900, crystal: 1500 } },
   transport: { capacity: 5000, baseSeconds: 60, secondsPerUnit: 5, maxActive: 3 },
   colonyShip: { cost: { metal: 2500, crystal: 1800 }, baseSeconds: 120, secondsPerUnit: 6 },

@@ -127,6 +127,8 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
     if (def.produces === 'energy') energyProduced += output * rich.energy * env.energy;
     else consumers.push({ def, output, need, priority });
   }
+  // Energia gwiazdy z kolektorów układu (v0.44) — bez bogactwa i środowiska planety.
+  energyProduced += balance.extraEnergy ?? 0;
   // Energia według pierwszeństwa: wyższe najpierw, równe dzielą się proporcjonalnie do potrzeb
   // (wszystkie na 100% = jak dotąd: jedna wspólna wydajność).
   const efficiencyBy: Partial<Record<BuildingId, number>> = {};

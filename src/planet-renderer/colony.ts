@@ -270,3 +270,16 @@ export function plotsKey(plots: Plots, ids: readonly BuildingId[], complexes: re
 
 /** Klucz animacji łączenia huba: zmiana w megakompleks (v0.43) to nowe łączenie — konstrukcja wyrasta od nowa. */
 export const hubKey = (hub: ColonyHub) => hub.dir.join(',') + (hub.mega ? '|mega' : '');
+
+/** Orbita kolektora energii gwiazdy (v0.44): promień względem planety, nachylenie i okres obiegu (s). */
+export const COLLECTOR_ORBIT = { radius: 1.42, tilt: 0.3, period: 48 };
+
+/**
+ * Położenie kolektora na orbicie w chwili `seconds` (układ kamery: x w prawo, y w górę, z do widza;
+ * z > 0 — przed planetą). `still` („Ogranicz ruch”) — stałe miejsce z przodu po prawej.
+ */
+export function collectorOrbit(seconds: number, still = false): Vec3 {
+  const a = still ? 0.6 : (seconds / COLLECTOR_ORBIT.period) * Math.PI * 2;
+  const R = COLLECTOR_ORBIT.radius;
+  return [R * Math.cos(a), R * COLLECTOR_ORBIT.tilt * Math.sin(a), R * Math.sin(a)];
+}

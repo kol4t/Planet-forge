@@ -4,7 +4,7 @@ import { BALANCE } from '../data/balance.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
-import { groupFull, hubKey, layoutFromPlots, plotsKey, RIG_BUILDINGS, visibleStructures, type ColonyHub, type ColonyLayout } from './colony.ts';
+import { collectorOrbit, groupFull, hubKey, layoutFromPlots, plotsKey, RIG_BUILDINGS, visibleStructures, type ColonyHub, type ColonyLayout } from './colony.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { levelsWithSite, pickCell, pickStructureHit, type StructureHit } from './pick.ts';
@@ -58,6 +58,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private hubsSeeded = false;
   private spinHeld = false;
   private readonly reducedMotion = prefersReducedMotion();
+  private orbital = 0;
   /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
   private size = BUFFER;
 
@@ -178,6 +179,11 @@ export class CanvasPlanetFallback implements PlanetDisplay {
 
   setFocus(cx: number, cy: number, r: number): void {
     this.focus = { cx, cy, r };
+  }
+
+  /** Kolektor energii gwiazdy na orbicie (v0.44). */
+  setOrbital(level: number): void {
+    this.orbital = Math.max(0, Math.floor(level));
   }
 
   setGridVisible(visible: boolean): void {
@@ -611,6 +617,34 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.drawFieldGrid();
     this.drawHighlight();
     this.drawStructures();
+    this.drawCollector(cx, cy, r);
+  }
+
+  /**
+   * Kolektor energii gwiazdy (v0.44): pikselowy satelita na nachylonej orbicie — korpus ze stali,
+   * złote lustra (dłuższe na wyższym poziomie), migające światło; za tarczą planety niewidoczny.
+   */
+  private drawCollector(cx: number, cy: number, r: number): void {
+    if (this.orbital <= 0) return;
+    const [x, y, z] = collectorOrbit(performance.now() / 1000, this.reducedMotion);
+    const sx = cx + x * r;
+    const sy = cy - y * r;
+    if (z < 0 && Math.hypot(sx - cx, sy - cy) < r) return;
+    const ctx = this.ctx;
+    const p = Math.max(2, Math.round(r / 60));
+    const wing = 2 + Math.ceil(this.orbital / 3);
+    const x0 = Math.round(sx / p) * p;
+    const y0 = Math.round(sy / p) * p;
+    ctx.globalAlpha = z < 0 ? 0.7 : 1;
+    ctx.fillStyle = '#c9a24a';
+    ctx.fillRect(x0 - (wing + 1) * p, y0, wing * p, p);
+    ctx.fillRect(x0 + 2 * p, y0, wing * p, p);
+    ctx.fillStyle = '#6f7b78';
+    ctx.fillRect(x0, y0 - p, 2 * p, 3 * p);
+    ctx.fillStyle = '#bff6ff';
+    ctx.globalAlpha *= this.reducedMotion || Math.floor(performance.now() / 600) % 2 ? 1 : 0.35;
+    ctx.fillRect(x0, y0 - 2 * p, p, p);
+    ctx.globalAlpha = 1;
   }
 
   dispose(): void {

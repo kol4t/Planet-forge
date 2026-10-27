@@ -327,3 +327,39 @@ test('przydział pól z innej wersji siatki jest odrzucany — budowle dostają 
     assert.equal(plant(undefined), own, 'zapis sprzed v0.26.3 — przydział od nowa');
   });
 });
+
+test('energia gwiazdy (v0.44): kolektor zasila wszystkie planety gracza w układzie, działa od ukończenia, zapis', async () => {
+  const { collectorOutput, starFactor, collectorCost } = await import('../src/core/economy/starEnergy.ts');
+  const { BALANCE } = await import('../src/data/balance.ts');
+  assert.equal(starFactor(1), 1);
+  assert.ok(starFactor(3.2) > 2 && starFactor(0.35) < 0.7, 'jaśniejsza gwiazda — więcej energii');
+  assert.equal(collectorOutput(0, BALANCE, 1), 0);
+  assert.ok(collectorOutput(10, BALANCE, 1) > collectorOutput(9, BALANCE, 1));
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    assert.ok(game.colonize(freeAddresses(game)[0]!, 0).ok);
+    assert.ok(game.switchPlanet(0, 0).ok);
+    game.economy = { ...game.economy, stock: { metal: 5000, crystal: 5000 }, levels: { ...game.economy.levels, storage: 5 } };
+    assert.equal(game.upgradeStarCollector(0).ok, false, 'bez badania');
+    game.research = { done: ['star-energy'], current: null };
+    const view = game.collectorView(0);
+    assert.equal(view.planets, 2);
+    const before = game.rates.energyProduced;
+    assert.ok(game.upgradeStarCollector(0).ok);
+    assert.equal(game.economy.stock.metal, 5000 - collectorCost(1, BALANCE).metal);
+    assert.equal(game.rates.energyProduced, before, 'w budowie — jeszcze bez energii');
+    const ready = BALANCE.starCollector.secondsPerLevel * 1000;
+    game.tick(ready + 1);
+    assert.ok(Math.abs(game.rates.energyProduced - before - view.nextOutput) < 1e-6, `+${view.nextOutput} energii`);
+    assert.ok(game.journalEntries().some((e) => e.text.includes('kolektor energii gwiazdy — poziom 1 gotowy')));
+    // Druga planeta układu też dostaje energię gwiazdy.
+    assert.ok(game.switchPlanet(1, ready + 2).ok);
+    assert.ok(game.collectorView(ready + 2).systemEnergy > 0);
+    assert.ok(Math.abs((game.balance.extraEnergy ?? 0) - view.nextOutput) < 1e-6, 'energia gwiazdy w produkcji drugiej planety');
+    assert.equal(game.collectorView(ready + 2).target, 0, 'kolektor stoi przy pierwszej planecie');
+    // Zapis i wczytanie.
+    const again = new GameController(ready + 3);
+    assert.ok(again.switchPlanet(0, ready + 3).ok);
+    assert.equal(again.collectorView(ready + 3).level, 1);
+  });
+});

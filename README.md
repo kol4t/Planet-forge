@@ -465,4 +465,11 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 252. W tym samym oknie „Znaleziska (N)”: lista znalezisk (nieznane przygaszone) i czas do następnego. Po kilku godzinach (także przy zamkniętej grze) pojawia się komunikat „Znalezisko! …” i wpis w dzienniku („Imperium” → „Dziennik”).
 253. Premia znaleziska działa od razu na wszystkich planetach (np. „Stop o nieznanym składzie” +2% metalu).
 
+### Od 0.44: energia gwiazdy
+
+254. Badania → Produktywność → „Energia gwiazdy” (po „Reaktorze gwiazdowym” i „Przesyle bezprzewodowym”).
+255. Planeta → wiersz KOSMOS → „Kosmos” → okno „Kosmos wokół planety” → sekcja „Energia gwiazdy”: rodzaj gwiazdy i mnożnik jasności, energia następnego poziomu, koszt → „Zbuduj kolektor”.
+256. Po ukończeniu budowy (odliczanie w oknie): wokół planety krąży mały satelita ze złotymi lustrami (2D i 3D, za planetą znika), energia w pasku u góry rośnie, w wierszu KOSMOS „kolektor 1”.
+257. Druga planeta w tym samym układzie (np. skolonizowana z mapy) też dostaje tę energię — okno pokazuje „zasila każdą z N Twoich planet”.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

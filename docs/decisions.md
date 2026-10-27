@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.44: energia gwiazdy
+
+- Właściciel przyjął propozycję: badanie + kolektor na orbicie, energia dla wszystkich planet gracza w układzie. Wzór: stacja na pasie asteroid (poziomy, koszt, czas, `readyAt`, podział czasu offline) — ten sam kształt zapisu.
+- Energia z zewnątrz jako `Balance.extraEnergy` doliczana do produkcji w `productionRates` — nie zależy od bogactwa ani środowiska planety (to światło gwiazdy, nie elektrownia), ale zależy od jasności gwiazdy układu (`luminosity` z danych galaktyki): niebieski olbrzym > żółta > czerwony karzeł. Daje powód, by kolonizować układy jasnych gwiazd i skupiać planety w jednym układzie.
+- Wygląd: jeden mały satelita na orbicie (kilka siatek w 3D, kilka pikseli w 2D) — bez wpływu na płynność. Liczby robocze.
+
 ## 2026-10-27 — v0.43–v0.43.1: megakompleksy i znaleziska
 
 - Właściciel: megakompleks ma dawać „większą premię wydobycia, rzadsze przedmioty/artefakty, ewentualnie coś ekstra”. Megakompleks = dwa stykające się kompleksy tej samej rodziny (nie nowe pola — sąsiedztwo już istniejących), premia +60% zamiast +30%; „ekstra” = znaleziska i większa, połączona sylwetka na planecie.

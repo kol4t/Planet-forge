@@ -6,7 +6,7 @@ import { createAtmosphere } from './atmosphere.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
-import { layoutFromPlots, plotsKey, type ColonyLayout } from './colony.ts';
+import { collectorOrbit, layoutFromPlots, plotsKey, type ColonyLayout } from './colony.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -86,6 +86,8 @@ export class PlanetView implements PlanetDisplay {
   private readonly lineMaterials: LineMaterial[] = [];
   private gridVisible = false;
   private readonly still = prefersReducedMotion();
+  private orbital: THREE.Group | null = null;
+  private orbitalLevel = 0;
   /** Obrys zajętości wybranej budowli (v0.38.1): linie nad terenem, przebudowywane przy zmianie pól. */
   private highlight: { key: string; object: THREE.Group; material: LineMaterial } | null = null;
   /** Punkt granicy podniesiony nad teren (ten sam co dla siatki pól). */
@@ -157,6 +159,33 @@ export class PlanetView implements PlanetDisplay {
     this.layout = layoutFromPlots(this.grid, {}, this.shaped, BUILDING_IDS);
     this.colony.setLayout(this.layout);
     this.buildFieldLines(planet, sampler);
+  }
+
+  /** Kolektor energii gwiazdy na orbicie (v0.44): korpus ze stali i złote lustra zwrócone ku gwieździe. */
+  setOrbital(level: number): void {
+    const want = Math.max(0, Math.floor(level));
+    if (want === this.orbitalLevel) return;
+    this.orbitalLevel = want;
+    if (this.orbital) {
+      this.scene.remove(this.orbital);
+      disposeObject(this.orbital);
+      this.orbital = null;
+    }
+    if (want <= 0) return;
+    const group = new THREE.Group();
+    const steel = new THREE.MeshStandardMaterial({ color: '#8a9794', roughness: 0.5, metalness: 0.5, flatShading: true });
+    const gold = new THREE.MeshStandardMaterial({ color: '#c9a24a', emissive: '#3a2a08', roughness: 0.35, metalness: 0.6, side: THREE.DoubleSide });
+    const span = 0.12 + 0.014 * want;
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.05), steel));
+    for (const side of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(span, 0.004, 0.05), gold);
+      wing.position.x = side * (span / 2 + 0.022);
+      group.add(wing);
+    }
+    group.add(new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 4), new THREE.MeshBasicMaterial({ color: '#bff6ff', toneMapped: false })));
+    group.children[group.children.length - 1]!.position.y = 0.024;
+    this.orbital = group;
+    this.scene.add(group);
   }
 
   setGridVisible(visible: boolean): void {
@@ -418,6 +447,12 @@ export class PlanetView implements PlanetDisplay {
     // Lawa „oddycha”: animowany tylko kolor materiału (bez przeliczania geometrii).
     if (this.lava) (this.lava.material as THREE.MeshBasicMaterial).color.setScalar(0.85 + 0.15 * Math.sin(this.time * 1.6));
     this.colony.update(dt);
+    if (this.orbital) {
+      const [x, y, z] = collectorOrbit(this.time, this.still);
+      this.orbital.position.set(x, y, z);
+      // Lustra zwrócone ku gwieździe (światło z lewej-góry).
+      this.orbital.lookAt(LIGHT_POSITION);
+    }
     if (this.highlight && !this.still) this.highlight.material.opacity = 0.75 + 0.25 * Math.sin(this.time * 2.2);
     this.renderer.render(this.scene, this.camera);
   }
@@ -428,6 +463,7 @@ export class PlanetView implements PlanetDisplay {
     for (const object of this.planetObjects) disposeObject(object);
     if (this.fieldLines) disposeObject(this.fieldLines);
     if (this.highlight) disposeObject(this.highlight.object);
+    if (this.orbital) disposeObject(this.orbital);
     this.colony.dispose();
     this.renderer.dispose();
   }
