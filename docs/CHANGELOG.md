@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.47.3 — grafika 3D, elektrownia i fundamenty — 2026-10-27
+
+- Elektrownia w 3D (poz. 1 / 6 / 12 / 20): chłodnia i hala turbin → węzeł energetyczny → wielka elektrownia z kopułą reaktora → megasieć z wieżą Tesli; pola paneli słonecznych i stacje przesyłowe, węzły Tesli po usprawnieniu.
+- Budowle nie nachodzą na teren ani na siebie: wielkość z wolnego, suchego miejsca własnego obszaru, teren pod budowlami wyrównany (fundamenty).
+- Puste części modeli bez rysowania: 52 → 37 rysowań w najbardziej rozbudowanej kolonii.
+- 2D, mechanika, pola i zapisy bez zmian.
+
 ## v0.47.2 — grafika 3D, rodzina kryształowa — 2026-10-27
 
 - Kopalnia kryształów w 3D według standardu modelu, sylwetki na poz. 1 / 6 / 12 / 20: wiertło z wieżą wiertniczą → szyb wiertniczy ze świecącą kolumną → odkrywka ze stacją i słupem kryształu na dnie → megaodkrywka z gromadą kryształów i suwnicą.
