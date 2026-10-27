@@ -51,6 +51,10 @@ export class BuildingCardView {
       `<section class="bc-params">` +
       (card.output ? row('Produkcja', card.output, 'teal') : '') +
       (card.energy ? row('Zużycie energii', card.energy, 'warn') : '') +
+      (card.stages.length > 0
+        ? row('Wygląd', `etap ${card.look.tier}/${card.look.max} · ${card.look.name}`) +
+          (card.look.nextFrom ? `<p class="bc-hint">Następny wygląd (${esc(card.look.nextName ?? '')}) od poz. ${card.look.nextFrom} — na pełnych polach i w kompleksach.</p>` : '')
+        : '') +
       row('Zajętość pól', `${card.fields} ${card.fields === 1 ? 'pole' : card.fields < 5 && card.fields > 1 ? 'pola' : 'pól'} · planeta ${card.planetFields.used}/${card.planetFields.buildable}`, 'teal') +
       (card.next ? `<div class="bc-next"><span>Następny krok</span>${esc(card.next)}</div>` : '') +
       `</section>` +

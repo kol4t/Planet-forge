@@ -10,6 +10,35 @@ export interface IndustryStage {
   when: 'built' | 'full-group' | 'complex' | 'soon';
 }
 
+/**
+ * Poziomy wizualne (v0.41, robocze): co 5 poziomów budynku konstrukcje pełnych pól i kompleksów dostają
+ * kolejne moduły (platforma, hale, przewody, zbiorniki, złota rama). Gameplay bez zmian — tylko wygląd.
+ */
+export interface VisualTier {
+  /** Od którego poziomu budynku. */
+  from: number;
+  name: string;
+  description: string;
+}
+
+export const VISUAL_TIERS: readonly VisualTier[] = [
+  { from: 1, name: 'Podstawa', description: 'Sama konstrukcja.' },
+  { from: 6, name: 'Platforma', description: 'Szeroka stalowa platforma ze złotą krawędzią.' },
+  { from: 11, name: 'Hale boczne', description: 'Dwie hale przy krawędzi platformy.' },
+  { from: 16, name: 'Przewody i maszt', description: 'Przewody wokół platformy i maszt łączności.' },
+  { from: 21, name: 'Zbiorniki', description: 'Złote zbiorniki i silosy.' },
+  { from: 26, name: 'Złota rama', description: 'Łuki nośne nad konstrukcją — pełna rozbudowa (poz. 26–30+).' },
+];
+
+/** Etap wyglądu (1..6) dla poziomu budynku. */
+export function visualTier(level: number): number {
+  let tier = 1;
+  VISUAL_TIERS.forEach((t, i) => {
+    if (level >= t.from) tier = i + 1;
+  });
+  return tier;
+}
+
 export const INDUSTRY_STAGES: Partial<Record<BuildingId, readonly IndustryStage[]>> = {
   crystalMine: [
     { name: 'Wiertła', footprint: '1 pole', description: 'Poziomy 1–2 na polu: małe wiertła.', when: 'built' },
