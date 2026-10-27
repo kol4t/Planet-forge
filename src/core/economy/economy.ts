@@ -211,9 +211,9 @@ export function constructionProgress(state: EconomyState, now: number): number {
 /**
  * Naliczenie produkcji do chwili `now` (łącznie maks. `maxOfflineSeconds`).
  * Budowa ukończona po drodze podnosi poziom dokładnie w chwili ukończenia,
- * więc dalsza produkcja liczy się już z nowym poziomem.
+ * więc dalsza produkcja liczy się już z nowym poziomem. `limits` — jak przy ulepszeniu (start z kolejki).
  */
-export function advance(state: EconomyState, planet: Planet, now: number, balance: Balance = BALANCE): EconomyState {
+export function advance(state: EconomyState, planet: Planet, now: number, balance: Balance = BALANCE, limits: BuildLimits = {}): EconomyState {
   let budget = balance.maxOfflineSeconds;
   const produce = (start: EconomyState, until: number): EconomyState => {
     let s = start;
@@ -275,7 +275,8 @@ export function advance(state: EconomyState, planet: Planet, now: number, balanc
       continue;
     }
     if (!s.queue?.length) break;
-    const started = startQueued(s, s.lastUpdate, balance);
+    // Pola sprawdzane przy starcie: od dopisania do kolejki gracz mógł zająć miejsce inną budową (audyt v0.46).
+    const started = startQueued(s, s.lastUpdate, balance, limits);
     if (started.state !== s) {
       s = started.state;
       continue;
@@ -403,7 +404,7 @@ export function upgradeBuilding(
   if (level >= balance.maxLevel) {
     return { ok: false, state, reason: 'max-level', message: `${def.name}: osiągnięto maksymalny poziom.` };
   }
-  // Pola planety: każde mieści grupę 3 poziomów jednego budynku (od v0.26.1).
+  // Pola planety: obszar budynku rośnie z etapem (v0.45) — brak wolnych pól obok obszaru blokuje ulepszenie.
   if (limits.hasRoom && !limits.hasRoom(id, state.levels)) {
     return {
       ok: false,

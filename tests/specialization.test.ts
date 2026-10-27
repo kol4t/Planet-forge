@@ -129,3 +129,20 @@ test('specjalizacje: kontroler — wybór, premia w produkcji, zmiana z podział
     assert.ok(again.overview(2000 + HOUR + 120_000)[0]!.specialization?.name === 'Energetyczna');
   });
 });
+
+test('nieobecność z końcem zmiany specjalizacji po drodze: limit 8 h liczony raz dla całego naliczenia (audyt v0.46)', () => {
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    // Bez specjalizacji: 3 dni nieobecności = najwyżej 8 h produkcji.
+    const plain = new GameController(0);
+    game.economy = { ...game.economy, stock: { metal: 0, crystal: 0 }, levels: { ...game.economy.levels, storage: 12 } };
+    plain.economy = { ...game.economy };
+    assert.ok(game.chooseSpecialization('science', 0).ok);
+    // Zmiana kończy się po 1 dobie (sztucznie) — ta chwila dzieli naliczenie na dwa odcinki.
+    (game as unknown as { slots: { specialization: { id: string; readyAt: number } }[] }).slots[0]!.specialization = { id: 'science', readyAt: 24 * HOUR };
+    game.tick(72 * HOUR);
+    plain.tick(72 * HOUR);
+    assert.ok(game.economy.stock.metal <= plain.economy.stock.metal * 1.0001, `${game.economy.stock.metal} > ${plain.economy.stock.metal}`);
+    assert.ok(game.economy.stock.metal > 0);
+  });
+});

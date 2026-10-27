@@ -53,11 +53,11 @@ export function simulateAwayAi(input: AwayAiInput, until: number): AwayAiResult 
       }
     }
     const next = economy.construction ? Math.min(end, economy.construction.finishesAt) : Math.min(end, economy.lastUpdate + CHECK_EVERY_MS);
-    economy = advance(economy, planet, next, free);
+    economy = advance(economy, planet, next, free, { hasRoom: input.hasRoom });
   }
   if (until > economy.lastUpdate) {
     // Po limicie nieobecności: budowa może się skończyć, ale produkcji już nie ma.
-    economy = advance(economy, planet, until, { ...balance, maxOfflineSeconds: 0 });
+    economy = advance(economy, planet, until, { ...balance, maxOfflineSeconds: 0 }, { hasRoom: input.hasRoom });
   }
   return { economy, started };
 }

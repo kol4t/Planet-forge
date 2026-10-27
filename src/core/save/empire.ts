@@ -211,15 +211,44 @@ export function hasFreeSlot(used: number, unlocked: number): boolean {
 
 // Bezpieczny dostęp do localStorage (tryb prywatny Safari może rzucać wyjątki).
 
+/** Kopia zapisu, którego nie dało się wczytać (audyt v0.46) — nowa gra go nie nadpisuje. */
+export const BROKEN_KEY = 'planet-forge.empire.broken';
+
 export function loadEmpire(): EmpireSave | null {
+  return inspectStoredEmpire().empire;
+}
+
+/**
+ * Odczyt zapisu imperium. Gdy zapis istnieje, ale jest uszkodzony (albo z nowszej wersji gry), jego tekst trafia
+ * pod `BROKEN_KEY` (`broken: true`) — nowa gra zapisze się pod zwykłym kluczem, a stary postęp nie przepada.
+ */
+export function inspectStoredEmpire(): { empire: EmpireSave | null; broken: boolean } {
   try {
     const storage = globalThis.localStorage;
-    if (!storage) return null;
-    const empire = deserializeEmpire(storage.getItem(EMPIRE_KEY));
-    if (empire) return empire;
+    if (!storage) return { empire: null, broken: false };
+    const raw = storage.getItem(EMPIRE_KEY);
+    const empire = deserializeEmpire(raw);
+    if (empire) return { empire, broken: false };
+    if (raw) {
+      try {
+        storage.setItem(BROKEN_KEY, raw);
+      } catch {
+        // Brak miejsca — kopia się nie zmieści; zostaje komunikat.
+      }
+      return { empire: null, broken: true };
+    }
     // Przejście ze starego zapisu jednej planety (stary klucz zostaje jako kopia zapasowa).
     const legacy = deserialize(storage.getItem(SAVE_KEY));
-    return legacy ? empireFromLegacy(legacy) : null;
+    return { empire: legacy ? empireFromLegacy(legacy) : null, broken: false };
+  } catch {
+    return { empire: null, broken: false };
+  }
+}
+
+/** Tekst zachowanego uszkodzonego zapisu (do zgłoszenia) albo null. */
+export function brokenSaveText(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(BROKEN_KEY) ?? null;
   } catch {
     return null;
   }

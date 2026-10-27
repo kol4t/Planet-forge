@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createEconomy } from '../src/core/economy/economy.ts';
-import { loadEmpire, writeEmpire, empireFromLegacy } from '../src/core/save/empire.ts';
+import { brokenSaveText, EMPIRE_KEY, empireFromLegacy, inspectStoredEmpire, loadEmpire, writeEmpire } from '../src/core/save/empire.ts';
 import { deserialize, serialize } from '../src/core/save/save.ts';
 
 const data = {
@@ -91,6 +91,29 @@ test('brak localStorage (tryb prywatny) nie wywraca gry', () => {
   try {
     assert.equal(writeEmpire(empireFromLegacy({ saveVersion: 1, ...data })), false);
     assert.equal(loadEmpire(), null);
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'localStorage', original);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
+test('uszkodzony zapis imperium: kopia pod osobnym kluczem, nowa gra go nie nadpisuje (audyt v0.46)', () => {
+  const store = new Map<string, string>();
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) },
+  });
+  try {
+    store.set(EMPIRE_KEY, '{"saveVersion":1,"slots":[{"kind":"zepsute"}]}');
+    const result = inspectStoredEmpire();
+    assert.equal(result.empire, null);
+    assert.equal(result.broken, true);
+    assert.equal(brokenSaveText(), '{"saveVersion":1,"slots":[{"kind":"zepsute"}]}');
+    // Nowa gra zapisuje się pod zwykłym kluczem — kopia zostaje.
+    assert.equal(writeEmpire(empireFromLegacy({ saveVersion: 1, ...data })), true);
+    assert.equal(inspectStoredEmpire().broken, false);
+    assert.ok(brokenSaveText());
   } finally {
     if (original) Object.defineProperty(globalThis, 'localStorage', original);
     else delete (globalThis as { localStorage?: unknown }).localStorage;

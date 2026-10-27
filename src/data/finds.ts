@@ -99,4 +99,3 @@ export const FIND_RULES = {
   rarityNames: { common: 'pospolite', rare: 'rzadkie', 'very-rare': 'bardzo rzadkie' } as Record<FindRarity, string>,
 };
 
-export const findDef = (id: string) => FIND_DEFS.find((f) => f.id === id);

@@ -4,6 +4,7 @@ import { openComplexPanel } from '../ui/complexPanel.ts';
 import { openFindsPanel } from '../ui/findsPanel.ts';
 import { openFactoryPanel } from '../ui/factoryPanel.ts';
 import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
+import { brokenSaveText } from '../../core/save/empire.ts';
 import { BuildingCardView, type CardPlacement } from '../ui/buildingCard.ts';
 import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled, secondsUntilAffordable } from '../../core/economy/economy.ts';
@@ -263,6 +264,10 @@ export class PlanetScene extends Phaser.Scene {
       this.showToast(report.text, report.success ? 'ok' : 'info', 5000);
     });
 
+    controller.onSaveFailed(() => {
+      this.showToast('Nie udało się zapisać gry (pełna pamięć przeglądarki albo tryb prywatny). Skopiuj zapis: Ustawienia → Kopiuj zapis.', 'error', 7000);
+    });
+
     controller.onShipmentArrived((text) => {
       if (!this.screenOpen) this.showToast(text, 'ok', 3500);
       this.refreshValues();
@@ -280,7 +285,14 @@ export class PlanetScene extends Phaser.Scene {
       display.showBuilding(done.building);
     });
 
-    if (this.deps.graphics.crashedLastTime) {
+    if (controller.brokenSaveFound) {
+      controller.brokenSaveFound = false;
+      this.showToast(
+        'Zapisu gry nie dało się wczytać — zaczynasz od nowa. Kopia starego zapisu została w pamięci przeglądarki. Zgłoś to: Ustawienia → Zgłoś / diagnostyka.',
+        'error',
+        9000,
+      );
+    } else if (this.deps.graphics.crashedLastTime) {
       this.showToast(
         'Poprzednie uruchomienie się nie powiodło — gra działa na planecie 2D. Zgłoś to: Ustawienia → Zgłoś / diagnostyka.',
         'info',
@@ -863,7 +875,7 @@ export class PlanetScene extends Phaser.Scene {
     y += this.s(17);
     this.text(box.x + pad, y, addressLine(this.deps.controller.address, planet.seed), 10.5, COLORS.faint, { fontFamily: FONTS.mono });
     y += this.s(19);
-    // Pola: każdy poziom budynku zajmuje jedno pole lądu; ich liczba wynika z seeda planety.
+    // Pola: budynek zajmuje spójny obszar, który rośnie z etapem; liczba pól planety wynika z seeda.
     const f = this.deps.controller.fields;
     const full = f.used >= f.buildable;
     this.text(box.x + pad, y, `POLA  ${f.used} / ${f.buildable} zajęte${full ? ' — brak wolnych' : ''}`, 10.5, full ? COLORS.danger : COLORS.teal, {
@@ -2118,7 +2130,14 @@ export class PlanetScene extends Phaser.Scene {
   /** Okno „Diagnostyka i zgłoszenia”: błąd albo sugestia → zgłoszenie w repozytorium gry (GitHub) albo tekst do skopiowania. */
   private openFeedback(): void {
     this.closeOverlay();
-    openFeedbackPanel({ diagnostics: () => this.deps.graphics.diagnostics(), save: () => this.deps.controller.exportSave() });
+    openFeedbackPanel({
+      diagnostics: () => this.deps.graphics.diagnostics(),
+      // Kopia zapisu, którego nie dało się wczytać (jeśli jest), jedzie razem z obecnym — do odzyskania postępu.
+      save: () => {
+        const broken = brokenSaveText();
+        return this.deps.controller.exportSave() + (broken ? `\n— Uszkodzony zapis (kopia) —\n${broken}` : '');
+      },
+    });
   }
 
   private copySave(): void {

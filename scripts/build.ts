@@ -59,7 +59,7 @@ export function manifest(): string {
       id: './',
       name: 'Planet Forge',
       short_name: 'Planet Forge',
-      description: 'Strategia sci-fi z jedną planetą 3D.',
+      description: 'Strategia sci-fi: planeta w dłoni, kolonie i galaktyka do odkrycia.',
       lang: 'pl',
       start_url: './',
       scope: './',

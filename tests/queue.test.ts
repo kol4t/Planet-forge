@@ -151,3 +151,14 @@ test('kolejka: SI nie wpycha się przed kolejkę gracza', () => {
   assert.ok(builds(e));
   assert.equal(builds({ ...e, queue: ['storage'] }), false);
 });
+
+test('kolejka: start z kolejki sprawdza pola — miejsce zajęte w międzyczasie = pozycja wypada (audyt v0.46)', () => {
+  // Kolejka czeka (nic się nie buduje), a w międzyczasie zabrakło pól.
+  const waiting: EconomyState = { ...rich(), queue: ['metalMine'] };
+  const full = advance(waiting, planet, 10 * S, BALANCE, { hasRoom: () => false });
+  assert.equal(full.construction, null);
+  assert.equal(full.queue, undefined);
+  assert.ok(full.stock.metal >= waiting.stock.metal, 'nic nie pobrano');
+  const ok = advance(waiting, planet, 10 * S, BALANCE, { hasRoom: () => true });
+  assert.equal(ok.construction?.building, 'metalMine');
+});

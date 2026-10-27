@@ -18,10 +18,6 @@ export interface ComplexFamily {
   name: string;
   /** Nazwa wspólnej konstrukcji na dodatkowym polu (do opisu). */
   hubName: string;
-  /** Ile pełnych grup (pól po 3 poziomy) łączy jeden kompleks. */
-  groups: number;
-  /** Ile dodatkowych wolnych pól zajmuje wspólna konstrukcja. */
-  extraFields: number;
   /** Premia wydobycia poziomów w kompleksie (%). */
   bonus: number;
   /** Koszt połączenia (pobierany z planety). */
@@ -43,8 +39,6 @@ export const COMPLEX_FAMILIES: readonly ComplexFamily[] = [
     building: 'crystalMine',
     name: 'Kompleks wiertniczy',
     hubName: 'szyb główny',
-    groups: 3,
-    extraFields: 1,
     bonus: 30,
     cost: { metal: 1500, crystal: 2500 },
     unlock: 'crystal-complex',
@@ -57,8 +51,6 @@ export const COMPLEX_FAMILIES: readonly ComplexFamily[] = [
     building: 'metalMine',
     name: 'Wielka fabryka',
     hubName: 'hala główna',
-    groups: 3,
-    extraFields: 1,
     bonus: 30,
     cost: { metal: 3000, crystal: 1500 },
     unlock: 'metal-factory',
@@ -76,8 +68,6 @@ export const COMPLEX_FAMILIES: readonly ComplexFamily[] = [
     building: 'powerPlant',
     name: 'Sieć Tesli',
     hubName: 'wieża przesyłowa',
-    groups: 3,
-    extraFields: 1,
     bonus: 30,
     cost: { metal: 2000, crystal: 2000 },
     unlock: 'tesla-grid',
