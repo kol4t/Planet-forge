@@ -422,4 +422,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 230. Na planecie pola tej budowli mają turkusowy, pulsujący obrys (jeden kontur wokół wszystkich jej pól, z polem szybu głównego).
 231. Krzyżyk na karcie albo dotknięcie planety obok budowli zamyka kartę i obrys. W 3D z bliska: stalowa platforma, złote maszyny, świecąca kolumna kryształu w szybie.
 
+### Od 0.38.2: teren, wybór miejsca, animacja łączenia
+
+232. Teren budynków: kryształy — lód, metal — wzgórza i góry, elektrownia — równiny (Zarządzanie → „Najlepszy teren”). Poza nim budynek pracuje w 75%.
+233. Kopalnia metalu na poziomie 3, 6, 9… (następny poziom otwiera nowe pole): dotknij kopalnię na planecie → w karcie „Wybierz miejsce na poz. N” → na planecie złote obrysy wolnych wzgórz i gór → dotknij jedno z nich: budowa rusza dokładnie tam (złote rusztowanie), obrys zajętości obejmuje nowe pole. „Anuluj wybór miejsca” — bez budowy.
+234. Kompleks wiertniczy łączy tylko pełne pola wierteł na lodzie (okno pisze, ile pełnych pól poza lodem się nie liczy). Po „Połącz w kompleks” na planecie: najpierw wyrasta szyb główny, potem rury biegną do trzech wierteł (ok. 2,5 s).
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

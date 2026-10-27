@@ -118,6 +118,8 @@ const HUB_SIZE = 0.13;
 const MAX_RIGS = 70;
 const MAX_HUBS = 24;
 const PIPE_SEGMENTS = 5;
+/** Czas animacji łączenia w kompleks (s). */
+const MERGE_SECONDS = 2.4;
 const MAX_PIPES = 72 * PIPE_SEGMENTS;
 
 type BigShape = { body: THREE.BufferGeometry; pit: THREE.BufferGeometry; rotor: THREE.BufferGeometry; glow: THREE.BufferGeometry };
@@ -225,6 +227,9 @@ export class ColonyMeshes {
   private readonly rigs: BigMeshes;
   private readonly hubs: BigMeshes;
   private readonly pipes: THREE.InstancedMesh;
+  /** Animacja łączenia (v0.38.2): postęp 0..1 każdego szybu głównego (szyb wyrasta, rury rosną do wierteł). */
+  private readonly hubGrowth = new Map<string, number>();
+  private hubsSeeded = false;
   /** Rusztowanie trwającej budowy: zarys budynku rosnący wraz z postępem. */
   private readonly scaffold: THREE.Mesh;
   private site: BuildSite | null = null;
@@ -314,6 +319,8 @@ export class ColonyMeshes {
   /** Nowa planeta → nowe miejsca; budowle pojawiają się bez animacji. */
   setLayout(layout: ColonyLayout): void {
     this.layout = layout;
+    this.hubGrowth.clear();
+    this.hubsSeeded = false;
     this.levels = null;
     for (const group of this.groups.values()) {
       group.current.fill(0);
@@ -329,6 +336,7 @@ export class ColonyMeshes {
    */
   updateLayout(layout: ColonyLayout): void {
     this.layout = layout;
+    this.registerHubs();
     if (this.levels) this.setLevels(this.levels, true);
   }
 
@@ -417,6 +425,16 @@ export class ColonyMeshes {
     this.animating = stillMoving;
   }
 
+  /** Nowe szyby główne zaczynają animację od zera; te z wczytanej gry stoją od razu. */
+  private registerHubs(): void {
+    if (!this.layout) return;
+    for (const hub of this.layout.hubs) {
+      const key = hub.dir.join(',');
+      if (!this.hubGrowth.has(key)) this.hubGrowth.set(key, this.hubsSeeded && !this.still ? 0 : 1);
+    }
+    if (this.layout.hubs.length > 0 || Object.values(this.layout.slots).some((s) => s.length > 0)) this.hubsSeeded = true;
+  }
+
   /** Wiertła i szyby kompleksów: wyrastanie, obracające się głowice, rury (kilkanaście instancji — co klatkę). */
   private updateBig(dt: number): void {
     const layout = this.layout;
@@ -446,7 +464,14 @@ export class ColonyMeshes {
     const rigs = layout.rigs.slice(0, MAX_RIGS);
     rigs.forEach((rig, i) => place(this.rigs, i, rig.dir, rig.surface, rig.spin, groupFull(this.levels![rig.building] ?? 0, rig.group) ? 1 : 0, RIG_SIZE, 1.6));
     const hubs = layout.hubs.slice(0, MAX_HUBS);
-    hubs.forEach((hub, i) => place(this.hubs, i, hub.dir, hub.surface, hub.spin, 1, HUB_SIZE, 0.9));
+    const growth = hubs.map((hub) => {
+      const key = hub.dir.join(',');
+      const g = Math.min(1, (this.hubGrowth.get(key) ?? 1) + dt / MERGE_SECONDS);
+      this.hubGrowth.set(key, g);
+      return g;
+    });
+    // Szyb wyrasta w pierwszej połowie animacji, rury rosną od szybu do wierteł w drugiej.
+    hubs.forEach((hub, i) => place(this.hubs, i, hub.dir, hub.surface, hub.spin, Math.min(1, growth[i]! * 2), HUB_SIZE, 0.9));
     for (const meshes of [this.rigs, this.hubs]) {
       const count = meshes === this.rigs ? rigs.length : hubs.length;
       meshes.body.count = meshes.pit.count = meshes.rotor.count = meshes.glow.count = count;
@@ -456,13 +481,15 @@ export class ColonyMeshes {
     let pipe = 0;
     // Każda rura to kilka odcinków po łuku nad powierzchnią (prosty odcinek chowałby się w planecie).
     const { h0, h1 } = this.tmp;
-    for (const hub of hubs) {
+    hubs.forEach((hub, hi) => {
+      const reach = Math.max(0, growth[hi]! * 2 - 1) * PIPE_SEGMENTS;
       h0.set(hub.dir[0], hub.dir[1], hub.dir[2]);
       for (const member of hub.members) {
         h1.set(member[0], member[1], member[2]);
-        for (let k = 0; k < PIPE_SEGMENTS && pipe < MAX_PIPES; k++) {
+        for (let k = 0; k < PIPE_SEGMENTS && pipe < MAX_PIPES && k < reach; k++) {
+          const end = Math.min(k + 1, reach);
           a.copy(h0).lerp(h1, k / PIPE_SEGMENTS).normalize().multiplyScalar(hub.surface + 0.009);
-          b.copy(h0).lerp(h1, (k + 1) / PIPE_SEGMENTS).normalize().multiplyScalar(hub.surface + 0.009);
+          b.copy(h0).lerp(h1, end / PIPE_SEGMENTS).normalize().multiplyScalar(hub.surface + 0.009);
           p.copy(a).add(b).multiplyScalar(0.5);
           q.setFromUnitVectors(x, n.copy(b).sub(a).normalize());
           s.set(a.distanceTo(b) * 1.04, 0.006, 0.006);
@@ -470,7 +497,7 @@ export class ColonyMeshes {
           this.pipes.setMatrixAt(pipe++, m);
         }
       }
-    }
+    });
     this.pipes.count = pipe;
     // Kryształy i kolumna w szybie lekko pulsują (bez „Ogranicz ruch”).
     const pulse = this.still ? 1 : 0.82 + 0.18 * Math.sin(this.time * 2);

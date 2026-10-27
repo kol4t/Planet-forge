@@ -18,14 +18,32 @@ export const groupsFor = (level: number) => Math.ceil(Math.max(0, Math.floor(lev
 export const OFF_SITE_FACTOR = 0.75;
 
 /**
- * Teren, na którym budynek pracuje w pełni: kopalnie metalu — wzgórza; kryształy — doliny, góry i lód;
- * elektrownie — brzeg (przy wodzie, lodzie albo lawie). Reszta — dowolny ląd.
+ * Dedykowany teren budynku (decyzja właściciela 2026-10-27, v0.38.2): kryształy — lód, metal — wzgórza
+ * i góry, elektrownie — równiny; reszta — dowolny ląd. Poza nim budynek stoi, ale pracuje słabiej
+ * (`OFF_SITE_FACTOR`); wybór pola przez gracza i łączenie w kompleks — tylko na dedykowanym terenie.
  */
 export function suits(id: BuildingId, cell: FieldCell): boolean {
-  if (id === 'metalMine') return cell.kind === 'land' && cell.terrain === 'hill';
-  if (id === 'crystalMine') return cell.kind === 'ice' || (cell.kind === 'land' && (cell.terrain === 'valley' || cell.terrain === 'mountain'));
-  if (id === 'powerPlant') return cell.kind === 'land' && cell.coast;
+  if (id === 'metalMine') return cell.kind === 'land' && (cell.terrain === 'hill' || cell.terrain === 'mountain');
+  if (id === 'crystalMine') return cell.kind === 'ice';
+  if (id === 'powerPlant') return cell.kind === 'land' && cell.terrain === 'plain';
   return cell.kind === 'land';
+}
+
+/** Nazwa dedykowanego terenu (do komunikatów). */
+export const TERRAIN_NAMES: Partial<Record<BuildingId, string>> = {
+  metalMine: 'wzgórza i góry',
+  crystalMine: 'lód',
+  powerPlant: 'równiny',
+};
+
+/** Wolne pola dedykowanego terenu, na których gracz może postawić następną grupę budynku (v0.38.2). */
+export function choiceCells(grid: FieldGrid, plots: Plots, id: BuildingId, rules: BuildRules = {}, reserved: ReadonlySet<number> = new Set()): number[] {
+  const taken = new Set<number>([...reserved, ...Object.values(plots).flatMap((l) => l ?? [])]);
+  const out: number[] = [];
+  grid.cells.forEach((cell, i) => {
+    if (!taken.has(i) && canStand(id, cell, rules) && suits(id, cell)) out.push(i);
+  });
+  return out;
 }
 
 /** Czy budynek może stanąć na polu: ląd (zgodnie z `BuildRules`), a kryształy także na lodzie. */
@@ -63,6 +81,8 @@ export function reconcilePlots(
   order: readonly BuildingId[],
   rules: BuildRules = {},
   reserved: ReadonlySet<number> = new Set(),
+  /** Pole wybrane przez gracza dla następnej grupy budynku (v0.38.2) — używane, gdy wolne i dozwolone. */
+  preferred: Partial<Record<BuildingId, number>> = {},
 ): Plots {
   const result: Plots = {};
   // Pola zarezerwowane przez kompleksy (v0.38) nie trafiają do żadnej grupy.
@@ -78,7 +98,9 @@ export function reconcilePlots(
     const list = result[id]!;
     const want = groupsFor(levels[id] ?? 0);
     while (list.length < want) {
-      const cell = nextCell(grid, id, list, taken, index, order.length, rules);
+      const wish = preferred[id];
+      const ok = wish !== undefined && wish >= 0 && wish < grid.cells.length && !taken.has(wish) && canStand(id, grid.cells[wish]!, rules);
+      const cell = ok ? wish : nextCell(grid, id, list, taken, index, order.length, rules);
       if (cell < 0) break;
       list.push(cell);
       taken.add(cell);

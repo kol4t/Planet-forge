@@ -107,3 +107,18 @@ export function outlineBorders(grid: FieldGrid, cells: Iterable<number>): number
 
 /** Kolor obrysu zajętości (turkusowy, jak w szkicach właściciela). */
 export const HIGHLIGHT = { color: '#5ff2e0', width: 2.6, halo: 6, haloColor: '#041012', haloAlpha: 0.45 } as const;
+
+/** Wszystkie granice pól z `cells` (każde pole z osobnym obrysem — pola do wyboru, v0.38.2). */
+export function cellBorders(grid: FieldGrid, cells: Iterable<number>): number[] {
+  const set = new Set(cells);
+  const out: number[] = [];
+  grid.borders.forEach(({ a, b }, i) => {
+    if (set.has(a) || (b >= 0 && set.has(b))) out.push(i);
+  });
+  return out;
+}
+
+/** Obrys pól do wyboru (złoty — „tu możesz budować”). */
+export const CHOICE = { color: '#e6c77a', width: 2.2 } as const;
+
+export type HighlightMode = 'footprint' | 'choice';

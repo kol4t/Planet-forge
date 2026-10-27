@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildableCount, buildFieldGrid, fieldGrid, isBuildable } from '../src/core/colony/fieldGrid.ts';
-import { groupsFor, hasRoomFor, OFF_SITE_FACTOR, reconcilePlots, siteFactors, usedLandFields } from '../src/core/colony/plots.ts';
+import { choiceCells, groupsFor, hasRoomFor, OFF_SITE_FACTOR, reconcilePlots, siteFactors, usedLandFields } from '../src/core/colony/plots.ts';
 import { buildingSettings, createEconomy, productionRates, setBuildingSettings, upgradeBuilding } from '../src/core/economy/economy.ts';
 import { FIELDS_MAX, FIELDS_MIN } from '../src/core/generation/fields.ts';
 import { generatePlanet } from '../src/core/generation/generatePlanet.ts';
@@ -121,22 +121,26 @@ test('grupy: jedno pole mieści 3 poziomy jednego budynku; przydział stabilny, 
   assert.equal(usedLandFields(grid, b), cells.filter((c) => grid.cells[c!]!.kind === 'land').length);
 });
 
-test('teren: kopalnie metalu na wzgórzach, elektrownie na brzegu, kryształy w dolinach, górach albo na lodzie', () => {
+test('teren (v0.38.2): metal na wzgórzach i w górach, elektrownie na równinach, kryształy na lodzie; wybór pola przez gracza', () => {
   const grid = fieldGrid(generatePlanet(STARTER.definition, STARTER.seed));
   const lv = levels({ metalMine: 9, crystalMine: 9, powerPlant: 9 });
   const plots = reconcilePlots(grid, {}, lv, ORDER);
-  for (const c of plots.metalMine!) assert.equal(grid.cells[c]!.terrain, 'hill');
-  for (const c of plots.powerPlant!) assert.ok(grid.cells[c]!.coast, 'elektrownia na brzegu');
-  for (const c of plots.crystalMine!) {
-    const cell = grid.cells[c]!;
-    assert.ok(cell.kind === 'ice' || cell.terrain === 'valley' || cell.terrain === 'mountain');
-  }
+  for (const c of plots.metalMine!) assert.ok(['hill', 'mountain'].includes(grid.cells[c]!.terrain));
+  for (const c of plots.powerPlant!) assert.equal(grid.cells[c]!.terrain, 'plain', 'elektrownia na równinie');
+  for (const c of plots.crystalMine!) assert.equal(grid.cells[c]!.kind, 'ice');
+  // Wybór gracza: wolne pola dedykowanego terenu; wybrane pole dostaje następna grupa.
+  const choices = choiceCells(grid, plots, 'metalMine');
+  assert.ok(choices.length > 0);
+  for (const c of choices) assert.ok(['hill', 'mountain'].includes(grid.cells[c]!.terrain) && !Object.values(plots).flat().includes(c));
+  const wish = choices[choices.length - 1]!;
+  const placed = reconcilePlots(grid, plots, levels({ metalMine: 10, crystalMine: 9, powerPlant: 9 }), ORDER, {}, new Set(), { metalMine: wish });
+  assert.equal(placed.metalMine![3], wish);
   const kinds = new Set(grid.cells.filter((c) => c.kind === 'land').map((c) => c.terrain));
   for (const t of ['valley', 'plain', 'hill', 'mountain'] as const) assert.ok(kinds.has(t), t);
   assert.equal(siteFactors(grid, plots, lv).metalMine, 1);
   // Kopalnia na niepasującym polu: 3 z 6 poziomów w 75% → 87,5%.
   const used = Object.values(plots).flat();
-  const plain = grid.cells.findIndex((c, i) => c.kind === 'land' && c.terrain === 'plain' && !used.includes(i));
+  const plain = grid.cells.findIndex((c, i) => c.kind === 'land' && c.terrain === 'valley' && !used.includes(i));
   const mixed = { ...plots, metalMine: [plots.metalMine![0]!, plain] };
   assert.equal(siteFactors(grid, mixed, levels({ metalMine: 6 })).metalMine, 0.875);
   assert.equal(OFF_SITE_FACTOR, 0.75);

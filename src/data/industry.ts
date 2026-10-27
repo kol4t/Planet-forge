@@ -19,13 +19,13 @@ export const INDUSTRY_STAGES: Partial<Record<BuildingId, readonly IndustryStage[
     { name: 'Transformacja terenu', footprint: 'wkrótce', description: 'Kryształowy krajobraz wokół kompleksów.', when: 'soon' },
   ],
   metalMine: [
-    { name: 'Kopalnia', footprint: '1 pole (3 poziomy)', description: 'Wejścia do kopalni na wzgórzach.', when: 'built' },
+    { name: 'Kopalnia', footprint: '1 pole (3 poziomy)', description: 'Wejścia do kopalni na wzgórzach i w górach.', when: 'built' },
     { name: 'Zakład przetwórczy', footprint: 'wkrótce', description: 'Pełne pola kopalń jako zakład (v0.39).', when: 'soon' },
     { name: 'Wielka fabryka', footprint: 'wkrótce', description: 'Kompleks z własnym ekranem i trybami pracy.', when: 'soon' },
     { name: 'Megakompleks metalowy', footprint: 'wkrótce', description: 'Pełny cykl produkcji metalu.', when: 'soon' },
   ],
   powerPlant: [
-    { name: 'Elektrownia', footprint: '1 pole (3 poziomy)', description: 'Chłodnie na brzegu.', when: 'built' },
+    { name: 'Elektrownia', footprint: '1 pole (3 poziomy)', description: 'Chłodnie na równinach.', when: 'built' },
     { name: 'Węzeł energetyczny', footprint: 'wkrótce', description: 'Słup Tesli z pełnych pól (v0.40).', when: 'soon' },
     { name: 'Sieć Tesli', footprint: 'wkrótce', description: 'Połączone węzły dla wielkich kompleksów.', when: 'soon' },
   ],

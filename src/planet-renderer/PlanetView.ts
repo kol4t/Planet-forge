@@ -10,13 +10,13 @@ import { layoutFromPlots, plotsKey, type ColonyLayout } from './colony.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
-import { borderStates, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders } from './fieldOverlay.ts';
+import { borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type HighlightMode } from './fieldOverlay.ts';
 import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { ZoomSmoother } from './input/zoom.ts';
 import { AdaptiveResolution } from './adaptiveResolution.ts';
 import { visibleStructures } from './colony.ts';
-import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
+import { levelsWithSite, pickCell, pickStructureHit, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { buildLowPolyLand, shapedRadius } from './lowPoly.ts';
 import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler } from './surface.ts';
@@ -164,8 +164,8 @@ export class PlanetView implements PlanetDisplay {
     if (this.fieldLines) this.fieldLines.visible = visible;
   }
 
-  setHighlight(cells: readonly number[] | null): void {
-    const key = cells && cells.length > 0 ? cells.join(',') : '';
+  setHighlight(cells: readonly number[] | null, mode: HighlightMode = 'footprint'): void {
+    const key = cells && cells.length > 0 ? `${mode}:${cells.join(',')}` : '';
     if (key === (this.highlight?.key ?? '')) return;
     if (this.highlight) {
       this.highlight.object.parent?.remove(this.highlight.object);
@@ -176,7 +176,7 @@ export class PlanetView implements PlanetDisplay {
     }
     if (!key || !this.grid || !this.liftPoint) return;
     const positions: number[] = [];
-    for (const i of outlineBorders(this.grid, cells!)) {
+    for (const i of mode === 'choice' ? cellBorders(this.grid, cells!) : outlineBorders(this.grid, cells!)) {
       const border = this.grid.borders[i]!;
       positions.push(...this.liftPoint(border.from), ...this.liftPoint(border.to));
     }
@@ -191,7 +191,7 @@ export class PlanetView implements PlanetDisplay {
       return { object, material };
     };
     const halo = line(HIGHLIGHT.halo, HIGHLIGHT.haloColor, HIGHLIGHT.haloAlpha, 3);
-    const main = line(HIGHLIGHT.width, HIGHLIGHT.color, 0.95, 4);
+    const main = mode === 'choice' ? line(CHOICE.width, CHOICE.color, 0.95, 4) : line(HIGHLIGHT.width, HIGHLIGHT.color, 0.95, 4);
     const group = new THREE.Group().add(halo.object, main.object);
     group.name = 'highlight';
     this.spinGroup.add(group);
@@ -285,6 +285,21 @@ export class PlanetView implements PlanetDisplay {
       projection: { kind: 'perspective' as const, f, d: this.camera.position.z },
     };
     return pickStructureHit(this.layout, levelsWithSite(this.levels, this.site), view, x, y, undefined, true);
+  }
+
+  pickCell(x: number, y: number, cells: readonly number[]): number | null {
+    if (!this.grid) return null;
+    const f = this.height / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
+    const view = {
+      cx: this.focus.cx,
+      cy: this.focus.cy,
+      yaw: this.rotator.yaw,
+      pitch: this.rotator.pitch,
+      tilt: this.axialTilt,
+      projection: { kind: 'perspective' as const, f, d: this.camera.position.z },
+    };
+    const r = this.focus.r * this.zoom;
+    return pickCell(this.grid.cells.map((c) => c.center), cells, view, x, y, Math.max(30, r * 0.14));
   }
 
   showBuilding(id: BuildingId, index?: number): boolean {

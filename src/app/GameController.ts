@@ -1,5 +1,5 @@
 import { buildableCount, cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type BuildRules, type FieldGrid } from '../core/colony/fieldGrid.ts';
-import { hasRoomFor, reconcilePlots, siteFactors, suits, usedLandFields, type Plots } from '../core/colony/plots.ts';
+import { choiceCells, hasRoomFor, LEVELS_PER_FIELD, reconcilePlots, siteFactors, suits, TERRAIN_NAMES, usedLandFields, type Plots } from '../core/colony/plots.ts';
 import { complexBonus, mergeCandidate, reservedCells, validComplexes, type Complex } from '../core/colony/complexes.ts';
 import { COMPLEX_FAMILIES, findFamily } from '../data/complexes.ts';
 import { INDUSTRY_STAGES } from '../data/industry.ts';
@@ -115,6 +115,8 @@ interface Slot {
   asteroid?: AsteroidStation;
   /** Kompleksy przemysłowe na polach planety (od v0.38). */
   complexes?: Complex[];
+  /** Pole wybrane przez gracza dla następnej grupy budynku (v0.38.2, do chwili przydziału — bez zapisu). */
+  preferred?: Partial<Record<BuildingId, number>>;
 }
 
 /** Karta budowli obok przybliżonej planety (v0.38.1): parametry i etapy rozwoju. */
@@ -133,6 +135,8 @@ export interface BuildingCard {
   stages: { name: string; footprint: string; description: string; state: 'done' | 'current' | 'next' | 'locked' | 'soon' }[];
   /** Co trzeba zrobić, żeby osiągnąć następny etap (albo null). */
   next: string | null;
+  /** Wybór pola dla następnego poziomu (v0.38.2): ile pól dedykowanego terenu jest wolnych; null — nie teraz. */
+  placement: { level: number; cells: number; terrain: string | null } | null;
 }
 
 /** Kompleks budynku na aktywnej planecie (okno „Kompleks”, v0.38). */
@@ -1929,6 +1933,35 @@ export class GameController {
     return { grid: fieldGrid(slot.planet), plots, complexes: slot.complexes ?? [] };
   }
 
+  // ——— wybór pola przez gracza (v0.38.2) ———
+
+  /**
+   * Czy następny poziom budynku otworzy nowe pole i gdzie gracz może je postawić: wolne pola dedykowanego
+   * terenu (kryształy — lód, metal — wzgórza i góry, elektrownia — równiny). Tylko gdy nic się teraz nie buduje.
+   */
+  placement(id: BuildingId): { needed: boolean; cells: number[]; terrain: string | null; level: number } {
+    const slot = this.slots[this.active]!;
+    const level = this.economy.levels[id] ?? 0;
+    const needed = !this.economy.construction && level % LEVELS_PER_FIELD === 0 && level < this.balance.maxLevel;
+    const plots = syncPlots(slot, this.buildRules);
+    const cells = needed ? choiceCells(fieldGrid(slot.planet), plots, id, this.buildRules, reservedCells(slot.complexes ?? [])) : [];
+    return { needed, cells, terrain: TERRAIN_NAMES[id] ?? null, level: level + 1 };
+  }
+
+  /** Ulepszenie z polem wybranym przez gracza (musi być na liście `placement`). */
+  upgradeAt(id: BuildingId, cell: number, now = Date.now()): UpgradeResult {
+    const choice = this.placement(id);
+    if (!choice.needed || !choice.cells.includes(cell)) {
+      return { ok: false, state: this.economy, reason: 'busy', message: 'Tego pola nie można wybrać — tylko wolne pola dedykowanego terenu.' } as UpgradeResult;
+    }
+    const slot = this.slots[this.active]!;
+    slot.preferred = { ...slot.preferred, [id]: cell };
+    const result = this.upgrade(id, now);
+    if (result.ok) syncPlots(slot, this.buildRules);
+    else delete slot.preferred[id];
+    return result;
+  }
+
   // ——— karta budowli i zajętość pól (v0.38.1) ———
 
   /** Pola zajęte przez budynek na aktywnej planecie: jego grupy i pola wspólnych konstrukcji kompleksów. */
@@ -1982,6 +2015,10 @@ export class GameController {
       planetFields: this.fields,
       stages,
       next,
+      placement: (() => {
+        const p = this.placement(id);
+        return p.needed && INDUSTRY_STAGES[id] ? { level: p.level, cells: p.cells.length, terrain: p.terrain } : null;
+      })(),
     };
   }
 
@@ -2112,7 +2149,13 @@ function syncPlots(slot: Slot, rules: BuildRules): Plots {
   const c = slot.economy.construction;
   const levels = c ? { ...slot.economy.levels, [c.building]: Math.max(slot.economy.levels[c.building] ?? 0, c.targetLevel) } : slot.economy.levels;
   const grid = fieldGrid(slot.planet);
-  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, reservedCells(slot.complexes ?? []));
+  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, reservedCells(slot.complexes ?? []), slot.preferred);
+  // Wybrane pole użyte — wybór dotyczy tylko jednej grupy.
+  if (slot.preferred) {
+    for (const [id, cell] of Object.entries(slot.preferred) as [BuildingId, number][]) {
+      if ((slot.plots[id] ?? []).includes(cell)) delete slot.preferred[id];
+    }
+  }
   // Kompleks rozpada się, gdy któraś jego grupa przestanie być pełna (np. zburzenie poziomu) — v0.38.
   if (slot.complexes?.length) {
     const valid = validComplexes(slot.complexes, slot.plots, slot.economy.levels);

@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.38.2: dedykowany teren, wybór pola, animacja łączenia
+
+- Właściciel: „budynki mają animacje łączenia się; gracz decyduje, na którym budynku/obszarze powstaje kolejny poziom; dozwolone na dedykowanym terenie: kryształ — lód, metal — wzgórza/góry, elektrownia — równiny”. Zapytany o planety bez lodu wybrał: **budowa wszędzie (75% poza terenem), wybór pola i łączenie tylko na dedykowanym terenie**.
+- Wybór dotyczy poziomu, który otwiera nowe pole (pole = 3 poziomy); poziomy w niepełnej grupie dochodzą do niej. Preferencja żyje do przydziału pola (bez zapisu) — przydział zostaje w `plots` jak dotąd. Bez wyboru gra przydziela pole sama (najpierw dedykowany teren).
+- Zmiana `suits` zmienia wydajność istniejących budowli poza nowym terenem (np. kryształy w dolinach) — świadomie, zgodnie z regułą właściciela; pola się nie przesuwają.
+
 ## 2026-10-27 — v0.38.1: karta budowli i obrys zajętości (szkice właściciela)
 
 - Szkice to grafiki koncepcyjne (fotorealistyczne) — do gry przenosimy sylwetkę i układ, nie fotorealizm (low-poly, iPad): centralny szyb z kolumną kryształu, moduły wokół, paleta stal/złoto/turkus, obrys zajętych pól, karta parametrów z paskiem „Rozwój”.

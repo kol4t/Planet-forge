@@ -3,7 +3,7 @@
 // Kompleks zajmuje więcej pól (grupy + hub) i daje premię wydobycia poziomom w nim. Czysta logika.
 import type { ComplexFamily } from '../../data/complexes.ts';
 import type { BuildingId, BuildingLevels } from '../types.ts';
-import { canStand, LEVELS_PER_FIELD, type Plots } from './plots.ts';
+import { canStand, LEVELS_PER_FIELD, suits, TERRAIN_NAMES, type Plots } from './plots.ts';
 import type { BuildRules, FieldGrid } from './fieldGrid.ts';
 
 export interface Complex {
@@ -84,9 +84,18 @@ export function mergeCandidate(
   rules: BuildRules = {},
 ): MergeCandidate {
   const inComplex = new Set(complexes.flatMap((c) => c.cells));
-  const free = fullGroupCells(plots, levels, family.building).filter((c) => !inComplex.has(c));
+  // Łączyć można tylko pola dedykowanego terenu (decyzja właściciela, v0.38.2) — np. wiertła kryształu na lodzie.
+  const terrain = TERRAIN_NAMES[family.building];
+  const fullFree = fullGroupCells(plots, levels, family.building).filter((c) => !inComplex.has(c));
+  const free = fullFree.filter((c) => suits(family.building, grid.cells[c]!));
   if (free.length < family.groups) {
-    return { ok: false, reason: `Potrzeba ${family.groups} pełnych pól (po ${LEVELS_PER_FIELD} poziomy) poza kompleksami — masz ${free.length}.` };
+    const offSite = fullFree.length - free.length;
+    return {
+      ok: false,
+      reason:
+        `Potrzeba ${family.groups} pełnych pól (po ${LEVELS_PER_FIELD} poziomy) na dedykowanym terenie${terrain ? ` (${terrain})` : ''} — masz ${free.length}.` +
+        (offSite > 0 ? ` ${offSite} pełne pole poza nim się nie liczy.` : ''),
+    };
   }
   const taken = new Set([...Object.values(plots).flatMap((l) => l ?? []), ...reservedCells(complexes)]);
   let sawConnected = false;
@@ -96,7 +105,8 @@ export function mergeCandidate(
     const counts = new Map<number, number>();
     for (const cell of set) {
       for (const n of grid.cells[cell]!.neighbors) {
-        if (!taken.has(n) && canStand(family.building, grid.cells[n]!, rules)) counts.set(n, (counts.get(n) ?? 0) + 1);
+        const cell = grid.cells[n]!;
+        if (!taken.has(n) && canStand(family.building, cell, rules) && suits(family.building, cell)) counts.set(n, (counts.get(n) ?? 0) + 1);
       }
     }
     const hubs = [...counts.entries()]
@@ -108,7 +118,7 @@ export function mergeCandidate(
   return {
     ok: false,
     reason: sawConnected
-      ? 'Obok tych pól nie ma wolnego pola na wspólną konstrukcję.'
+      ? `Obok tych pól nie ma wolnego pola${terrain ? ` (${terrain})` : ''} na wspólną konstrukcję.`
       : `Pełne pola nie leżą obok siebie — kompleks łączy ${family.groups} sąsiednie pola.`,
   };
 }

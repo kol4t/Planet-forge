@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
+import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
 import { BuildingCardView, type CardPlacement } from '../ui/buildingCard.ts';
 import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled, secondsUntilAffordable } from '../../core/economy/economy.ts';
@@ -1057,6 +1058,10 @@ export class PlanetScene extends Phaser.Scene {
    * przybliża (do 3×) i otwiera się okienko budynku. Dotknięcie obok budowli zamyka okienko.
    */
   private onPlanetTap(x: number, y: number): void {
+    if (this.placing) {
+      this.placeAt(x, y);
+      return;
+    }
     const hit = this.deps.display.pickStructure(x / this.dpr, y / this.dpr);
     if (hit) this.focusBuilding(hit.id, hit.index);
     const id = hit?.id ?? null;
@@ -1088,6 +1093,7 @@ export class PlanetScene extends Phaser.Scene {
     const def = this.selected && BALANCE.buildings.find((b) => b.id === this.selected);
     if (!def) {
       this.cardAt = null;
+      this.placing = null;
       this.buildingCard.hide();
       this.deps.display.setHighlight(null);
       return;
@@ -1119,6 +1125,37 @@ export class PlanetScene extends Phaser.Scene {
     this.cardRefreshAt = 0;
   }
 
+  /** Włącz / wyłącz wybór pola: złote obrysy wolnych pól dedykowanego terenu na planecie. */
+  private togglePlacing(): void {
+    const id = this.selected;
+    if (this.placing || !id) {
+      this.placing = null;
+    } else {
+      const choice = this.deps.controller.placement(id);
+      if (!choice.needed || choice.cells.length === 0) return;
+      this.placing = { id, cells: choice.cells };
+      this.showToast(`Dotknij złote pole (${choice.terrain ?? 'teren budynku'}) — tam stanie poz. ${choice.level}.`, 'info', 3200);
+    }
+    this.cardRefreshAt = 0;
+    this.refreshBuildingCard();
+  }
+
+  /** Dotknięcie planety w trybie wyboru: trafione złote pole → budowa tam; obok — podpowiedź. */
+  private placeAt(x: number, y: number): void {
+    const placing = this.placing!;
+    const cell = this.deps.display.pickCell(x / this.dpr, y / this.dpr, placing.cells);
+    if (cell === null) {
+      this.showToast('Dotknij jedno ze złotych pól — albo „Anuluj wybór miejsca” w karcie.', 'info', 2600);
+      return;
+    }
+    const result = this.deps.controller.upgradeAt(placing.id, cell);
+    this.placing = null;
+    this.showToast(result.message, result.ok ? 'ok' : 'error', 3000);
+    if (result.ok) this.deps.display.showBuilding(placing.id);
+    this.cardRefreshAt = 0;
+    this.relayout();
+  }
+
   /** Karta budowli i obrys jej pól: odświeżane najwyżej co sekundę; schowane, gdy otwarty jest inny ekran. */
   private refreshBuildingCard(): void {
     const id = this.selected;
@@ -1131,8 +1168,10 @@ export class PlanetScene extends Phaser.Scene {
     if (now - this.cardRefreshAt < 1000) return;
     this.cardRefreshAt = now;
     const controller = this.deps.controller;
-    this.buildingCard.show(controller.buildingCard(id), this.cardAt);
-    this.deps.display.setHighlight(controller.footprint(id));
+    if (this.placing && this.placing.id !== id) this.placing = null;
+    this.buildingCard.show(controller.buildingCard(id), this.cardAt, !!this.placing);
+    if (this.placing) this.deps.display.setHighlight(this.placing.cells, 'choice');
+    else this.deps.display.setHighlight(controller.footprint(id));
   }
 
   /** Karta wewnątrz panelu: jaśniejsza ramka, bez osobnej strefy (panel już blokuje gesty). */
@@ -1643,11 +1682,8 @@ export class PlanetScene extends Phaser.Scene {
         (v) => this.applySetting(id, { priority: v }),
       );
     }
-    const terrain: Partial<Record<BuildingId, string>> = {
-      metalMine: 'wzgórza',
-      crystalMine: 'doliny, góry i lód',
-      powerPlant: 'brzeg (przy wodzie, lodzie albo lawie)',
-    };
+    // Dedykowany teren (v0.38.2): wybór pola i łączenie w kompleks tylko na nim.
+    const terrain = TERRAIN_NAMES;
     const lines: string[] = [];
     if (consumes) lines.push(`Energia: dostaje ${pct(info.energyEfficiency)} potrzebnej.`);
     lines.push(`Pola: ${info.groups} (każde mieści 3 poziomy)${info.onIce > 0 ? `, w tym ${info.onIce} na lodzie` : ''}.`);
@@ -1705,10 +1741,16 @@ export class PlanetScene extends Phaser.Scene {
    */
   private closeAsteroid: (() => void) | null = null;
   /** Karta budowli obok przybliżonej planety i jej miejsce (v0.38.1). */
-  private readonly buildingCard = new BuildingCardView(() => {
-    this.selected = null;
-    this.relayout();
-  });
+  private readonly buildingCard = new BuildingCardView(
+    () => {
+      this.selected = null;
+      this.placing = null;
+      this.relayout();
+    },
+    () => this.togglePlacing(),
+  );
+  /** Tryb wyboru pola dla następnego poziomu wybranej budowli (v0.38.2). */
+  private placing: { id: BuildingId; cells: number[] } | null = null;
   private cardAt: CardPlacement | null = null;
   private cardRefreshAt = 0;
 

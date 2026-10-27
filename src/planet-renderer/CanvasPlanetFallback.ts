@@ -4,9 +4,9 @@ import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import { groupFull, layoutFromPlots, plotsKey, RIG_BUILDINGS, visibleStructures, type ColonyLayout } from './colony.ts';
-import { borderChains, borderStates, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain } from './fieldOverlay.ts';
+import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
-import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
+import { levelsWithSite, pickCell, pickStructureHit, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
 import { ZoomSmoother } from './input/zoom.ts';
@@ -51,7 +51,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private chainsGrid: FieldGrid | null = null;
   private gridVisible = false;
   /** Obrys zajętości wybranej budowli: klucz pól i odcinki granic (v0.38.1). */
-  private highlight: { key: string; borders: number[] } | null = null;
+  private highlight: { key: string; borders: number[]; mode: HighlightMode } | null = null;
+  /** Animacja łączenia (v0.38.2): chwila pojawienia się każdego szybu głównego (z wczytanej gry — dawno). */
+  private readonly hubBirth = new Map<string, number>();
+  private hubsSeeded = false;
   private spinHeld = false;
   private readonly reducedMotion = prefersReducedMotion();
   /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
@@ -71,6 +74,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.sampler = this.look.sampler;
     this.grid = fieldGrid(planet);
     this.highlight = null;
+    this.hubBirth.clear();
+    this.hubsSeeded = false;
     this.plotsKey = '';
     this.colony = layoutFromPlots(this.grid, {}, this.sampler, BUILDING_IDS);
     this.atmosphere = this.look.atmosphere;
@@ -83,6 +88,11 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       if (key !== this.plotsKey) {
         this.plotsKey = key;
         this.colony = layoutFromPlots(this.grid, plots, this.sampler, BUILDING_IDS, complexes);
+        for (const hub of this.colony.hubs) {
+          const key = hub.dir.join(',');
+          if (!this.hubBirth.has(key)) this.hubBirth.set(key, this.hubsSeeded && !this.reducedMotion ? performance.now() : -1e9);
+        }
+        if (Object.values(plots).some((l) => (l?.length ?? 0) > 0)) this.hubsSeeded = true;
       }
       this.plots = plots;
     }
@@ -173,10 +183,19 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.gridVisible = visible;
   }
 
-  setHighlight(cells: readonly number[] | null): void {
-    const key = cells && cells.length > 0 ? cells.join(',') : '';
+  setHighlight(cells: readonly number[] | null, mode: HighlightMode = 'footprint'): void {
+    const key = cells && cells.length > 0 ? `${mode}:${cells.join(',')}` : '';
     if (key === (this.highlight?.key ?? '')) return;
-    this.highlight = key && this.grid ? { key, borders: outlineBorders(this.grid, cells!) } : null;
+    this.highlight = key && this.grid ? { key, mode, borders: mode === 'choice' ? cellBorders(this.grid, cells!) : outlineBorders(this.grid, cells!) } : null;
+  }
+
+  pickCell(x: number, y: number, cells: readonly number[]): number | null {
+    if (!this.grid) return null;
+    const { yaw, pitch } = this.rotator;
+    const r = this.focus.r * this.zoom;
+    const view = { cx: this.focus.cx, cy: this.focus.cy, yaw, pitch, tilt: 0, projection: { kind: 'ortho' as const, r } };
+    // Promień trafienia ~ wielkość pola na ekranie (pole ma promień kątowy ~0,1–0,2 rad).
+    return pickCell(this.grid.cells.map((c) => c.center), cells, view, x, y, Math.max(30, r * 0.14));
   }
 
   /** Turkusowy kontur pól wybranej budowli z ciemną obwódką; lekko pulsuje (bez „Ogranicz ruch”). */
@@ -211,8 +230,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     ctx.lineWidth = HIGHLIGHT.halo;
     ctx.stroke();
     ctx.globalAlpha = this.reducedMotion ? 0.95 : 0.75 + 0.25 * Math.sin(performance.now() / 450);
-    ctx.strokeStyle = HIGHLIGHT.color;
-    ctx.lineWidth = HIGHLIGHT.width;
+    ctx.strokeStyle = this.highlight.mode === 'choice' ? CHOICE.color : HIGHLIGHT.color;
+    ctx.lineWidth = this.highlight.mode === 'choice' ? CHOICE.width : HIGHLIGHT.width;
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
@@ -375,16 +394,20 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const c = Math.floor(n / 2);
       ctx.fillRect(x0 + c * pixel, y0 + c * pixel, pixel, pixel);
     };
+    // Postęp łączenia 0..1: szyb wyrasta w pierwszej połowie, rury biegną do wierteł w drugiej (2,4 s).
+    const growth = (hub: { dir: readonly number[] }) => Math.min(1, (performance.now() - (this.hubBirth.get(hub.dir.join(',')) ?? -1e9)) / 2400);
     for (const hub of this.colony.hubs) {
       const h = toScreen(hub.dir);
       if (h.depth < 0.08) continue;
+      const reach = Math.max(0, growth(hub) * 2 - 1);
+      if (reach <= 0) continue;
       // Rury od szybu głównego do wierteł kompleksu: piksele co krok wzdłuż odcinka.
       ctx.fillStyle = STRUCTURE_COLORS[hub.building].body;
       ctx.globalAlpha = Math.min(1, h.depth * 2.5) * 0.9;
       for (const member of hub.members) {
         const m = toScreen(member);
         const steps = Math.max(1, Math.ceil(Math.hypot(m.x - h.x, m.y - h.y) / pixel));
-        for (let k = 0; k <= steps; k++) ctx.fillRect(snapX(h.x + ((m.x - h.x) * k) / steps), snapY(h.y + ((m.y - h.y) * k) / steps), pixel, pixel);
+        for (let k = 0; k <= steps * reach; k++) ctx.fillRect(snapX(h.x + ((m.x - h.x) * k) / steps), snapY(h.y + ((m.y - h.y) * k) / steps), pixel, pixel);
       }
     }
     for (const rig of this.colony.rigs) {
@@ -396,7 +419,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     for (const hub of this.colony.hubs) {
       const h = toScreen(hub.dir);
       if (h.depth < 0.08) continue;
-      pit(h.x, h.y, 9, STRUCTURE_COLORS[hub.building], 0.6, Math.min(1, h.depth * 2.5));
+      // Szyb główny rośnie od 3 do 9 pikseli (nieparzyście — środek zostaje na miejscu).
+      const size = 3 + 2 * Math.round(3 * Math.min(1, growth(hub) * 2));
+      pit(h.x, h.y, size, STRUCTURE_COLORS[hub.building], 0.6, Math.min(1, h.depth * 2.5));
     }
     ctx.globalAlpha = 1;
     const site = this.site;

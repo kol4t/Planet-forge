@@ -33,8 +33,13 @@ export interface PlanetDisplay {
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */
   setGridVisible(visible: boolean): void;
-  /** Obrys zajętości pól wybranej budowli (v0.38.1); null — bez obrysu. */
-  setHighlight(cells: readonly number[] | null): void;
+  /**
+   * Obrys pól: zajętość wybranej budowli (`footprint`, turkus, jeden kontur) albo pola do wyboru miejsca
+   * budowy (`choice`, złote obrysy każdego pola, v0.38.2); null — bez obrysu.
+   */
+  setHighlight(cells: readonly number[] | null, mode?: 'footprint' | 'choice'): void;
+  /** Pole z `cells` pod palcem (x, y w pikselach CSS) albo null — wybór miejsca budowy (v0.38.2). */
+  pickCell(x: number, y: number, cells: readonly number[]): number | null;
   /** Wstrzymaj autoobrót (pokazany budynek nie ucieka z kadru); dotyk albo reset go zwalnia. */
   holdSpin(hold: boolean): void;
   /** Płynny powrót do widoku startowego: przybliżenie 1×, biegun u góry. */

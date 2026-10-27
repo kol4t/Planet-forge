@@ -116,3 +116,22 @@ export function pickStructureHit(
   for (const hub of colony.hubs ?? []) near(hub.dir, hub.surface, hub.building, 0, 1.6);
   return best;
 }
+
+/**
+ * Pole siatki pod palcem (v0.38.2, wybór miejsca budowy): spośród `cells` to, którego środek leży najbliżej
+ * punktu (x, y) — w promieniu zależnym od wielkości pola na ekranie (`radius` px na pole).
+ */
+export function pickCell(centers: readonly Vec3[], cells: readonly number[], view: PickView, x: number, y: number, radius: number): number | null {
+  let best: number | null = null;
+  let bestDistance = radius;
+  for (const cell of cells) {
+    const p = projectPoint(centers[cell]!, view);
+    if (!p.visible) continue;
+    const distance = Math.hypot(p.x - x, p.y - y);
+    if (distance <= bestDistance) {
+      bestDistance = distance;
+      best = cell;
+    }
+  }
+  return best;
+}
