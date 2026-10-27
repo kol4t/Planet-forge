@@ -6,6 +6,7 @@ import { createAtmosphere } from './atmosphere.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
+import type { Pad } from './colonyMeshes.ts';
 import { cellLookup, collectorOrbit, hash01, layoutFromPlots, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
 import { complexGround, pitDepth } from './complexLook.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
@@ -181,7 +182,7 @@ export class PlanetView implements PlanetDisplay {
     this.setHighlight(null);
     this.plotsKey = '';
     this.buildFieldLines(planet, sampler);
-    this.layout = layoutFromPlots(this.grid, {}, this.shaped, BUILDING_IDS);
+    this.layout = layoutFromPlots(this.grid, {}, this.shaped, BUILDING_IDS, {}, [], true);
     this.applyColony(this.layout, true);
   }
 
@@ -315,7 +316,7 @@ export class PlanetView implements PlanetDisplay {
       const key = plotsKey(plots, BUILDING_IDS, levels, complexes);
       if (key !== this.plotsKey) {
         this.plotsKey = key;
-        this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS, levels, complexes);
+        this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS, levels, complexes, true);
         this.applyColony(this.layout, false);
         this.colorFieldLines(plots);
       }
@@ -325,10 +326,11 @@ export class PlanetView implements PlanetDisplay {
 
   /** Nowy układ kolonii: grunt i odkrywki w ścianach lądu, obrys kompleksów, zabudowa (wszystko raz, nie co klatkę). */
   private applyColony(layout: ColonyLayout, fresh: boolean): void {
-    const sink = this.paintLand(layout);
-    this.colony.setSink(sink);
+    // Obniżenie odkrywki → rozstawienie budowli (stoją w odkrywce) → teren: grunt, odkrywka i fundamenty budowli.
+    this.colony.setSink(this.pitSink(layout));
     if (fresh) this.colony.setLayout(layout);
     else this.colony.updateLayout(layout);
+    this.paintLand(layout, this.colony.pads());
     this.buildOutlines(layout);
   }
 
@@ -336,10 +338,30 @@ export class PlanetView implements PlanetDisplay {
    * Grunt kompleksów (v0.45): ścianki lądu w obszarze budynku dostają kolory zabudowy (`complexGround`), a w odkrywce
    * kryształów teren schodzi tarasami w głąb (nie poniżej poziomu morza). Zwraca obniżenie terenu w punkcie.
    */
-  private paintLand(layout: ColonyLayout): (dir: Vec3) => number {
+  /** Kompleks pod punktem sfery (null — poza obszarami). */
+  private complexAt(layout: ColonyLayout): (x: number, y: number, z: number) => ColonyComplex | null {
+    if (!this.grid) return () => null;
+    const lookup = cellLookup(this.grid);
+    return (x, y, z) => {
+      const cell = lookup(x, y, z);
+      const index = cell >= 0 ? layout.owner[cell]! : -1;
+      return index >= 0 ? layout.complexes[index]! : null;
+    };
+  }
+
+  /** Obniżenie terenu odkrywki w punkcie (tarasy, głębsze z etapem). */
+  private pitSink(layout: ColonyLayout): (dir: Vec3) => number {
+    const complexAt = this.complexAt(layout);
+    return (dir) => {
+      const c = complexAt(...dir);
+      return c ? pitDepth(c, dir) * pitDepthScale(c) : 0;
+    };
+  }
+
+  private paintLand(layout: ColonyLayout, pads: readonly Pad[]): void {
     const land = this.land;
     const grid = this.grid;
-    if (!land || !grid) return () => 0;
+    if (!land || !grid) return;
     const lookup = cellLookup(grid);
     const geometry = land.mesh.geometry;
     const positions = geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -348,12 +370,7 @@ export class PlanetView implements PlanetDisplay {
     const col = colors.array as Float32Array;
     pos.set(land.positions);
     col.set(land.colors);
-    const depthOf = (c: ColonyComplex) => 0.012 + 0.005 * c.stage;
-    const complexAt = (x: number, y: number, z: number) => {
-      const cell = lookup(x, y, z);
-      const index = cell >= 0 ? layout.owner[cell]! : -1;
-      return index >= 0 ? layout.complexes[index]! : null;
-    };
+    const complexAt = this.complexAt(layout);
     for (let t = 0; t < pos.length; t += 9) {
       const mx = pos[t]! + pos[t + 3]! + pos[t + 6]!;
       const my = pos[t + 1]! + pos[t + 4]! + pos[t + 7]!;
@@ -380,7 +397,7 @@ export class PlanetView implements PlanetDisplay {
         // Odkrywka: wierzchołek obniżony schodkami tarasów, najwyżej do poziomu tuż nad morzem.
         const r = Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!);
         const vd: Vec3 = [pos[i]! / r, pos[i + 1]! / r, pos[i + 2]! / r];
-        const depth = pitDepth(c, vd) * depthOf(c);
+        const depth = pitDepth(c, vd) * pitDepthScale(c);
         if (depth <= 0) continue;
         const target = Math.max(1.004, r - depth) / r;
         pos[i] = pos[i]! * target;
@@ -388,14 +405,50 @@ export class PlanetView implements PlanetDisplay {
         pos[i + 2] = pos[i + 2]! * target;
       }
     }
+    this.levelPads(pos, pads, complexAt);
     positions.needsUpdate = true;
     colors.needsUpdate = true;
     geometry.setAttribute('normal', new THREE.BufferAttribute(facetNormals(positions.array as Float32Array), 3));
     geometry.computeBoundingSphere();
-    return (dir) => {
-      const c = complexAt(...dir);
-      return c ? pitDepth(c, dir) * depthOf(c) : 0;
-    };
+  }
+
+  /**
+   * Fundamenty (v0.47): każdy wierzchołek lądu w zasięgu budowli własnego obszaru dostaje wysokość jej podstawy —
+   * teren nie przebija płyt i budowle nie wiszą nad stokiem. Decyzja zależy tylko od położenia wierzchołka, więc
+   * sąsiednie ścianki (osobne wierzchołki) zostają szczelne. Jezior nie zasypuje.
+   */
+  private levelPads(pos: Float32Array, pads: readonly Pad[], complexAt: (x: number, y: number, z: number) => ColonyComplex | null): void {
+    const sampler = this.shaped;
+    if (!sampler || pads.length === 0) return;
+    const byBuilding = new Map<string, { d: Vec3; surface: number; cos: number }[]>();
+    for (const p of pads) {
+      const list = byBuilding.get(p.building) ?? [];
+      list.push({ d: p.dir, surface: p.surface, cos: Math.cos(p.reach) });
+      byBuilding.set(p.building, list);
+    }
+    for (let i = 0; i < pos.length; i += 3) {
+      const r = Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!);
+      const x = pos[i]! / r;
+      const y = pos[i + 1]! / r;
+      const z = pos[i + 2]! / r;
+      const c = complexAt(x, y, z);
+      const list = c ? byBuilding.get(c.building) : undefined;
+      if (!list) continue;
+      let best = null;
+      let bestDot = -2;
+      for (const p of list) {
+        const dot = p.d[0] * x + p.d[1] * y + p.d[2] * z;
+        if (dot >= p.cos && dot > bestDot) {
+          bestDot = dot;
+          best = p;
+        }
+      }
+      if (!best || sampler.lakeLevel(x, y, z) > sampler.height(x, y, z)) continue;
+      const target = Math.max(1.004, best.surface) / r;
+      pos[i] = pos[i]! * target;
+      pos[i + 1] = pos[i + 1]! * target;
+      pos[i + 2] = pos[i + 2]! * target;
+    }
   }
 
   /** Subtelny turkusowy obrys całych obszarów kompleksów (nie pojedynczych pól) — jedna siatka linii. */
@@ -623,6 +676,9 @@ const GROUND_BASE: Record<BuildingId, readonly [number, number, number]> = {
 };
 
 /** Dno odkrywki kryształów w 3D (zamiast świecących kryształów na pojedynczych ściankach). */
+/** Głębokość odkrywki (ułamek promienia planety) — rośnie z etapem. */
+const pitDepthScale = (c: ColonyComplex) => 0.012 + 0.005 * c.stage;
+
 const PIT_FLOOR: readonly number[] = [0.07, 0.13, 0.16];
 
 function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Object3D[] {

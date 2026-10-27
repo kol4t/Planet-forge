@@ -11,6 +11,9 @@ import type { SurfaceSampler } from './surface.ts';
 
 export type Vec3 = [number, number, number];
 
+/** Promień „powierzchni” nad wodą (zabudowa nie stoi na wodzie). */
+const WATER = 1.001;
+
 /** Miejsce zabudowy w kompleksie: punkt lądu pola obszaru (najbliżej środka pola). */
 export interface ComplexSpot {
   cell: number;
@@ -23,6 +26,8 @@ export interface ComplexSpot {
   t: number;
   /** Promień kątowy pola (rad) — modele 3D dopasowują do niego wielkość (v0.47). */
   r: number;
+  /** Wolny promień (rad): jak daleko od `dir` teren jest suchym lądem własnego obszaru bez uskoku — zabudowa nie wystaje. */
+  free: number;
 }
 
 export interface ColonyComplex {
@@ -37,6 +42,8 @@ export interface ColonyComplex {
   surface: number;
   /** Promień kątowy obszaru (od środka do skraju najdalszego pola). */
   radius: number;
+  /** Wolny promień wokół środka (jak `ComplexSpot.free`) — główna konstrukcja nie wychodzi poza obszar. */
+  free: number;
   /** Miejsca zabudowy — po jednym na pole, posortowane od środka (`spots[0]` = środek). */
   spots: ComplexSpot[];
   /** Usprawnienie kompleksu i megakompleks (decyzje gracza, v0.38–v0.43) — bogatsza zabudowa. */
@@ -97,6 +104,27 @@ export function fieldPoint(grid: FieldGrid, cell: number): Vec3 {
   return best;
 }
 
+/** Kierunki i kroki próbkowania wolnego promienia. */
+const FREE_HEADINGS = 12;
+/** Krok próbkowania (rad) — mniejszy niż rozmiar fasety terenu (~0,02). */
+const FREE_STEP = 0.008;
+/** Największy uskok względem podstawy, który jeszcze wyrównuje fundament (PlanetView) — dalej byłaby widoczna rampa. */
+export const FREE_MAX_RISE = 0.025;
+export const FREE_MAX_DROP = 0.035;
+
+/**
+ * Wolny promień wokół `dir`: największa odległość (≤ `max`), do której we wszystkich kierunkach `inside` jest prawdą.
+ * Deterministyczny, tylko wygląd 3D.
+ */
+export function freeRadius(dir: Vec3, max: number, inside: (p: Vec3) => boolean): number {
+  let ok = 0;
+  for (let d = FREE_STEP; d <= max; d += FREE_STEP) {
+    for (let a = 0; a < FREE_HEADINGS; a++) if (!inside(offsetOnSphere(dir, (a * Math.PI * 2) / FREE_HEADINGS, d))) return ok;
+    ok = d;
+  }
+  return ok;
+}
+
 /** Punkt pola najbliżej jego środka, który jest suchym lądem (nie w jeziorze); brak — jak `fieldPoint`. */
 function dryPoint(grid: FieldGrid, cell: number, sampler: SurfaceSampler): Vec3 {
   const field = grid.cells[cell]!;
@@ -124,12 +152,21 @@ export function layoutFromPlots(
   ids: readonly BuildingId[],
   levels: Partial<BuildingLevels> = {},
   upgrades: readonly Complex[] = [],
+  /** Liczyć wolne miejsce (`free`) — tylko 3D; 2D rysuje grunt wzorem i oszczędza ~50 ms na zmianę układu. */
+  measureFree = false,
 ): ColonyLayout {
   const surfaceAt = (dir: Vec3) => {
     const level = Math.max(sampler.height(...dir), sampler.lakeLevel(...dir));
-    return sampler.isLand(level) ? sampler.radius(level) : 1.001;
+    return sampler.isLand(level) ? sampler.radius(level) : WATER;
   };
   const owner = new Int32Array(grid.cells.length).fill(-1);
+  const lookup = cellLookup(grid);
+  /** Punkt w obszarze `cells`, na suchym lądzie i bez uskoku względem `base`. */
+  const fits = (cells: Set<number>, base: number) => (p: Vec3) => {
+    if (!cells.has(lookup(...p))) return false;
+    const s = surfaceAt(p);
+    return s !== WATER && s - base < FREE_MAX_RISE && base - s < FREE_MAX_DROP;
+  };
   const complexes: ColonyComplex[] = [];
   for (const id of ids) {
     const cells = (plots[id] ?? []).filter((c) => grid.cells[c]);
@@ -156,13 +193,16 @@ export function layoutFromPlots(
     const core = dryPoint(grid, coreCell, sampler);
     let radius = 0;
     for (const c of cells) radius = Math.max(radius, angleBetween(core, grid.cells[c]!.center) + grid.cells[c]!.radius * 0.8);
+    const cellSet = new Set(cells);
     const spots = cells
       .map((cell) => {
         const dir = dryPoint(grid, cell, sampler);
+        const surface = surfaceAt(dir);
         return {
           cell,
           dir,
-          surface: surfaceAt(dir),
+          surface,
+          free: measureFree ? freeRadius(dir, grid.cells[cell]!.radius * 1.2, fits(cellSet, surface)) : 0,
           spin: hash01(cell, 5) * Math.PI * 2,
           t: radius > 0 ? Math.min(1, angleBetween(core, dir) / radius) : 0,
           r: grid.cells[cell]!.radius,
@@ -180,6 +220,7 @@ export function layoutFromPlots(
       core,
       surface: surfaceAt(core),
       radius: Math.max(radius, 0.02),
+      free: measureFree ? freeRadius(core, Math.max(radius, 0.02), fits(cellSet, surfaceAt(core))) : 0,
       spots,
       upgraded: !!upgrade,
       mega: !!upgrade?.mega,

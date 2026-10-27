@@ -195,3 +195,19 @@ Po usprawnieniu „Sieć Tesli” co czwarte pole dostaje węzeł Tesli. Wielko�
 **Oszczędność rysowań:** puste części modeli (np. model bez obracającej się części) były rysowane mimo 0 wierzchołków —
 teraz są ukryte. Koszt (przeglądarka, planeta startowa, metal, kryształy i elektrownia na tym samym poziomie):
 poz. 3 — 39 (v0.47.2) → **30 rysowań**; poz. 25 — 52 → **37 rysowań**; trójkąty bez zmian (~75 / ~125 tys.).
+
+## Poprawka — budowle nachodziły na teren (zgłoszenie właściciela)
+
+Objaw: moduły i główne konstrukcje wystawały poza obrys obszaru, nad jeziora i na sąsiedni teren; na stokach teren
+przebijał płyty albo płyty wisiały. Przyczyna: wielkość budowli liczona tylko z promienia pola, bez sprawdzenia terenu.
+
+- `colony.ts`: `ComplexSpot.free` i `ColonyComplex.free` — wolny promień: jak daleko od miejsca (12 kierunków, krok
+  0,008 rad) teren jest suchym lądem **własnego obszaru** i bez uskoku większego niż +0,025 / −0,035. Liczony tylko w 3D
+  (`layoutFromPlots(…, true)`), ok. 50 ms na komputerze przy zmianie układu (trzy duże kompleksy); 2D bez kosztu.
+- `colonyMeshes.ts`: moduł nie większy niż wolne miejsce (za ciasno — pole bez modułu), główna konstrukcja tak samo,
+  ale nie mniejsza niż połowa docelowej (czytelność).
+- `PlanetView.ts` — **fundamenty**: teren pod każdą budowlą (w jej zasięgu, w jej obszarze, poza jeziorami) wyrównany
+  do wysokości podstawy. Decyzja zależy tylko od położenia wierzchołka, więc ścianki zostają szczelne.
+- Test: punkty w promieniu `free` leżą na suchym lądzie własnego obszaru; 2D ma ten sam układ bez pomiaru.
+
+Koszt grafiki bez zmian (30 / 37 rysowań).

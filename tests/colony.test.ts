@@ -114,3 +114,37 @@ test('miejsca zabudowy stoją na suchym lądzie pola, nie w wodzie (v0.26.2)', (
   }
   assert.ok(all > 0 && wet / all < 0.01, `w wodzie ${wet} z ${all}`);
 });
+
+test('wolne miejsce budowli (v0.47): w promieniu `free` tylko suchy ląd własnego obszaru; 2D bez pomiaru', () => {
+  const def = PLANET_DEFINITIONS[0]!;
+  const planet = generatePlanet(def, 'PF-FREE-1');
+  const grid = fieldGrid(planet);
+  const levels = { metalMine: 15, crystalMine: 12, powerPlant: 10, storage: 4, antimatterCollector: 1, laboratory: 0 };
+  const plots = reconcilePlots(grid, {}, levels, IDS);
+  const sampler = createSurfaceSampler(planet);
+  const lookup = cellLookup(grid);
+  const layout = layoutFromPlots(grid, plots, sampler, IDS, levels, [], true);
+  let measured = 0;
+  for (const c of layout.complexes) {
+    const own = new Set(c.cells);
+    for (const s of c.spots) {
+      assert.ok(s.free >= 0 && s.free <= s.r * 1.2 + 1e-9);
+      if (s.free === 0) continue;
+      measured++;
+      for (let a = 0; a < 12; a++) {
+        const p = offsetOnSphere(s.dir, (a * Math.PI) / 6, s.free);
+        assert.ok(own.has(lookup(...p)), `${c.building}: punkt poza obszarem`);
+        const level = Math.max(sampler.height(...p), sampler.lakeLevel(...p));
+        assert.ok(sampler.isLand(level), `${c.building}: punkt na wodzie`);
+      }
+    }
+  }
+  assert.ok(measured > 0);
+  // 2D (bez pomiaru) — ten sam układ, `free` = 0.
+  const flat = layoutFromPlots(grid, plots, sampler, IDS, levels);
+  assert.deepEqual(
+    flat.complexes.map((c) => c.spots.map((s) => s.cell)),
+    layout.complexes.map((c) => c.spots.map((s) => s.cell)),
+  );
+  assert.ok(flat.complexes.every((c) => c.free === 0 && c.spots.every((s) => s.free === 0)));
+});

@@ -721,6 +721,12 @@ interface Family {
 
 /** Moduł zabudowy na pozostałych polach ≈ 2/3 średnicy pola. */
 const SPOT_SCALE = 1.35;
+/** Zasięg modelu od środka w jednostkach wielkości: moduł (płyta 0,92 — między bokiem a rogiem) i główna konstrukcja (płyta do 0,56). */
+const SPOT_EXTENT = 0.55;
+const CORE_EXTENT = 0.56;
+/** Najmniejszy moduł (× promień pola) i najmniejsza główna konstrukcja (× docelowa) — mniejsze byłyby nieczytelne. */
+const SPOT_MIN = 0.7;
+const CORE_MIN_SHARE = 0.5;
 
 /** Pole w wyrobisku (teren obniżony tarasami do `pitShare` promienia kompleksu) — z marginesem na krawędź. */
 const inPit = (c: ColonyComplex, spot: ColonyComplex['spots'][number]) => spot.t < pitShare(c.stage) + 0.04;
@@ -774,6 +780,16 @@ interface Item {
   surface: number;
   spin: number;
   size: number;
+  /** Promień kątowy fundamentu — teren pod nim wyrównany do `surface` (v0.47). */
+  pad: number;
+}
+
+/** Fundament budowli: teren w promieniu `reach` (rad) od `dir` wyrównany do `surface` (PlanetView). */
+export interface Pad {
+  building: BuildingId;
+  dir: Vec3;
+  surface: number;
+  reach: number;
 }
 
 interface Kind {
@@ -863,6 +879,13 @@ export class ColonyMeshes {
     this.updateLayout(layout);
   }
 
+  /** Fundamenty wszystkich budowli (po `updateLayout`) — PlanetView wyrównuje pod nimi teren. */
+  pads(): Pad[] {
+    const out: Pad[] = [];
+    for (const kind of this.kinds.values()) for (const it of kind.items.slice(0, MAX_ITEMS)) out.push({ building: it.building, dir: it.dir, surface: it.surface, reach: it.pad });
+    return out;
+  }
+
   /** Obniżenie terenu (odkrywka) w punkcie — konstrukcje odkrywki stoją niżej. */
   setSink(sink: (dir: Vec3) => number): void {
     this.sink = sink;
@@ -885,12 +908,16 @@ export class ColonyMeshes {
       }
       const stage = c.stage + (c.mega ? 1 : 0);
       const core = this.kinds.get(p.core)!;
-      core.items.push({ building: c.building, dir: c.core, surface: c.surface - this.sink(c.core), spin: c.spots[0]?.spin ?? 0, size: CORE_SIZE * (0.75 + 0.3 * stage) });
+      const coreWant = CORE_SIZE * (0.75 + 0.3 * stage);
+      const coreSize = Math.max(coreWant * CORE_MIN_SHARE, Math.min(coreWant, c.free / CORE_EXTENT));
+      core.items.push({ building: c.building, dir: c.core, surface: c.surface - this.sink(c.core), spin: c.spots[0]?.spin ?? 0, size: coreSize, pad: coreSize * CORE_EXTENT });
       if (p.spot && p.every > 0) {
         const spot = this.kinds.get(p.spot)!;
         c.spots.forEach((s, k) => {
           if (k === 0 || k % p.every !== 0 || s.t < p.skipCenter || spot.items.length >= MAX_ITEMS) return;
-          spot.items.push({ building: c.building, dir: s.dir, surface: s.surface - this.sink(s.dir), spin: s.spin, size: SPOT_SIZE * (0.8 + 0.12 * stage) });
+          const size = Math.min(SPOT_SIZE * (0.8 + 0.12 * stage), s.free / CORE_EXTENT);
+          if (size < SPOT_SIZE * 0.5) return;
+          spot.items.push({ building: c.building, dir: s.dir, surface: s.surface - this.sink(s.dir), spin: s.spin, size, pad: size * CORE_EXTENT });
         });
       }
     }
@@ -917,18 +944,23 @@ export class ColonyMeshes {
     const stage = Math.max(0, Math.min(3, c.stage));
     const coreSpot = c.spots[0];
     const coreR = coreSpot?.r ?? 0.1;
-    const coreSize = coreR * family.coreScale[stage]! * (c.mega ? 1.1 : 1);
+    // Nie większa niż wolne miejsce wokół środka (bez wystawania poza obszar, nad wodę i na uskok), ale czytelna.
+    const want = coreR * family.coreScale[stage]! * (c.mega ? 1.1 : 1);
+    const coreSize = Math.max(want * CORE_MIN_SHARE, Math.min(want, c.free / CORE_EXTENT));
     const coreKind = family.cores[stage]!;
-    this.kinds.get(coreKind)!.items.push({ building: c.building, dir: c.core, surface: c.surface - this.sink(c.core), spin: coreSpot?.spin ?? 0, size: coreSize });
+    this.kinds.get(coreKind)!.items.push({ building: c.building, dir: c.core, surface: c.surface - this.sink(c.core), spin: coreSpot?.spin ?? 0, size: coreSize, pad: coreSize * CORE_EXTENT });
     // Pola zasłonięte przez główną konstrukcję zostają puste (bez nakładania brył).
     const reach = coreSize * 0.55;
     const placed: { dir: Vec3; surface: number }[] = family.beltsToCore ? [{ dir: c.core, surface: c.surface - this.sink(c.core) }] : [];
     c.spots.forEach((spot, k) => {
       if (k === 0 || angleOf(spot.dir, c.core) < reach + spot.r * 0.4 || family.skip?.(c, spot, k)) return;
+      // Moduł mieści się w wolnym miejscu pola; za ciasno — pole zostaje bez modułu.
+      const size = Math.min(spot.r * (family.spotScale?.(c, spot) ?? SPOT_SCALE), spot.free / SPOT_EXTENT);
+      if (size < spot.r * SPOT_MIN) return;
       const kind = this.kinds.get(family.spot(stage, k, c))!;
       if (kind.items.length >= MAX_ITEMS) return;
       const surface = spot.surface - this.sink(spot.dir);
-      kind.items.push({ building: c.building, dir: spot.dir, surface, spin: spot.spin, size: spot.r * (family.spotScale?.(c, spot) ?? SPOT_SCALE) });
+      kind.items.push({ building: c.building, dir: spot.dir, surface, spin: spot.spin, size, pad: size * SPOT_EXTENT });
       if (stage >= 1 && placed.length > 0 && !family.noBelts) {
         // Taśmociąg do najbliższego już postawionego modułu (spoty są posortowane od środka — drzewo transportu).
         let best = placed[0]!;
