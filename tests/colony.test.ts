@@ -5,17 +5,12 @@ import type { BuildingId } from '../src/core/types.ts';
 import { PLANET_DEFINITIONS } from '../src/data/planets.ts';
 import { fieldGrid } from '../src/core/colony/fieldGrid.ts';
 import { reconcilePlots } from '../src/core/colony/plots.ts';
-import { angleBetween, layoutFromPlots, offsetOnSphere, visibleStructures } from '../src/planet-renderer/colony.ts';
+import { angleBetween, cellLookup, layoutFromPlots, offsetOnSphere } from '../src/planet-renderer/colony.ts';
+import { complexGround, pitDepth } from '../src/planet-renderer/complexLook.ts';
 import { facingAngles } from '../src/planet-renderer/PlanetDisplay.ts';
 import { createSurfaceSampler } from '../src/planet-renderer/surface.ts';
 
 const IDS: BuildingId[] = ['metalMine', 'crystalMine', 'powerPlant', 'storage', 'antimatterCollector'];
-
-test('kolejny poziom = kolejna budowla (każda na swoim polu)', () => {
-  assert.equal(visibleStructures(0), 0);
-  assert.equal(visibleStructures(1), 1);
-  assert.equal(visibleStructures(40), 40);
-});
 
 test('offsetOnSphere zachowuje odległość kątową', () => {
   const c: [number, number, number] = [0, 0.6, 0.8];
@@ -23,31 +18,73 @@ test('offsetOnSphere zachowuje odległość kątową', () => {
 });
 
 for (const def of PLANET_DEFINITIONS) {
-  test(`kolonia: ${def.id} — grupy do 3 budowli na swoich polach, deterministyczne, bez nakładania`, () => {
+  test(`kolonia: ${def.id} — jeden kompleks na budynek, środek w obszarze, deterministyczna, na lądzie (v0.45)`, () => {
     for (const seed of ['PF-COL-1', 'PF-COL-2']) {
       const planet = generatePlanet(def, seed);
       const grid = fieldGrid(planet);
-      const levels = { metalMine: 4, crystalMine: 3, powerPlant: 3, storage: 2, antimatterCollector: 1, laboratory: 0 };
+      const levels = { metalMine: 8, crystalMine: 6, powerPlant: 3, storage: 2, antimatterCollector: 1, laboratory: 0 };
       const plots = reconcilePlots(grid, {}, levels, IDS);
       const sampler = createSurfaceSampler(planet);
-      const a = layoutFromPlots(grid, plots, sampler, IDS);
-      assert.deepEqual(a, layoutFromPlots(grid, plots, createSurfaceSampler(planet), IDS));
-      const all = IDS.flatMap((id) => a.slots[id]);
-      for (let i = 0; i < all.length; i++) {
-        for (let j = i + 1; j < all.length; j++) assert.ok(angleBetween(all[i]!.dir, all[j]!.dir) > 0.01, 'budowle się nie nakładają');
-      }
+      const a = layoutFromPlots(grid, plots, sampler, IDS, levels);
+      assert.deepEqual(a, layoutFromPlots(grid, plots, createSurfaceSampler(planet), IDS, levels));
       for (const id of IDS) {
-        // Każda budowla ma swoje miejsce: 3 na pole (ostatnie pole może być niepełne).
-        assert.equal(a.slots[id].length, (plots[id] ?? []).length * 3);
-        for (const cell of plots[id] ?? []) {
-          const kind = grid.cells[cell]!.kind;
-          assert.ok(kind === 'land' || (id === 'crystalMine' && kind === 'ice'), `${seed} ${id}: budowla na ${kind}`);
+        const c = a.complexes.find((x) => x.building === id);
+        const cells = plots[id] ?? [];
+        if (cells.length === 0) {
+          assert.equal(c, undefined);
+          continue;
         }
+        assert.ok(c, id);
+        assert.deepEqual(c.cells, cells);
+        assert.equal(c.spots.length, cells.length, 'miejsce zabudowy na każdym polu');
+        assert.equal(c.spots[0]!.t, Math.min(...c.spots.map((s) => s.t)), 'pierwsze miejsce — środek');
+        for (const cell of cells) {
+          assert.equal(a.owner[cell], a.complexes.indexOf(c));
+          const kind = grid.cells[cell]!.kind;
+          assert.ok(kind === 'land' || (id === 'crystalMine' && kind === 'ice'), `${seed} ${id}: kompleks na ${kind}`);
+        }
+        assert.ok(c.surface >= 1 && c.surface < 1.1);
+        assert.ok(c.radius > 0 && c.radius < 1.5);
       }
-      for (const s of all) assert.ok(s.surface >= 1 && s.surface < 1.1);
     }
   });
 }
+
+test('mapa „punkt → pole” zgadza się z siatką pól (v0.45)', () => {
+  const planet = generatePlanet(PLANET_DEFINITIONS[0]!, 'PF-LOOKUP');
+  const grid = fieldGrid(planet);
+  const lookup = cellLookup(grid);
+  let hits = 0;
+  grid.samples.forEach((p, i) => {
+    if (lookup(...p) === grid.owner[i]) hits++;
+  });
+  assert.ok(hits / grid.samples.length > 0.9, `zgodnych ${hits} z ${grid.samples.length}`);
+});
+
+test('grunt kompleksu (v0.45): odkrywka kryształów schodzi tarasami w głąb, w środku dno; kolory w zakresie 0..1', () => {
+  const planet = generatePlanet(PLANET_DEFINITIONS[0]!, 'PF-PIT');
+  const grid = fieldGrid(planet);
+  const levels = { metalMine: 13, crystalMine: 13, powerPlant: 0, storage: 0, antimatterCollector: 0, laboratory: 0 };
+  const plots = reconcilePlots(grid, {}, levels, IDS);
+  const layout = layoutFromPlots(grid, plots, createSurfaceSampler(planet), IDS, levels);
+  const pit = layout.complexes.find((c) => c.building === 'crystalMine')!;
+  assert.equal(pitDepth(pit, pit.core), 1, 'dno odkrywki w środku');
+  const edge = offsetOnSphere(pit.core, 0.3, pit.radius * 0.99);
+  assert.equal(pitDepth(pit, edge), 0, 'krawędź obszaru — poza odkrywką');
+  let last = 1;
+  for (let k = 0; k <= 20; k++) {
+    const d = pitDepth(pit, offsetOnSphere(pit.core, 0.3, (pit.radius * k) / 20));
+    assert.ok(d <= last + 1e-9, 'głębokość maleje od środka');
+    last = d;
+  }
+  for (const c of layout.complexes) {
+    for (const s of c.spots) {
+      const g = complexGround(c, s.dir);
+      for (const v of g.rgb) assert.ok(v >= 0 && v <= 1);
+      assert.ok(g.glow >= 0 && g.glow <= 1);
+    }
+  }
+});
 
 test('facingAngles kieruje punkt do kamery (+z)', () => {
   const dir: [number, number, number] = [0.6, 0, -0.8];
@@ -58,20 +95,21 @@ test('facingAngles kieruje punkt do kamery (+z)', () => {
   assert.ok(Math.abs(x) < 1e-9 && z > 0.99);
 });
 
-test('budowle stoją na suchym lądzie pola, nie w wodzie (v0.26.2)', () => {
+test('miejsca zabudowy stoją na suchym lądzie pola, nie w wodzie (v0.26.2)', () => {
   let wet = 0;
   let all = 0;
   for (const def of PLANET_DEFINITIONS) {
     for (const seed of ['1:5:3', 'kepler-x']) {
       const planet = generatePlanet(def, seed);
       const grid = fieldGrid(planet);
+      const sampler = createSurfaceSampler(planet);
       const land = grid.cells.map((c, i) => (c.kind === 'land' ? i : -1)).filter((i) => i >= 0);
-      const layout = layoutFromPlots(grid, { metalMine: land }, createSurfaceSampler(planet), ['metalMine']);
-      for (const slot of layout.slots.metalMine) {
+      const layout = layoutFromPlots(grid, { metalMine: land }, sampler, ['metalMine'], { metalMine: 20 });
+      for (const spot of layout.complexes[0]?.spots ?? []) {
         all += 1;
-        if (!slot.onLand) wet += 1;
+        if (!sampler.isLand(sampler.height(...spot.dir), ...spot.dir)) wet += 1;
       }
     }
   }
-  assert.ok(wet / all < 0.01, `w wodzie ${wet} z ${all}`);
+  assert.ok(all > 0 && wet / all < 0.01, `w wodzie ${wet} z ${all}`);
 });

@@ -35,6 +35,8 @@ export interface SlotSave {
   plots?: Plots;
   /** Wersja siatki pól, do której należy `plots` (od v0.26.3; inna lub brak = przydział od nowa). */
   plotsGrid?: number;
+  /** Wersja układu pól (`PLOTS_LAYOUT`; brak = sprzed v0.45: pole na każde 3 poziomy — migracja do spójnego obszaru). */
+  plotsLayout?: number;
   /** Kompleksy przemysłowe (od v0.38; numery pól — ważne z tą samą wersją siatki co `plots`). */
   complexes?: Complex[];
   /**
@@ -161,6 +163,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(raw.research ? { research: parseResearch(raw.research) } : {}),
       ...(raw.plots ? { plots: parsePlots(raw.plots) } : {}),
       ...(isNum(raw.plotsGrid) ? { plotsGrid: raw.plotsGrid } : {}),
+      ...(isNum(raw.plotsLayout) ? { plotsLayout: raw.plotsLayout } : {}),
       ...(parseComplexes(raw.complexes, COMPLEX_FAMILIES).length > 0 ? { complexes: parseComplexes(raw.complexes, COMPLEX_FAMILIES) } : {}),
       ...(isFieldCount(raw.fields?.used) && isFieldCount(raw.fields?.buildable) ? { fields: { used: raw.fields.used, buildable: raw.fields.buildable } } : {}),
       ...(parseSpecialization(raw.specialization) ? { specialization: parseSpecialization(raw.specialization) } : {}),

@@ -1,6 +1,7 @@
-// Etapy rozwoju przemysłu na planecie (v0.38.1, nazwy robocze) — pasek „Rozwój” w karcie budowli.
+// Etapy rozwoju przemysłu na planecie (v0.38.1, od v0.45 z danych pól; nazwy robocze) — pasek „Rozwój” w karcie budowli.
 // `when` mówi, kiedy etap jest osiągnięty; `soon` — zapowiedź kolejnych wersji (plan: docs/plan-przemysl.md).
 import type { BuildingId } from '../core/types.ts';
+import { FOOTPRINT, STAGE_NAMES } from './footprint.ts';
 
 export interface IndustryStage {
   name: string;
@@ -10,54 +11,49 @@ export interface IndustryStage {
   when: 'built' | 'full-group' | 'complex' | 'mega' | 'star' | 'soon';
 }
 
-/**
- * Poziomy wizualne (v0.41, robocze): co 5 poziomów budynku konstrukcje pełnych pól i kompleksów dostają
- * kolejne moduły (platforma, hale, przewody, zbiorniki, złota rama). Gameplay bez zmian — tylko wygląd.
- */
-export interface VisualTier {
-  /** Od którego poziomu budynku. */
-  from: number;
-  name: string;
-  description: string;
-}
-
-export const VISUAL_TIERS: readonly VisualTier[] = [
-  { from: 1, name: 'Podstawa', description: 'Sama konstrukcja.' },
-  { from: 6, name: 'Platforma', description: 'Szeroka stalowa platforma ze złotą krawędzią.' },
-  { from: 11, name: 'Hale boczne', description: 'Dwie hale przy krawędzi platformy.' },
-  { from: 16, name: 'Przewody i maszt', description: 'Przewody wokół platformy i maszt łączności.' },
-  { from: 21, name: 'Zbiorniki', description: 'Złote zbiorniki i silosy.' },
-  { from: 26, name: 'Złota rama', description: 'Łuki nośne nad konstrukcją — pełna rozbudowa (poz. 26–30+).' },
-];
-
-/** Etap wyglądu (1..6) dla poziomu budynku. */
-export function visualTier(level: number): number {
-  let tier = 1;
-  VISUAL_TIERS.forEach((t, i) => {
-    if (level >= t.from) tier = i + 1;
-  });
-  return tier;
-}
-
-export const INDUSTRY_STAGES: Partial<Record<BuildingId, readonly IndustryStage[]>> = {
-  crystalMine: [
-    { name: 'Wiertła', footprint: '1 pole', description: 'Poziomy 1–2 na polu: małe wiertła.', when: 'built' },
-    { name: 'Wiertło z szybem', footprint: '1 pole (3 poziomy)', description: 'Pełne pole (poz. 3, 6, 9…): szyb w gruncie i obracająca się głowica.', when: 'full-group' },
-    { name: 'Kompleks wiertniczy', footprint: '4 pola', description: '3 sąsiednie pełne pola + szyb główny, +30% wydobycia.', when: 'complex' },
-    { name: 'Megakompleks kryształowy', footprint: '8 pól', description: '2 stykające się kompleksy wiertnicze, +60% wydobycia, głębokie wykopy.', when: 'mega' },
-    { name: 'Transformacja terenu', footprint: 'wkrótce', description: 'Kryształowy krajobraz wokół kompleksów.', when: 'soon' },
-  ],
+const STAGE_TEXT: Record<BuildingId, readonly [string, string, string, string]> = {
   metalMine: [
-    { name: 'Kopalnia', footprint: '1 pole', description: 'Poziomy 1–2 na polu: wejścia do kopalni na wzgórzach i w górach.', when: 'built' },
-    { name: 'Zakład przetwórczy', footprint: '1 pole (3 poziomy)', description: 'Pełne pole (poz. 3, 6, 9…): hala, piece i kominy.', when: 'full-group' },
-    { name: 'Wielka fabryka', footprint: '4 pola', description: '3 sąsiednie zakłady + hala główna, +30% metalu, ekran z trybami pracy.', when: 'complex' },
-    { name: 'Megakompleks metalowy', footprint: '8 pól', description: '2 stykające się wielkie fabryki, +60% metalu, głębokie wykopy.', when: 'mega' },
+    'Mała instalacja wydobywcza na wzgórzach.',
+    'Hale przerobu, taśmociągi, pierwsze piece.',
+    'Huta: gęsta zabudowa, kominy, żar pieców.',
+    'Zintegrowany zakład przemysłowy z pełnym cyklem produkcji.',
   ],
+  crystalMine: [
+    'Pojedyncze wiertło na lodzie.',
+    'Szyb wiertniczy z zabudową na krawędzi.',
+    'Odkrywka: tarasowe ściany schodzą w głąb, na dnie świecą kryształy.',
+    'Ogromna odkrywka z wieżą wiertniczą nad środkiem.',
+  ],
+  powerPlant: ['Chłodnie na równinie.', 'Węzeł z transformatorami.', 'Pola chłodni i wieże przesyłowe.', 'Megasieć zasilająca całą planetę.'],
+  storage: ['Kilka kontenerów.', 'Hale magazynowe.', 'Terminal z suwnicami.', 'Megaskład.'],
+  antimatterCollector: ['Pojedyncza pułapka.', 'Kolektor z pierścieniem.', 'Pole pułapek magnetycznych.', 'Megakolektor.'],
+  laboratory: ['Pracownia.', 'Laboratorium z kopułą.', 'Instytut badawczy.', 'Kampus badawczy.'],
+};
+
+const WHEN = ['built', 'full-group', 'complex', 'mega'] as const;
+
+/** Etapy budynku z danych pól (`FOOTPRINT`, `STAGE_NAMES`): nazwa, zajętość pól, opis. */
+function stagesOf(id: BuildingId): IndustryStage[] {
+  return FOOTPRINT[id].map((stage, i) => ({
+    name: STAGE_NAMES[id][i]!,
+    footprint: `${stage.fields[0]}–${stage.fields[1]} pól · od poz. ${stage.from}`,
+    description: STAGE_TEXT[id][i]!,
+    when: WHEN[i]!,
+  }));
+}
+
+/**
+ * Etapy rozwoju budynków (v0.45): jeden kompleks na budynek, rosnący z poziomem — etap = wygląd i zajętość pól.
+ * `built` — etap 1, `full-group` — 2, `complex` — 3, `mega` — 4 (nazwy pól zostają dla zgodności).
+ */
+export const INDUSTRY_STAGES: Partial<Record<BuildingId, readonly IndustryStage[]>> = {
+  metalMine: stagesOf('metalMine'),
+  crystalMine: stagesOf('crystalMine'),
   powerPlant: [
-    { name: 'Elektrownia', footprint: '1 pole', description: 'Poziomy 1–2 na polu: chłodnie na równinach.', when: 'built' },
-    { name: 'Węzeł Tesli', footprint: '1 pole (3 poziomy)', description: 'Pełne pole (poz. 3, 6, 9…): wieża z pierścieniem i świecącą kulą.', when: 'full-group' },
-    { name: 'Sieć Tesli', footprint: '4 pola', description: '3 sąsiednie węzły + wieża przesyłowa, wyładowania między wieżami, +30% energii.', when: 'complex' },
-    { name: 'Megasieć Tesli', footprint: '8 pól', description: '2 stykające się sieci Tesli, +60% energii.', when: 'mega' },
+    ...stagesOf('powerPlant'),
     { name: 'Energia gwiazdy', footprint: 'orbita', description: 'Kolektor na orbicie zasila wszystkie Twoje planety w układzie (Planeta → Kosmos).', when: 'star' },
   ],
+  storage: stagesOf('storage'),
+  antimatterCollector: stagesOf('antimatterCollector'),
+  laboratory: stagesOf('laboratory'),
 };

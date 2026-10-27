@@ -34,7 +34,15 @@ export function discLook(planet: Planet, options: { inland?: boolean } = {}): Di
  * Wypełnia `data` (size × size × 4) obrazem planety obróconej o `yaw`/`pitch`.
  * Piksele poza tarczą zostają przezroczyste.
  */
-export function renderDisc(data: Uint8ClampedArray, size: number, look: DiscLook, yaw: number, pitch: number): void {
+export function renderDisc(
+  data: Uint8ClampedArray,
+  size: number,
+  look: DiscLook,
+  yaw: number,
+  pitch: number,
+  /** Grunt kompleksów (v0.45): kolor i świecenie w punkcie sfery albo null (zwykły teren). */
+  overlay?: (x: number, y: number, z: number) => { rgb: readonly [number, number, number]; glow: number } | null,
+): void {
   const { sampler, seaLevel, atmosphere } = look;
   const glow = look.seaGlow ?? 0;
   const night = look.night ?? 0.07;
@@ -57,7 +65,8 @@ export function renderDisc(data: Uint8ClampedArray, size: number, look: DiscLook
       const px = sx * cy - hz * sy;
       const pz = sx * sy + hz * cy;
       const height = sampler.height(px, py, pz);
-      const color = sampler.color(height, px, py, pz);
+      const over = overlay?.(px, py, pz) ?? null;
+      const color = over ? over.rgb : sampler.color(height, px, py, pz);
       const dot = sx * LIGHT[0] + syy * LIGHT[1] + sz * LIGHT[2];
       const light = Math.max(0, dot);
       // Wyraźna granica dnia i nocy; noc ciemna, ale nie czarna (widać zarys lądu).
@@ -65,8 +74,9 @@ export function renderDisc(data: Uint8ClampedArray, size: number, look: DiscLook
       let shade = night + day * (0.4 + 0.72 * light) * sun + (height < seaLevel ? 0.25 * light ** 24 : 0);
       if (glow > 0 && height < seaLevel) shade = Math.max(shade, glow);
       // Lawa na lądzie świeci także nocą.
-      const lava = sampler.glow(height, px, py, pz);
+      const lava = over ? 0 : sampler.glow(height, px, py, pz);
       if (lava > 0) shade = Math.max(shade, 0.3 + 0.9 * lava);
+      if (over && over.glow > 0) shade = Math.max(shade, over.glow);
       // Cienka poświata przy krawędzi, słabsza po nocnej stronie (bez „mleka” na tarczy).
       const haze = (1 - sz) ** 4 * 0.5 * (0.12 + 0.88 * day);
       const i = (row * size + col) * 4;

@@ -6,7 +6,8 @@ import { createAtmosphere } from './atmosphere.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
-import { collectorOrbit, layoutFromPlots, plotsKey, type ColonyLayout } from './colony.ts';
+import { cellLookup, collectorOrbit, layoutFromPlots, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
+import { complexGround, pitDepth } from './complexLook.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -15,8 +16,7 @@ import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { ZoomSmoother } from './input/zoom.ts';
 import { AdaptiveResolution } from './adaptiveResolution.ts';
-import { visibleStructures } from './colony.ts';
-import { levelsWithSite, pickCell, pickStructureHit, type StructureHit } from './pick.ts';
+import { pickCell, pickComplex, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
 import { buildLowPolyLand, shapedRadius } from './lowPoly.ts';
 import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler } from './surface.ts';
@@ -61,17 +61,15 @@ export class PlanetView implements PlanetDisplay {
   /** Obrót planety wokół osi. */
   private readonly spinGroup = new THREE.Group();
   private readonly rotator = new DragRotator(prefersReducedMotion() ? { idleSpin: 0 } : {});
-  private readonly colony = new ColonyMeshes(BUILDING_IDS, prefersReducedMotion());
+  private readonly colony = new ColonyMeshes(prefersReducedMotion());
   private planetObjects: THREE.Object3D[] = [];
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
   private clouds: THREE.Object3D | undefined;
   private lava: THREE.Mesh | undefined;
   private time = 0;
-  /** Rozmieszczenie i poziomy kolonii — do wyboru budowli dotknięciem. */
+  /** Kompleksy kolonii — do wyboru budowli dotknięciem. */
   private layout: ColonyLayout | undefined;
-  private levels: BuildingLevels | undefined;
-  private site: BuildSite | null = null;
   private axialTilt = 0;
   private width = 1;
   private height = 1;
@@ -88,6 +86,10 @@ export class PlanetView implements PlanetDisplay {
   private readonly still = prefersReducedMotion();
   private orbital: THREE.Group | null = null;
   private orbitalLevel = 0;
+  /** Ląd i jego pierwotne pozycje i kolory — grunt kompleksów i odkrywki malowane od nowa przy zmianie kolonii (v0.45). */
+  private land: { mesh: THREE.Mesh; positions: Float32Array; colors: Float32Array } | null = null;
+  /** Subtelny obrys wszystkich kompleksów (linie nad terenem). */
+  private outlines: { object: THREE.Group; materials: LineMaterial[] } | null = null;
   /** Obrys zajętości wybranej budowli (v0.38.1): linie nad terenem, przebudowywane przy zmianie pól. */
   private highlight: { key: string; object: THREE.Group; material: LineMaterial } | null = null;
   /** Punkt granicy podniesiony nad teren (ten sam co dla siatki pól). */
@@ -154,11 +156,19 @@ export class PlanetView implements PlanetDisplay {
     // Budowle stoją na powierzchni 3D (tarasy i wyższe góry), nie na gładkiej wersji z 2D.
     this.shaped = { ...sampler, radius: (h) => shapedRadius(planet, h) };
     this.grid = fieldGrid(planet);
+    const landMesh = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'land' && o instanceof THREE.Mesh);
+    this.land = landMesh
+      ? {
+          mesh: landMesh,
+          positions: (landMesh.geometry.getAttribute('position').array as Float32Array).slice(),
+          colors: (landMesh.geometry.getAttribute('color').array as Float32Array).slice(),
+        }
+      : null;
     this.setHighlight(null);
     this.plotsKey = '';
-    this.layout = layoutFromPlots(this.grid, {}, this.shaped, BUILDING_IDS);
-    this.colony.setLayout(this.layout);
     this.buildFieldLines(planet, sampler);
+    this.layout = layoutFromPlots(this.grid, {}, this.shaped, BUILDING_IDS);
+    this.applyColony(this.layout, true);
   }
 
   /** Kolektor energii gwiazdy na orbicie (v0.44): korpus ze stali i złote lustra zwrócone ku gwieździe. */
@@ -288,22 +298,126 @@ export class PlanetView implements PlanetDisplay {
 
   setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = []): void {
     if (plots && this.grid && this.shaped) {
-      const key = plotsKey(plots, BUILDING_IDS, complexes);
+      const key = plotsKey(plots, BUILDING_IDS, levels, complexes);
       if (key !== this.plotsKey) {
         this.plotsKey = key;
-        this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS, complexes);
-        this.colony.updateLayout(this.layout);
+        this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS, levels, complexes);
+        this.applyColony(this.layout, false);
         this.colorFieldLines(plots);
       }
     }
-    this.levels = levels;
-    this.site = site;
-    this.colony.setLevels(levels);
     this.colony.setConstruction(site);
   }
 
+  /** Nowy układ kolonii: grunt i odkrywki w ścianach lądu, obrys kompleksów, zabudowa (wszystko raz, nie co klatkę). */
+  private applyColony(layout: ColonyLayout, fresh: boolean): void {
+    const sink = this.paintLand(layout);
+    this.colony.setSink(sink);
+    if (fresh) this.colony.setLayout(layout);
+    else this.colony.updateLayout(layout);
+    this.buildOutlines(layout);
+  }
+
+  /**
+   * Grunt kompleksów (v0.45): ścianki lądu w obszarze budynku dostają kolory zabudowy (`complexGround`), a w odkrywce
+   * kryształów teren schodzi tarasami w głąb (nie poniżej poziomu morza). Zwraca obniżenie terenu w punkcie.
+   */
+  private paintLand(layout: ColonyLayout): (dir: Vec3) => number {
+    const land = this.land;
+    const grid = this.grid;
+    if (!land || !grid) return () => 0;
+    const lookup = cellLookup(grid);
+    const geometry = land.mesh.geometry;
+    const positions = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const colors = geometry.getAttribute('color') as THREE.BufferAttribute;
+    const pos = positions.array as Float32Array;
+    const col = colors.array as Float32Array;
+    pos.set(land.positions);
+    col.set(land.colors);
+    const depthOf = (c: ColonyComplex) => 0.012 + 0.005 * c.stage;
+    const complexAt = (x: number, y: number, z: number) => {
+      const cell = lookup(x, y, z);
+      const index = cell >= 0 ? layout.owner[cell]! : -1;
+      return index >= 0 ? layout.complexes[index]! : null;
+    };
+    for (let t = 0; t < pos.length; t += 9) {
+      const mx = pos[t]! + pos[t + 3]! + pos[t + 6]!;
+      const my = pos[t + 1]! + pos[t + 4]! + pos[t + 7]!;
+      const mz = pos[t + 2]! + pos[t + 5]! + pos[t + 8]!;
+      const len = Math.hypot(mx, my, mz) || 1;
+      const dir: Vec3 = [mx / len, my / len, mz / len];
+      const c = complexAt(...dir);
+      if (!c) continue;
+      const ground = complexGround(c, dir);
+      // Świecące elementy (okna pieców, kryształy) jaśniejsze — ściany lądu nie świecą same.
+      const k = 1 + ground.glow * 0.6;
+      for (let v = 0; v < 3; v++) {
+        const i = t + v * 3;
+        col[i] = Math.min(1, ground.rgb[0] * k);
+        col[i + 1] = Math.min(1, ground.rgb[1] * k);
+        col[i + 2] = Math.min(1, ground.rgb[2] * k);
+        if (c.building !== 'crystalMine') continue;
+        // Odkrywka: wierzchołek obniżony schodkami tarasów, najwyżej do poziomu tuż nad morzem.
+        const r = Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!);
+        const vd: Vec3 = [pos[i]! / r, pos[i + 1]! / r, pos[i + 2]! / r];
+        const depth = pitDepth(c, vd) * depthOf(c);
+        if (depth <= 0) continue;
+        const target = Math.max(1.004, r - depth) / r;
+        pos[i] = pos[i]! * target;
+        pos[i + 1] = pos[i + 1]! * target;
+        pos[i + 2] = pos[i + 2]! * target;
+      }
+    }
+    positions.needsUpdate = true;
+    colors.needsUpdate = true;
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+    return (dir) => {
+      const c = complexAt(...dir);
+      return c ? pitDepth(c, dir) * depthOf(c) : 0;
+    };
+  }
+
+  /** Subtelny turkusowy obrys całych obszarów kompleksów (nie pojedynczych pól) — jedna siatka linii. */
+  private buildOutlines(layout: ColonyLayout): void {
+    if (this.outlines) {
+      this.outlines.object.parent?.remove(this.outlines.object);
+      disposeObject(this.outlines.object);
+      for (const m of this.outlines.materials) {
+        const at = this.lineMaterials.indexOf(m);
+        if (at >= 0) this.lineMaterials.splice(at, 1);
+      }
+      this.outlines = null;
+    }
+    if (!this.grid || !this.liftPoint || layout.complexes.length === 0) return;
+    const positions: number[] = [];
+    for (const c of layout.complexes) {
+      for (const i of outlineBorders(this.grid, c.cells)) {
+        const border = this.grid.borders[i]!;
+        positions.push(...this.liftPoint(border.from), ...this.liftPoint(border.to));
+      }
+    }
+    if (positions.length === 0) return;
+    const materials: LineMaterial[] = [];
+    const line = (width: number, color: string, opacity: number, order: number) => {
+      const geometry = new LineSegmentsGeometry();
+      geometry.setPositions(positions);
+      const material = new LineMaterial({ linewidth: width, color, transparent: true, opacity, depthWrite: false, toneMapped: false });
+      material.resolution.set(this.width, this.height);
+      this.lineMaterials.push(material);
+      materials.push(material);
+      const object = new LineSegments2(geometry, material);
+      object.renderOrder = order;
+      return object;
+    };
+    const group = new THREE.Group().add(line(2.6, '#041012', 0.35, 1), line(1.2, HIGHLIGHT.color, 0.55, 2));
+    group.name = 'outlines';
+    this.spinGroup.add(group);
+    this.outlines = { object: group, materials };
+  }
+
   pickStructure(x: number, y: number): StructureHit | null {
-    if (!this.layout || !this.levels) return null;
+    if (!this.layout || !this.grid) return null;
     const f = this.height / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
     const view = {
       cx: this.focus.cx,
@@ -313,7 +427,7 @@ export class PlanetView implements PlanetDisplay {
       tilt: this.axialTilt,
       projection: { kind: 'perspective' as const, f, d: this.camera.position.z },
     };
-    return pickStructureHit(this.layout, levelsWithSite(this.levels, this.site), view, x, y, undefined, true);
+    return pickComplex(this.layout, this.grid, view, x, y, true);
   }
 
   pickCell(x: number, y: number, cells: readonly number[]): number | null {
@@ -331,10 +445,8 @@ export class PlanetView implements PlanetDisplay {
     return pickCell(this.grid.cells.map((c) => c.center), cells, view, x, y, Math.max(30, r * 0.14));
   }
 
-  showBuilding(id: BuildingId, index?: number): boolean {
-    const levels = this.levels ? levelsWithSite(this.levels, this.site) : null;
-    if (!levels || visibleStructures(levels[id] ?? 0) === 0) return false;
-    const dir = index !== undefined ? this.layout?.slots[id]?.[index]?.dir : this.colony.focusDir(id);
+  showBuilding(id: BuildingId): boolean {
+    const dir = this.layout?.complexes.find((c) => c.building === id)?.core;
     if (!dir) return false;
     const { yaw, pitch } = facingAngles(dir, this.axialTilt, focusLift(this.zoomer.target));
     this.rotator.turnTo(yaw, pitch, performance.now());
@@ -463,6 +575,7 @@ export class PlanetView implements PlanetDisplay {
     for (const object of this.planetObjects) disposeObject(object);
     if (this.fieldLines) disposeObject(this.fieldLines);
     if (this.highlight) disposeObject(this.highlight.object);
+    if (this.outlines) disposeObject(this.outlines.object);
     if (this.orbital) disposeObject(this.orbital);
     this.colony.dispose();
     this.renderer.dispose();

@@ -62,10 +62,10 @@ test('Budowa na lodzie: pola lodu liczą się do pól planety (lodowa planeta pr
   const iceCells = grid.cells.filter((c) => c.kind === 'ice').length;
   assert.ok(iceCells > 0, 'lodowa planeta ma pola lodu');
   if (iceCells > 0) assert.ok(buildableCount(grid, { ice: true }) > buildableCount(grid));
-  assert.equal(usedLandFields(grid, { metalMine: grid.cells.map((c, i) => (c.kind === 'ice' ? i : -1)).filter((i) => i >= 0).slice(0, 1) }), 0);
+  // Od v0.45 licznik to suma obszarów (każde zajęte pole, także lód).
   if (iceCells > 0) {
     const plots = { metalMine: [grid.cells.findIndex((c) => c.kind === 'ice')] };
-    assert.equal(usedLandFields(grid, plots, { ice: true }), 1);
+    assert.equal(usedLandFields(grid, plots), 1);
   }
 });
 
@@ -83,14 +83,14 @@ test('Zburzenie poziomu: −1 poziom od razu, bez zwrotu; nie w trakcie budowy a
   assert.match(demolishBuilding({ ...e, queue: ['metalMine'] }, 'metalMine').message, /kolejki/);
 });
 
-test('Zburzenie w kontrolerze: zwalnia pole, gdy grupa 3 poziomów maleje; wpis w dzienniku', () => {
+test('Zburzenie w kontrolerze: obszar kompleksu maleje, gdy mniejszy poziom potrzebuje mniej pól; wpis w dzienniku', () => {
   withMemoryStorage(() => {
     const game = new GameController(0);
-    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 4 } };
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 6 } };
     const before = game.fields.used;
     assert.ok(game.demolish('metalMine', 0).ok);
-    assert.equal(game.economy.levels.metalMine, 3);
-    assert.equal(game.fields.used, before - 1, '4 poziomy = 2 pola, 3 poziomy = 1 pole');
+    assert.equal(game.economy.levels.metalMine, 5);
+    assert.equal(game.fields.used, before - 3, 'poz. 6 (zakład) = 6 pól, poz. 5 (instalacja) = 3 pola');
     assert.ok(game.journalEntries().some((e) => e.text.includes('zburzono')));
   });
 });

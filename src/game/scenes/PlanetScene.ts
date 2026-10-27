@@ -1703,11 +1703,11 @@ export class PlanetScene extends Phaser.Scene {
         (v) => this.applySetting(id, { priority: v }),
       );
     }
-    // Dedykowany teren (v0.38.2): wybór pola i łączenie w kompleks tylko na nim.
+    // Dedykowany teren (v0.38.2): obszar rośnie najpierw na nim; poza nim pola pracują słabiej.
     const terrain = TERRAIN_NAMES;
     const lines: string[] = [];
     if (consumes) lines.push(`Energia: dostaje ${pct(info.energyEfficiency)} potrzebnej.`);
-    lines.push(`Pola: ${info.groups} (każde mieści 3 poziomy)${info.onIce > 0 ? `, w tym ${info.onIce} na lodzie` : ''}.`);
+    lines.push(`Pola kompleksu: ${info.groups} (jeden obszar, rośnie z poziomem)${info.onIce > 0 ? `, w tym ${info.onIce} na lodzie` : ''}.`);
     if (terrain[id]) {
       lines.push(`Najlepszy teren: ${terrain[id]} — ${info.suitedGroups} z ${info.groups} pól. Wydajność terenu: ${pct(info.siteFactor)} (pola poza nim pracują w 75%).`);
     }
@@ -1716,13 +1716,13 @@ export class PlanetScene extends Phaser.Scene {
     if (id === 'storage') lines.push('Magazyn nie ma ustawień pracy — tu przybędą funkcje z badań.');
     // Zburzenie poziomu (v0.35): zwalnia pole, gdy grupa budowli się zmniejsza — bez zwrotu surowców.
     const canDemolish = info.level > (id === 'storage' ? 1 : 0);
-    if (canDemolish) lines.push('Zburzenie: −1 poziom od razu, bez zwrotu surowców; pole zwalnia się, gdy grupa 3 poziomów maleje.');
+    if (canDemolish) lines.push('Zburzenie: −1 poziom od razu, bez zwrotu surowców; obszar kompleksu maleje, gdy mniejszy poziom potrzebuje mniej pól.');
     // Kompleks (v0.38): rodziny z `data/complexes.ts` — okno z podglądem i decyzją.
     const complex = c.complexView(id);
     if (complex) {
-      lines.push(`${complex.name}: ${complex.count > 0 ? `${complex.count} (+${complex.bonus}% z ${complex.levelsIn} poziomów)` : complex.candidate ? 'można połączyć pola' : 'brak'}.`);
-      if (complex.mega.count > 0) lines.push(`${complex.mega.name}: ${complex.mega.count} (+${complex.mega.bonus}%).`);
-      else if (complex.mega.unlocked && complex.mega.candidate) lines.push(`${complex.mega.name}: można połączyć dwa kompleksy.`);
+      lines.push(`${complex.name}: ${complex.active ? `działa (+${complex.bonus}% całego budynku)` : complex.candidate ? 'można uruchomić' : `od etapu „${complex.needStage}” (poz. ${complex.needLevel})`}.`);
+      if (complex.mega.active) lines.push(`${complex.mega.name}: działa (+${complex.mega.bonus}%).`);
+      else if (complex.mega.unlocked && complex.mega.candidate) lines.push(`${complex.mega.name}: można uruchomić.`);
     }
     add(lines.join('\n'), 12, COLORS.stone, {}, gap * 1.5);
     if (complex) {

@@ -1,7 +1,8 @@
 // Wybór budowli dotknięciem: rzut budowli kolonii na ekran (ten sam obrót co renderery)
 // i najbliższa widoczna budowla pod palcem. Czysta matematyka (bez three/DOM) — testowalna.
 import type { BuildingId, BuildingLevels } from '../core/types.ts';
-import { groupFull, visibleStructures, type ColonyLayout, type Vec3 } from './colony.ts';
+import type { FieldGrid } from '../core/colony/fieldGrid.ts';
+import type { ColonyLayout, Vec3 } from './colony.ts';
 
 /** Jak planeta jest pokazana na ekranie (piksele CSS). */
 export interface PickView {
@@ -50,70 +51,35 @@ export function projectPoint(p: Vec3, view: PickView): { x: number; y: number; v
   return { x: view.cx + x2 * k, y: view.cy - y3 * k, visible: d * z3 - len2 > 0.05 * d };
 }
 
-/** Trafiona budowla: typ i numer w dzielnicy kolonii (`ColonyLayout.slots[id][index]`). */
+/** Trafiony budynek (kompleks; `index` zostaje dla zgodności — zawsze 0). */
 export interface StructureHit {
   id: BuildingId;
   index: number;
 }
 
-/** Najbliższa widoczna budowla pod punktem (typ) — zob. `pickStructureHit`. */
-export function pickStructure(
-  colony: ColonyLayout,
-  levels: BuildingLevels,
-  view: PickView,
-  x: number,
-  y: number,
-  radius = PICK_RADIUS,
-  useSurface = false,
-): BuildingId | null {
-  return pickStructureHit(colony, levels, view, x, y, radius, useSurface)?.id ?? null;
-}
-
 /**
- * Najbliższa widoczna budowla w promieniu `radius` od punktu (x, y) albo null.
- * `useSurface` — budowla stoi na powierzchni 3D (tarasy); 2D na sferze = 1.
+ * Kompleks pod palcem (v0.45): budynek, którego pole obszaru leży najbliżej punktu (x, y) — w promieniu
+ * wielkości pola na ekranie (nie mniej niż `PICK_RADIUS`). Działa przy każdym przybliżeniu: cały obszar jest celem.
+ * `useSurface` — zabudowa stoi na powierzchni 3D (tarasy); 2D na sferze = 1.
  */
-export function pickStructureHit(
-  colony: ColonyLayout,
-  levels: BuildingLevels,
-  view: PickView,
-  x: number,
-  y: number,
-  radius = PICK_RADIUS,
-  useSurface = false,
-): StructureHit | null {
+export function pickComplex(colony: ColonyLayout, grid: FieldGrid, view: PickView, x: number, y: number, useSurface = false): StructureHit | null {
+  const scale = view.projection.kind === 'ortho' ? view.projection.r : view.projection.f / Math.max(0.2, view.projection.d - 1);
   let best: StructureHit | null = null;
-  let bestDistance = radius;
-  for (const id of Object.keys(colony.slots) as BuildingId[]) {
-    const slots = colony.slots[id] ?? [];
-    const count = Math.min(visibleStructures(levels[id] ?? 0), slots.length);
-    for (let i = 0; i < count; i++) {
-      const slot = slots[i]!;
-      const s = useSurface ? slot.surface : 1;
-      const p = projectPoint([slot.dir[0] * s, slot.dir[1] * s, slot.dir[2] * s], view);
+  let bestScore = Infinity;
+  for (const c of colony.complexes) {
+    for (const spot of c.spots) {
+      const s = useSurface ? spot.surface : 1;
+      const p = projectPoint([spot.dir[0] * s, spot.dir[1] * s, spot.dir[2] * s], view);
       if (!p.visible) continue;
+      const reach = Math.max(PICK_RADIUS, grid.cells[spot.cell]!.radius * scale);
       const distance = Math.hypot(p.x - x, p.y - y);
-      if (distance <= bestDistance) {
-        bestDistance = distance;
-        best = { id, index: i };
+      // Względna odległość — trafienie w duże pole liczy się tak samo jak w małe.
+      if (distance <= reach && distance / reach < bestScore) {
+        bestScore = distance / reach;
+        best = { id: c.building, index: 0 };
       }
     }
   }
-  // Szyby główne kompleksów i środki wierteł też są celem dotyku (v0.38.1) — konstrukcja jest większa niż budowla.
-  const near = (dir: readonly number[], surface: number, id: BuildingId, index: number, reach: number) => {
-    const s = useSurface ? surface : 1;
-    const p = projectPoint([dir[0]! * s, dir[1]! * s, dir[2]! * s], view);
-    if (!p.visible) return;
-    const distance = Math.hypot(p.x - x, p.y - y);
-    if (distance <= bestDistance * reach) {
-      bestDistance = distance / reach;
-      best = { id, index };
-    }
-  };
-  for (const rig of colony.rigs ?? []) {
-    if (groupFull(levels[rig.building] ?? 0, rig.group)) near(rig.dir, rig.surface, rig.building, rig.group * 3 + 2, 1.4);
-  }
-  for (const hub of colony.hubs ?? []) near(hub.dir, hub.surface, hub.building, 0, 1.6);
   return best;
 }
 

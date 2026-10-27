@@ -1,5 +1,5 @@
-// Okno „Kompleks” (v0.38): podgląd połączenia pełnych pól budynku w kompleks — które pola, ile pól zajmie,
-// zysk wydobycia, koszt, odwracalność — i decyzja gracza. Wygląd: #text-panel w index.html.
+// Okno „Kompleks” (v0.38, od v0.45 ulepszenie całego budynku): budynek sam rośnie w jeden kompleks (etapy z poziomu),
+// a tu gracz uruchamia premię kompleksu i megakompleks — zysk, koszt, odwracalność. Wygląd: #text-panel w index.html.
 import type { ActionMessage, ComplexView } from '../../app/GameController.ts';
 import { formatInt, formatRate } from './theme.ts';
 
@@ -24,21 +24,20 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
     <div class="tp-box fb-box" role="dialog" aria-modal="true" aria-labelledby="cp-title">
       <h2 id="cp-title"></h2>
       <p class="tp-hint cp-about"></p>
-      <h3 class="ap-head">Twoje kompleksy</h3>
+      <h3 class="ap-head">Stan</h3>
       <p class="tp-hint cp-now"></p>
-      <h3 class="ap-head">Następne połączenie</h3>
       <p class="tp-hint cp-next"></p>
       <p class="tp-error" hidden></p>
-      <div class="tp-actions"><button type="button" class="tp-primary cp-merge"></button></div>
       <div class="tp-actions">
-        <button type="button" class="tp-secondary cp-split">Rozłącz kompleks</button>
+        <button type="button" class="tp-primary cp-merge">Uruchom kompleks</button>
+        <button type="button" class="tp-secondary cp-split">Wyłącz</button>
       </div>
       <div class="cp-mega-box" hidden>
         <h3 class="ap-head cp-mega-head"></h3>
         <p class="tp-hint cp-mega"></p>
         <div class="tp-actions">
-          <button type="button" class="tp-primary cp-mega-merge">Połącz w megakompleks</button>
-          <button type="button" class="tp-secondary cp-mega-split">Rozłącz</button>
+          <button type="button" class="tp-primary cp-mega-merge">Uruchom megakompleks</button>
+          <button type="button" class="tp-secondary cp-mega-split">Wyłącz</button>
         </div>
         <div class="tp-actions"><button type="button" class="tp-secondary cp-finds"></button></div>
       </div>
@@ -50,24 +49,22 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
   const merge = q<HTMLButtonElement>('.cp-merge');
   const split = q<HTMLButtonElement>('.cp-split');
   q('#cp-title').textContent = v.name;
+  const gain = (g: number) => (v.resource === 'energy' ? `energia +${formatInt(g)}` : `wydobycie +${formatRate(g)}/min (+${formatInt(g * 60)}/h)`);
   q('.cp-about').textContent =
-    `${v.groups} sąsiednie pełne pola (po 3 poziomy) łączą się wokół wspólnej konstrukcji — ${v.hubName} na wolnym polu obok. ` +
-    `Kompleks zajmuje ${v.groups + v.extraFields} pola zamiast ${v.groups}, a jego ${v.groups * 3} poziomów ${v.resource === 'energy' ? `daje o ${v.bonus}% więcej energii.` : `wydobywa o ${v.bonus}% więcej (zużycie energii bez zmian).`}`;
-  q('.cp-now').textContent =
-    v.count === 0 ? 'Jeszcze żadnego.' : `${v.count} · ${v.levelsIn} poziomów z premią +${v.bonus}%. Pola planety: ${v.fields.used} / ${v.fields.buildable} zajęte.`;
+    `Budynek sam rośnie w jeden kompleks — z poziomem przybywa pól i zabudowy (teraz: ${v.stage || 'brak'}, ${v.buildingFields} pól). ` +
+    `${v.name} to usprawnienie całego budynku: ${v.resource === 'energy' ? `+${v.bonus}% energii` : `+${v.bonus}% wydobycia`}, dostępne od etapu „${v.needStage}” (poz. ${v.needLevel}).`;
+  q('.cp-now').textContent = v.active
+    ? `${v.name} działa: +${v.bonus}% całego budynku. Pola planety: ${v.fields.used} / ${v.fields.buildable} zajęte.`
+    : `${v.name} nie działa. Pola planety: ${v.fields.used} / ${v.fields.buildable} zajęte.`;
   const c = v.candidate;
   q('.cp-next').textContent = c
-    ? `Gotowe do połączenia: ${v.groups} pola + ${v.hubName} (${v.extraFields} wolne pole).\n` +
-      `Pola planety: ${v.fields.used} → ${v.fields.used + v.extraFields} / ${v.fields.buildable}.\n` +
-      (v.resource === 'energy'
-        ? `Energia: +${formatInt(c.gainPerMinute)}.\n`
-        : `Wydobycie: +${formatRate(c.gainPerMinute)}/min (+${formatInt(c.gainPerMinute * 60)}/h).\n`) +
-      `Koszt: ${formatInt(v.cost.metal)} metalu · ${formatInt(v.cost.crystal)} kryształów. Działa od razu.\n` +
-      `Odwracalne: „Rozłącz” przywraca osobne pola (bez zwrotu kosztu). Zburzenie poziomu w kompleksie też go rozłącza.`
-    : (v.reason ?? '');
-  merge.textContent = 'Połącz w kompleks';
+    ? `Gotowe: ${gain(c.gainPerMinute)}.\nKoszt: ${formatInt(v.cost.metal)} metalu · ${formatInt(v.cost.crystal)} kryształów. Działa od razu, bez nowych pól.\n` +
+      `Odwracalne: „Wyłącz” (bez zwrotu kosztu).`
+    : v.active
+      ? ''
+      : (v.reason ?? '');
   merge.disabled = !c || !v.unlocked;
-  split.disabled = v.count === 0;
+  split.disabled = !v.active;
   if (!v.unlocked) {
     error.textContent = `Najpierw zbadaj ${v.research}.`;
     error.hidden = false;
@@ -83,24 +80,24 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
     options.onDone(result.message);
   };
   merge.addEventListener('click', act(options.merge));
-  // Megakompleks (v0.43): sekcja widoczna, gdy stoi choć jeden kompleks rodziny.
+  // Megakompleks (v0.43): sekcja widoczna, gdy działa kompleks.
   const mega = v.mega;
   const megaBox = q<HTMLElement>('.cp-mega-box');
-  megaBox.hidden = v.count === 0;
+  megaBox.hidden = !v.active;
   q('.cp-mega-head').textContent = mega.name;
   q('.cp-mega').textContent =
-    `Dwa stykające się kompleksy łączą się w megakompleks: premia ich poziomów rośnie z +${v.bonus}% do +${mega.bonus}%, a głębokie wykopy co kilka godzin przynoszą rzadkie znaleziska.\n` +
-    (mega.count > 0 ? `Stoi: ${mega.count}.\n` : '') +
-    (!mega.unlocked
-      ? `Najpierw zbadaj ${mega.research}.`
-      : mega.candidate
-        ? `Gotowe do połączenia: ${v.resource === 'energy' ? `energia +${formatInt(mega.candidate.gainPerMinute)}` : `wydobycie +${formatRate(mega.candidate.gainPerMinute)}/min`}.\n` +
-          `Koszt: ${formatInt(mega.cost.metal)} metalu · ${formatInt(mega.cost.crystal)} kryształów. Działa od razu, odwracalne (bez zwrotu kosztu).`
-        : (mega.reason ?? ''));
+    `Na najwyższym etapie budynku: premia rośnie z +${v.bonus}% do +${mega.bonus}%, a głębokie wykopy co kilka godzin przynoszą rzadkie znaleziska.\n` +
+    (mega.active
+      ? 'Działa.'
+      : !mega.unlocked
+        ? `Najpierw zbadaj ${mega.research}.`
+        : mega.candidate
+          ? `Gotowe: ${gain(mega.candidate.gainPerMinute)}.\nKoszt: ${formatInt(mega.cost.metal)} metalu · ${formatInt(mega.cost.crystal)} kryształów. Działa od razu, odwracalne (bez zwrotu kosztu).`
+          : (mega.reason ?? ''));
   const megaMerge = q<HTMLButtonElement>('.cp-mega-merge');
   const megaSplit = q<HTMLButtonElement>('.cp-mega-split');
   megaMerge.disabled = !mega.unlocked || !mega.candidate;
-  megaSplit.disabled = mega.count === 0;
+  megaSplit.disabled = !mega.active;
   megaMerge.addEventListener('click', act(options.mergeMega));
   const finds = q<HTMLButtonElement>('.cp-finds');
   finds.textContent = `Znaleziska (${options.finds()})`;
@@ -117,7 +114,7 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
     }
     act(options.splitMega)();
   });
-  // Rozłączenie wymaga drugiego dotknięcia (premia przepada, koszt nie wraca).
+  // Wyłączenie wymaga drugiego dotknięcia (premia przepada, koszt nie wraca).
   let armed = false;
   split.addEventListener('click', () => {
     if (!armed) {

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildableCount, buildFieldGrid, fieldGrid, isBuildable } from '../src/core/colony/fieldGrid.ts';
-import { choiceCells, groupsFor, hasRoomFor, OFF_SITE_FACTOR, reconcilePlots, siteFactors, usedLandFields } from '../src/core/colony/plots.ts';
+import { choiceCells, fieldCapacity, hasRoomFor, OFF_SITE_FACTOR, reconcilePlots, siteFactors, usedLandFields } from '../src/core/colony/plots.ts';
+import { fieldsFor, stageName, stageOf } from '../src/core/economy/footprint.ts';
 import { buildingSettings, createEconomy, productionRates, setBuildingSettings, upgradeBuilding } from '../src/core/economy/economy.ts';
 import { FIELDS_MAX, FIELDS_MIN } from '../src/core/generation/fields.ts';
 import { generatePlanet } from '../src/core/generation/generatePlanet.ts';
@@ -91,72 +92,112 @@ test('budować można tylko na lądzie (woda i lód — po odblokowaniu)', () =>
   assert.equal(buildableCount(fieldGrid(generatePlanet(STARTER.definition, STARTER.seed))), 100);
 });
 
-test('gospodarka: bez miejsca na polach — czytelny błąd; bez limitu — jak dotąd', () => {
-  const state = { ...createEconomy(0), stock: { metal: 1e6, crystal: 1e6 } };
+test('gospodarka: bez miejsca na polach — czytelny błąd z etapem i liczbą pól; bez limitu — jak dotąd', () => {
+  const state = { ...createEconomy(0), levels: { ...createEconomy(0).levels, metalMine: 5 }, stock: { metal: 1e6, crystal: 1e6 } };
   assert.equal(upgradeBuilding(state, 'metalMine', 0, BALANCE, { hasRoom: () => true }).ok, true);
   const full = upgradeBuilding(state, 'metalMine', 0, BALANCE, { hasRoom: () => false });
   assert.equal(full.ok, false);
   assert.equal(full.reason, 'no-fields');
-  assert.match(full.message, /brak wolnego pola/);
+  // Poziom 6 (Zakład przetwórczy) potrzebuje 6 pól, a kopalnia ma 3 — brakuje 3.
+  assert.match(full.message, /Kopalnia metalu poz\. 6 \(Zakład przetwórczy\) potrzebuje 6 pól/);
+  assert.match(full.message, /3 wolnych pól/);
   assert.equal(upgradeBuilding(state, 'metalMine', 0, BALANCE).ok, true);
 });
 
-test('grupy: jedno pole mieści 3 poziomy jednego budynku; przydział stabilny, anulowanie zwalnia pole', () => {
-  const grid = fieldGrid(generatePlanet(STARTER.definition, STARTER.seed));
-  assert.equal(groupsFor(0), 0);
-  assert.equal(groupsFor(3), 1);
-  assert.equal(groupsFor(4), 2);
-  const a = reconcilePlots(grid, {}, levels({ metalMine: 3, crystalMine: 2, powerPlant: 4 }), ORDER);
-  assert.equal(a.metalMine!.length, 1);
-  assert.equal(a.crystalMine!.length, 1);
-  assert.equal(a.powerPlant!.length, 2);
-  const b = reconcilePlots(grid, a, levels({ metalMine: 7, crystalMine: 2, powerPlant: 4, storage: 1 }), ORDER);
-  assert.deepEqual(b.metalMine!.slice(0, 1), a.metalMine);
-  assert.deepEqual(b.powerPlant, a.powerPlant);
-  assert.equal(b.metalMine!.length, 3);
-  const cells = Object.values(b).flat();
-  assert.equal(new Set(cells).size, cells.length, 'jedno pole — jedna grupa');
-  const cancelled = reconcilePlots(grid, b, levels({ metalMine: 6, crystalMine: 2, powerPlant: 4, storage: 1 }), ORDER);
-  assert.deepEqual(cancelled.metalMine, b.metalMine!.slice(0, 2));
-  assert.equal(usedLandFields(grid, b), cells.filter((c) => grid.cells[c!]!.kind === 'land').length);
+test('etapy (v0.45): liczba pól rośnie z poziomem w progach (mała instalacja → zakład → wielka fabryka → megakonstrukt)', () => {
+  assert.equal(fieldsFor('metalMine', 0), 0);
+  assert.deepEqual([1, 2, 5].map((l) => fieldsFor('metalMine', l)), [1, 2, 3]);
+  assert.deepEqual([6, 11].map((l) => fieldsFor('metalMine', l)), [6, 10]);
+  assert.deepEqual([12, 19].map((l) => fieldsFor('metalMine', l)), [16, 22]);
+  assert.deepEqual([20, 25, 40].map((l) => fieldsFor('metalMine', l)), [40, 50, 50]);
+  assert.deepEqual([0, 1, 6, 12, 20].map((l) => stageOf('crystalMine', l)), [-1, 0, 1, 2, 3]);
+  assert.equal(stageName('crystalMine', 20), 'Megaodkrywka');
+  for (const id of ORDER) {
+    for (let l = 1; l < 40; l++) assert.ok(fieldsFor(id, l + 1) >= fieldsFor(id, l), `${id} ${l}: pola nie maleją`);
+  }
+  // Magazyn, Kolektor, Laboratorium — mniejsze kompleksy.
+  assert.ok(fieldsFor('storage', 25) < fieldsFor('metalMine', 25));
 });
 
-test('teren (v0.38.2): metal na wzgórzach i w górach, elektrownie na równinach, kryształy na lodzie; wybór pola przez gracza', () => {
+/** Czy pola tworzą jeden spójny kawałek (sąsiedztwo pól siatki). */
+function connected(grid: ReturnType<typeof fieldGrid>, cells: readonly number[]): boolean {
+  if (cells.length === 0) return true;
+  const want = new Set(cells);
+  const seen = new Set([cells[0]!]);
+  const stack = [cells[0]!];
+  while (stack.length > 0) for (const n of grid.cells[stack.pop()!]!.neighbors) if (want.has(n) && !seen.has(n)) (seen.add(n), stack.push(n));
+  return seen.size === want.size;
+}
+
+test('obszar (v0.45): jeden spójny kawałek, deterministyczny, n+1 ⊇ n, bez nakładania i bez wody; licznik = suma', () => {
   const grid = fieldGrid(generatePlanet(STARTER.definition, STARTER.seed));
-  const lv = levels({ metalMine: 9, crystalMine: 9, powerPlant: 9 });
+  let plots = {};
+  let previous: Partial<Record<BuildingId, number[]>> = {};
+  for (let l = 1; l <= 16; l++) {
+    const lv = levels({ metalMine: l, crystalMine: Math.max(0, l - 2), powerPlant: Math.floor(l / 2), storage: Math.min(l, 8) });
+    plots = reconcilePlots(grid, plots, lv, ORDER);
+    const p = plots as Partial<Record<BuildingId, number[]>>;
+    for (const id of ORDER) {
+      const cells = p[id] ?? [];
+      assert.equal(cells.length, fieldsFor(id, lv[id]), `${id} poz. ${lv[id]}`);
+      assert.ok(connected(grid, cells), `${id} poz. ${lv[id]}: spójny obszar`);
+      assert.deepEqual(cells.slice(0, previous[id]?.length ?? 0), previous[id] ?? [], `${id}: obszar n+1 zawiera obszar n`);
+      for (const c of cells) assert.notEqual(grid.cells[c]!.kind, 'water');
+    }
+    const all = Object.values(p).flat();
+    assert.equal(new Set(all).size, all.length, 'kompleksy nie nachodzą na siebie');
+    assert.equal(usedLandFields(grid, p), all.length, 'licznik pól = suma obszarów');
+    previous = Object.fromEntries(Object.entries(p).map(([k, v]) => [k, [...(v ?? [])]]));
+  }
+  // Deterministycznie: ten sam wynik od zera.
+  assert.deepEqual(reconcilePlots(grid, {}, levels({ metalMine: 13 }), ORDER).metalMine, reconcilePlots(grid, {}, levels({ metalMine: 13 }), ORDER).metalMine);
+  // Mniejszy poziom (anulowanie, zburzenie) — obszar maleje od końca.
+  const big = reconcilePlots(grid, {}, levels({ metalMine: 12 }), ORDER);
+  assert.deepEqual(reconcilePlots(grid, big, levels({ metalMine: 11 }), ORDER).metalMine, big.metalMine!.slice(0, 10));
+});
+
+test('teren (v0.38.2): obszar rośnie najpierw na dedykowanym terenie; wybór pola obok obszaru; dopasowanie terenu', () => {
+  const grid = fieldGrid(generatePlanet(STARTER.definition, STARTER.seed));
+  const lv = levels({ metalMine: 3, crystalMine: 3, powerPlant: 3 });
   const plots = reconcilePlots(grid, {}, lv, ORDER);
-  for (const c of plots.metalMine!) assert.ok(['hill', 'mountain'].includes(grid.cells[c]!.terrain));
-  for (const c of plots.powerPlant!) assert.equal(grid.cells[c]!.terrain, 'plain', 'elektrownia na równinie');
-  for (const c of plots.crystalMine!) assert.equal(grid.cells[c]!.kind, 'ice');
-  // Wybór gracza: wolne pola dedykowanego terenu; wybrane pole dostaje następna grupa.
+  assert.ok(['hill', 'mountain'].includes(grid.cells[plots.metalMine![0]!]!.terrain));
+  assert.equal(grid.cells[plots.powerPlant![0]!]!.terrain, 'plain', 'elektrownia na równinie');
+  assert.equal(grid.cells[plots.crystalMine![0]!]!.kind, 'ice');
+  // Wybór gracza: wolne pola dedykowanego terenu stykające się z obszarem; wybrane pole dostaje następne pole obszaru.
   const choices = choiceCells(grid, plots, 'metalMine');
   assert.ok(choices.length > 0);
-  for (const c of choices) assert.ok(['hill', 'mountain'].includes(grid.cells[c]!.terrain) && !Object.values(plots).flat().includes(c));
+  for (const c of choices) {
+    assert.ok(['hill', 'mountain'].includes(grid.cells[c]!.terrain) && !Object.values(plots).flat().includes(c));
+    assert.ok(grid.cells[c]!.neighbors.some((n) => plots.metalMine!.includes(n)), 'obok obszaru');
+  }
   const wish = choices[choices.length - 1]!;
-  const placed = reconcilePlots(grid, plots, levels({ metalMine: 10, crystalMine: 9, powerPlant: 9 }), ORDER, {}, new Set(), { metalMine: wish });
-  assert.equal(placed.metalMine![3], wish);
-  const kinds = new Set(grid.cells.filter((c) => c.kind === 'land').map((c) => c.terrain));
-  for (const t of ['valley', 'plain', 'hill', 'mountain'] as const) assert.ok(kinds.has(t), t);
-  assert.equal(siteFactors(grid, plots, lv).metalMine, 1);
-  // Kopalnia na niepasującym polu: 3 z 6 poziomów w 75% → 87,5%.
+  const placed = reconcilePlots(grid, plots, levels({ metalMine: 6, crystalMine: 3, powerPlant: 3 }), ORDER, {}, { metalMine: wish });
+  assert.equal(placed.metalMine![plots.metalMine!.length], wish);
+  assert.equal(siteFactors(grid, { metalMine: plots.metalMine }, levels({ metalMine: 3 })).metalMine, 1);
+  // Obszar w połowie poza terenem: (1 + 0,75) / 2 = 87,5%; premia budynku mnoży wynik.
   const used = Object.values(plots).flat();
-  const plain = grid.cells.findIndex((c, i) => c.kind === 'land' && c.terrain === 'valley' && !used.includes(i));
-  const mixed = { ...plots, metalMine: [plots.metalMine![0]!, plain] };
-  assert.equal(siteFactors(grid, mixed, levels({ metalMine: 6 })).metalMine, 0.875);
+  const off = grid.cells.findIndex((c, i) => c.kind === 'land' && c.terrain === 'valley' && !used.includes(i));
+  const mixed = { metalMine: [plots.metalMine![0]!, off] };
+  assert.equal(siteFactors(grid, mixed, levels({ metalMine: 2 })).metalMine, 0.875);
+  assert.equal(siteFactors(grid, mixed, levels({ metalMine: 2 }), () => 1.3).metalMine, 1.138);
   assert.equal(OFF_SITE_FACTOR, 0.75);
 });
 
-test('kryształy na lodzie nie zajmują pól lądu; inne budynki na lodzie nie stają; brak miejsca wykrywany', () => {
+test('kryształy stoją na lodzie i liczą się do pól; inne budynki na lodzie nie stają; brak miejsca blokuje', () => {
   const grid = fieldGrid(generatePlanet(findDefinition('ice')!, 'PF-ICE-CRYSTAL'));
   const ice = grid.cells.findIndex((c) => c.kind === 'ice');
   assert.ok(ice >= 0);
-  const plots = reconcilePlots(grid, { crystalMine: [ice], metalMine: [ice] }, levels({ crystalMine: 3, metalMine: 3 }), ORDER);
+  const plots = reconcilePlots(grid, { crystalMine: [ice], metalMine: [ice] }, levels({ crystalMine: 1, metalMine: 1 }), ORDER);
   assert.deepEqual(plots.crystalMine, [ice]);
   assert.notEqual(plots.metalMine![0], ice, 'kopalnia metalu przeniesiona z lodu na ląd');
-  assert.equal(usedLandFields(grid, { crystalMine: [ice] }), 0);
-  const all = levels({ metalMine: buildableCount(grid) * 3 });
-  const placed = reconcilePlots(grid, {}, all, ORDER);
-  assert.equal(hasRoomFor(grid, placed, all, 'metalMine', ORDER), false);
+  // Licznik: kryształy na lodzie zajmują pole i powiększają pulę pól (uczciwe „zajęte / wszystkie”).
+  assert.equal(usedLandFields(grid, { crystalMine: [ice] }), 1);
+  assert.equal(fieldCapacity(grid, { crystalMine: [ice] }), buildableCount(grid) + 1);
+  // Brak miejsca: megakonstrukt na małej planecie się nie mieści — następny poziom zablokowany.
+  const small = fieldGrid(generatePlanet(findDefinition('arid')!, '1:4:3'));
+  const lv = levels({ metalMine: 21 });
+  const placed = reconcilePlots(small, {}, lv, ORDER);
+  assert.equal(hasRoomFor(small, placed, lv, 'metalMine', ORDER), false, `pól lądu: ${buildableCount(small)}`);
   assert.equal(hasRoomFor(grid, {}, levels({ metalMine: 1 }), 'metalMine', ORDER), true);
 });
 
@@ -183,12 +224,10 @@ test('zapis pól: poprawne wczytane, błędne pominięte', () => {
   assert.deepEqual(e?.siteFactor, { metalMine: 0.875 });
 });
 
-test('kryształy najpierw zajmują lód, ląd dopiero gdy wolnego lodu brak (v0.26.3)', () => {
+test('kryształy najpierw zajmują lód, ląd dopiero gdy obok obszaru wolnego lodu brak (v0.26.3)', () => {
   const grid = fieldGrid(generatePlanet(findDefinition('ice')!, 'PF-ICE-CRYSTAL'));
-  const ice = grid.cells.filter((c) => c.kind === 'ice').length;
-  assert.ok(ice >= 1);
-  const plots = reconcilePlots(grid, {}, levels({ crystalMine: (ice + 1) * 3 }), ORDER);
+  const plots = reconcilePlots(grid, {}, levels({ crystalMine: 12 }), ORDER);
   const kinds = plots.crystalMine!.map((c) => grid.cells[c]!.kind);
-  assert.deepEqual(kinds.slice(0, ice), Array(ice).fill('ice'));
-  assert.equal(kinds[ice], 'land');
+  assert.equal(kinds[0], 'ice');
+  assert.ok(kinds.filter((k) => k === 'ice').length >= kinds.length / 2, kinds.join(','));
 });
