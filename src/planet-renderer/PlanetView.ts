@@ -6,7 +6,7 @@ import { createAtmosphere } from './atmosphere.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
-import { cellLookup, collectorOrbit, layoutFromPlots, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
+import { cellLookup, collectorOrbit, hash01, layoutFromPlots, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
 import { complexGround, pitDepth } from './complexLook.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
@@ -18,7 +18,7 @@ import { ZoomSmoother } from './input/zoom.ts';
 import { AdaptiveResolution } from './adaptiveResolution.ts';
 import { pickCell, pickComplex, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
-import { buildLowPolyLand, shapedRadius } from './lowPoly.ts';
+import { buildLowPolyLand, facetNormals, shapedRadius } from './lowPoly.ts';
 import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler } from './surface.ts';
 
 /**
@@ -28,6 +28,14 @@ import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler 
 export const SURFACE_DETAIL = 40;
 const FOV = 32;
 const LIGHT_POSITION = new THREE.Vector3(-4, 2.5, 3.5);
+/**
+ * Światło wypełniające (v0.47): słabe, chłodne, z naprzeciwka gwiazdy — nocna strona zachowuje kształt
+ * terenu i sylwetkę bez rozjaśniania całej planety. Bez cieni, bez nowych tekstur ani rysowań.
+ */
+const FILL_POSITION = new THREE.Vector3(4, -1.2, -2.5);
+const FILL_INTENSITY = 0.32;
+/** Chmury znikają przy przybliżeniu (v0.47): pełne do 1,4×, niewidoczne od 2,2× — nie zasłaniają kolonii. */
+const CLOUDS_FADE = [1.4, 2.2] as const;
 const BUILDING_IDS: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
 /**
  * Limit pikseli bufora planety (szer. × wys. × ratio²). Pełny ekran iPada w Retinie to ~3,9 mln —
@@ -65,6 +73,9 @@ export class PlanetView implements PlanetDisplay {
   private planetObjects: THREE.Object3D[] = [];
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
+  private readonly fill = new THREE.DirectionalLight(0x6f9fc0, FILL_INTENSITY);
+  /** Przezroczystość chmur danej planety (z jej wyglądu) — mnożona przez wygaszanie przy przybliżeniu. */
+  private cloudOpacity = 1;
   private clouds: THREE.Object3D | undefined;
   private lava: THREE.Mesh | undefined;
   private time = 0;
@@ -130,6 +141,8 @@ export class PlanetView implements PlanetDisplay {
     this.sun.position.copy(LIGHT_POSITION);
     this.scene.add(this.sun);
     this.scene.add(this.ambient);
+    this.fill.position.copy(FILL_POSITION);
+    this.scene.add(this.fill);
 
     this.loop = this.loop.bind(this);
     this.frame = requestAnimationFrame(this.loop);
@@ -145,6 +158,7 @@ export class PlanetView implements PlanetDisplay {
     this.sun.intensity = planet.visual.style.sunIntensity;
     this.ambient.intensity = planet.visual.style.ambient;
     this.clouds = this.planetObjects.find((o) => o.name === 'clouds');
+    this.cloudOpacity = this.clouds ? ((this.clouds as THREE.Mesh).material as THREE.MeshStandardMaterial).opacity : 1;
     this.lava = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'lava' && o instanceof THREE.Mesh);
     for (const object of this.planetObjects) {
       // Atmosfera nie musi się obracać z planetą (jest symetryczna).
@@ -346,15 +360,17 @@ export class PlanetView implements PlanetDisplay {
       const mz = pos[t + 2]! + pos[t + 5]! + pos[t + 8]!;
       const len = Math.hypot(mx, my, mz) || 1;
       const dir: Vec3 = [mx / len, my / len, mz / len];
+      const cell = lookup(...dir);
       const c = complexAt(...dir);
       if (!c) continue;
-      const ground = complexGround(c, dir);
-      // Ścianki lądu są większe niż działki zabudowy — wzór wyciszony do koloru bazowego budynku (bez pstrej mozaiki),
-      // świecące elementy (okna pieców, kryształy) zostają mocne. Odkrywka — pełny kolor tarasów.
+      // Ścianki lądu (~0,03 rad) są ok. 3× większe niż działki wzoru zabudowy (`complexGround`) — w 3D wzór dawał
+      // szachownicę (v0.47). Grunt = spokojna płyta w kolorze budynku, lekko inna na każdym polu; odkrywka zachowuje
+      // tarasy (wzór o niskiej częstotliwości), bez świecących kryształów na pojedynczych ściankach. Szczegół — zabudowa 3D.
       const base = GROUND_BASE[c.building];
-      const mix = ground.glow > 0 || pitDepth(c, dir) > 0 ? 0 : 0.6;
-      const k = 1 + ground.glow * 0.6;
-      const rgb = [0, 1, 2].map((ch) => Math.min(1, (ground.rgb[ch]! * (1 - mix) + base[ch]! * mix) * k));
+      const pit = pitDepth(c, dir) > 0;
+      const ground = pit ? complexGround(c, dir) : null;
+      const tone = 0.93 + 0.14 * hash01(cell, 7);
+      const rgb = ground && ground.glow <= 0 ? ground.rgb : ground ? PIT_FLOOR : base.map((v) => Math.min(1, v * tone));
       for (let v = 0; v < 3; v++) {
         const i = t + v * 3;
         col[i] = rgb[0]!;
@@ -374,7 +390,7 @@ export class PlanetView implements PlanetDisplay {
     }
     positions.needsUpdate = true;
     colors.needsUpdate = true;
-    geometry.computeVertexNormals();
+    geometry.setAttribute('normal', new THREE.BufferAttribute(facetNormals(positions.array as Float32Array), 3));
     geometry.computeBoundingSphere();
     return (dir) => {
       const c = complexAt(...dir);
@@ -558,7 +574,12 @@ export class PlanetView implements PlanetDisplay {
     if (this.zoomer.update(dt)) this.updateCamera();
     this.spinGroup.rotation.y = this.rotator.yaw;
     this.tiltGroup.rotation.x = this.rotator.pitch;
-    if (this.clouds) this.clouds.rotation.y += dt * 0.012;
+    if (this.clouds) {
+      this.clouds.rotation.y += dt * 0.012;
+      const fade = 1 - Math.min(1, Math.max(0, (this.zoomer.value - CLOUDS_FADE[0]) / (CLOUDS_FADE[1] - CLOUDS_FADE[0])));
+      ((this.clouds as THREE.Mesh).material as THREE.MeshStandardMaterial).opacity = this.cloudOpacity * fade;
+      this.clouds.visible = fade > 0.01;
+    }
     this.time += dt;
     // Lawa „oddycha”: animowany tylko kolor materiału (bez przeliczania geometrii).
     if (this.lava) (this.lava.material as THREE.MeshBasicMaterial).color.setScalar(0.85 + 0.15 * Math.sin(this.time * 1.6));
@@ -601,6 +622,9 @@ const GROUND_BASE: Record<BuildingId, readonly [number, number, number]> = {
   laboratory: [0.6, 0.65, 0.64],
 };
 
+/** Dno odkrywki kryształów w 3D (zamiast świecących kryształów na pojedynczych ściankach). */
+const PIT_FLOOR: readonly number[] = [0.07, 0.13, 0.16];
+
 function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Object3D[] {
   const v = planet.visual;
 
@@ -612,10 +636,11 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
   const landGeometry = new THREE.BufferGeometry();
   landGeometry.setAttribute('position', new THREE.BufferAttribute(built.positions, 3));
   landGeometry.setAttribute('color', new THREE.BufferAttribute(built.colors, 3));
-  landGeometry.computeVertexNormals();
+  // Normalne faset przechylone ku górze (v0.47) zamiast `flatShading` — fasety widoczne, bez szachownicy światła.
+  landGeometry.setAttribute('normal', new THREE.BufferAttribute(facetNormals(built.positions), 3));
   const land = new THREE.Mesh(
     landGeometry,
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: Math.max(0.8, v.roughness), metalness: 0, flatShading: true }),
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: Math.max(0.8, v.roughness), metalness: 0, flatShading: false }),
   );
   land.name = 'land';
 
@@ -658,9 +683,10 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
         })
       : new THREE.MeshStandardMaterial({
       color: new THREE.Color(v.palette.shallowWater),
-      roughness: Math.max(0.45, v.ocean.roughness),
+      // Gładka tafla (v0.47): normalne kuli zamiast płaskich ścianek — bez „sześciokątów” odbicia.
+      roughness: Math.max(0.55, v.ocean.roughness),
       metalness: 0,
-      flatShading: true,
+      flatShading: false,
       transparent: true,
       opacity: Math.max(0.7, v.ocean.opacity),
       emissive: new THREE.Color(v.ocean.emissive ?? '#000000'),

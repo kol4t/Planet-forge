@@ -110,3 +110,23 @@ Budżet: +≤ 8 rysowań, +≤ 25 tys. trójkątów przy pełnej kolonii.
    Alternatywa: osobne progi wyglądu 2 / 4 / 8 / 16 (wygląd i pola zmieniałyby się w różnych chwilach).
 2. **Czy po v0.47 3D ma być domyślne?** Dziś domyślne jest 2D (decyzja z v0.7), a v0.47 poprawia głównie 3D.
    Pomiar na iPadzie (56 kl./s w 3D) na to pozwala, ale to Twoja decyzja — do podjęcia po zobaczeniu prototypów.
+
+## Wynik prototypu A (0.47.02–0.47.05, tylko 3D)
+
+Zmienione: `planet-renderer/lowPoly.ts`, `planet-renderer/PlanetView.ts` (+ test w `tests/lowPoly.test.ts`). Bez zmian:
+`core/`, dane, zapisy, siatka pól, 2D, liczba siatek i trójkątów.
+
+| # | Co zrobiono | Efekt na zrzutach |
+|---|---|---|
+| 1, 2 | **Normalne faset przechylone w połowie ku górze** (`facetNormals`, zamiast `flatShading`) — główna przyczyna szachownicy: wysokość terenu zmienia się co wierzchołek, więc czyste normalne skakały w losowe strony | koniec szachownicy światła i czarnych ścian tarasów (jałowa, wulkaniczna) |
+| 1 | rozrzut jasności z gładkiego szumu (płaty) zamiast losowo co trójkąt | spokojniejsze płaszczyzny |
+| 2 | przyciemnienie tylko na uskokach tarasów, maks. 25% | ściany widoczne, nie czarne |
+| 3 | kolor fasety = średnia z wierzchołków, a kolor wierzchołka z wysokości wygładzonej (7 próbek w promieniu ~1 trójkąta) | koniec mozaiki pasm piasek/skała (pustynna) |
+| 4 | grunt kompleksów w 3D: płyta w kolorze budynku, lekko inna na każdym polu; odkrywka z tarasami i ciemnym dnem (bez świecących pojedynczych ścianek) | koniec szachownicy w obszarach budynków; szczegóły — prototyp B (zabudowa) |
+| 5 | chmury wygasają od 1,4× do 2,2× przybliżenia | przybliżenie pokazuje teren i kolonię |
+| 6 | gładka tafla oceanu (normalne kuli), mniejszy połysk | koniec „sześciokątów” |
+| 9 | słabe chłodne światło wypełniające z naprzeciwka gwiazdy | nocna strona zachowuje kształt |
+
+Nie ruszone w A: tarasy (#10 — po usunięciu czarnych ścian wyglądają akceptowalnie), linie pól (#11 — podetap 0.47.06),
+zabudowa (#7, #8 — prototyp B). Rysowania i trójkąty: te same siatki (nowe światło nie dodaje rysowań) — pomiar na iPadzie
+u właściciela (Diagnostyka → „grafika 3D”).
