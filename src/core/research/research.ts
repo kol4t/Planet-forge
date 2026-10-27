@@ -215,6 +215,10 @@ export function applyResearch(base: Balance, done: readonly string[], extra: rea
       finishSecondsPerUnit: base.antimatter.finishSecondsPerUnit / Math.max(0.1, mult('finishPrice')),
     },
     environmentPenalty: base.environmentPenalty * mult('environment'),
+    asteroid: {
+      ...base.asteroid,
+      output: { metal: base.asteroid.output.metal * mult('asteroidOutput'), crystal: base.asteroid.output.crystal * mult('asteroidOutput') },
+    },
     transport: {
       ...base.transport,
       capacity: Math.round(base.transport.capacity * mult('transportCapacity')),
@@ -289,6 +293,8 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
         return `ładowność transportowca ${pct(e.percent)}`;
       case 'travelTime':
         return `czas lotu statków ${pct(e.percent)}`;
+      case 'asteroidOutput':
+        return `wydobycie stacji na pasie asteroid ${pct(e.percent)}`;
       case 'expedition':
         return {
           range: `+${e.add} jedn. zasięgu ekspedycji`,
@@ -308,6 +314,8 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
           'build-ice': 'wszystkie budynki także na polach lodu',
           'build-water': 'pola na płytkiej wodzie przy brzegu',
           transport: 'transportowce — przesyłanie metalu i kryształów między Twoimi planetami',
+          'asteroid-mining': 'stacja wydobywcza na pasie asteroid (w układzie z Twoją planetą)',
+          'comet-capture': 'holownik po kometę — metal i kryształy w każdym układzie',
           'extreme-astrophysics': 'odczyt pulsarów i czarnych dziur — ich zbadanie daje premie z danych naukowych',
         }[e.feature];
     }

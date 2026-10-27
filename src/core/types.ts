@@ -296,6 +296,17 @@ export interface Balance {
    * Kopalnie je wyczerpują; przyrost podstawowy (`passiveIncome`) — nie (nigdy nie ma blokady).
    */
   deposits: { perHundredFields: Resources };
+  /**
+   * Stacja wydobywcza na pasie asteroid (v0.37): urobek na minutę = `output` × poziom × growth^(poz − 1),
+   * trafia do magazynu planety jak przyrost podstawowy (bez złóż i energii). Koszt poziomu n =
+   * `cost` × costGrowth^(n − 1), budowa trwa `secondsPerLevel` × n.
+   */
+  asteroid: { output: Resources; growth: number; cost: Resources; costGrowth: number; secondsPerLevel: number; maxLevel: number };
+  /**
+   * Przechwyt komet (v0.37.1): holownik z planety (jeden naraz na planetę) leci `seconds`, kosztuje `cost`,
+   * przywozi losowy ładunek w granicach `cargoMin`–`cargoMax` (z adresu i chwili wysłania). Działa w każdym układzie.
+   */
+  comet: { cost: Resources; seconds: number; cargoMin: Resources; cargoMax: Resources };
   /** Transportowce (v0.36): ładowność jednego lotu (metal + kryształy), czas lotu = base + odległość × perUnit, ile naraz. */
   transport: { capacity: number; baseSeconds: number; secondsPerUnit: number; maxActive: number };
   /** Statek kolonizacyjny (kolonizacja innych układów): koszt i czas lotu = base + odległość × perUnit. */
@@ -328,13 +339,15 @@ export type ResearchEffect =
   | { kind: 'transportCapacity'; percent: number }
   /** Czas lotu statków: kolonizacyjnego i transportowców (v0.36). */
   | { kind: 'travelTime'; percent: number }
+  /** Wydobycie stacji na pasie asteroid (v0.37). */
+  | { kind: 'asteroidOutput'; percent: number }
   /** Ekspedycje (v0.34.3): zasięg, jakość danych, szansa powodzenia, szybkość, zasięg sygnałów. */
   | { kind: 'expedition'; stat: ExpeditionStat; add: number }
   /** Odblokowanie funkcji gry (np. statek kolonizacyjny). */
   | { kind: 'unlock'; feature: UnlockFeature };
 
 /** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
-export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport';
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport' | 'asteroid-mining' | 'comet-capture';
 
 /**
  * Rzadki obiekt astronomiczny (v0.34.4): rodzaj gwiazdy, którego bez badania „Astrofizyka ekstremalna”
@@ -541,6 +554,20 @@ export interface ColonyMission {
 }
 
 export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai' | 'expedition';
+
+/** Stacja wydobywcza na pasie asteroid układu planety (v0.37); `level` działa od `readyAt`, wcześniej `level − 1`. */
+export interface AsteroidStation {
+  level: number;
+  readyAt: number;
+}
+
+/** Holownik po kometę (v0.37.1): wraca na planetę `planet` z ładunkiem ustalonym przy wysłaniu. */
+export interface CometHaul {
+  planet: string;
+  departedAt: number;
+  returnsAt: number;
+  cargo: Resources;
+}
 
 /** Transport surowców między planetami gracza (v0.36). */
 export interface Shipment {

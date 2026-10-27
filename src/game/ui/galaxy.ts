@@ -119,6 +119,8 @@ export function nodeIcon(node: ResearchNodeDef): NodeIcon {
       return 'build';
     case 'deposits':
       return 'mining';
+    case 'asteroidOutput':
+      return 'station';
     case 'transportCapacity':
     case 'travelTime':
       return 'fleet';
@@ -135,7 +137,7 @@ export function nodeIcon(node: ResearchNodeDef): NodeIcon {
     case 'expedition':
       return 'ship';
     case 'unlock':
-      return first.feature === 'colony-ship' ? 'ship' : first.feature === 'transport' ? 'fleet' : first.feature === 'specialization-change' || first.feature === 'build-ice' || first.feature === 'build-water' ? 'planet' : 'ai';
+      return first.feature === 'colony-ship' ? 'ship' : first.feature === 'transport' ? 'fleet' : first.feature === 'asteroid-mining' || first.feature === 'comet-capture' ? 'station' : first.feature === 'specialization-change' || first.feature === 'build-ice' || first.feature === 'build-water' ? 'planet' : 'ai';
     default:
       return 'none';
   }

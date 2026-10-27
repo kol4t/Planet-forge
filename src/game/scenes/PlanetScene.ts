@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled, secondsUntilAffordable } from '../../core/economy/economy.ts';
 import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
@@ -170,6 +171,8 @@ export class PlanetScene extends Phaser.Scene {
   /** Wiersze zasobu złóż w panelu „Planeta” (odświeżane co sekundę). */
   private depositRows: { id: ResourceId; text: Phaser.GameObjects.Text }[] = [];
   private depositRowsAt = 0;
+  /** Wiersz „Pas asteroid” w panelu „Planeta” (odliczanie rozbudowy, v0.37). */
+  private beltRow: Phaser.GameObjects.Text | null = null;
   /** Otwarty panel SI: stan reguł przy ostatnim rysowaniu (zmiana = przebudowa). */
   private aiPanelShape = '';
   /** Dymek SI Matki z bieżącą propozycją (klucz = propozycja + poziom). */
@@ -385,6 +388,7 @@ export class PlanetScene extends Phaser.Scene {
     this.cards = [];
     this.planetStatus = [];
     this.depositRows = [];
+    this.beltRow = null;
     this.dockProgress = null;
     this.aiPanelShape = '';
     this.buildTopBar(layout);
@@ -876,6 +880,12 @@ export class PlanetScene extends Phaser.Scene {
       this.openSpecialization();
     }, 12.5);
     y += TOUCH + this.s(10);
+    // Pas asteroid (od v0.37): stan stacji i okno budowy.
+    const belt = this.deps.controller.asteroidView();
+    this.text(box.x + pad, y + this.s(4), 'KOSMOS', 9.5, COLORS.muted, { fontStyle: '600' });
+    this.beltRow = this.text(box.x + pad, y + this.s(18), this.beltText(), 13, belt.target > 0 ? COLORS.text : COLORS.stone, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
+    this.addButton(box.x + pad + w - specW, y, specW, TOUCH, 'Wydobycie', (belt.hasBelt && belt.unlocked && belt.target === 0 && !belt.takenBy) || (this.deps.controller.cometView().unlocked && !this.deps.controller.cometView().flying) ? 'primary' : 'secondary', () => this.openAsteroid(), 12.5);
+    y += TOUCH + this.s(10);
     this.text(box.x + pad, y, 'ZŁOŻA', 9.5, COLORS.muted, { fontStyle: '600' });
     y += this.s(15);
     for (const [id, label, color] of RICHNESS_ROWS) {
@@ -1183,6 +1193,7 @@ export class PlanetScene extends Phaser.Scene {
     }
     if (this.depositRows.length > 0 && now - this.depositRowsAt >= 1000) {
       this.depositRowsAt = now;
+      this.beltRow?.setText(this.beltText());
       const deposits = controller.deposits;
       for (const row of this.depositRows) this.setDepositRow(row.text, row.id, deposits[row.id]);
     }
@@ -1642,6 +1653,40 @@ export class PlanetScene extends Phaser.Scene {
    * i efektami na tej planecie. Pierwszy wybór od razu; zmiana po badaniu „Przebudowa kolonii”, trwa 1 h
    * (drugie dotknięcie potwierdza — przez ten czas planeta nie ma premii).
    */
+  private closeAsteroid: (() => void) | null = null;
+
+  /** Stan wydobycia w kosmosie w jednym wierszu: stacja na pasie i holownik po kometę (v0.37.1). */
+  private beltText(): string {
+    const belt = this.deps.controller.asteroidView();
+    const comet = this.deps.controller.cometView();
+    const cometPart = comet.flying ? `kometa ${formatDuration(comet.flying.secondsLeft)}` : comet.unlocked ? 'holownik gotowy' : null;
+    let beltPart: string;
+    if (!belt.hasBelt) beltPart = cometPart ? 'bez pasa' : 'brak pasa w układzie';
+    else if (belt.target === 0) beltPart = belt.takenBy ? `stacja planety ${belt.takenBy}` : belt.unlocked ? 'bez stacji' : 'pas bez stacji';
+    else if (belt.target > belt.level) beltPart = cometPart ? `stacja → ${belt.target}` : `stacja → poz. ${belt.target} · ${formatDuration(belt.secondsLeft)}`;
+    else beltPart = cometPart ? `stacja ${belt.level}` : `stacja poz. ${belt.level} · +${formatInt((belt.output.metal + belt.output.crystal) * 60)}/h`;
+    // Jeden wiersz (krótkie formy, gdy działa też holownik).
+    return cometPart ? `${beltPart} · ${cometPart}` : beltPart;
+  }
+
+  /** Okno „Pas asteroid” (HTML) — stacja wydobywcza aktywnej planety. */
+  private openAsteroid(): void {
+    const c = this.deps.controller;
+    this.closeAsteroid?.();
+    this.closeAsteroid = openAsteroidPanel({
+      planetName: c.planet.displayName,
+      view: () => c.asteroidView(),
+      upgrade: () => c.upgradeAsteroidStation(),
+      comet: () => c.cometView(),
+      launchComet: () => c.launchComet(),
+      onDone: (message) => {
+        this.closeAsteroid = null;
+        this.showToast(message, 'ok', 3200);
+        this.relayout();
+      },
+    });
+  }
+
   private openSpecialization(): void {
     if (this.overlay) this.closeOverlay();
     const c = this.deps.controller;

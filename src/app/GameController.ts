@@ -70,13 +70,15 @@ import {
 import { findSpecialization, SPECIALIZATION_RULES, SPECIALIZATIONS } from '../data/specializations.ts';
 import { RARE_OBJECTS, ZONE_LABELS } from '../data/galaxy.ts';
 import { checkShipment, transportSeconds } from '../core/economy/transport.ts';
+import { launchComet } from '../core/economy/comets.ts';
+import { stationCost, stationLevelAt, stationOutput, upgradeStation, withStation } from '../core/economy/asteroids.ts';
 import { distanceFrom, expeditionStats, planExpedition, resolveExpedition, type ExpeditionPlan, type ExpeditionStats } from '../core/galaxy/expeditions.ts';
 import type { KnownSystem } from '../core/galaxy/galaxyIndex.ts';
 import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownCount, raiseDiscovery, rareBonuses, type Discoveries, type DiscoveryLevel } from '../core/galaxy/discovery.ts';
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, JOURNAL_LIMIT, loadEmpire, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { Balance, BuildingId, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { AsteroidStation, Balance, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -106,6 +108,26 @@ interface Slot {
   fields?: { used: number; buildable: number };
   /** Specjalizacja kolonii (od v0.32.3; brak = bez specjalizacji). */
   specialization?: PlanetSpecialization;
+  /** Stacja wydobywcza na pasie asteroid układu (od v0.37). */
+  asteroid?: AsteroidStation;
+}
+
+/** Stacja na pasie asteroid aktywnej planety (panel „Planeta”, v0.37). */
+export interface AsteroidView {
+  unlocked: boolean;
+  hasBelt: boolean;
+  /** Inna Twoja planeta ze stacją na tym pasie (albo null). */
+  takenBy: string | null;
+  /** Poziom działający teraz i poziom docelowy (rozbudowa w toku, gdy różne). */
+  level: number;
+  target: number;
+  secondsLeft: number;
+  maxLevel: number;
+  /** Urobek na minutę teraz i po kolejnym poziomie. */
+  output: Resources;
+  nextOutput: Resources;
+  nextCost: Resources;
+  nextSeconds: number;
 }
 
 /** Specjalizacja planety do panelu: obecna, położenie i możliwe wybory z dopasowaniem. */
@@ -222,6 +244,8 @@ export interface PlanetOverview extends PlanetSummary {
   /** Laboratorium planety i czy coś teraz bada (do alertów „Imperium”, od v0.32.1). */
   labLevel: number;
   researching: boolean;
+  /** Poziom stacji na pasie asteroid (0 = brak; od v0.37). */
+  asteroidLevel: number;
 }
 
 /** Suma imperium do kafelków „Imperium” (produkcja na godzinę, pola, antymateria). */
@@ -301,6 +325,8 @@ export class GameController {
   private expeditions: Expedition[] = [];
   /** Transportowce w drodze (v0.36). */
   private shipments: Shipment[] = [];
+  /** Holowniki po komety (v0.37.1) — najwyżej jeden na planetę. */
+  private comets: CometHaul[] = [];
   private readonly shipmentListeners = new Set<(text: string) => void>();
   /** Dostawy rozliczone podczas nieobecności (do jednorazowego komunikatu). */
   shipmentsWhileAway: string[] = [];
@@ -330,6 +356,7 @@ export class GameController {
       this.missions = saved.missions ?? [];
       this.expeditions = saved.expeditions ?? [];
       this.shipments = saved.shipments ?? [];
+      this.comets = saved.comets ?? [];
       this.journal = saved.journal ?? [];
       this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
@@ -343,7 +370,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = this.processShipments(now);
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -393,10 +420,12 @@ export class GameController {
     // Premie z danych naukowych rzadkich obiektów (v0.34.4) — dla każdej planety imperium.
     const rare = this.rareEffects();
     const effects = [...own, ...rare.effects];
-    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}`;
+    // Stacja na pasie asteroid (v0.37): urobek doliczony do przyrostu podstawowego planety.
+    const station = stationLevelAt(slot.asteroid, at);
+    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}`;
     const hit = this.balanceCache.get(slot);
     if (hit && hit.done === slot.research.done && hit.spec === spec) return hit.balance;
-    const balance = applyResearch(BALANCE, slot.research.done, effects);
+    const balance = withStation(applyResearch(BALANCE, slot.research.done, effects), station);
     this.balanceCache.set(slot, { done: slot.research.done, spec, balance });
     return balance;
   }
@@ -414,16 +443,89 @@ export class GameController {
   }
 
   /**
-   * Naliczenie planety do `now` z podziałem w chwili końca zmiany specjalizacji
-   * (do tej chwili bez premii, potem z nową).
+   * Naliczenie planety do `now` z podziałem w chwili końca zmiany specjalizacji i rozbudowy stacji
+   * na pasie asteroid (do tej chwili po staremu, potem z nowym balansem).
    */
   private advanceSlot(slot: Slot, economy: EconomyState, now: number, adjust: (b: Balance) => Balance = (b) => b): EconomyState {
     let e = economy;
-    const ready = slot.specialization?.readyAt;
-    if (ready !== undefined && ready > e.lastUpdate && ready <= now) {
-      e = advance(e, slot.planet, ready, adjust(this.balanceFor(slot, e.lastUpdate)));
+    const splits = [slot.specialization?.readyAt, slot.asteroid?.readyAt]
+      .filter((t): t is number => t !== undefined && t > e.lastUpdate && t <= now)
+      .sort((a, b) => a - b);
+    for (const ready of splits) {
+      if (ready > e.lastUpdate) e = advance(e, slot.planet, ready, adjust(this.balanceFor(slot, e.lastUpdate)));
     }
     return advance(e, slot.planet, now, adjust(this.balanceFor(slot, e.lastUpdate)));
+  }
+
+  // ——— stacja na pasie asteroid (v0.37) ———
+
+  /** Czy układ planety ma pas asteroid. */
+  private hasBelt(address: string): boolean {
+    const where = parseAddress(address);
+    return !!where && !!generateSystem(this.galaxy, where.system)?.belt;
+  }
+
+  /** Inna planeta gracza ze stacją na pasie tego samego układu (nazwa albo null). */
+  private beltTakenBy(slot: Slot): string | null {
+    const system = parseAddress(slot.address)?.system;
+    const other = this.slots.find((s) => s !== slot && s.asteroid && parseAddress(s.address)?.system === system);
+    return other ? other.planet.displayName : null;
+  }
+
+  /** Pas asteroid układu na mapie: stacja (czyja, poziom) i Twoja planeta w tym układzie. */
+  beltInfo(system: number): { station: { planet: string; level: number } | null; own: { index: number; name: string; active: boolean } | null } {
+    const index = this.slots.findIndex((s) => parseAddress(s.address)?.system === system);
+    const withStation = this.slots.find((s) => s.asteroid && parseAddress(s.address)?.system === system);
+    return {
+      station: withStation ? { planet: withStation.planet.displayName, level: withStation.asteroid!.level } : null,
+      own: index >= 0 ? { index, name: this.slots[index]!.planet.displayName, active: index === this.active } : null,
+    };
+  }
+
+  asteroidView(now = Date.now()): AsteroidView {
+    const slot = this.slots[this.active]!;
+    const balance = applyResearch(BALANCE, slot.research.done);
+    const station = slot.asteroid;
+    const level = stationLevelAt(station, now);
+    const next = (station?.level ?? 0) + 1;
+    return {
+      unlocked: this.unlocked('asteroid-mining'),
+      hasBelt: this.hasBelt(slot.address),
+      takenBy: this.beltTakenBy(slot),
+      level,
+      target: station?.level ?? 0,
+      secondsLeft: station ? Math.max(0, (station.readyAt - now) / 1000) : 0,
+      maxLevel: balance.asteroid.maxLevel,
+      output: stationOutput(level, balance),
+      nextOutput: stationOutput(next, balance),
+      nextCost: stationCost(next, balance),
+      nextSeconds: balance.asteroid.secondsPerLevel * next,
+    };
+  }
+
+  /** Budowa albo rozbudowa stacji na pasie asteroid (koszt płaci aktywna planeta). */
+  upgradeAsteroidStation(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    const balance = this.balance;
+    const result = upgradeStation(
+      slot.asteroid,
+      { hasBelt: this.hasBelt(slot.address), unlocked: this.unlocked('asteroid-mining'), takenBy: this.beltTakenBy(slot), stock: this.economy.stock, now },
+      balance,
+    );
+    if (!result.ok) return result;
+    if (!fitsInStorage(this.economy, result.cost, balance)) {
+      return { ok: false, message: `Za mały magazyn (${this.capacity}). Najpierw rozbuduj Magazyn.` };
+    }
+    const stock = this.economy.stock;
+    this.economy = { ...this.economy, stock: { metal: stock.metal - result.cost.metal, crystal: stock.crystal - result.cost.crystal } };
+    slot.asteroid = result.station;
+    const what = result.station.level === 1 ? 'budowa stacji na pasie asteroid' : `rozbudowa stacji na pasie asteroid do poz. ${result.station.level}`;
+    this.log('build', `${this.planet.displayName}: ${what}.`, now);
+    this.save();
+    this.emit();
+    const minutes = Math.ceil(result.seconds / 60);
+    return { ok: true, message: `${what[0]!.toUpperCase()}${what.slice(1)} — gotowe za ${minutes} min.` };
   }
 
   // ——— specjalizacje kolonii ———
@@ -539,7 +641,8 @@ export class GameController {
     if (done) this.logBuild(done, before.construction!.finishesAt);
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
-    const delivered = this.processShipments(now);
+    // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
+    const delivered = [...this.processShipments(now), ...this.processComets(now)];
     const aiDone = this.runAutoAi(now);
     if (done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
     for (const text of delivered) for (const listener of this.shipmentListeners) listener(text);
@@ -571,11 +674,14 @@ export class GameController {
     const slot = this.slots[this.active]!;
     const ready = slot.specialization?.readyAt;
     const wasPending = ready !== undefined && ready > this.economy.lastUpdate && ready <= now;
+    const station = slot.asteroid;
+    const stationDone = !!station && station.readyAt > this.economy.lastUpdate && station.readyAt <= now;
     this.economy = this.advanceSlot(slot, this.economy, now);
     if (wasPending) {
       const name = findSpecialization(slot.specialization!.id)?.name ?? '';
       this.log('empire', `${this.planet.displayName}: specjalizacja ${name} działa.`, ready);
     }
+    if (stationDone) this.log('build', `${this.planet.displayName}: stacja na pasie asteroid — poziom ${station!.level} gotowy.`, station!.readyAt);
     return completed;
   }
 
@@ -749,6 +855,7 @@ export class GameController {
         collectorPerHour: productionRates(economy, slot.planet, balance).antimatterPerHour - balance.antimatter.passivePerHour,
         labLevel: economy.levels.laboratory ?? 0,
         researching: (summary.active ? this.research : slot.research).current !== null,
+        asteroidLevel: slot.asteroid?.level ?? 0,
       };
     });
   }
@@ -1152,15 +1259,82 @@ export class GameController {
         continue;
       }
       const slot = this.slots[index]!;
-      const economy =
-        index === this.active || slot.economy.lastUpdate >= shipment.arrivesAt
-          ? slot.economy
-          : this.advanceSlot(slot, slot.economy, shipment.arrivesAt, catchUpBalance);
-      slot.economy = { ...economy, stock: { metal: economy.stock.metal + metal, crystal: economy.stock.crystal + crystal } };
+      this.deliver(index, shipment.cargo, shipment.arrivesAt);
       const text = returned
         ? `Transportowiec wrócił na ${slot.planet.displayName} — odbiorcy już nie ma. Ładunek rozładowany.`
         : `Transportowiec dotarł na ${slot.planet.displayName}: +${metal} metalu, +${crystal} kryształów.`;
       this.log('ship', text, shipment.arrivesAt);
+      texts.push(text);
+    }
+    return texts;
+  }
+
+  /** Ładunek do magazynu planety: nieaktywna najpierw nadrabia czas do chwili przylotu. */
+  private deliver(index: number, cargo: Resources, at: number): void {
+    const slot = this.slots[index]!;
+    const economy =
+      index === this.active || slot.economy.lastUpdate >= at ? slot.economy : this.advanceSlot(slot, slot.economy, at, catchUpBalance);
+    slot.economy = { ...economy, stock: { metal: economy.stock.metal + cargo.metal, crystal: economy.stock.crystal + cargo.crystal } };
+  }
+
+  // ——— przechwyt komet (v0.37.1) ———
+
+  /** Holownik aktywnej planety: odblokowanie, lot w toku, koszt i czas, możliwy ładunek. */
+  cometView(now = Date.now()): {
+    unlocked: boolean;
+    flying: { secondsLeft: number; cargo: Resources } | null;
+    cost: Resources;
+    seconds: number;
+    cargoMin: Resources;
+    cargoMax: Resources;
+  } {
+    const c = this.balance.comet;
+    const haul = this.comets.find((h) => h.planet === this.address);
+    return {
+      unlocked: this.unlocked('comet-capture'),
+      flying: haul ? { secondsLeft: Math.max(0, (haul.returnsAt - now) / 1000), cargo: haul.cargo } : null,
+      cost: c.cost,
+      seconds: c.seconds,
+      cargoMin: c.cargoMin,
+      cargoMax: c.cargoMax,
+    };
+  }
+
+  /** Holowniki w drodze (do „Imperium”). */
+  cometsView(now = Date.now()): { planetName: string; secondsLeft: number }[] {
+    return this.comets.map((h) => ({ planetName: this.slotName(h.planet), secondsLeft: Math.max(0, (h.returnsAt - now) / 1000) }));
+  }
+
+  /** Wysłanie holownika z aktywnej planety (koszt od razu, ładunek po powrocie). */
+  launchComet(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const result = launchComet(
+      this.address,
+      { unlocked: this.unlocked('comet-capture'), busy: this.comets.some((h) => h.planet === this.address), stock: this.economy.stock, now },
+      this.balance,
+    );
+    if (!result.ok) return result;
+    const cost = this.balance.comet.cost;
+    const stock = this.economy.stock;
+    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
+    this.comets.push(result.haul);
+    this.log('ship', `${this.planet.displayName}: holownik wyruszył po kometę.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Holownik leci po kometę — wróci za ${Math.ceil(this.balance.comet.seconds / 60)} min.` };
+  }
+
+  /** Powroty holowników do `now`: ładunek do magazynu planety (usunięta planeta — ładunek przepada). */
+  private processComets(now: number): string[] {
+    const texts: string[] = [];
+    for (const haul of [...this.comets].sort((a, b) => a.returnsAt - b.returnsAt)) {
+      if (haul.returnsAt > now) continue;
+      this.comets = this.comets.filter((h) => h !== haul);
+      const index = this.slotAt(haul.planet);
+      if (index < 0) continue;
+      this.deliver(index, haul.cargo, haul.returnsAt);
+      const text = `Kometa przyholowana na ${this.slots[index]!.planet.displayName}: +${haul.cargo.metal} metalu, +${haul.cargo.crystal} kryształów.`;
+      this.log('ship', text, haul.returnsAt);
       texts.push(text);
     }
     return texts;
@@ -1624,6 +1798,7 @@ export class GameController {
     this.missions = result.data.missions ?? [];
     this.expeditions = result.data.expeditions ?? [];
     this.shipments = result.data.shipments ?? [];
+    this.comets = result.data.comets ?? [];
     this.journal = result.data.journal ?? [];
     this.aiLevels = result.data.ai ?? { ...DEFAULT_AI_LEVELS };
     this.active = result.data.active;
@@ -1635,6 +1810,7 @@ export class GameController {
     this.processMissions(now);
     this.processExpeditions(now);
     this.processShipments(now);
+    this.processComets(now);
     this.offlineGain = null;
     this.completedWhileAway = null;
     this.log('empire', 'Wczytano zapis gry.', now);
@@ -1657,6 +1833,7 @@ export class GameController {
       discoveries: this.discoveries,
       expeditions: this.expeditions,
       shipments: this.shipments,
+      comets: this.comets,
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,
@@ -1675,6 +1852,7 @@ export class GameController {
         plotsGrid: FIELD_GRID_VERSION,
         ...(slot.fields ? { fields: slot.fields } : {}),
         ...(slot.specialization ? { specialization: slot.specialization } : {}),
+        ...(slot.asteroid ? { asteroidStation: slot.asteroid } : {}),
       })),
     };
   }
@@ -1781,6 +1959,7 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       plots: slot.plotsGrid === FIELD_GRID_VERSION ? (slot.plots ?? {}) : {},
       ...(slot.plotsGrid === FIELD_GRID_VERSION && slot.fields ? { fields: slot.fields } : {}),
       ...(slot.specialization ? { specialization: slot.specialization } : {}),
+      ...(slot.asteroidStation ? { asteroid: slot.asteroidStation } : {}),
     });
   }
   return slots;

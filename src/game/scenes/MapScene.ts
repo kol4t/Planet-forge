@@ -339,7 +339,7 @@ export class MapScene extends OverlayScene {
       this.beltRing = { r: (inner + outer) / 2, half: (outer - inner) * 0.3 };
       drawBelt(orbitG, this.beltRing.r, this.beltRing.half, `${system.index}`, this.dpr, this.tilt);
       const beltText = this.add
-        .text(0, 0, 'pas asteroid · wkrótce', { fontFamily: FONTS.body, fontSize: `${this.px(this.s(9))}px`, color: COLORS.stone })
+        .text(0, 0, this.beltLabel(system.index), { fontFamily: FONTS.body, fontSize: `${this.px(this.s(9))}px`, color: COLORS.stone })
         .setOrigin(0.5, 0.5)
         .setAlpha(0.8);
       this.labels.push({ text: beltText, x: 0, y: (this.beltRing.r + this.beltRing.half) * this.tilt + this.px(this.s(8)), always: true });
@@ -750,6 +750,12 @@ export class MapScene extends OverlayScene {
   }
 
   /** Okno „Szukaj układu” (pole tekstowe HTML); wybór przenosi mapę do układu i go zaznacza. */
+  /** Podpis pasa asteroid w widoku układu (z Twoją stacją, jeśli jest). */
+  private beltLabel(system: number): string {
+    const station = this.deps.controller.beltInfo(system).station;
+    return station ? `pas asteroid · stacja poz. ${station.level}` : 'pas asteroid';
+  }
+
   private openSearch(): void {
     this.closeSearch?.();
     this.closeSearch = openSearchPanel({
@@ -957,8 +963,30 @@ export class MapScene extends OverlayScene {
     if (system?.belt && this.selected === BELT) {
       line('Pas asteroid', 18, COLORS.gold, { fontFamily: FONTS.serif }, 2);
       line(`${system.name} · między orbitami ${letter(system.belt.after)} i ${letter(system.belt.after + 1)}`, 10.5, COLORS.stone, { fontStyle: '600' });
-      line('Tysiące skalnych odłamków na wspólnej orbicie. W przyszłości: wydobycie surowców z asteroid (wkrótce).', 11.5, COLORS.muted);
-      buttons(['Wydobycie wkrótce', 'disabled', () => undefined], ['Odznacz', 'secondary', () => this.onTap(-1e6, -1e6)]);
+      // Górnictwo asteroid (v0.37): stację buduje Twoja planeta z tego układu (panel „Planeta” → Pas asteroid).
+      const belt = controller.beltInfo(system.index);
+      line('Tysiące skalnych odłamków na wspólnej orbicie. Stacja wydobywcza wysyła metal i kryształy do magazynu planety z tego układu — bez zużywania jej złóż.', 11.5, COLORS.muted, {}, 4);
+      line(
+        belt.station
+          ? `Stacja poz. ${belt.station.level} — należy do ${belt.station.planet}.`
+          : belt.own
+            ? `Bez stacji. Zbuduj ją z ${belt.own.name}: panel „Planeta” → Pas asteroid.`
+            : 'Bez stacji. Stację może postawić tylko Twoja planeta w tym układzie.',
+        11.5,
+        belt.station ? COLORS.teal : COLORS.stone,
+        { fontStyle: '600' },
+      );
+      const own = belt.own;
+      buttons(
+        own
+          ? ['Do planety', 'secondary', () => {
+              if (own.active) return this.close();
+              const result = controller.switchPlanet(own.index);
+              this.close(result.message);
+            }]
+          : ['Brak planety', 'disabled', () => undefined],
+        ['Odznacz', 'secondary', () => this.onTap(-1e6, -1e6)],
+      );
       this.details.add(items);
       return;
     }

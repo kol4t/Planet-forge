@@ -4,10 +4,12 @@ import { BALANCE } from '../../data/balance.ts';
 import { parseAiLevels, type AiLevel, type AiRuleId } from '../ai/advisor.ts';
 import { EMPTY_RESEARCH, parseResearch } from '../research/research.ts';
 import { parseSpecialization } from '../economy/specialization.ts';
+import { parseStation } from '../economy/asteroids.ts';
 import { parseDiscoveries, type Discoveries } from '../galaxy/discovery.ts';
 import { parseExpeditions } from '../galaxy/expeditions.ts';
 import { parseShipments } from '../economy/transport.ts';
-import type { ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import { parseComets } from '../economy/comets.ts';
+import type { AsteroidStation, CometHaul, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 
@@ -37,6 +39,8 @@ export interface SlotSave {
   fields?: { used: number; buildable: number };
   /** Specjalizacja kolonii (od v0.32.3; brak albo błędna = bez specjalizacji). */
   specialization?: PlanetSpecialization;
+  /** Stacja wydobywcza na pasie asteroid (od v0.37; brak albo błędna = brak stacji). */
+  asteroidStation?: AsteroidStation;
 }
 
 export interface EmpireSave {
@@ -64,6 +68,8 @@ export interface EmpireSave {
   expeditions?: Expedition[];
   /** Transportowce w drodze (od v0.36; brak = żadnych). */
   shipments?: Shipment[];
+  /** Holowniki po komety (od v0.37.1; brak = żadnych). */
+  comets?: CometHaul[];
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -148,6 +154,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(isNum(raw.plotsGrid) ? { plotsGrid: raw.plotsGrid } : {}),
       ...(isFieldCount(raw.fields?.used) && isFieldCount(raw.fields?.buildable) ? { fields: { used: raw.fields.used, buildable: raw.fields.buildable } } : {}),
       ...(parseSpecialization(raw.specialization) ? { specialization: parseSpecialization(raw.specialization) } : {}),
+      ...(parseStation(raw.asteroidStation) ? { asteroidStation: parseStation(raw.asteroidStation) } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;
@@ -166,6 +173,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseDiscoveries(data.discoveries) ? { discoveries: parseDiscoveries(data.discoveries)! } : {}),
     ...(parseExpeditions(data.expeditions).length > 0 ? { expeditions: parseExpeditions(data.expeditions) } : {}),
     ...(parseShipments(data.shipments).length > 0 ? { shipments: parseShipments(data.shipments) } : {}),
+    ...(parseComets(data.comets).length > 0 ? { comets: parseComets(data.comets) } : {}),
   };
 }
 
