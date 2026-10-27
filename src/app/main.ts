@@ -89,6 +89,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     setZoom: (zoom, instant) => display.setZoom(zoom, instant),
     zoomLevel: () => display.zoomLevel(),
     renderScale: display.renderScale ? () => display.renderScale!() : undefined,
+    gpuStats: display.gpuStats ? () => display.gpuStats!() : undefined,
     resetView: () => display.resetView(),
     holdSpin: (hold) => display.holdSpin(hold),
     setGridVisible: (visible) => display.setGridVisible(visible),

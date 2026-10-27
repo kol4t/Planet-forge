@@ -126,16 +126,23 @@ for (const graphics of ['2d', '3d'] as const) {
     if (stats) rows.push(`| 3D | rysowania / trójkąty / geometrie / tekstury | ${stats.drawCalls} / ${stats.triangles} / ${stats.geometries} / ${stats.textures} |`);
     const before = await heapMB(cdp);
     const gpuBefore = stats;
-    for (let i = 0; i < 10; i++) {
-      await page.evaluate((n: number) => (window as any).__planetForge.controller.switchPlanet(n), (i + 1) % 3);
-      await page.waitForTimeout(1200);
+    // 10 zmian, potem kolejne 10: wzrost po pierwszych to pamięć podręczna siatek i terenu (3 planety),
+    // wzrost po drugich świadczyłby o wycieku.
+    const tour = async () => {
+      for (let i = 0; i < 10; i++) {
+        await page.evaluate((n: number) => (window as any).__planetForge.controller.switchPlanet(n), (i + 1) % 3);
+        await page.waitForTimeout(1200);
+      }
+      await page.evaluate(() => (window as any).__planetForge.controller.switchPlanet(0));
+      await page.waitForTimeout(1500);
+      return { heap: await heapMB(cdp), gpu: await page.evaluate(() => (window as any).__planetForge?.display.gpuStats?.() ?? null) };
+    };
+    const first = await tour();
+    const second = await tour();
+    rows.push(`| ${graphics.toUpperCase()} | pamięć JS: start → po 10 → po 20 zmianach planety | ${before.toFixed(1)} → ${first.heap.toFixed(1)} → ${second.heap.toFixed(1)} MB |`);
+    if (gpuBefore && first.gpu && second.gpu) {
+      rows.push(`| 3D | geometrie / tekstury: start → po 10 → po 20 zmianach | ${gpuBefore.geometries}/${gpuBefore.textures} → ${first.gpu.geometries}/${first.gpu.textures} → ${second.gpu.geometries}/${second.gpu.textures} |`);
     }
-    await page.evaluate(() => (window as any).__planetForge.controller.switchPlanet(0));
-    await page.waitForTimeout(1500);
-    const after = await heapMB(cdp);
-    const gpuAfter = await page.evaluate(() => (window as any).__planetForge?.display.gpuStats?.() ?? null);
-    rows.push(`| ${graphics.toUpperCase()} | pamięć JS przed → po 10 zmianach planety | ${before.toFixed(1)} → ${after.toFixed(1)} MB |`);
-    if (gpuBefore && gpuAfter) rows.push(`| 3D | geometrie / tekstury przed → po 10 zmianach | ${gpuBefore.geometries}/${gpuBefore.textures} → ${gpuAfter.geometries}/${gpuAfter.textures} |`);
   }
   await page.close();
 }

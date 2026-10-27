@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.ts",
     "atlas": "node scripts/atlas.ts",
+    "balance-doc": "node scripts/balance-doc.ts",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {

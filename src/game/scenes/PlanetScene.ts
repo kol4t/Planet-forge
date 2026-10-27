@@ -1516,7 +1516,9 @@ export class PlanetScene extends Phaser.Scene {
       const cost = controller.costOf(card.id);
       // Czas budowy na przycisku „Ulepsz” (audyt v0.46: w linii kosztu przeskakiwał do nowego wiersza i chował się).
       const time = formatDuration(controller.buildSecondsFor(level + 1));
-      card.cost.setText(`Koszt: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów`);
+      // Bardzo wąska karta (telefon poziomo, 6 kart w wierszu): czas w linii kosztu — napis przycisku musi się zmieścić.
+      const tiny = card.rect.w < 150;
+      card.cost.setText(`Koszt: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów${tiny ? ` · ${time}` : ''}`);
       card.cost.setY(card.effect.y + card.effect.height + this.px(this.s(4)));
       if (level >= balance.maxLevel) {
         card.button.setText(short ? 'Maks. poziom' : 'Maksymalny poziom').setStyle('disabled');
@@ -1548,9 +1550,11 @@ export class PlanetScene extends Phaser.Scene {
         continue;
       }
       const wait = controller.waitSecondsFor(card.id);
-      if (wait <= 0) card.button.setText(short ? `Ulepsz · ${time}` : `Ulepsz do ${level + 1} · ${time}`).setStyle('primary');
-      else {
-        const label = Number.isFinite(wait) ? `${short ? 'Za' : 'Dostępne za'} ${formatDuration(wait)}` : 'Brak produkcji';
+      if (wait <= 0) {
+        const label = tiny ? (short ? 'Ulepsz' : `Ulepsz (${level + 1})`) : short ? `Ulepsz · ${time}` : `Ulepsz do ${level + 1} · ${time}`;
+        card.button.setText(label).setStyle('primary');
+      } else {
+        const label = Number.isFinite(wait) ? `${short || tiny ? 'Za' : 'Dostępne za'} ${formatDuration(wait)}` : 'Brak produkcji';
         card.button.setText(label).setStyle('disabled');
       }
     }
