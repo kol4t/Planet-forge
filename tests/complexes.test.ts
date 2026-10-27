@@ -88,3 +88,32 @@ test('kompleksy: kontroler — badanie, połączenie z kosztem, premia, pole szy
     assert.equal(again.fields.used, before.fields);
   });
 });
+
+test('karta budowli i obrys zajętości (v0.38.1): etapy, parametry z gospodarki, kontur bez wewnętrznych krawędzi', async () => {
+  const { outlineBorders } = await import('../src/planet-renderer/fieldOverlay.ts');
+  const a = grid.cells.findIndex((c) => c.kind === 'land' && c.neighbors.length >= 4);
+  const b = grid.cells[a]!.neighbors[0]!;
+  const lines = outlineBorders(grid, [a, b]);
+  assert.ok(lines.length > 0);
+  for (const i of lines) {
+    const { a: x, b: y } = grid.borders[i]!;
+    assert.ok([a, b].includes(x) !== [a, b].includes(y), 'tylko granica z zewnętrzem');
+  }
+  withMemoryStorage(() => {
+    const game = new GameController(0);
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, crystalMine: 9, storage: 6 }, stock: { metal: 9000, crystal: 9000 } };
+    let card = game.buildingCard('crystalMine');
+    assert.equal(card.stage, 'Wiertło z szybem');
+    assert.deepEqual(card.stages.map((s) => s.state), ['done', 'current', 'next', 'soon', 'soon']);
+    assert.match(card.next!, /Wspólne szyby/);
+    assert.match(card.output!, /kryształów\/min/);
+    assert.equal(card.fields, 3);
+    game.research = { done: ['crystal-complex'], current: null };
+    assert.ok(game.mergeComplex('crystalMine', 0).ok);
+    card = game.buildingCard('crystalMine');
+    assert.equal(card.stage, 'Kompleks wiertniczy');
+    assert.equal(card.fields, 4, 'pole szybu w zajętości budowli');
+    assert.equal(game.footprint('crystalMine').length, 4);
+    assert.deepEqual(game.buildingCard('storage').stages, []);
+  });
+});

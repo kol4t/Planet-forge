@@ -1,7 +1,7 @@
 // Wybór budowli dotknięciem: rzut budowli kolonii na ekran (ten sam obrót co renderery)
 // i najbliższa widoczna budowla pod palcem. Czysta matematyka (bez three/DOM) — testowalna.
 import type { BuildingId, BuildingLevels } from '../core/types.ts';
-import { visibleStructures, type ColonyLayout, type Vec3 } from './colony.ts';
+import { groupFull, visibleStructures, type ColonyLayout, type Vec3 } from './colony.ts';
 
 /** Jak planeta jest pokazana na ekranie (piksele CSS). */
 export interface PickView {
@@ -99,5 +99,20 @@ export function pickStructureHit(
       }
     }
   }
+  // Szyby główne kompleksów i środki wierteł też są celem dotyku (v0.38.1) — konstrukcja jest większa niż budowla.
+  const near = (dir: readonly number[], surface: number, id: BuildingId, index: number, reach: number) => {
+    const s = useSurface ? surface : 1;
+    const p = projectPoint([dir[0]! * s, dir[1]! * s, dir[2]! * s], view);
+    if (!p.visible) return;
+    const distance = Math.hypot(p.x - x, p.y - y);
+    if (distance <= bestDistance * reach) {
+      bestDistance = distance / reach;
+      best = { id, index };
+    }
+  };
+  for (const rig of colony.rigs ?? []) {
+    if (groupFull(levels[rig.building] ?? 0, rig.group)) near(rig.dir, rig.surface, rig.building, rig.group * 3 + 2, 1.4);
+  }
+  for (const hub of colony.hubs ?? []) near(hub.dir, hub.surface, hub.building, 0, 1.6);
   return best;
 }

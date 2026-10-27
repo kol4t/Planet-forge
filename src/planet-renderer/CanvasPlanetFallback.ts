@@ -4,7 +4,7 @@ import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import { groupFull, layoutFromPlots, plotsKey, RIG_BUILDINGS, visibleStructures, type ColonyLayout } from './colony.ts';
-import { borderChains, borderStates, FIELD_COLORS, FIELD_LINE, type BorderChain } from './fieldOverlay.ts';
+import { borderChains, borderStates, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { levelsWithSite, pickStructureHit, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, STRUCTURE_COLORS, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
@@ -50,6 +50,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private chainsKey = '';
   private chainsGrid: FieldGrid | null = null;
   private gridVisible = false;
+  /** Obrys zajętości wybranej budowli: klucz pól i odcinki granic (v0.38.1). */
+  private highlight: { key: string; borders: number[] } | null = null;
   private spinHeld = false;
   private readonly reducedMotion = prefersReducedMotion();
   /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
@@ -68,6 +70,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.look = discLook(planet);
     this.sampler = this.look.sampler;
     this.grid = fieldGrid(planet);
+    this.highlight = null;
     this.plotsKey = '';
     this.colony = layoutFromPlots(this.grid, {}, this.sampler, BUILDING_IDS);
     this.atmosphere = this.look.atmosphere;
@@ -168,6 +171,50 @@ export class CanvasPlanetFallback implements PlanetDisplay {
 
   setGridVisible(visible: boolean): void {
     this.gridVisible = visible;
+  }
+
+  setHighlight(cells: readonly number[] | null): void {
+    const key = cells && cells.length > 0 ? cells.join(',') : '';
+    if (key === (this.highlight?.key ?? '')) return;
+    this.highlight = key && this.grid ? { key, borders: outlineBorders(this.grid, cells!) } : null;
+  }
+
+  /** Turkusowy kontur pól wybranej budowli z ciemną obwódką; lekko pulsuje (bez „Ogranicz ruch”). */
+  private drawHighlight(): void {
+    if (!this.highlight || !this.grid) return;
+    const { cx, cy: centerY } = this.focus;
+    const r = this.focus.r * this.zoom;
+    const { yaw, pitch } = this.rotator;
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    const cp = Math.cos(pitch);
+    const sp = Math.sin(pitch);
+    const ctx = this.ctx;
+    const project = ([px, py, pz]: readonly number[]): [number, number] | null => {
+      const sx = px! * cy + pz! * sy;
+      const hz = -px! * sy + pz! * cy;
+      if (py! * sp + hz * cp < 0.02) return null;
+      return [cx + sx * r, centerY - (py! * cp - hz * sp) * r];
+    };
+    ctx.beginPath();
+    for (const i of this.highlight.borders) {
+      const border = this.grid.borders[i]!;
+      const a = project(border.from);
+      const b = project(border.to);
+      if (!a || !b) continue;
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+    }
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = HIGHLIGHT.haloAlpha;
+    ctx.strokeStyle = HIGHLIGHT.haloColor;
+    ctx.lineWidth = HIGHLIGHT.halo;
+    ctx.stroke();
+    ctx.globalAlpha = this.reducedMotion ? 0.95 : 0.75 + 0.25 * Math.sin(performance.now() / 450);
+    ctx.strokeStyle = HIGHLIGHT.color;
+    ctx.lineWidth = HIGHLIGHT.width;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   /** Granice pól (tylko strona zwrócona do widza): turkus — wolne, złoto — zajęte, błękit — lód. Woda i lawa bez pól. */
@@ -314,6 +361,15 @@ export class CanvasPlanetFallback implements PlanetDisplay {
         const [rx, ry] = ring[(step + offset) % ring.length]!;
         ctx.fillRect(x0 + rx * pixel, y0 + ry * pixel, pixel, pixel);
       }
+      // Hale przy krawędzi i kryształy wyrastające obok szybu (v0.38.1).
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = colors.body;
+      ctx.fillRect(x0 - 2 * pixel, y0 + pixel, 2 * pixel, 2 * pixel);
+      ctx.fillRect(x0 + n * pixel, y0 + (n - 3) * pixel, 2 * pixel, 2 * pixel);
+      ctx.fillStyle = '#6fe9ff';
+      ctx.fillRect(x0 + (n - 2) * pixel, y0 - pixel, pixel, pixel);
+      ctx.fillRect(x0 + pixel, y0 + n * pixel, pixel, pixel);
+      ctx.fillStyle = colors.light;
       // Kryształ na dnie szybu pulsuje.
       ctx.globalAlpha = alpha * (0.45 + 0.55 * Math.abs(Math.sin(now / 600 + px)));
       const c = Math.floor(n / 2);
@@ -406,6 +462,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     ctx.drawImage(this.buffer, cx - r, cy - r, r * 2, r * 2);
     ctx.restore();
     this.drawFieldGrid();
+    this.drawHighlight();
     this.drawStructures();
   }
 

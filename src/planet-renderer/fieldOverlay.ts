@@ -91,3 +91,19 @@ export function borderChains(grid: FieldGrid, states: readonly FieldState[]): Bo
   }
   return chains;
 }
+
+/**
+ * Obrys zajętości wybranej budowli (v0.38.1): odcinki granic, po których jednej stronie jest pole z `cells`,
+ * a po drugiej inne pole albo brzeg — wspólne krawędzie pól budowli nie są rysowane (jeden kontur).
+ */
+export function outlineBorders(grid: FieldGrid, cells: Iterable<number>): number[] {
+  const set = new Set(cells);
+  const out: number[] = [];
+  grid.borders.forEach(({ a, b }, i) => {
+    if (set.has(a) !== (b >= 0 && set.has(b))) out.push(i);
+  });
+  return out;
+}
+
+/** Kolor obrysu zajętości (turkusowy, jak w szkicach właściciela). */
+export const HIGHLIGHT = { color: '#5ff2e0', width: 2.6, halo: 6, haloColor: '#041012', haloAlpha: 0.45 } as const;

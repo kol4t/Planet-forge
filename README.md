@@ -416,4 +416,10 @@ Ustawienia → „Grafika” → „Włącz 3D” (domyślnie gra pokazuje plane
 227. „Połącz w kompleks”: kryształy/min w pasku rosną o tyle, ile pokazał podgląd, POLA +1, na planecie szyb główny z rurami do trzech wierteł.
 228. To samo okno → „Rozłącz” → „Na pewno?”: kompleks znika, POLA −1, wydobycie wraca. Zburzenie poziomu Ekstraktora też rozłącza kompleks.
 
+### Od 0.38.1: karta budowli i zajętość pól
+
+229. Dotknij budowlę na planecie (np. wiertło albo szyb główny kompleksu): kamera podjeżdża, po prawej stronie planety pojawia się karta — poziom i etap, produkcja i zużycie energii, „Zajętość pól”, następny krok i „Rozwój” (osiągnięte etapy pełną kropką, bieżący świeci, „wkrótce” przygaszone).
+230. Na planecie pola tej budowli mają turkusowy, pulsujący obrys (jeden kontur wokół wszystkich jej pól, z polem szybu głównego).
+231. Krzyżyk na karcie albo dotknięcie planety obok budowli zamyka kartę i obrys. W 3D z bliska: stalowa platforma, złote maszyny, świecąca kolumna kryształu w szybie.
+
 Uwaga: w trybie prywatnym Safari zapis może nie działać — gra działa, ale bez zapamiętywania postępu.

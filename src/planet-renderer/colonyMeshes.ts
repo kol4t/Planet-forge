@@ -26,6 +26,19 @@ function prepare(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return merged;
 }
 
+/** Kolor części bryły (stal / złote maszyny — paleta szkiców właściciela, v0.38.1). */
+const STEEL = '#6f7b78';
+const GOLD = '#c9a24a';
+function paint(geometry: THREE.BufferGeometry, hex: string): THREE.BufferGeometry {
+  const g = geometry.index ? geometry.toNonIndexed() : geometry;
+  const c = new THREE.Color(hex);
+  const count = g.getAttribute('position').count;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) colors.set([c.r, c.g, c.b], i * 3);
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return g;
+}
+
 function at(geometry: THREE.BufferGeometry, x: number, y: number, z: number, ry = 0): THREE.BufferGeometry {
   geometry.rotateY(ry);
   geometry.translate(x, y, z);
@@ -107,7 +120,7 @@ const MAX_HUBS = 24;
 const PIPE_SEGMENTS = 5;
 const MAX_PIPES = 72 * PIPE_SEGMENTS;
 
-type BigShape = { body: THREE.BufferGeometry; pit: THREE.BufferGeometry; rotor: THREE.BufferGeometry };
+type BigShape = { body: THREE.BufferGeometry; pit: THREE.BufferGeometry; rotor: THREE.BufferGeometry; glow: THREE.BufferGeometry };
 
 /**
  * Szyb jako bryła: podwyższenie z otworem — ściany szybu schodzą od krawędzi niemal do gruntu, na dnie
@@ -120,11 +133,14 @@ function createRig(): BigShape {
   });
   return {
     body: prepare([
-      at(new THREE.CylinderGeometry(0.5, 0.58, 0.24, 8, 1, true), 0, 0.12, 0),
-      at(new THREE.RingGeometry(0.27, 0.5, 8).rotateX(-Math.PI / 2), 0, 0.24, 0),
-      ...legs,
-      at(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 6), 0, 0.8, 0),
-      at(new THREE.BoxGeometry(0.16, 0.12, 0.3), 0.42, 0.3, 0),
+      paint(at(new THREE.CylinderGeometry(0.5, 0.58, 0.24, 8, 1, true), 0, 0.12, 0), STEEL),
+      paint(at(new THREE.RingGeometry(0.27, 0.5, 8).rotateX(-Math.PI / 2), 0, 0.24, 0), STEEL),
+      ...legs.map((g) => paint(g, GOLD)),
+      paint(at(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 6), 0, 0.8, 0), GOLD),
+      // Hale i ramię transportowe na krawędzi platformy (v0.38.1 — modułowa infrastruktura).
+      paint(at(new THREE.BoxGeometry(0.2, 0.14, 0.32), 0.44, 0.31, 0.05, 0.2), GOLD),
+      paint(at(new THREE.BoxGeometry(0.16, 0.1, 0.2), -0.42, 0.29, -0.12, -0.3), STEEL),
+      paint(at(new THREE.BoxGeometry(0.06, 0.05, 0.4).rotateX(0.35), 0.18, 0.38, 0.3), GOLD),
     ]),
     pit: prepare([
       at(new THREE.CylinderGeometry(0.27, 0.19, 0.22, 8, 1, true), 0, 0.13, 0),
@@ -137,6 +153,13 @@ function createRig(): BigShape {
       at(new THREE.OctahedronGeometry(0.06), 0.12, 0.06, 0.04),
       at(new THREE.OctahedronGeometry(0.05), -0.1, 0.05, -0.06),
     ]),
+    // Świecąca kolumna kryształu w szybie i kryształy wyrastające przy krawędzi platformy.
+    glow: prepare([
+      at(new THREE.CylinderGeometry(0.06, 0.07, 0.42, 6), 0, 0.23, 0),
+      at(new THREE.OctahedronGeometry(0.09).scale(0.6, 1.8, 0.6), -0.5, 0.18, 0.28),
+      at(new THREE.OctahedronGeometry(0.07).scale(0.6, 1.8, 0.6), -0.36, 0.14, 0.42),
+      at(new THREE.OctahedronGeometry(0.08).scale(0.6, 1.8, 0.6), 0.32, 0.15, -0.46),
+    ]),
   };
 }
 
@@ -147,12 +170,12 @@ function createHub(): BigShape {
   });
   return {
     body: prepare([
-      at(new THREE.CylinderGeometry(0.52, 0.58, 0.2, 8, 1, true), 0, 0.1, 0),
-      at(new THREE.RingGeometry(0.24, 0.52, 8).rotateX(-Math.PI / 2), 0, 0.2, 0),
-      ...towers,
-      at(new THREE.BoxGeometry(0.06, 0.5, 0.06), 0.2, 0.45, 0),
-      at(new THREE.BoxGeometry(0.06, 0.5, 0.06), -0.2, 0.45, 0),
-      at(new THREE.BoxGeometry(0.5, 0.07, 0.1), 0, 0.72, 0),
+      paint(at(new THREE.CylinderGeometry(0.52, 0.58, 0.2, 8, 1, true), 0, 0.1, 0), STEEL),
+      paint(at(new THREE.RingGeometry(0.24, 0.52, 8).rotateX(-Math.PI / 2), 0, 0.2, 0), STEEL),
+      ...towers.map((g) => paint(g, STEEL)),
+      paint(at(new THREE.BoxGeometry(0.06, 0.5, 0.06), 0.2, 0.45, 0), GOLD),
+      paint(at(new THREE.BoxGeometry(0.06, 0.5, 0.06), -0.2, 0.45, 0), GOLD),
+      paint(at(new THREE.BoxGeometry(0.5, 0.07, 0.1), 0, 0.72, 0), GOLD),
     ]),
     pit: prepare([
       at(new THREE.CylinderGeometry(0.24, 0.16, 0.19, 8, 1, true), 0, 0.11, 0),
@@ -166,6 +189,12 @@ function createHub(): BigShape {
       at(new THREE.OctahedronGeometry(0.06), -0.09, 0.05, -0.04),
       at(new THREE.OctahedronGeometry(0.05), 0.02, 0.05, -0.1),
     ]),
+    glow: prepare([
+      at(new THREE.CylinderGeometry(0.07, 0.08, 0.5, 6), 0, 0.27, 0),
+      at(new THREE.OctahedronGeometry(0.1).scale(0.6, 1.8, 0.6), 0.5, 0.18, 0.3),
+      at(new THREE.OctahedronGeometry(0.08).scale(0.6, 1.8, 0.6), -0.52, 0.15, -0.2),
+      at(new THREE.OctahedronGeometry(0.07).scale(0.6, 1.8, 0.6), 0.15, 0.13, -0.56),
+    ]),
   };
 }
 
@@ -173,6 +202,7 @@ interface BigMeshes {
   body: THREE.InstancedMesh;
   pit: THREE.InstancedMesh;
   rotor: THREE.InstancedMesh;
+  glow: THREE.InstancedMesh;
   /** Bieżąca skala (wyrastanie) każdej konstrukcji. */
   current: Float32Array;
 }
@@ -256,12 +286,13 @@ export class ColonyMeshes {
     const crystal = STRUCTURE_COLORS.crystalMine;
     const big = (shape: BigShape, count: number): BigMeshes => {
       const meshes = {
-        body: new THREE.InstancedMesh(shape.body, new THREE.MeshStandardMaterial({ color: crystal.body, roughness: 0.55, metalness: 0.3, flatShading: true, side: THREE.DoubleSide }), count),
+        body: new THREE.InstancedMesh(shape.body, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3, flatShading: true, side: THREE.DoubleSide }), count),
         pit: new THREE.InstancedMesh(shape.pit, new THREE.MeshStandardMaterial({ color: '#0b1517', roughness: 1, metalness: 0, side: THREE.DoubleSide }), count),
         rotor: new THREE.InstancedMesh(shape.rotor, new THREE.MeshBasicMaterial({ color: crystal.light, toneMapped: false }), count),
+        glow: new THREE.InstancedMesh(shape.glow, new THREE.MeshBasicMaterial({ color: '#6fe9ff', toneMapped: false }), count),
         current: new Float32Array(count),
       };
-      for (const mesh of [meshes.body, meshes.pit, meshes.rotor]) {
+      for (const mesh of [meshes.body, meshes.pit, meshes.rotor, meshes.glow]) {
         mesh.count = 0;
         mesh.frustumCulled = false;
         this.object.add(mesh);
@@ -405,6 +436,7 @@ export class ColonyMeshes {
       m.compose(p, q, s);
       meshes.body.setMatrixAt(i, m);
       meshes.pit.setMatrixAt(i, m);
+      meshes.glow.setMatrixAt(i, m);
       // Głowica wiertła obraca się wokół osi szybu.
       spin.setFromAxisAngle(up, this.still ? 0 : this.time * speed);
       q.multiply(spin);
@@ -417,8 +449,8 @@ export class ColonyMeshes {
     hubs.forEach((hub, i) => place(this.hubs, i, hub.dir, hub.surface, hub.spin, 1, HUB_SIZE, 0.9));
     for (const meshes of [this.rigs, this.hubs]) {
       const count = meshes === this.rigs ? rigs.length : hubs.length;
-      meshes.body.count = meshes.pit.count = meshes.rotor.count = count;
-      meshes.body.instanceMatrix.needsUpdate = meshes.pit.instanceMatrix.needsUpdate = meshes.rotor.instanceMatrix.needsUpdate = true;
+      meshes.body.count = meshes.pit.count = meshes.rotor.count = meshes.glow.count = count;
+      for (const mesh of [meshes.body, meshes.pit, meshes.rotor, meshes.glow]) mesh.instanceMatrix.needsUpdate = true;
     }
     // Rury: prosty odcinek nad gruntem od szybu głównego do każdego wiertła kompleksu.
     let pipe = 0;
@@ -440,6 +472,9 @@ export class ColonyMeshes {
       }
     }
     this.pipes.count = pipe;
+    // Kryształy i kolumna w szybie lekko pulsują (bez „Ogranicz ruch”).
+    const pulse = this.still ? 1 : 0.82 + 0.18 * Math.sin(this.time * 2);
+    for (const glow of [this.rigs.glow, this.hubs.glow]) (glow.material as THREE.MeshBasicMaterial).color.set('#6fe9ff').multiplyScalar(pulse);
     this.pipes.instanceMatrix.needsUpdate = true;
   }
 
@@ -469,7 +504,7 @@ export class ColonyMeshes {
 
   dispose(): void {
     (this.scaffold.material as THREE.Material).dispose();
-    for (const mesh of [this.rigs.body, this.rigs.pit, this.rigs.rotor, this.hubs.body, this.hubs.pit, this.hubs.rotor, this.pipes]) {
+    for (const mesh of [this.rigs.body, this.rigs.pit, this.rigs.rotor, this.rigs.glow, this.hubs.body, this.hubs.pit, this.hubs.rotor, this.hubs.glow, this.pipes]) {
       mesh.geometry.dispose();
       (mesh.material as THREE.Material).dispose();
       mesh.dispose();

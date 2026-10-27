@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-27 — v0.38.1: karta budowli i obrys zajętości (szkice właściciela)
+
+- Szkice to grafiki koncepcyjne (fotorealistyczne) — do gry przenosimy sylwetkę i układ, nie fotorealizm (low-poly, iPad): centralny szyb z kolumną kryształu, moduły wokół, paleta stal/złoto/turkus, obrys zajętych pól, karta parametrów z paskiem „Rozwój”.
+- Karta jest HTML-em obok planety (bez zaciemnienia ekranu), żeby planeta zostawała widoczna i obracalna; parametry liczone z gospodarki (różnica `productionRates` z budynkiem i bez) — jedno źródło prawdy z paskiem zasobów.
+- Etapy rozwoju jako dane (`INDUSTRY_STAGES`), z etapami „wkrótce” dla kolejnych wersji planu przemysłu.
+
 ## 2026-10-27 — v0.38: przemysł, krok 1 — wiertła kryształu i kompleks wiertniczy
 
 - Prompt właściciela „v0.50 Industrial Evolution” to kilka wersji pracy; zgodnie z zasadą małych kroków i z samym promptem („najpierw kompletny przykład na wiertłach kryształu”) v0.38 robi audyt i pierwszą rodzinę. Plan i mapowanie pojęć: `docs/plan-przemysl.md`.

@@ -216,6 +216,37 @@ html, body {
 #text-panel .tr-quick button { flex: 1 1 auto; }
 #text-panel .tp-primary:disabled { opacity: 0.45; }
 #text-panel .sp-info { font: 400 13px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif; color: #8ea6a0; }
+#building-card {
+  position: fixed; z-index: 20; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 14px 16px 12px; border: 1px solid rgba(95, 242, 224, 0.45); border-radius: 14px;
+  background: rgba(9, 20, 22, 0.9); color: var(--text); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  font: 14px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+}
+#building-card header { display: flex; justify-content: space-between; gap: 8px; }
+#building-card h2 { margin: 0; font: 400 22px Georgia, "Times New Roman", serif; color: var(--gold); }
+#building-card .bc-level { margin: 2px 0 0; font-weight: 600; color: #5ff2e0; }
+#building-card .bc-close { flex: none; width: 44px; height: 44px; margin: -8px -10px 0 0; border: 0; background: none; color: #8ea6a0; font-size: 26px; }
+#building-card .bc-desc { margin: 8px 0 10px; color: #8ea6a0; font-size: 13px; line-height: 1.4; }
+#building-card .bc-params { border-top: 1px solid #2b4846; }
+#building-card .bc-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1d3133; color: #8ea6a0; }
+#building-card .bc-row b { text-align: right; color: var(--text); }
+#building-card .bc-row b.teal { color: #5ff2e0; }
+#building-card .bc-row b.warn { color: var(--gold); }
+#building-card .bc-next { padding: 8px 0; font-size: 13px; line-height: 1.4; }
+#building-card .bc-next span { display: block; margin-bottom: 2px; color: #8ea6a0; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; }
+#building-card h3 { margin: 12px 0 6px; font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: #5ff2e0; }
+#building-card .bc-stages { margin: 0; padding: 0; list-style: none; }
+#building-card .bc-stage { display: flex; gap: 10px; padding: 6px 0; color: #5f7873; }
+#building-card .bc-stage b { display: block; font-weight: 600; }
+#building-card .bc-stage small { color: inherit; font-size: 12px; }
+#building-card .bc-stage p { margin: 3px 0 0; font-size: 12px; line-height: 1.35; color: #8ea6a0; }
+#building-card .bc-dot { flex: none; width: 12px; height: 12px; margin-top: 4px; border-radius: 50%; border: 2px solid currentColor; box-sizing: border-box; }
+#building-card .bc-stage.done { color: #9cc7c0; }
+#building-card .bc-stage.done .bc-dot { background: currentColor; }
+#building-card .bc-stage.current { color: #5ff2e0; }
+#building-card .bc-stage.current .bc-dot { background: #5ff2e0; box-shadow: 0 0 8px #5ff2e0; }
+#building-card .bc-stage.next { color: var(--gold); }
+#building-card .bc-stage.soon { opacity: 0.55; }
   </style>
 </head>
 <body>

@@ -2,6 +2,7 @@ import { buildableCount, cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type Bu
 import { hasRoomFor, reconcilePlots, siteFactors, suits, usedLandFields, type Plots } from '../core/colony/plots.ts';
 import { complexBonus, mergeCandidate, reservedCells, validComplexes, type Complex } from '../core/colony/complexes.ts';
 import { COMPLEX_FAMILIES, findFamily } from '../data/complexes.ts';
+import { INDUSTRY_STAGES } from '../data/industry.ts';
 import {
   advance,
   buildSeconds,
@@ -114,6 +115,24 @@ interface Slot {
   asteroid?: AsteroidStation;
   /** Kompleksy przemysłowe na polach planety (od v0.38). */
   complexes?: Complex[];
+}
+
+/** Karta budowli obok przybliżonej planety (v0.38.1): parametry i etapy rozwoju. */
+export interface BuildingCard {
+  name: string;
+  level: number;
+  /** Nazwa osiągniętego etapu („Wiertło z szybem”). */
+  stage: string | null;
+  description: string;
+  /** Co budowla daje teraz (np. „+161 kryształów/min”) i ile energii zużywa. */
+  output: string | null;
+  energy: string | null;
+  /** Pola zajęte przez tę budowlę (z polami kompleksów) i zajętość planety. */
+  fields: number;
+  planetFields: { used: number; buildable: number };
+  stages: { name: string; footprint: string; description: string; state: 'done' | 'current' | 'next' | 'locked' | 'soon' }[];
+  /** Co trzeba zrobić, żeby osiągnąć następny etap (albo null). */
+  next: string | null;
 }
 
 /** Kompleks budynku na aktywnej planecie (okno „Kompleks”, v0.38). */
@@ -1908,6 +1927,62 @@ export class GameController {
     const slot = this.slots[this.active]!;
     const plots = syncPlots(slot, this.buildRules);
     return { grid: fieldGrid(slot.planet), plots, complexes: slot.complexes ?? [] };
+  }
+
+  // ——— karta budowli i zajętość pól (v0.38.1) ———
+
+  /** Pola zajęte przez budynek na aktywnej planecie: jego grupy i pola wspólnych konstrukcji kompleksów. */
+  footprint(id: BuildingId): number[] {
+    const slot = this.slots[this.active]!;
+    const plots = syncPlots(slot, this.buildRules);
+    return [...(plots[id] ?? []), ...(slot.complexes ?? []).filter((c) => c.building === id).flatMap((c) => c.hubs)];
+  }
+
+  /** Parametry budowli (różnica produkcji z budynkiem i bez niego — jeden tor liczenia z gospodarką) i etapy rozwoju. */
+  buildingCard(id: BuildingId): BuildingCard {
+    const def = this.balance.buildings.find((b) => b.id === id)!;
+    const level = this.economy.levels[id] ?? 0;
+    const now = this.rates;
+    const without = productionRates({ ...this.economy, levels: { ...this.economy.levels, [id]: 0 } }, this.planet, this.balance);
+    const per = (v: number) => Math.round(v * 10) / 10;
+    let output: string | null = null;
+    if (def.produces === 'metal') output = `+${per(now.metal - without.metal)} metalu/min`;
+    else if (def.produces === 'crystal') output = `+${per(now.crystal - without.crystal)} kryształów/min`;
+    else if (def.produces === 'energy') output = `+${Math.round(now.energyProduced - without.energyProduced)} energii`;
+    else if (def.produces === 'antimatter') output = `+${per(now.antimatterPerHour - without.antimatterPerHour)} antymaterii/h`;
+    const use = now.energyUsed - without.energyUsed;
+    const complexes = (this.slots[this.active]!.complexes ?? []).filter((c) => c.building === id).length;
+    const reached = (when: string) =>
+      when === 'built' ? level >= 1 : when === 'full-group' ? level >= 3 : when === 'complex' ? complexes > 0 : false;
+    const list = INDUSTRY_STAGES[id] ?? [];
+    const lastReached = list.map((st) => reached(st.when)).lastIndexOf(true);
+    const nextIndex = list.findIndex((st, i) => i > lastReached && st.when !== 'soon');
+    const stages = list.map((st, i) => ({
+      name: st.name,
+      footprint: st.footprint,
+      description: st.description,
+      state: (i === lastReached ? 'current' : reached(st.when) ? 'done' : st.when === 'soon' ? 'soon' : i === nextIndex ? 'next' : 'locked') as BuildingCard['stages'][number]['state'],
+    }));
+    let next: string | null = null;
+    const nextStage = list[nextIndex];
+    if (nextStage?.when === 'built') next = 'Ulepsz do poz. 1.';
+    else if (nextStage?.when === 'full-group') next = `Ulepsz do poz. 3 — pole zapełni się trzema poziomami.`;
+    else if (nextStage?.when === 'complex') {
+      const view = this.complexView(id);
+      next = !view?.unlocked ? 'Zbadaj „Wspólne szyby” (Produktywność).' : view.candidate ? 'Gotowe do połączenia: Zarządzanie → Kompleks wiertniczy.' : (view.reason ?? null);
+    }
+    return {
+      name: def.name,
+      level,
+      stage: lastReached >= 0 ? list[lastReached]!.name : null,
+      description: def.description,
+      output: level > 0 ? output : null,
+      energy: level > 0 && use > 0.05 ? `−${Math.round(use)} energii` : null,
+      fields: this.footprint(id).length,
+      planetFields: this.fields,
+      stages,
+      next,
+    };
   }
 
   // ——— kompleksy przemysłowe (v0.38) ———

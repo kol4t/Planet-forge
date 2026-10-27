@@ -33,6 +33,8 @@ export interface PlanetDisplay {
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */
   setGridVisible(visible: boolean): void;
+  /** Obrys zajętości pól wybranej budowli (v0.38.1); null — bez obrysu. */
+  setHighlight(cells: readonly number[] | null): void;
   /** Wstrzymaj autoobrót (pokazany budynek nie ucieka z kadru); dotyk albo reset go zwalnia. */
   holdSpin(hold: boolean): void;
   /** Płynny powrót do widoku startowego: przybliżenie 1×, biegun u góry. */

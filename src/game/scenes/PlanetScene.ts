@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
+import { BuildingCardView, type CardPlacement } from '../ui/buildingCard.ts';
 import type { DepositInfo, GameController, PlanetOverview } from '../../app/GameController.ts';
 import { antimatterAmount, capacityAtLevel, environmentEffect, fitsInStorage, scaled, secondsUntilAffordable } from '../../core/economy/economy.ts';
 import { AI_RULES, type AiAction, type AiLevel, type AiRuleId } from '../../core/ai/advisor.ts';
@@ -1085,7 +1086,12 @@ export class PlanetScene extends Phaser.Scene {
   /** Okienko wybranego budynku nad dolnym paskiem (w wolnym miejscu obok panelu). */
   private buildSelected(layout: Layout): void {
     const def = this.selected && BALANCE.buildings.find((b) => b.id === this.selected);
-    if (!def) return;
+    if (!def) {
+      this.cardAt = null;
+      this.buildingCard.hide();
+      this.deps.display.setHighlight(null);
+      return;
+    }
     const stage = layout.stage;
     const gap = this.s(10);
     const pad = this.s(8);
@@ -1100,6 +1106,33 @@ export class PlanetScene extends Phaser.Scene {
       this.relayout();
     });
     this.addCard(def, { x: rect.x + pad, y: rect.y + this.s(40), w: rect.w - 2 * pad, h: cardH });
+    // Karta budowli (HTML): po prawej stronie planety na szerokim miejscu, u góry na wąskim.
+    const narrow = stage.w < 600;
+    const cardW = narrow ? stage.w - 2 * gap : Math.min(310, stage.w * 0.4);
+    const top = stage.y + gap;
+    this.cardAt = {
+      x: narrow ? stage.x + gap : stage.x + stage.w - cardW - gap,
+      y: top,
+      w: cardW,
+      maxH: Math.max(160, narrow ? (rect.y - top) * 0.6 : rect.y - top - gap),
+    };
+    this.cardRefreshAt = 0;
+  }
+
+  /** Karta budowli i obrys jej pól: odświeżane najwyżej co sekundę; schowane, gdy otwarty jest inny ekran. */
+  private refreshBuildingCard(): void {
+    const id = this.selected;
+    if (!id || !this.cardAt || this.screenOpen || this.overlay) {
+      this.buildingCard.hide();
+      if (!id) this.deps.display.setHighlight(null);
+      return;
+    }
+    const now = Date.now();
+    if (now - this.cardRefreshAt < 1000) return;
+    this.cardRefreshAt = now;
+    const controller = this.deps.controller;
+    this.buildingCard.show(controller.buildingCard(id), this.cardAt);
+    this.deps.display.setHighlight(controller.footprint(id));
   }
 
   /** Karta wewnątrz panelu: jaśniejsza ramka, bez osobnej strefy (panel już blokuje gesty). */
@@ -1169,6 +1202,7 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   private refreshValues(): void {
+    this.refreshBuildingCard();
     if (this.planetPending) return;
     const controller = this.deps.controller;
     const rates = controller.rates;
@@ -1670,6 +1704,13 @@ export class PlanetScene extends Phaser.Scene {
    * (drugie dotknięcie potwierdza — przez ten czas planeta nie ma premii).
    */
   private closeAsteroid: (() => void) | null = null;
+  /** Karta budowli obok przybliżonej planety i jej miejsce (v0.38.1). */
+  private readonly buildingCard = new BuildingCardView(() => {
+    this.selected = null;
+    this.relayout();
+  });
+  private cardAt: CardPlacement | null = null;
+  private cardRefreshAt = 0;
 
   /** Okno „Kompleks” (HTML) budynku aktywnej planety. */
   private openComplex(id: BuildingId): void {
