@@ -101,6 +101,16 @@ node scripts/perf.ts http://localhost:5175 "nazwa"       # start i klatki
 node scripts/perf.ts http://localhost:5173 "nazwa" --deep # + grafika 3D i pamięć (tylko podgląd)
 ```
 
+## Pomiar właściciela na iPadzie (v0.46, 2026-10-27)
+
+| Grafika | Średnio | Najsłabsza sekunda | Grafika 3D | Planeta |
+|---|---:|---:|---|---|
+| 2D | 54 kl./s | 24 kl./s (pomiar 39 s) | — | pustynna, 46 pól |
+| 3D (100%) | 56 kl./s | 15 kl./s (pomiar 29 s) | 28 rysowań, 68 105 trójkątów, 44 geometrie, 4 tekstury | wulkaniczna, 92 pola |
+
+Średnia na poziomie v0.21 (58–59). Najsłabsze sekundy przypadają najpewniej na start i ładowanie planety (krótki pomiar).
+Liczby geometrii i tekstur nie rosły — brak oznak wycieku.
+
 ## Pomiar na iPadzie — instrukcja dla właściciela
 
 Tego nie zastąpi żadna symulacja. Zajmuje ok. 5 minut.
