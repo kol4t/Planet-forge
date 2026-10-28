@@ -112,7 +112,17 @@ export function parseMissions(raw: unknown): ColonyMission[] {
     m.arrivesAt >= m.departedAt &&
     isNum(m.cost?.metal) &&
     isNum(m.cost?.crystal)
-      ? [{ target: m.target, from: m.from, departedAt: m.departedAt, arrivesAt: m.arrivesAt, cost: { metal: m.cost.metal, crystal: m.cost.crystal } }]
+      ? [
+          {
+            target: m.target,
+            from: m.from,
+            departedAt: m.departedAt,
+            arrivesAt: m.arrivesAt,
+            cost: { metal: m.cost.metal, crystal: m.cost.crystal },
+            // Paliwo (v0.53) — opcjonalne; błędne pomijane.
+            ...(isNum(m.fuel) && m.fuel > 0 ? { fuel: m.fuel } : {}),
+          },
+        ]
       : [],
   );
 }

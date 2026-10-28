@@ -21,6 +21,7 @@ import { BALANCE } from '../src/data/balance.ts';
 import { findDefinition, STARTER } from '../src/data/planets.ts';
 import { findArm, findResearch, RESEARCH_ARMS, RESEARCH_NODES } from '../src/data/research.ts';
 import { galaxyLayout, GALAXY_RADIUS, hitTest } from '../src/game/ui/galaxy.ts';
+import { colonizeNow } from './helpers.ts';
 
 const planet = generatePlanet(STARTER.definition, STARTER.seed);
 const rich = (economy: EconomyState): EconomyState => ({
@@ -195,7 +196,7 @@ test('kontroler: Osadnictwo daje 6. miejsce na planetę, które przetrwa zapis',
     assert.equal(game.slotInfo.unlocked, 6);
     const free = game.system(game.homeSystem)!.planets.filter(isColonizable).map((p) => p.address);
     assert.ok(free.length >= 5, `wolnych planet w układzie startowym: ${free.length}`);
-    for (let i = 0; i < 5; i++) assert.ok(game.colonize(free[i]!, 0).ok, `planeta ${i + 2}`);
+    for (let i = 0; i < 5; i++) assert.ok(colonizeNow(game, free[i]!, 0).ok, `planeta ${i + 2}`);
     assert.equal(game.slotInfo.used, 6);
     const loaded = new GameController(1000);
     assert.equal(loaded.slotInfo.used, 6);
@@ -226,7 +227,7 @@ test('badania przypisane do planety: efekty tylko tam; odblokowania (statek, SI,
     game.research = { done: ['prod-core', 'explore-1'], current: null };
     const metalHere = game.rates.metal;
     const free = game.system(game.homeSystem)!.planets.filter(isColonizable).map((p) => p.address);
-    assert.ok(game.colonize(free[0]!, 0).ok);
+    assert.ok(colonizeNow(game, free[0]!, 0).ok);
     assert.deepEqual(game.research.done, [], 'nowa kolonia bada od zera');
     assert.ok(game.colonyShipUnlocked, 'statek odblokowany badaniem innej planety');
     game.switchPlanet(0, 0);

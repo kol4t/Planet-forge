@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { GameController, type PlanetOverview } from '../src/app/GameController.ts';
 import { planetBadges, planetBars } from '../src/game/ui/empireCards.ts';
+import { colonizeNow } from './helpers.ts';
 
 function withMemoryStorage(run: () => void): void {
   const store = new Map<string, string>();
@@ -48,7 +49,7 @@ test('Imperium: suma — produkcja na godzinę, pola, antymateria (przyrost pasy
   withMemoryStorage(() => {
     const game = new GameController(0);
     const free = game.system(game.homeSystem)!.planets.find((p) => p.body === 'rocky' && game.occupantAt(p) === 'free')!;
-    assert.ok(game.colonize(free.address, 0).ok);
+    assert.ok(colonizeNow(game, free.address, 0).ok);
     const overview = game.overview(0);
     const totals = game.empireTotals(overview);
     const metal = overview.reduce((s, p) => s + p.rates.metal, 0) * 60;
@@ -64,7 +65,7 @@ test('Imperium: alerty — pilne najpierw, prowadzą do planety, badań albo map
   withMemoryStorage(() => {
     const game = new GameController(0);
     const free = game.system(game.homeSystem)!.planets.find((p) => p.body === 'rocky' && game.occupantAt(p) === 'free')!;
-    assert.ok(game.colonize(free.address, 0).ok);
+    assert.ok(colonizeNow(game, free.address, 0).ok);
     const [a, b] = game.overview(0);
     const full: PlanetOverview = { ...b!, stock: { metal: b!.capacity, crystal: 0 } };
     const dark: PlanetOverview = { ...a!, rates: { ...a!.rates, efficiency: 0.5 }, labLevel: 2, researching: false };

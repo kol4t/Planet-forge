@@ -5,8 +5,10 @@ import { FOOTPRINT, STAGE_NAMES } from '../data/footprint.ts';
 import { COMPLEX_STAGE, complexCandidate, MEGA_STAGE, megaCandidate, validComplexes, type Complex } from '../core/colony/complexes.ts';
 import { COMPLEX_FAMILIES, complexMode, findFamily, MEGA_RULES, type ComplexFamily } from '../data/complexes.ts';
 import { INDUSTRY_STAGES } from '../data/industry.ts';
+import { fuelCost, fuelLabel, fuelShortage } from '../core/economy/fuel.ts';
 import {
   advance,
+  antimatterAmount,
   buildSeconds,
   depositsLeft,
   depositTotal,
@@ -1297,6 +1299,19 @@ export class GameController {
     if (this.missionTo(address)) return { ok: false, message: 'Statek już leci do tej planety.' };
     const blocked = this.colonizeBlocker(target);
     if (blocked) return { ok: false, message: blocked };
+    return this.launchColonyShip(address, target.name, this.flightSeconds(where.system), now);
+  }
+
+  /** Paliwo (antymateria) za lot statku kolonizacyjnego do planety `address` z aktywnej planety. */
+  colonyFuelTo(address: string): number {
+    return fuelCost('colonyShip', this.distanceBetween(this.address, address), this.balance);
+  }
+
+  /**
+   * Start statku kolonizacyjnego (koszt i paliwo płaci aktywna planeta i wspólny portfel). Przylot zakłada kolonię
+   * (`processMissions`), także przy zamkniętej grze.
+   */
+  private launchColonyShip(address: string, name: string, seconds: number, now: number): ActionMessage {
     const cost = this.colonyShipCost;
     if (!fitsInStorage(this.economy, cost, this.balance)) {
       return { ok: false, message: `Za mały magazyn (${this.capacity}). Najpierw rozbuduj Magazyn.` };
@@ -1308,13 +1323,15 @@ export class GameController {
       if (stock.crystal < cost.crystal) missing.push(`${Math.ceil(cost.crystal - stock.crystal)} kryształów`);
       return { ok: false, message: `Statek kolonizacyjny — brakuje: ${missing.join(', ')}.` };
     }
-    const seconds = this.flightSeconds(where.system);
-    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
-    this.missions.push({ target: address, from: this.address, departedAt: now, arrivesAt: now + seconds * 1000, cost: { ...cost } });
-    this.log('ship', `Statek kolonizacyjny wyruszył z ${this.planet.displayName} do ${target.name}.`, now);
+    const fuel = this.colonyFuelTo(address);
+    const short = fuelShortage(fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal }, antimatter: this.economy.antimatter - fuel };
+    this.missions.push({ target: address, from: this.address, departedAt: now, arrivesAt: now + seconds * 1000, cost: { ...cost }, fuel });
+    this.log('ship', `Statek kolonizacyjny wyruszył z ${this.planet.displayName} do ${name} (${fuelLabel(fuel)}).`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `Statek kolonizacyjny leci do ${target.name}.` };
+    return { ok: true, message: `Statek kolonizacyjny leci do ${name} — dotrze za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
   }
 
   /** Zawrócenie statku: pełny zwrot kosztu planecie, z której wyruszył. */
@@ -1329,10 +1346,16 @@ export class GameController {
       ...payer.economy,
       stock: { metal: payer.economy.stock.metal + mission.cost.metal, crystal: payer.economy.stock.crystal + mission.cost.crystal },
     };
+    // Paliwo wraca do wspólnego portfela (trzyma go aktywna planeta).
+    const fuel = mission.fuel ?? 0;
+    if (fuel > 0) this.economy = { ...this.economy, antimatter: this.economy.antimatter + fuel };
     this.log('ship', `Statek do ${name} zawrócił — koszt zwrócony.`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `Statek zawrócił. Zwrócono ${mission.cost.metal} metalu i ${mission.cost.crystal} kryształów.` };
+    return {
+      ok: true,
+      message: `Statek zawrócił. Zwrócono ${mission.cost.metal} metalu i ${mission.cost.crystal} kryształów${fuel > 0 ? ` oraz ${antimatterAmount(fuel)}` : ''}.`,
+    };
   }
 
   onColonyArrived(listener: (name: string) => void): () => void {
@@ -1386,6 +1409,21 @@ export class GameController {
     return from && to ? Math.hypot(to.x - from.x, to.y - from.y) : 0;
   }
 
+  /** Paliwo (antymateria) za lot transportowca z aktywnej planety do planety `to`. */
+  transportFuelTo(to: string): number {
+    return fuelCost('transport', this.distanceBetween(this.address, to), this.balance);
+  }
+
+  /** Paliwo holownika po kometę (lot w układzie). */
+  get cometFuel(): number {
+    return fuelCost('comet', 0, this.balance);
+  }
+
+  /** Paliwo ekspedycji do układu `index` (z planu wyprawy). */
+  expeditionFuel(index: number): number {
+    return fuelCost('expedition', this.expeditionPlan(index).distance, this.balance);
+  }
+
   /** Czas lotu transportowca (s) z aktywnej planety do planety `to`. */
   transportSecondsTo(to: string): number {
     return transportSeconds(this.distanceBetween(this.address, to), this.transportBalance());
@@ -1405,13 +1443,20 @@ export class GameController {
     if (!check.ok) return check;
     const load = check.cargo;
     const seconds = transportSeconds(this.distanceBetween(this.address, to), balance);
-    this.economy = { ...this.economy, stock: { metal: this.economy.stock.metal - load.metal, crystal: this.economy.stock.crystal - load.crystal } };
+    const fuel = this.transportFuelTo(to);
+    const short = fuelShortage(fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    this.economy = {
+      ...this.economy,
+      stock: { metal: this.economy.stock.metal - load.metal, crystal: this.economy.stock.crystal - load.crystal },
+      antimatter: this.economy.antimatter - fuel,
+    };
     this.shipments.push({ from: this.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load });
     const toName = this.slotName(to);
     this.log('ship', `Transportowiec wyruszył z ${this.planet.displayName} do ${toName}: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `Transportowiec leci do ${toName} — dotrze za ${seconds >= 60 ? `${Math.ceil(seconds / 60)} min` : `${seconds} s`}.` };
+    return { ok: true, message: `Transportowiec leci do ${toName} — dotrze za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
   }
 
   /** Transportowce w drodze (z nazwami i postępem lotu). */
@@ -1476,6 +1521,8 @@ export class GameController {
     unlocked: boolean;
     flying: { secondsLeft: number; cargo: Resources } | null;
     cost: Resources;
+    /** Paliwo (antymateria) za lot holownika. */
+    fuel: number;
     seconds: number;
     cargoMin: Resources;
     cargoMax: Resources;
@@ -1486,6 +1533,7 @@ export class GameController {
       unlocked: this.unlocked('comet-capture'),
       flying: haul ? { secondsLeft: Math.max(0, (haul.returnsAt - now) / 1000), cargo: haul.cargo } : null,
       cost: c.cost,
+      fuel: this.cometFuel,
       seconds: c.seconds,
       cargoMin: c.cargoMin,
       cargoMax: c.cargoMax,
@@ -1506,14 +1554,17 @@ export class GameController {
       this.balance,
     );
     if (!result.ok) return result;
+    const fuel = fuelCost('comet', 0, this.balance);
+    const short = fuelShortage(fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
     const cost = this.balance.comet.cost;
     const stock = this.economy.stock;
-    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
+    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal }, antimatter: this.economy.antimatter - fuel };
     this.comets.push(result.haul);
     this.log('ship', `${this.planet.displayName}: holownik wyruszył po kometę.`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `Holownik leci po kometę — wróci za ${Math.ceil(this.balance.comet.seconds / 60)} min.` };
+    return { ok: true, message: `Holownik leci po kometę — wróci za ${Math.ceil(this.balance.comet.seconds / 60)} min (${fuelLabel(fuel)}).` };
   }
 
   /** Powroty holowników do `now`: ładunek do magazynu planety (usunięta planeta — ładunek przepada). */
@@ -1720,7 +1771,10 @@ export class GameController {
       if (stock.crystal < cost.crystal) missing.push(`${Math.ceil(cost.crystal - stock.crystal)} kryształów`);
       return { ok: false, message: `Ekspedycja — brakuje: ${missing.join(', ')}.` };
     }
-    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
+    const fuel = fuelCost('expedition', plan.distance, this.balance);
+    const short = fuelShortage(fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal }, antimatter: this.economy.antimatter - fuel };
     this.expeditions.push({
       target: index,
       from: this.address,
@@ -1736,7 +1790,7 @@ export class GameController {
     this.log('expedition', `Ekspedycja wyruszyła z ${this.planet.displayName}: ${name} (szansa ${Math.round(plan.chance * 100)}%).`, now);
     this.save();
     this.emit();
-    return { ok: true, message: `Ekspedycja wyruszyła: ${name}. Powrót za ${Math.round(plan.seconds / 60)} min.` };
+    return { ok: true, message: `Ekspedycja wyruszyła: ${name}. Powrót za ${Math.round(plan.seconds / 60)} min (${fuelLabel(fuel)}).` };
   }
 
   /** Ekspedycje w drodze: cel (tak, jak go znamy), postęp i czas do powrotu. */
@@ -1980,16 +2034,12 @@ export class GameController {
           : 'Kolonizacja innych układów wymaga badania „Napęd międzygwiezdny” (Eksploracja) i statku kolonizacyjnego.',
       };
     }
+    this.tick(now);
+    if (this.missionTo(address)) return { ok: false, message: 'Statek już leci do tej planety.' };
     const blocked = this.colonizeBlocker(target);
     if (blocked) return { ok: false, message: blocked };
-    const planet = galaxyPlanet(target);
-    // Zapas startowy antymaterii dostaje tylko pierwsza planeta (portfel jest wspólny).
-    this.slots.push({ planet, economy: { ...createEconomy(now), antimatter: 0 }, address, research: EMPTY_RESEARCH, plots: {} });
-    this.log('colony', `Skolonizowano: ${planet.displayName} (${address}).`, now);
-    const result = this.switchPlanet(this.slots.length - 1, now);
-    this.offlineGain = null;
-    this.completedWhileAway = null;
-    return result.ok ? { ok: true, message: `Skolonizowano: ${planet.displayName} (${planet.category}).` } : result;
+    // Od v0.53 (decyzja właściciela) także we własnym układzie leci statek kolonizacyjny: koszt, paliwo, krótki lot.
+    return this.launchColonyShip(address, target.name, this.balance.colonyShip.baseSeconds, now);
   }
 
   /**
@@ -2508,6 +2558,9 @@ export class GameController {
  * bo siatka to kilkaset ms liczenia na planetę (przy starcie z kilkoma planetami gra by się zacinała).
  * Nieaktywna planeta i tak nie zmienia pól, dopóki nie stanie się aktywna.
  */
+/** Czas lotu do komunikatu: „45 s”, „3 min”. */
+const formatFlight = (seconds: number) => (seconds >= 60 ? `${Math.ceil(seconds / 60)} min` : `${seconds} s`);
+
 function fieldsOf(slot: Slot, active: boolean, rules: BuildRules): { used: number; buildable: number } {
   const grid = active ? fieldGrid(slot.planet) : cachedFieldGrid(slot.planet);
   if (!grid && slot.fields) return slot.fields;

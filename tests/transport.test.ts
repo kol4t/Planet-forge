@@ -6,6 +6,7 @@ import { applyResearch } from '../src/core/research/research.ts';
 import { deserializeEmpire, EMPIRE_KEY } from '../src/core/save/empire.ts';
 import { BALANCE } from '../src/data/balance.ts';
 import { findResearch } from '../src/data/research.ts';
+import { colonizeNow } from './helpers.ts';
 
 function withMemoryStorage(run: () => void): void {
   const store = new Map<string, string>();
@@ -64,7 +65,7 @@ test('transport: kontroler — badanie, wysyłka z aktywnej, przylot na nieaktyw
     const game = new GameController(0);
     const home = game.address;
     const colony = game.system(game.homeSystem)!.planets.find((p) => p.body === 'rocky' && game.occupantAt(p) === 'free')!.address;
-    assert.ok(game.colonize(colony, 0).ok);
+    assert.ok(colonizeNow(game, colony, 0).ok);
     assert.ok(game.switchPlanet(0, 0).ok);
     assert.equal(game.address, home);
     const cargo = { metal: 100, crystal: 50 };
@@ -101,7 +102,7 @@ test('transport: przylot podczas nieobecności — komunikat po starcie', () => 
   withMemoryStorage(() => {
     const game = new GameController(0);
     const colony = game.system(game.homeSystem)!.planets.find((p) => p.body === 'rocky' && game.occupantAt(p) === 'free')!.address;
-    game.colonize(colony, 0);
+    colonizeNow(game, colony, 0);
     game.switchPlanet(0, 0);
     game.research = { done: ['fleet-1'], current: null };
     assert.ok(game.sendResources(colony, { metal: 10, crystal: 0 }, 0).ok);

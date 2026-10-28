@@ -4,6 +4,7 @@ import { GameController, type CompletedBuild } from '../src/app/GameController.t
 import { isColonizable } from '../src/core/galaxy/galaxy.ts';
 import { EMPIRE_KEY } from '../src/core/save/empire.ts';
 import { FIELD_GRID_VERSION } from '../src/core/colony/fieldGrid.ts';
+import { colonizeNow } from './helpers.ts';
 
 /** Prosta pamięć zamiast localStorage przeglądarki. */
 function withMemoryStorage(run: () => void): void {
@@ -86,7 +87,7 @@ test('kopiuj zapis → wczytaj w „drugiej kopii gry” przenosi planetę i pos
   let seed = '';
   withMemoryStorage(() => {
     const game = new GameController(0);
-    assert.ok(game.colonize(freeAddresses(game)[0]!, 0).ok);
+    assert.ok(colonizeNow(game, freeAddresses(game)[0]!, 0).ok);
     seed = game.planet.seed;
     game.upgrade('metalMine', 0);
     exported = game.exportSave(1000);
@@ -123,9 +124,9 @@ test('kilka planet: dodawanie, przełączanie, limit 5 miejsc, usuwanie', () => 
     const game = new GameController(0);
     assert.deepEqual(game.slotInfo, { used: 1, unlocked: 5, max: 10 });
     const free = freeAddresses(game);
-    for (let i = 0; i < 4; i++) assert.ok(game.colonize(free[i]!, 0).ok);
+    for (let i = 0; i < 4; i++) assert.ok(colonizeNow(game, free[i]!, 0).ok);
     assert.equal(game.address, free[3], 'nowa planeta staje się aktywna');
-    const full = game.colonize(free[4]!, 0);
+    const full = colonizeNow(game, free[4]!, 0);
     assert.equal(full.ok, false);
     assert.match(full.message, /Wszystkie miejsca \(5\) są zajęte/);
 
@@ -149,7 +150,7 @@ test('nieaktywna planeta dalej produkuje i kończy budowy (jak podczas nieobecno
     const game = new GameController(0);
     game.upgrade('metalMine', 0); // budowa poz. 2 na planecie startowej (1 min)
     const metalBefore = game.economy.stock.metal;
-    game.colonize(freeAddresses(game)[0]!, 0);
+    colonizeNow(game, freeAddresses(game)[0]!, 0);
     const done: string[] = [];
     game.onBuildComplete((d) => done.push(d.building));
     game.switchPlanet(0, 10 * 60_000);
@@ -163,7 +164,7 @@ test('antymateria jest wspólna: przyrost pasywny liczony raz, kolektory wszystk
   withMemoryStorage(() => {
     const game = new GameController(0);
     const start = game.economy.antimatter;
-    game.colonize(freeAddresses(game)[0]!, 0);
+    colonizeNow(game, freeAddresses(game)[0]!, 0);
     assert.equal(game.economy.antimatter, start, 'nowa planeta nie dodaje zapasu startowego');
     game.switchPlanet(0, 3600_000);
     // Godzina: +1 pasywnie (raz), planety bez kolektora nic nie dodają.
@@ -206,7 +207,7 @@ test('mapa: planeta startowa ma adres w układzie startowym, kolonizacja tylko w
     const alien = system.planets.find((p) => p.occupant === 'alien');
     if (alien) assert.equal(game.colonize(alien.address, 0).ok, false);
     const target = freeAddresses(game)[0]!;
-    const result = game.colonize(target, 0);
+    const result = colonizeNow(game, target, 0);
     assert.ok(result.ok, result.message);
     assert.equal(game.planet.seed, target, 'seed = adres');
     assert.ok(game.planet.displayName.startsWith(system.name), game.planet.displayName);
@@ -260,16 +261,23 @@ test('statek kolonizacyjny: wymaga badania, kosztuje, leci, zakłada kolonię (t
     }
     assert.ok(game.colonyShipUnlocked);
     assert.match(game.sendColonyShip(target, 0).message, /magazyn|brakuje/i);
-    game.economy = { ...game.economy, levels: { ...game.economy.levels, storage: 6 }, stock: { metal: 9000, crystal: 9000 } };
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, storage: 6 }, stock: { metal: 9000, crystal: 9000 }, antimatter: 0 };
+    // Paliwo (v0.53): bez antymaterii statek nie startuje; koszt rośnie z odległością, zawrócenie go zwraca.
+    const fuel = game.colonyFuelTo(target);
+    assert.ok(fuel > game.balance.fuel.colonyShip.inSystem, 'lot do innego układu droższy niż w układzie');
+    assert.match(game.sendColonyShip(target, 0).message, /paliwa/);
+    game.economy = { ...game.economy, antimatter: fuel + 2 };
     const sent = game.sendColonyShip(target, 0);
     assert.ok(sent.ok, sent.message);
     assert.equal(game.economy.stock.metal, 9000 - game.colonyShipCost.metal);
+    assert.equal(game.economy.antimatter, 2);
     assert.match(game.sendColonyShip(target, 0).message, /już leci/);
     const [mission] = game.missionsView(0);
     assert.ok(mission && mission.secondsLeft > 60, 'lot trwa');
     // Zawrócenie zwraca koszt; ponowne wysłanie.
     assert.ok(game.cancelMission(target, 1000).ok);
     assert.equal(game.missionsView(1000).length, 0);
+    assert.ok(Math.abs(game.economy.antimatter - (fuel + 2)) < 0.01, 'paliwo zwrócone');
     assert.ok(game.sendColonyShip(target, 1000).ok);
     const arrivesAt = game.missionsView(1000)[0]!.arrivesAt;
     game.save();
@@ -294,7 +302,7 @@ test('imperium: zestawienie planet liczy nieaktywne „na teraz”, dziennik zap
   withMemoryStorage(() => {
     const game = new GameController(0);
     game.upgrade('metalMine', 0);
-    game.colonize(freeAddresses(game)[0]!, 0);
+    colonizeNow(game, freeAddresses(game)[0]!, 0);
     const view = game.overview(10 * 60_000);
     assert.equal(view.length, 2);
     const first = view[0]!;
@@ -304,7 +312,7 @@ test('imperium: zestawienie planet liczy nieaktywne „na teraz”, dziennik zap
     game.switchPlanet(0, 10 * 60_000);
     const texts = game.journalEntries().map((e) => e.text);
     assert.ok(texts.some((t) => t.includes('Kopalnia metalu — poziom 2 gotowy')), texts.join(' | '));
-    assert.ok(texts.some((t) => t.startsWith('Skolonizowano')));
+    assert.ok(texts.some((t) => t.includes('skolonizowano')), texts.join(' | '));
   });
 });
 
@@ -337,7 +345,7 @@ test('energia gwiazdy (v0.44): kolektor zasila wszystkie planety gracza w układ
   assert.ok(collectorOutput(10, BALANCE, 1) > collectorOutput(9, BALANCE, 1));
   withMemoryStorage(() => {
     const game = new GameController(0);
-    assert.ok(game.colonize(freeAddresses(game)[0]!, 0).ok);
+    assert.ok(colonizeNow(game, freeAddresses(game)[0]!, 0).ok);
     assert.ok(game.switchPlanet(0, 0).ok);
     game.economy = { ...game.economy, stock: { metal: 5000, crystal: 5000 }, levels: { ...game.economy.levels, storage: 5 } };
     assert.equal(game.upgradeStarCollector(0).ok, false, 'bez badania');

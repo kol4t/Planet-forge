@@ -6,6 +6,7 @@ import { compareGeology, geologyOf } from '../src/core/economy/geology.ts';
 import { generatePlanet } from '../src/core/generation/generatePlanet.ts';
 import { findDefinition, STARTER } from '../src/data/planets.ts';
 import { geologyLines } from '../src/game/ui/geologyText.ts';
+import { colonizeNow } from './helpers.ts';
 
 const starter = generatePlanet(STARTER.definition, STARTER.seed);
 
@@ -74,7 +75,7 @@ test('geologia: mapa pokazuje to samo złoże, które planeta dostaje po koloniz
     const seen = generatePlanet(findDefinition(free.definitionId)!, free.address);
     const before = game.geologyAt(seen, free.address, 0);
     assert.equal(before.left, null);
-    assert.ok(game.colonize(free.address, 0).ok);
+    assert.ok(colonizeNow(game, free.address, 0).ok);
     const after = game.geologyAt(seen, free.address, 0);
     assert.deepEqual(after.total, before.total);
     assert.equal(after.fields, before.fields);
