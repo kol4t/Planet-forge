@@ -109,6 +109,8 @@ export class PlanetView implements PlanetDisplay {
   private fieldColors: LineSegmentsGeometry | null = null;
   /** Położenia linii siatki pól nad pierwotnym terenem (bez ukrycia nad wyrobiskiem). */
   private fieldPositions: Float32Array | null = null;
+  /** Granice zajętych pól morza (v0.57) — osobne małe linie, przebudowywane przy zmianie zajętości. */
+  private seaLines: { key: string; object: THREE.Group } | null = null;
   private readonly lineMaterials: LineMaterial[] = [];
   private gridVisible = false;
   private readonly still = prefersReducedMotion();
@@ -306,10 +308,12 @@ export class PlanetView implements PlanetDisplay {
       const r = Math.max(1.004, shapedRadius(planet, Math.max(h, sampler.lakeLevel(...p))) + 0.009);
       return [p[0] * r, p[1] * r, p[2] * r];
     };
-    // Granice pól lądu i lodu (wzdłuż brzegów) — woda i lawa nie mają pól.
-    for (const border of grid.borders) positions.push(...lift(border.from), ...lift(border.to));
+    // Granice pól lądu i lodu (wzdłuż brzegów); granice pól morza — osobno, tylko wokół zajętych (`colorFieldLines`).
+    for (const border of grid.borders.slice(0, grid.seaBorderStart)) positions.push(...lift(border.from), ...lift(border.to));
     this.liftPoint = lift;
     this.lineMaterials.length = 0;
+    // Granice pól morza poprzedniej planety zniknęły razem ze starą siatką linii.
+    this.seaLines = null;
     const line = (width: number, color: string | null, opacity: number, order: number) => {
       const geometry = new LineSegmentsGeometry();
       geometry.setPositions(positions);
@@ -351,22 +355,62 @@ export class PlanetView implements PlanetDisplay {
     const inPit = (p: Vec3) => (open ? open.s(p) > 0.02 : !!crystal && pitSink3d(crystal, p) > 0);
     const positions = source.slice();
     this.grid.borders.forEach((border, i) => {
+      if (i >= this.grid!.seaBorderStart) return;
       if (!inPit(border.from) && !inPit(border.to)) return;
       positions.copyWithin(i * 6 + 3, i * 6, i * 6 + 3);
     });
-    for (const object of this.fieldLines.children) ((object as LineSegments2).geometry as LineSegmentsGeometry).setPositions(positions);
+    // Tylko linie siatki lądu i lodu (granice pól morza — osobna grupa, `setSeaLines`).
+    for (const object of this.fieldLines.children) if (object instanceof LineSegments2) (object.geometry as LineSegmentsGeometry).setPositions(positions);
+  }
+
+  /** Granice zajętych pól morza (megakonstrukt na wodzie albo lawie, v0.57) — ta sama grubość i kolor co zajęte pola lądu. */
+  private setSeaLines(states: readonly string[]): void {
+    const grid = this.grid!;
+    const shown: number[] = [];
+    for (let i = grid.seaBorderStart; i < states.length; i++) if (states[i] === 'taken') shown.push(i);
+    const key = shown.join(',');
+    if (key === (this.seaLines?.key ?? '')) return;
+    if (this.seaLines) {
+      this.seaLines.object.parent?.remove(this.seaLines.object);
+      for (const child of this.seaLines.object.children) {
+        const material = (child as LineSegments2).material as LineMaterial;
+        const at = this.lineMaterials.indexOf(material);
+        if (at >= 0) this.lineMaterials.splice(at, 1);
+      }
+      disposeObject(this.seaLines.object);
+      this.seaLines = null;
+    }
+    if (shown.length === 0 || !this.liftPoint || !this.fieldLines) return;
+    const positions: number[] = [];
+    for (const i of shown) positions.push(...this.liftPoint(grid.borders[i]!.from), ...this.liftPoint(grid.borders[i]!.to));
+    const line = (width: number, color: string, opacity: number, order: number) => {
+      const geometry = new LineSegmentsGeometry();
+      geometry.setPositions(positions);
+      const material = new LineMaterial({ linewidth: width, color, transparent: true, opacity, depthWrite: false, toneMapped: false });
+      material.resolution.set(this.width, this.height);
+      this.lineMaterials.push(material);
+      const object = new LineSegments2(geometry, material);
+      object.renderOrder = order;
+      return object;
+    };
+    const group = new THREE.Group().add(line(FIELD_LINE.halo, FIELD_LINE.haloColor, FIELD_LINE.haloAlpha, 1), line(FIELD_LINE.width, FIELD_COLORS.taken, FIELD_LINE.alpha, 2));
+    // Razem z siatką pól (widoczne / ukryte w Ustawieniach).
+    this.fieldLines.add(group);
+    this.seaLines = { key, object: group };
   }
 
   /** Kolory obrysów według zajętości (wołane, gdy zmieniają się zajęte pola). */
   private colorFieldLines(plots: Plots): void {
     if (!this.fieldColors || !this.grid) return;
-    const states = borderStates(this.grid, plots);
+    const grid = this.grid;
+    const states = borderStates(grid, plots);
     const palette = Object.fromEntries(Object.entries(FIELD_COLORS).map(([k, hex]) => [k, new THREE.Color(hex)])) as Record<string, THREE.Color>;
-    const colors = new Float32Array(states.length * 6);
-    states.forEach((state, i) => {
-      const c = palette[state]!;
+    const colors = new Float32Array(grid.seaBorderStart * 6);
+    states.slice(0, grid.seaBorderStart).forEach((state, i) => {
+      const c = palette[state] ?? palette.free!;
       colors.set([c.r, c.g, c.b, c.r, c.g, c.b], i * 6);
     });
+    this.setSeaLines(states);
     this.fieldColors.setColors(colors);
   }
 

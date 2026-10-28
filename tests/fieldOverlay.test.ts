@@ -14,7 +14,11 @@ test('siatka pól: granice połączone w linie — każdy odcinek dokładnie raz
   const pair = (a: readonly number[], b: readonly number[]) => [key(a), key(b)].sort().join('|');
   // Każdy odcinek linii to odcinek granicy (z tym samym kolorem), a liczba się zgadza.
   const wanted = new Map<string, number>();
+  let visible = 0;
   grid.borders.forEach((b, i) => {
+    // Wolne pola morza (v0.57) nie mają rysowanych granic.
+    if (states[i] === 'hidden') return;
+    visible++;
     const k = `${states[i]}#${pair(b.from, b.to)}`;
     wanted.set(k, (wanted.get(k) ?? 0) + 1);
   });
@@ -28,7 +32,8 @@ test('siatka pól: granice połączone w linie — każdy odcinek dokładnie raz
       segments++;
     }
   }
-  assert.equal(segments, grid.borders.length);
+  assert.equal(segments, visible);
+  assert.equal(visible, grid.seaBorderStart, 'bez konstruktu na morzu — widać dokładnie granice lądu i lodu');
   // Linii jest dużo mniej niż odcinków (stąd szybsze rysowanie).
   assert.ok(chains.length < grid.borders.length / 5, `${chains.length} linii na ${grid.borders.length} odcinków`);
   assert.ok(chains.some((c) => c.state === 'taken'));

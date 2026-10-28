@@ -39,6 +39,7 @@ tylko w podglądzie (`npm run dev`). Renderer i zarządzanie pamięcią planety 
 - **Klatka 2D w przeglądarce bezgłowej:** profil 5 s (bez spowolnienia) — kod gry (JavaScript) ok. 0,3 s, reszta to
   rysowanie na ekran w przeglądarce (`(program)`, programowe łączenie warstw bez karty graficznej). Na iPadzie robi to
   karta graficzna — stąd 58–60 kl./s zmierzone przez właściciela (v0.21) przy 8 kl./s w symulacji.
+- **v0.57 — pola morza:** siatka liczy też pola wody i lawy (granice pól morza dopiero na żądanie) — ok. +6% czasu siatki (Node, 18 planet).
 - **Zmiana planety:** najdroższa jest siatka pól (150–300 ms na komputerze, iPad zapewne 2–4× dłużej) i pieczenie terenu
   (20–100 ms, metoda „erosion” najwolniejsza). Dlatego zmiana planety najpierw pokazuje „Ładowanie: …” (v0.30).
 - **Generowanie danych planety** (`generatePlanet`): poniżej 1 ms.

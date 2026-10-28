@@ -70,7 +70,7 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
   konstrukt…”). 30 min rozkładania (budynek nie pracuje; anulowanie zwraca koszt i paliwo), potem lot (2× wolniej niż
   transportowiec). Koszt: 5× paliwo transportowca na trasie + 10% kosztu ostatniego poziomu. Na starej planecie zostają
   puste pola; na celu konstrukt staje z tym samym poziomem i megakompleksem — cel musi mieć dość wolnych pól obok siebie
-  (ląd albo lód; ocean i lawa — następny krok). Okno ostrzega, gdy na celu zabraknie energii. Liczby robocze (`BALANCE.transfer`).
+  (ląd, lód, a od v0.57 także ocean i lawa — pola morza tylko dla konstruktów). Okno ostrzega, gdy na celu zabraknie energii. Liczby robocze (`BALANCE.transfer`).
 
 - Od etapu „wielka fabryka” gracz może uruchomić **kompleks** całego budynku (badanie + koszt): +30% wydobycia/energii.
   Wielka fabryka ma **tryby pracy** (Zrównoważony / Maksymalna produkcja / Oszczędzanie energii).

@@ -63,8 +63,8 @@ test('transfer: konstrukt staje „na każdym polu” (np. kopalnia metalu na lo
     assert.ok(landOnly <= room.available);
     const rules = withAnywhere({}, ['metalMine']);
     const plots = reconcilePlots(grid, {}, LEVELS, ORDER, rules);
-    const onIce = plots.metalMine!.filter((c) => grid.cells[c]!.kind === 'ice').length;
-    assert.equal(fieldCapacity(grid, plots, rules), fieldCapacity(grid, {}, {}) + onIce, 'zajęte pola lodu liczą się do pól planety');
+    const offLand = plots.metalMine!.filter((c) => grid.cells[c]!.kind !== 'land').length;
+    assert.equal(fieldCapacity(grid, plots, rules), fieldCapacity(grid, {}, {}) + offLand, 'zajęte pola lodu i morza liczą się do pól planety');
   }
 });
 
@@ -176,4 +176,27 @@ test('zapis tekstem (PF2): eksport i wczytanie zachowują transfer w toku, stacj
     assert.equal(other.stationView(1000).built, true);
     assert.equal(other.upgrade('crystalMine', 1000).ok, false, 'po wczytaniu nadal rozkładany');
   });
+});
+
+test('pola morza (v0.57): woda i lawa mają pola na końcu siatki; konstrukt rośnie po nich spójnie, zwykłe budynki nie', () => {
+  for (const id of ['ocean', 'volcanic']) {
+    const def = PLANET_DEFINITIONS.find((d) => d.id === id)!;
+    const planet = generatePlanet(def, `PF-SEA-${id}`);
+    const grid = fieldGrid(planet);
+    const kind = id === 'ocean' ? 'water' : 'lava';
+    const sea = grid.cells.map((c, i) => ({ c, i })).filter(({ c }) => c.kind === kind);
+    assert.ok(sea.length > 10, `${id}: pola ${kind}`);
+    assert.ok(sea.every(({ i }) => i >= grid.seaCellStart));
+    const start = sea[0]!.i;
+    const rules = withAnywhere({}, ['metalMine']);
+    const plots = reconcilePlots(grid, { metalMine: [start] }, LEVELS, ORDER, rules);
+    const area = plots.metalMine!;
+    assert.equal(area.length, fieldsFor('metalMine', 25));
+    assert.equal(area[0], start, 'obszar zaczyna się na polu morza');
+    assert.ok(area.filter((c) => c >= grid.seaCellStart).length > 1, 'rośnie po polach morza');
+    area.forEach((c, k) => k === 0 || assert.ok(grid.cells[c]!.neighbors.some((n) => area.slice(0, k).includes(n)), 'spójny'));
+    // Zwykły budynek nie stoi na morzu.
+    const normal = reconcilePlots(grid, { powerPlant: [start] }, { ...LEVELS, metalMine: 0, powerPlant: 10 }, ORDER, {});
+    assert.ok(normal.powerPlant!.every((c) => c < grid.seaCellStart));
+  }
 });
