@@ -345,6 +345,12 @@ export interface Balance {
     storageSecondsPerLevel: number;
     storageMaxLevel: number;
   };
+  /**
+   * Transfer megakonstruktu (v0.56, decyzja właściciela): rozkładanie do lotu `prepareSeconds` (budynek nie pracuje),
+   * lot `transportSeconds × speedFactor`, paliwo `fuelFactor` × paliwo transportowca na tej trasie, surowce
+   * `costShare` × koszt ostatniego poziomu budynku.
+   */
+  transfer: { prepareSeconds: number; speedFactor: number; fuelFactor: number; costShare: number };
   buildings: readonly BuildingDef[];
 }
 
@@ -624,6 +630,28 @@ export interface Shipment {
   cargo: Resources;
   /** Lot na stację macierzystą albo ze stacji (v0.55; brak = między planetami). */
   station?: 'to' | 'from';
+}
+
+/**
+ * Megakonstrukt w transferze (v0.56): budynek z megakompleksem rozkładany na planecie `from` do `departsAt`,
+ * potem w locie do `arrivesAt`; na celu staje z tym samym poziomem i kompleksem. Zapłacone koszty — do zwrotu
+ * przy anulowaniu przed odlotem.
+ */
+export interface ConstructTransfer {
+  from: string;
+  to: string;
+  building: BuildingId;
+  level: number;
+  /** Rodzina i tryb kompleksu (megakompleks). */
+  family: string;
+  mode?: string;
+  startedAt: number;
+  departsAt: number;
+  arrivesAt: number;
+  cost: Resources;
+  fuel: number;
+  /** Budynek zdjęty już z planety nadawcy (po odlocie). */
+  departed?: boolean;
 }
 
 /**

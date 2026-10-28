@@ -2,6 +2,26 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Etap 5: transfer megakonstruktu (v0.56, decyzja właściciela)
+
+- Wysłać można budynek z działającym megakompleksem (Kompleks → sekcja megakompleksu → „Wyślij konstrukt…”), na inną
+  planetę gracza, jeden naraz na planetę. Nie wolno, gdy ten budynek jest w budowie albo w kolejce.
+- **Rozkładanie do lotu** `BALANCE.transfer.prepareSeconds` = 30 min: budynek **nie pracuje** (wydobycie i energia 0 —
+  `siteFactor`/`energyFactor` = 0 dla `slot.packing`), nie da się go ulepszyć, zburzyć ani zmienić kompleksu; anulowanie
+  przed odlotem zwraca koszt i paliwo. Potem lot `transportSeconds × speedFactor` (2).
+- **Koszt** (wariant „paliwo + surowce”): paliwo `fuelFactor` (5) × paliwo transportowca na tej trasie, surowce
+  `costShare` (10%) × koszt ostatniego poziomu budynku — od razu, z aktywnej planety. Liczby robocze.
+- **Stara planeta**: po odlocie puste pola (poziom 0, bez kompleksu). **Cel**: konstrukt staje z tym samym poziomem,
+  megakompleksem i trybem (zastępuje budynek tego typu; budowa tego budynku na celu anulowana ze zwrotem), znaleziska
+  liczą się od nowa. Cel musi mieć **dość wolnych pól obok siebie** (`transferRoom`); konstrukt stoi „na każdym polu”
+  (`BuildRules.anywhere`, zapis `slots[].afloat`) — dziś ląd i lód (także bez „Budowy na lodzie”).
+- **Ocean i lawa**: siatka pól ma dziś tylko ląd i lód (sprawdzone na wszystkich typach planet), więc lądowanie na wodzie
+  i lawie to **osobny krok zaraz po etapie 5** (decyzja właściciela): nowe pola na oceanie i lawie tylko dla konstruktów
+  (i przyszłych platform przybrzeżnych), bez przestawiania istniejących budynków, z pomiarem płynności.
+- Okno pokazuje, czy na celu wystarczy energii po lądowaniu (konstrukt zużywa dużo energii) — ostrzeżenie, nie blokada.
+- Gdy planety celu już nie ma — konstrukt wraca na planetę nadawcy; gdy i jej — przepada. Ryzyko w drodze — etap 7.
+- Poprawka przy okazji: wczytanie zapisu tekstem (`PF2:`) przywraca też stację macierzystą i licznik wyeksploatowanych.
+
 ## 2026-10-28 — Etap 4: stacja macierzysta (v0.55, decyzja właściciela)
 
 - Badanie „Moduł orbitalny” (`station-orbit`, ramię Stacja i handel) przestało być zaślepką: odblokowuje funkcję

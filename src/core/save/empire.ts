@@ -11,7 +11,8 @@ import { parseShipments } from '../economy/transport.ts';
 import { parseComets } from '../economy/comets.ts';
 import { parseFinds, type FindsState } from '../economy/finds.ts';
 import { parseHomeStation } from '../economy/homeStation.ts';
-import type { AsteroidStation, CometHaul, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import { parseTransfers } from '../economy/constructTransfer.ts';
+import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 import { parseComplexes, type Complex } from '../colony/complexes.ts';
@@ -51,6 +52,8 @@ export interface SlotSave {
   asteroidStation?: AsteroidStation;
   /** Kolektor energii gwiazdy na orbicie (od v0.44; brak albo błędny = brak kolektora). */
   starCollector?: AsteroidStation;
+  /** Megakonstrukty po transferze — stoją na każdym polu, także na wodzie i lawie (od v0.56, opcjonalne). */
+  afloat?: BuildingId[];
 }
 
 export interface EmpireSave {
@@ -86,6 +89,8 @@ export interface EmpireSave {
   exploited?: string[];
   /** Stacja macierzysta (od v0.55; brak = nie zbudowana). */
   station?: HomeStation;
+  /** Megakonstrukty w transferze (od v0.56, opcjonalne). */
+  transfers?: ConstructTransfer[];
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -190,6 +195,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(parseSpecialization(raw.specialization) ? { specialization: parseSpecialization(raw.specialization) } : {}),
       ...(parseStation(raw.asteroidStation) ? { asteroidStation: parseStation(raw.asteroidStation) } : {}),
       ...(parseStation(raw.starCollector) ? { starCollector: parseStation(raw.starCollector) } : {}),
+      ...(parseAfloat(raw.afloat).length > 0 ? { afloat: parseAfloat(raw.afloat) } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;
@@ -212,7 +218,16 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(data.finds ? { finds: parseFinds(data.finds) } : {}),
     ...(parseExploited(data.exploited).length > 0 ? { exploited: parseExploited(data.exploited) } : {}),
     ...(parseHomeStation(data.station) ? { station: parseHomeStation(data.station)! } : {}),
+    ...(parseTransfers(data.transfers, BUILDING_IDS).length > 0 ? { transfers: parseTransfers(data.transfers, BUILDING_IDS) } : {}),
   };
+}
+
+const BUILDING_IDS: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
+
+/** Lista budynków „na każdym polu” (znane id, bez powtórzeń; błędne pomijane). */
+export function parseAfloat(raw: unknown): BuildingId[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter((id): id is BuildingId => BUILDING_IDS.includes(id)))];
 }
 
 /** Zapis jednej planety (v0.1–0.6) → imperium z jednym miejscem; antymateria trafia do portfela. */

@@ -53,9 +53,12 @@ export function choiceCells(grid: FieldGrid, plots: Plots, id: BuildingId, rules
   return out;
 }
 
-/** Czy budynek może stanąć na polu: ląd (zgodnie z `BuildRules`), a kryształy także na lodzie. */
+/**
+ * Czy budynek może stanąć na polu: ląd (zgodnie z `BuildRules`), a kryształy także na lodzie; megakonstrukt
+ * po transferze (`rules.anywhere`) — na każdym polu, także na oceanie i lawie (decyzja właściciela, v0.56).
+ */
 export function canStand(id: BuildingId, cell: FieldCell, rules: BuildRules = {}): boolean {
-  return isBuildable(cell.kind, rules) || (id === 'crystalMine' && cell.kind === 'ice');
+  return isBuildable(cell.kind, rules) || (id === 'crystalMine' && cell.kind === 'ice') || !!rules.anywhere?.includes(id);
 }
 
 /** Zajęte pola planety — prawdziwa suma obszarów wszystkich budynków (ląd i lód). */
@@ -66,14 +69,16 @@ export function usedLandFields(grid: FieldGrid, plots: Plots): number {
 }
 
 /**
- * Pola, na których można budować: ląd (po „Budowie na lodzie” także lód) i pola lodu zajęte już przez
- * kryształy (one stoją na lodzie zawsze) — dzięki temu licznik „zajęte / wszystkie” jest uczciwy.
+ * Pola, na których można budować: ląd (po „Budowie na lodzie” także lód) i pola spoza niego zajęte już przez
+ * budynki, które na nich stoją (kryształy na lodzie, megakonstrukt na wodzie i lawie) — licznik „zajęte / wszystkie” uczciwy.
  */
 export function fieldCapacity(grid: FieldGrid, plots: Plots, rules: BuildRules = {}): number {
   let extra = 0;
-  for (const cell of plots.crystalMine ?? []) {
-    const kind = grid.cells[cell]?.kind;
-    if (kind && !isBuildable(kind, rules)) extra++;
+  for (const [id, list] of Object.entries(plots) as [BuildingId, number[]][]) {
+    for (const cell of list ?? []) {
+      const field = grid.cells[cell];
+      if (field && !isBuildable(field.kind, rules) && canStand(id, field, rules)) extra++;
+    }
   }
   return buildableCount(grid, rules) + extra;
 }

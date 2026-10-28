@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
+import { openConstructTransferPanel } from '../ui/constructTransferPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
 import { openFindsPanel } from '../ui/findsPanel.ts';
 import { openFactoryPanel } from '../ui/factoryPanel.ts';
@@ -1902,6 +1903,23 @@ export class PlanetScene extends Phaser.Scene {
       finds: () => c.findsView().total,
       openFinds: () => {
         this.closeAsteroid = openFindsPanel(() => c.findsView());
+      },
+      transferNote: () => {
+        const p = c.transferView(id).packing;
+        return p ? `Rozkładanie do lotu na ${p.toName} — odlot za ${formatDuration(p.secondsLeft)}. Budynek nie pracuje.` : null;
+      },
+      openTransfer: () => {
+        this.closeAsteroid = openConstructTransferPanel({
+          name: c.complexView(id)!.mega.name,
+          view: () => c.transferView(id),
+          send: (to) => c.startTransfer(id, to),
+          cancel: () => c.cancelTransfer(id),
+          onDone: (message) => {
+            this.closeAsteroid = null;
+            this.showToast(message, 'ok', 3600);
+            this.relayout();
+          },
+        });
       },
       onDone: (message) => {
         this.closeAsteroid = null;
