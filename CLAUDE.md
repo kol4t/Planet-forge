@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.51.0 — opublikowana: grafika 3D, nowa Elektrownia, Magazyn-port i Kopalnia-ciężki przemysł)
+## Stan obecny (v0.53.0 — opublikowana: plan MVP, symulator pętli, antymateria jako paliwo lotów)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -42,6 +42,9 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
 - **v0.51 — Magazyn i Kopalnia metalu wyraźnie różne** (opublikowana v0.51.0, decyzja właściciela): Magazyn = port
   kontenerowy (ciemny asfalt, kolorowe kontenery, turkusowe suwnice, białe silosy, bez taśm), Kopalnia metalu = ciężki
   przemysł (żelazo, rdza, hałdy rudy, dym z kominów, żar pieców, bez złotych dachów); 3D i 2D.
+- **v0.52–v0.53 — pętla MVP, etapy 1–2** (plan: `docs/status.md`): symulator pętli `npm run simulate`
+  (`scripts/simulate.ts`, raport `docs/balans-symulacja.md`); **antymateria = paliwo każdego lotu** (`BALANCE.fuel`,
+  `core/economy/fuel.ts`), kolonizacja także we własnym układzie statkiem (koszt, paliwo, lot 2 min).
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
@@ -71,9 +74,9 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   migracje starych zapisów; uszkodzony zapis → kopia `planet-forge.empire.broken` + komunikat; nieudany zapis → komunikat (v0.46).
 - **PWA**: manifest, ikony, service worker (offline, pasek „Dostępna aktualizacja”). **Zgłoszenia**: Ustawienia → „Zgłoś /
   diagnostyka” (GitHub Issue, diagnostyka z płynnością i — w 3D — liczbą rysowań i tekstur).
-- **Testy**: 326 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
+- **Testy**: 330 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
 - **Wydajność** (symulacja, nie iPad): siatka pól ~190 ms na komputerze (najdroższa część zmiany planety), 3D ~43 rysowania /
-  105 tys. trójkątów, brak wycieków przy zmianie planety — `docs/PERFORMANCE.md`. Ostatni pomiar na iPadzie: v0.21 (58–59 kl./s).
+  105 tys. trójkątów, brak wycieków przy zmianie planety — `docs/PERFORMANCE.md`. Ostatni pomiar na iPadzie: v0.46 (2D 54 / najsłabsza s. 24 kl./s, 3D 56 / 15 kl./s).
 
 ## Architektura — zasady, których nie łamiesz
 

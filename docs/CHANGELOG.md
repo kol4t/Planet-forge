@@ -2,6 +2,14 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.53.0 — plan MVP, symulator pętli i antymateria jako paliwo — 2026-10-28
+
+- Plan do MVP według definicji właściciela (pętla: planeta → wyczerpanie złóż → transport / przeniesienie → 3 planety → stacja macierzysta, flota, imperium gwiezdne) — `docs/status.md`.
+- Symulator pętli `npm run simulate` (bez zmian w grze): „rozsądny gracz” gra zwykłymi akcjami; raport `docs/balans-symulacja.md`. Wnioski: pętla za szybka dla aktywnego gracza, martwy punkt „pełny magazyn bez pól”, gracz okazjonalny ok. 6× wolniejszy.
+- **Antymateria = paliwo każdego lotu:** transportowiec 1 w układzie (między układami 2 + 1 na 20 jedn.), statek kolonizacyjny 3 (3 + 1 na 15 jedn.), ekspedycja 1, holownik 1. Koszt widać przed wysłaniem; bez paliwa lot nie startuje; zawrócenie zwraca paliwo.
+- **Kolonizacja we własnym układzie statkiem:** 2500 metalu, 1800 kryształów, 3 antymaterii, lot 2 min — kolonia po przylocie.
+- Zapisy zgodne (nowe pole opcjonalne).
+
 ## v0.51.0 — Magazyn jako port, Kopalnia metalu jako ciężki przemysł — 2026-10-28
 
 - Magazyn i Kopalnia metalu wyraźnie się różnią (zrzut właściciela: wyglądały prawie tak samo).
