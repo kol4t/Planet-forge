@@ -11,6 +11,9 @@ import { cellLookup, collectorOrbit, hash01, layoutFromPlots, offsetOnSphere, pl
 import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, rimPoint, type DrillParams } from './drill.ts';
 import { drillLook } from '../data/drill.ts';
+import { buildOpenPit, oceanCutValue, pitRadius, snapToContours, type OpenPit } from './openPit.ts';
+import { createPitCables, type PitCables } from './openPitMeshes.ts';
+import { HANG_ATTACH, HANG_BOTTOM, type Hanging } from './colonyMeshes.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -76,6 +79,9 @@ export class PlanetView implements PlanetDisplay {
   private planetObjects: THREE.Object3D[] = [];
   /** Odwiert planetarny (v0.48): ściany, warstwy i jaskinia (cieniowane) + blask i jądro; przebudowa przy zmianie etapu. */
   private drill: THREE.Group | null = null;
+  /** Wielka odkrywka ekstraktora (etapy Odkrywka i Megaodkrywka) i liny-rury wiszącego ekstraktora. */
+  private openPit: OpenPit | null = null;
+  private cables: PitCables | null = null;
   private planetType = '';
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
@@ -100,6 +106,8 @@ export class PlanetView implements PlanetDisplay {
   /** Siatka pól: ciemna obwódka + kolorowe linie (grube linie — zwykłe mają w WebGL zawsze 1 piksel). */
   private fieldLines: THREE.Group | null = null;
   private fieldColors: LineSegmentsGeometry | null = null;
+  /** Położenia linii siatki pól nad pierwotnym terenem (bez ukrycia nad wyrobiskiem). */
+  private fieldPositions: Float32Array | null = null;
   private readonly lineMaterials: LineMaterial[] = [];
   private gridVisible = false;
   private readonly still = prefersReducedMotion();
@@ -159,6 +167,8 @@ export class PlanetView implements PlanetDisplay {
   setPlanet(planet: Planet): void {
     this.planetType = planet.definitionId;
     this.setDrill(null, null);
+    this.setCables(null);
+    this.openPit = null;
     for (const object of this.planetObjects) {
       object.parent?.remove(object);
       disposeObject(object);
@@ -307,7 +317,26 @@ export class PlanetView implements PlanetDisplay {
     this.fieldLines.name = 'fields';
     this.fieldLines.visible = this.gridVisible;
     this.spinGroup.add(this.fieldLines);
+    this.fieldPositions = Float32Array.from(positions);
     this.colorFieldLines({});
+  }
+
+  /**
+   * Linie siatki pól nad wyrobiskiem kryształów wisiałyby w powietrzu — są niewidoczne (odcinek zwinięty do punktu).
+   * Obrys na krawędzi dziury zostaje. Wołane przy zmianie układu kolonii.
+   */
+  private hideFieldLinesInPit(layout: ColonyLayout): void {
+    const source = this.fieldPositions;
+    if (!source || !this.fieldLines || !this.grid) return;
+    const crystal = layout.complexes.find((c) => c.building === 'crystalMine') ?? null;
+    const open = this.openPit;
+    const inPit = (p: Vec3) => (open ? open.s(p) > 0.02 : !!crystal && pitSink3d(crystal, p) > 0);
+    const positions = source.slice();
+    this.grid.borders.forEach((border, i) => {
+      if (!inPit(border.from) && !inPit(border.to)) return;
+      positions.copyWithin(i * 6 + 3, i * 6, i * 6 + 3);
+    });
+    for (const object of this.fieldLines.children) ((object as LineSegments2).geometry as LineSegmentsGeometry).setPositions(positions);
   }
 
   /** Kolory obrysów według zajętości (wołane, gdy zmieniają się zajęte pola). */
@@ -341,18 +370,80 @@ export class PlanetView implements PlanetDisplay {
   private applyColony(layout: ColonyLayout, fresh: boolean): void {
     // Obniżenie odkrywki → rozstawienie budowli (stoją w odkrywce) → teren: grunt, odkrywka, fundamenty budowli
     // i otwór odwiertu (ląd z wnętrza otworu przypięty do okręgu krawędzi) → ściany studni, warstwy i jądro.
+    // Od etapu „Odkrywka” cały obszar ekstraktora to jedna tarasowa dziura (`openPit.ts`), ekstraktor wisi nad szybem.
+    const pitComplex = layout.complexes.find((c) => c.building === 'crystalMine') ?? null;
+    this.openPit = pitComplex && this.grid ? buildOpenPit(this.grid, layout, pitComplex, (dir) => this.groundAt(dir)) : null;
+    const hanging = this.openPit ? this.hangingFor(this.openPit) : null;
+    this.colony.setHanging(hanging);
     this.colony.setSink(this.pitSink(layout));
     if (fresh) this.colony.setLayout(layout);
     else this.colony.updateLayout(layout);
-    const pitComplex = layout.complexes.find((c) => c.building === 'crystalMine') ?? null;
     const drill = pitComplex ? this.drillFor(pitComplex) : null;
     this.paintLand(layout, this.colony.pads(), drill);
     this.setDrill(pitComplex, drill);
+    this.setCables(this.openPit && hanging ? createPitCables(this.openPit, hanging, (dir) => this.pitGround(dir), this.still) : null);
     // Wyrobisko może zejść poniżej poziomu morza — tafla oceanu nad nim jest wycięta.
-    const pit = layout.complexes.find((c) => c.building === 'crystalMine');
-    if (pit) this.oceanCut.value.set(...pit.core, Math.cos(pit.radius * pitShare(pit.stage)));
+    if (pitComplex && !this.openPit) this.oceanCut.value.set(...pitComplex.core, Math.cos(pitComplex.radius * pitShare(pitComplex.stage)));
     else this.oceanCut.value.set(0, 1, 0, 2);
+    this.cutOceanAlongPit();
+    this.hideFieldLinesInPit(layout);
     this.buildOutlines(layout);
+  }
+
+  /** Promień pierwotnego terenu w punkcie (woda — tafla morza). */
+  private groundAt(dir: Vec3): number {
+    const sampler = this.shaped;
+    if (!sampler) return 1;
+    const level = Math.max(sampler.height(...dir), sampler.lakeLevel(...dir));
+    return sampler.isLand(level) ? sampler.radius(level) : 1.001;
+  }
+
+  /** Promień terenu z wielką odkrywką (pod liną, pod rusztowaniem). */
+  private pitGround(dir: Vec3): number {
+    const ground = this.groundAt(dir);
+    return this.openPit ? Math.max(PIT_MIN_RADIUS, pitRadius(this.openPit, this.openPit.s(dir), ground)) : ground;
+  }
+
+  /** Wiszący ekstraktor: nad środkiem dziury, pod poziomem krawędzi, z zapasem nad dnem; nie szerszy niż dno. */
+  private hangingFor(pit: OpenPit): Hanging {
+    const radius = pit.rim - pit.look.hang * pit.look.depth;
+    const byDepth = (radius - pit.floorRadius - 0.004) / (HANG_BOTTOM + 0.06);
+    const byFloor = (pit.floorAngle * radius * 0.9) / HANG_ATTACH.radius;
+    const size = Math.max(0.03, Math.min(0.3, byDepth, byFloor));
+    const complex = this.layout?.complexes.find((c) => c.building === 'crystalMine');
+    return { dir: pit.center, radius, size, spin: complex?.spots[0]?.spin ?? 0 };
+  }
+
+  /** Wycięcie tafli oceanu wzdłuż krawędzi wielkiej odkrywki (wartość w wierzchołkach tafli; ujemna — bez wycięcia). */
+  private cutOceanAlongPit(): void {
+    const ocean = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'ocean' && o instanceof THREE.Mesh);
+    const attr = ocean?.geometry.getAttribute('pitCut') as THREE.BufferAttribute | undefined;
+    if (!ocean || !attr) return;
+    const pos = ocean.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const values = attr.array as Float32Array;
+    const pit = this.openPit;
+    for (let i = 0; i < values.length; i++) {
+      if (!pit) {
+        values[i] = -1;
+        continue;
+      }
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const l = Math.hypot(x, y, z) || 1;
+      values[i] = oceanCutValue(pit, [x / l, y / l, z / l]);
+    }
+    attr.needsUpdate = true;
+  }
+
+  /** Liny-rury wiszącego ekstraktora (null — usuń). */
+  private setCables(cables: PitCables | null): void {
+    if (this.cables) {
+      this.cables.object.parent?.remove(this.cables.object);
+      disposeObject(this.cables.object);
+    }
+    this.cables = cables;
+    if (cables) this.spinGroup.add(cables.object);
   }
 
   /**
@@ -374,6 +465,8 @@ export class PlanetView implements PlanetDisplay {
   private pitSink(layout: ColonyLayout): (dir: Vec3) => number {
     const complexAt = this.complexAt(layout);
     const sampler = this.shaped;
+    const pit = this.openPit;
+    if (pit) return (dir) => Math.max(0, this.groundAt(dir) - this.pitGround(dir));
     return (dir) => {
       const c = complexAt(...dir);
       const depth = c ? pitSink3d(c, dir) : 0;
@@ -386,6 +479,8 @@ export class PlanetView implements PlanetDisplay {
 
   /** Parametry studni dla niecki kryształów (null — etap 1, bez studni). Krawędź na dnie niecki w kącie otworu. */
   private drillFor(pit: ColonyComplex): DrillParams | null {
+    // Wielka odkrywka: szyb w środku płaskiego dna.
+    if (this.openPit) return drillParams(drillStage(pit.level), this.openPit.floorAngle, this.openPit.floorRadius);
     const craterAngle = pit.radius * pitShare(pit.stage);
     const probe = drillParams(drillStage(pit.level), craterAngle, 1);
     if (!probe) return null;
@@ -402,7 +497,7 @@ export class PlanetView implements PlanetDisplay {
       this.drill = null;
     }
     if (!pit || !params) return;
-    const built = buildDrill(pit.core, params, drillLook(this.planetType), pit.cells[0] ?? 0);
+    const built = buildDrill(this.openPit?.center ?? pit.core, params, drillLook(this.planetType), pit.cells[0] ?? 0);
     const mesh = (part: { position: Float32Array; color: Float32Array }, material: THREE.Material) => {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(part.position, 3));
@@ -442,6 +537,7 @@ export class PlanetView implements PlanetDisplay {
     const floor = new THREE.Color(look.deepCrust).multiplyScalar(0.7);
     const pitRock = [rock.r, rock.g, rock.b];
     const pitFloor = [floor.r, floor.g, floor.b];
+    const open = this.openPit;
     for (let t = 0; t < pos.length; t += 9) {
       const mx = pos[t]! + pos[t + 3]! + pos[t + 6]!;
       const my = pos[t + 1]! + pos[t + 4]! + pos[t + 7]!;
@@ -449,9 +545,10 @@ export class PlanetView implements PlanetDisplay {
       const len = Math.hypot(mx, my, mz) || 1;
       const dir: Vec3 = [mx / len, my / len, mz / len];
       const cell = lookup(...dir);
-      const sunk = pit ? pitSink3d(pit, dir) : 0;
+      const sunk = pit && !open ? pitSink3d(pit, dir) : 0;
       const c = sunk > 0 ? pit : complexAt(...dir);
-      if (!c) continue;
+      // Wielka odkrywka — kolory po wykopaniu (niżej, z kształtu ścianek).
+      if (!c || (open && c === pit)) continue;
       // Ścianki lądu (~0,03 rad) są ok. 3× większe niż działki wzoru zabudowy (`complexGround`) — w 3D wzór dawał
       // szachownicę (v0.47). Grunt = spokojna płyta w kolorze budynku, lekko inna na każdym polu. Szczegół — zabudowa 3D.
       const base = GROUND_BASE[c.building];
@@ -469,7 +566,32 @@ export class PlanetView implements PlanetDisplay {
     // Niecka: każdy wierzchołek w jej zasięgu na kulistym profilu poniżej wysokości środka kompleksu (równo, niezależnie
     // od wzgórz), nigdy wyżej niż teren — także poniżej poziomu morza (ocean nad nią wycięty). Decyzja tylko z położenia
     // wierzchołka, więc ścianki zostają szczelne.
-    if (pit) {
+    // Wielka odkrywka: teren wykopany — każdy wierzchołek w dziurze schodzi na wysokość warstwy (`openPit.ts`); na obrysie
+    // pól s = 0, więc krawędź zostaje dokładnie na granicy, bez szczelin. `s` liczone raz na wspólny punkt siatki.
+    const sAt = open ? new Float32Array(pos.length / 3) : null;
+    if (open && sAt) {
+      const memo = new Map<number, { dir: Vec3; s: number }>();
+      const cosReach = Math.cos(open.reach + 0.03);
+      const [cx, cy, cz] = open.center;
+      for (let i = 0; i < pos.length; i += 3) {
+        const r = Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!);
+        const dir: Vec3 = [pos[i]! / r, pos[i + 1]! / r, pos[i + 2]! / r];
+        if (dir[0] * cx + dir[1] * cy + dir[2] * cz < cosReach) continue;
+        const key = Math.round(dir[0] * 1e5) + 1e5 + 200001 * (Math.round(dir[1] * 1e5) + 1e5 + 200001 * (Math.round(dir[2] * 1e5) + 1e5));
+        let hit = memo.get(key);
+        if (!hit) {
+          // Punkt dosunięty na najbliższą linię (obrys, krawędź półki) — gładkie krawędzie warstw.
+          const snapped = snapToContours(open, dir);
+          hit = { dir: snapped, s: open.s(snapped) };
+          memo.set(key, hit);
+        }
+        sAt[i / 3] = hit.s;
+        const target = hit.s > 0 ? Math.max(PIT_MIN_RADIUS, pitRadius(open, hit.s, r)) : r;
+        pos[i] = hit.dir[0] * target;
+        pos[i + 1] = hit.dir[1] * target;
+        pos[i + 2] = hit.dir[2] * target;
+      }
+    } else if (pit) {
       for (let i = 0; i < pos.length; i += 3) {
         const r = Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!);
         const depth = pitSink3d(pit, [pos[i]! / r, pos[i + 1]! / r, pos[i + 2]! / r]);
@@ -485,7 +607,7 @@ export class PlanetView implements PlanetDisplay {
     // ścianka całkiem w otworze ściągnięta do jednego punktu (znika) — pierwotna powierzchnia nie przechodzi przez otwór.
     if (pit && drill) {
       const cosRim = Math.cos(drill.rimAngle);
-      const n = pit.core;
+      const n = open?.center ?? pit.core;
       const inside = (i: number) =>
         (pos[i]! * n[0] + pos[i + 1]! * n[1] + pos[i + 2]! * n[2]) / Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!) > cosRim;
       const pin = (i: number, from: number) => {
@@ -506,10 +628,57 @@ export class PlanetView implements PlanetDisplay {
         for (let v = 0; v < 3; v++) if (ins[v]) pin(t + v * 3, t + v * 3);
       }
     }
+    if (open && sAt && pit) this.paintOpenPit(pos, col, sAt, pit, complexAt);
     positions.needsUpdate = true;
     colors.needsUpdate = true;
     geometry.setAttribute('normal', new THREE.BufferAttribute(facetNormals(positions.array as Float32Array), 3));
     geometry.computeBoundingSphere();
+  }
+
+  /**
+   * Kolory wykopanej odkrywki (z kształtu już obniżonych ścianek): płaskie półki jaśniejsze, pochyłe zbocza ciemniejsze,
+   * im głębsza warstwa, tym ciemniej; dno ciemne, rzadkie turkusowe żyły kryształu na zboczach. Ścianki obszaru tuż przy
+   * krawędzi (s = 0) — jasna skała krawędzi, nic płaskiego w kolorze gruntu.
+   */
+  private paintOpenPit(pos: Float32Array, col: Float32Array, sAt: Float32Array, pit: ColonyComplex, complexAt: (x: number, y: number, z: number) => ColonyComplex | null): void {
+    const open = this.openPit!;
+    const look = drillLook(this.planetType);
+    const rgb = (hex: string) => {
+      const c = new THREE.Color(hex);
+      return [c.r, c.g, c.b] as const;
+    };
+    const shelfRgb = rgb(look.crust);
+    const slopeRgb = rgb(look.deepCrust);
+    const floorRgb = slopeRgb.map((v) => v * 0.55);
+    const vein = [0.3, 0.72, 0.78] as const;
+    const L = open.look.layers;
+    for (let t = 0; t < pos.length; t += 9) {
+      const v = t / 3;
+      const sMean = (sAt[v]! + sAt[v + 1]! + sAt[v + 2]!) / 3;
+      const mx = pos[t]! + pos[t + 3]! + pos[t + 6]!;
+      const my = pos[t + 1]! + pos[t + 4]! + pos[t + 7]!;
+      const mz = pos[t + 2]! + pos[t + 5]! + pos[t + 8]!;
+      const len = Math.hypot(mx, my, mz) || 1;
+      if (sMean <= 0 && complexAt(mx / len, my / len, mz / len) !== pit) continue;
+      // Nachylenie ścianki względem pionu planety: półka czy zbocze.
+      const ax = pos[t + 3]! - pos[t]!, ay = pos[t + 4]! - pos[t + 1]!, az = pos[t + 5]! - pos[t + 2]!;
+      const bx = pos[t + 6]! - pos[t]!, by = pos[t + 7]! - pos[t + 1]!, bz = pos[t + 8]! - pos[t + 2]!;
+      const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+      const flat = Math.abs(nx * mx + ny * my + nz * mz) / ((Math.hypot(nx, ny, nz) || 1) * len);
+      const layer = Math.min(L - 1, Math.floor(Math.max(0, sMean) * L));
+      const dark = 1 - 0.45 * (layer / Math.max(1, L - 1));
+      const tone = 0.94 + 0.12 * hash01(t, 11);
+      let c: readonly number[];
+      if (sMean >= 0.995) c = floorRgb;
+      else if (flat > 0.992) c = shelfRgb.map((x) => x * dark * tone);
+      else if (hash01(t, 12) < 0.01 && sMean > 0.15) c = vein;
+      else c = slopeRgb.map((x) => x * dark * 0.85 * tone);
+      for (let k = 0; k < 3; k++) {
+        col[t + k * 3] = Math.min(1, c[0]!);
+        col[t + k * 3 + 1] = Math.min(1, c[1]!);
+        col[t + k * 3 + 2] = Math.min(1, c[2]!);
+      }
+    }
   }
 
   /**
@@ -566,7 +735,8 @@ export class PlanetView implements PlanetDisplay {
     const positions: number[] = [];
     // Obrysy wewnątrz niecki kryształów (np. wokół jeziorek) wisiałyby nad nią — pomijane; obrys krawędzi zostaje.
     const pit = layout.complexes.find((c) => c.building === 'crystalMine');
-    const inPit = (p: Vec3) => !!pit && pitSink3d(pit, p) > 0;
+    const open = this.openPit;
+    const inPit = (p: Vec3) => (open ? open.s(p) > 0.02 : !!pit && pitSink3d(pit, p) > 0);
     for (const c of layout.complexes) {
       for (const i of outlineBorders(this.grid, c.cells)) {
         const border = this.grid.borders[i]!;
@@ -623,7 +793,8 @@ export class PlanetView implements PlanetDisplay {
   }
 
   showBuilding(id: BuildingId): boolean {
-    const dir = this.layout?.complexes.find((c) => c.building === id)?.core;
+    // Wielka odkrywka: do wiszącego ekstraktora nad środkiem dziury.
+    const dir = id === 'crystalMine' && this.openPit ? this.openPit.center : this.layout?.complexes.find((c) => c.building === id)?.core;
     if (!dir) return false;
     const { yaw, pitch } = facingAngles(dir, this.axialTilt, focusLift(this.zoomer.target));
     this.rotator.turnTo(yaw, pitch, performance.now());
@@ -741,6 +912,7 @@ export class PlanetView implements PlanetDisplay {
     // Lawa „oddycha”: animowany tylko kolor materiału (bez przeliczania geometrii).
     if (this.lava) (this.lava.material as THREE.MeshBasicMaterial).color.setScalar(0.85 + 0.15 * Math.sin(this.time * 1.6));
     this.colony.update(dt);
+    this.cables?.update(dt);
     if (this.orbital) {
       const [x, y, z] = collectorOrbit(this.time, this.still);
       this.orbital.position.set(x, y, z);
@@ -765,6 +937,7 @@ export class PlanetView implements PlanetDisplay {
     if (this.outlines) disposeObject(this.outlines.object);
     if (this.orbital) disposeObject(this.orbital);
     if (this.drill) disposeObject(this.drill);
+    if (this.cables) disposeObject(this.cables.object);
     this.colony.dispose();
     this.renderer.dispose();
   }
@@ -785,17 +958,18 @@ const PIT_MIN_RADIUS = 0.74;
 
 /**
  * Tafla oceanu (i morza lawy) z otworem: piksele w stożku `cut` (kierunek, cos kąta) są odrzucane, więc wyrobisko
- * poniżej poziomu morza nie jest „zalane”. Jeden warunek w shaderze — bez dodatkowych rysowań.
+ * poniżej poziomu morza nie jest „zalane”. Wielka odkrywka: wycięcie wzdłuż jej krawędzi z atrybutu `pitCut` wierzchołków
+ * tafli (odległość od obrysu ze znakiem). Jeden warunek w shaderze — bez dodatkowych rysowań.
  */
 function cutOcean(material: THREE.MeshStandardMaterial, cut: { value: THREE.Vector4 }): void {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uPitCut = cut;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPitDir;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPitDir = position;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPitDir;\nattribute float pitCut;\nvarying float vPitCut;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPitDir = position;\nvPitCut = pitCut;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPitDir;\nuniform vec4 uPitCut;')
-      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (dot(normalize(vPitDir), uPitCut.xyz) > uPitCut.w) discard;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPitDir;\nvarying float vPitCut;\nuniform vec4 uPitCut;')
+      .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (dot(normalize(vPitDir), uPitCut.xyz) > uPitCut.w || vPitCut > 0.0) discard;');
   };
   material.customProgramCacheKey = () => 'ocean-pit-cut';
   material.needsUpdate = true;
@@ -870,6 +1044,9 @@ function buildPlanetObjects(planet: Planet, sampler: SurfaceSampler): THREE.Obje
         }),
   );
   ocean.name = 'ocean';
+  // Wycięcie nad wielką odkrywką: wartość w wierzchołkach (PlanetView), ujemna — tafla zostaje.
+  const cutCount = ocean.geometry.getAttribute('position').count;
+  ocean.geometry.setAttribute('pitCut', new THREE.BufferAttribute(new Float32Array(cutCount).fill(-1), 1));
 
   const clouds = new THREE.Mesh(
     new THREE.SphereGeometry(1.03, 64, 40),

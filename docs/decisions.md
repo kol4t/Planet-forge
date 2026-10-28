@@ -2,6 +2,26 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — v0.49 (w przygotowaniu): wielka odkrywka z wiszącym ekstraktorem (prompt właściciela)
+
+- Właściciel: na etapach „Odkrywka” (poz. 12–19) i „Megaodkrywka” (poz. 20+) cały obszar zajętych pól ma być jedną tarasową
+  dziurą (nic płaskiego i brązowego), krawędź dokładnie na obrysie pól, gładka; ekstraktor wisi nad szybem na 4 / 5 linach-rurach
+  z kotwami na krawędzi, po rurach płynie turkusowy błysk. „Szyb wiertniczy” (poz. 1–11) bez zmian. Tylko wygląd.
+- **Decyzja właściciela: teren planety ma być naprawdę naruszony** (wykopany), nie przykryty — i `SURFACE_VERSION` podbite
+  (4 → 5). Sprawdzone: wersja jest tylko znacznikiem i kluczem pamięci podręcznej w przeglądarce; surowce, pola i zapisy
+  bez zmian. `GENERATOR_VERSION` bez zmian.
+- Technika (`planet-renderer/openPit.ts`, czysta matematyka, wspólna dla 2D i 3D): głębokość z `s = d / (d + a)` — d to
+  odległość od obrysu pól, a — od płaskiego dna wokół szybu; płytkie warstwy biegną wzdłuż obrysu, głębsze są coraz bardziej
+  okrągłe. Warstwa = pochyłe zbocze + wąska półka; liczba warstw, głębokość, liny i zwis w `src/data/openPit.ts` (robocze).
+  Teren w dziurze to ta sama siatka lądu (bez nowych wierzchołków): wierzchołki obniżone, a te blisko obrysu i linii półek
+  dosunięte dokładnie na linię — gładkie krawędzie bez ząbków i bez szczelin. Jeziorka otoczone polami ekstraktora są częścią
+  dziury; tafla oceanu wycięta wzdłuż krawędzi dziury (wartość w wierzchołkach tafli). Środek dziury = punkt obszaru
+  najdalej od obrysu. Szyb (odwiert v0.48) w środku dna, bez zmian.
+- Wiszący ekstraktor = nowe modele dla etapów 3 i 4 (piasta, złoty pierścień lin, głowica w dół, kryształ urobku), bez
+  fundamentu; liny i słupki kotew = jedna siatka (+1 rysowanie), błysk tylko w materiale (czas w shaderze). Moduły na polach
+  nie stoją w dziurze. 2D: koncentryczny rysunek warstw, czarny szyb, ekstraktor w środku dziury.
+- Koszt: przebudowa przy zmianie poziomu / wczytaniu 10–110 ms na komputerze (Megaodkrywka na planecie startowej ~70 ms).
+
 ## 2026-10-27 — v0.48: odwiert planetarny i odsłonięte jądro (prompt właściciela)
 
 - Właściciel: zamiast ciemnego obszaru — prawdziwe wgłębienie geometryczne przy ekstraktorze kryształów, głębsze z poziomem,

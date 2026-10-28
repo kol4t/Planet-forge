@@ -6,6 +6,7 @@ import { offsetOnSphere, type ColonyComplex, type ColonyLayout, type Vec3 } from
 import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
 import { pitShare, pitSink3d } from './complexLook.ts';
 import { shaftAngle } from './drill.ts';
+import { OPEN_PIT } from '../data/openPit.ts';
 
 // Zabudowa kompleksów na powierzchni planety 3D (v0.45): każdy budynek to jeden kompleks na swoim obszarze pól —
 // główna konstrukcja w środku (rośnie z etapem) i zabudowa w jego wnętrzu. Grunt kompleksu (dachy, drogi, odkrywka)
@@ -397,52 +398,67 @@ function createCrystalShaft(): BigShape {
   };
 }
 
-/** Etap 3 — Odkrywka: stacja na dnie wyrobiska — wysoki słup kryształu, krąg kruszarek, rampa. */
-function createPitStation(): BigShape {
-  const crushers = [0, 1, 2, 3, 4].map((k) => {
-    const a = (k * Math.PI * 2) / 5;
-    return paint(at(new THREE.BoxGeometry(0.12, 0.1, 0.12), Math.cos(a) * 0.3, 0.1, Math.sin(a) * 0.3, -a), STEEL);
+/**
+ * Wiszący ekstraktor (Odkrywka i Megaodkrywka): wisi nad szybem w środku wielkiej odkrywki na linach-rurach
+ * (PlanetView). Początek układu (y = 0) — wysokość zawieszenia; liny zaczepione na złotym pierścieniu
+ * (`HANG_ATTACH`), głowica wiertła w dół (do `HANG_BOTTOM`), kryształ urobku na szczycie.
+ */
+export const HANG_ATTACH = { radius: 0.42, height: 0.16 } as const;
+export const HANG_BOTTOM = 0.32;
+
+function hangingBase(hub: number, tiers: number): THREE.BufferGeometry[] {
+  const out = [
+    paint(at(new THREE.CylinderGeometry(hub, hub * 1.1, 0.16, 8), 0, 0.1, 0), STEEL),
+    paint(at(new THREE.CylinderGeometry(HANG_ATTACH.radius, HANG_ATTACH.radius, 0.035, 16), 0, HANG_ATTACH.height, 0), GOLD),
+    paint(at(new THREE.CylinderGeometry(hub * 0.55, hub * 0.9, 0.12, 8), 0, 0.24, 0), STEEL),
+    // Głowica wiertła i rura urobku w dół, ku szybowi.
+    paint(at(new THREE.CylinderGeometry(hub * 0.7, 0.05, 0.22, 8), 0, -0.09, 0), DARK),
+    paint(at(new THREE.CylinderGeometry(0.03, 0.03, 0.14, 6), 0, -0.25, 0), STEEL),
+  ];
+  if (tiers > 1) out.push(paint(at(new THREE.CylinderGeometry(hub * 0.8, hub, 0.08, 8), 0, 0.33, 0), GOLD));
+  // Wsporniki od piasty do pierścienia (po jednym na linę — liczba lin z danych).
+  return out;
+}
+
+function hangingArms(count: number, hub: number): THREE.BufferGeometry[] {
+  return Array.from({ length: count }, (_, k) => {
+    const a = (k * Math.PI * 2) / count;
+    const len = HANG_ATTACH.radius - hub * 0.9;
+    const mid = hub * 0.9 + len / 2;
+    return paint(at(new THREE.BoxGeometry(len, 0.04, 0.05), Math.cos(a) * mid, HANG_ATTACH.height, -Math.sin(a) * mid, a), STEEL);
   });
+}
+
+/** Etap 3 — Odkrywka: wiszący ekstraktor — piasta, złoty pierścień lin, głowica w dół, kryształ urobku. */
+function createPitStation(): BigShape {
   return {
-    body: prepare([
-      slab(0.42, 8),
-      ...crushers,
-      paint(at(new THREE.CylinderGeometry(0.12, 0.16, 0.12, 8), 0, 0.1, 0), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 8), 0, 0.17, 0), GOLD),
-      paint(at(new THREE.BoxGeometry(0.08, 0.03, 0.5).rotateX(-0.25), 0.36, 0.12, 0.2, 0.6), DARK),
-    ]),
+    body: prepare([...hangingBase(0.3, 1), ...hangingArms(OPEN_PIT[2].cables, 0.3)]),
     pit: prepare([]),
-    rotor: prepare([at(new THREE.TorusGeometry(0.22, 0.012, 4, 16).rotateX(Math.PI / 2), 0, 0.5, 0)]),
+    rotor: prepare([at(new THREE.TorusGeometry(0.24, 0.014, 4, 16).rotateX(Math.PI / 2), 0, 0.31, 0)]),
     glow: prepare([
-      at(new THREE.OctahedronGeometry(0.12).scale(0.7, 3.2, 0.7), 0, 0.5, 0),
-      at(new THREE.OctahedronGeometry(0.07).scale(0.6, 2, 0.6), 0.12, 0.25, 0.06),
-      at(new THREE.OctahedronGeometry(0.06).scale(0.6, 2, 0.6), -0.1, 0.22, -0.08),
+      at(new THREE.OctahedronGeometry(0.1).scale(0.7, 2.6, 0.7), 0, 0.5, 0),
+      at(new THREE.OctahedronGeometry(0.05).scale(0.6, 1.8, 0.6), 0.1, 0.36, 0.05),
+      at(new THREE.CylinderGeometry(0.07, 0.07, 0.03, 8), 0, -0.02, 0),
     ]),
   };
 }
 
-/** Etap 4 — Megaodkrywka: gromada wielkich kryształów na dnie, obracająca się suwnica nad wyrobiskiem, wieże przy niej. */
+/** Etap 4 — Megaodkrywka: większy wiszący ekstraktor — dwie kondygnacje, gromada kryształów, obracający się pierścień. */
 function createCrystalMega(): BigShape {
   const spires = [
-    [0, 0, 0.16, 4.2],
-    [0.18, 0.1, 0.1, 3],
-    [-0.16, 0.14, 0.09, 2.6],
-    [0.04, -0.2, 0.1, 2.8],
-    [-0.2, -0.12, 0.07, 2.2],
+    [0, 0, 0.11, 3.4],
+    [0.13, 0.06, 0.07, 2.4],
+    [-0.11, 0.09, 0.06, 2.2],
+    [0.02, -0.14, 0.07, 2.3],
   ] as const;
   return {
-    body: prepare([
-      slab(0.5, 8),
-      paint(at(new THREE.CylinderGeometry(0.3, 0.34, 0.08, 8), 0, 0.1, 0), SLAB),
-      ...derrick(0.42, 0, 0.9, 0.12),
-      ...derrick(-0.42, 0, 0.9, 0.12),
-      paint(at(new THREE.BoxGeometry(0.18, 0.12, 0.14), 0, 0.12, 0.4), STEEL),
-      paint(at(new THREE.BoxGeometry(0.18, 0.12, 0.14), 0, 0.12, -0.4), STEEL),
-    ]),
+    body: prepare([...hangingBase(0.34, 2), ...hangingArms(OPEN_PIT[3].cables, 0.34)]),
     pit: prepare([]),
-    // Suwnica rozpięta między wieżami obraca się wolno nad kryształami.
-    rotor: prepare([at(new THREE.BoxGeometry(0.86, 0.03, 0.05), 0, 0.88, 0), at(new THREE.TorusGeometry(0.3, 0.012, 4, 18).rotateX(Math.PI / 2), 0, 0.86, 0)]),
-    glow: prepare(spires.map(([x, z, r, k]) => at(new THREE.OctahedronGeometry(r).scale(0.7, k, 0.7), x, r * k * 0.8 + 0.08, z))),
+    rotor: prepare([at(new THREE.TorusGeometry(0.3, 0.014, 4, 18).rotateX(Math.PI / 2), 0, 0.42, 0), at(new THREE.BoxGeometry(0.62, 0.02, 0.03), 0, 0.42, 0)]),
+    glow: prepare([
+      ...spires.map(([x, z, r, k]) => at(new THREE.OctahedronGeometry(r).scale(0.7, k, 0.7), x, 0.37 + r * k * 0.8, z)),
+      at(new THREE.CylinderGeometry(0.09, 0.09, 0.03, 8), 0, -0.02, 0),
+    ]),
   };
 }
 
@@ -1127,8 +1143,8 @@ const FAMILIES: Record<BuildingId, Family> = {
     cores: ['crystalDrillRig', 'crystalShaft', 'pitStation', 'crystalMega'],
     coreScale: [1.6, 2.0, 2.7, 3.4],
     spot: (stage, k) => (stage <= 1 ? 'crystalOutpost' : k % 2 === 0 ? 'crystalRefinery' : 'crystalOutpost'),
-    // Wnętrze niecki (strome, gładkie ściany) bez modułów — na dnie stoi tylko główna konstrukcja.
-    skip: (c, spot) => inPit(c, spot),
+    // Wnętrze niecki (strome, gładkie ściany) bez modułów; od odkrywki cały obszar to dziura — tylko wiszący ekstraktor.
+    skip: (c, spot) => c.stage >= 2 || inPit(c, spot),
     beltsToCore: false,
   },
   // Elektrownia → węzeł → wielka elektrownia → megasieć; pola paneli i stacje przesyłowe, po „Sieci Tesli” co czwarte — węzeł Tesli.
@@ -1183,6 +1199,14 @@ export interface Pad {
   reach: number;
 }
 
+export interface Hanging {
+  dir: Vec3;
+  /** Promień zawieszenia (od środka planety), wielkość i obrót modelu. */
+  radius: number;
+  size: number;
+  spin: number;
+}
+
 interface Kind {
   body: THREE.InstancedMesh;
   pit: THREE.InstancedMesh;
@@ -1203,6 +1227,8 @@ export class ColonyMeshes {
   private seeded = false;
   /** Obniżenie terenu w miejscu (odkrywka) — podaje PlanetView, żeby konstrukcje stały na dnie. */
   private sink: (dir: Vec3) => number = () => 0;
+  /** Wiszący ekstraktor nad wielką odkrywką (środek, promień zawieszenia, wielkość) — podaje PlanetView. */
+  private hanging: Hanging | null = null;
   /** Rusztowanie trwającej budowy: zarys budynku rosnący wraz z postępem. */
   private readonly scaffold: THREE.Mesh;
   private site: BuildSite | null = null;
@@ -1273,13 +1299,19 @@ export class ColonyMeshes {
   /** Fundamenty wszystkich budowli (po `updateLayout`) — PlanetView wyrównuje pod nimi teren. */
   pads(): Pad[] {
     const out: Pad[] = [];
-    for (const kind of this.kinds.values()) for (const it of kind.items.slice(0, MAX_ITEMS)) out.push({ building: it.building, dir: it.dir, surface: it.surface, reach: it.pad });
+    // Wiszący ekstraktor (zasięg 0) nie ma fundamentu.
+    for (const kind of this.kinds.values()) for (const it of kind.items.slice(0, MAX_ITEMS)) if (it.pad > 0) out.push({ building: it.building, dir: it.dir, surface: it.surface, reach: it.pad });
     return out;
   }
 
   /** Obniżenie terenu (odkrywka) w punkcie — konstrukcje odkrywki stoją niżej. */
   setSink(sink: (dir: Vec3) => number): void {
     this.sink = sink;
+  }
+
+  /** Wiszący ekstraktor (null — brak wielkiej odkrywki). Przed `updateLayout`. */
+  setHanging(hanging: Hanging | null): void {
+    this.hanging = hanging;
   }
 
   /** Kompleksy urosły albo zmieniły etap: przebudowa instancji; zmienione wyrastają od nowa. */
@@ -1320,6 +1352,12 @@ export class ColonyMeshes {
     const want = coreR * family.coreScale[stage]! * (c.mega ? 1.1 : 1);
     let coreSize = Math.max(want * CORE_MIN_SHARE, Math.min(want, c.free / CORE_EXTENT));
     let coreDir = c.core;
+    const hanging = c.building === 'crystalMine' && stage >= 2 ? this.hanging : null;
+    if (hanging) {
+      // Wielka odkrywka: ekstraktor wisi nad szybem (bez fundamentu); modułów na polach nie ma (`skip`).
+      this.kinds.get(family.cores[stage]!)!.items.push({ building: c.building, dir: hanging.dir, surface: hanging.radius, spin: hanging.spin, size: hanging.size, pad: 0 });
+      return;
+    }
     // Odwiert (v0.48): środek dna niecki zajmuje otwór studni — główna konstrukcja stoi obok niego, na dnie niecki.
     const hole = c.building === 'crystalMine' ? shaftAngle(c.level, c.radius * pitShare(c.stage)) : 0;
     if (hole > 0) {

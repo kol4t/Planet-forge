@@ -4,6 +4,7 @@
 // Ekstraktor kryształów: odkrywka — tarasowe pierścienie schodzące w głąb (ciemniej ku środkowi), świecące kryształy
 // na dnie, zabudowa na krawędzi; dziura rośnie z etapem. Pozostałe budynki — spójny grunt w tym samym stylu.
 import { CRATER_DEPTH, drillStage } from './drill.ts';
+import { pitBand, type OpenPit } from './openPit.ts';
 import type { ColonyComplex, Vec3 } from './colony.ts';
 import { angleBetween, hash01 } from './colony.ts';
 
@@ -127,7 +128,24 @@ function industrial(b: ReturnType<typeof lot>, dense: number, furnaces: number):
   return { rgb: STEEL, glow: 0 };
 }
 
-export function complexGround(c: ColonyComplex, p: Vec3): GroundColor {
+/**
+ * Wielka odkrywka w tarczy 2D: koncentryczne warstwy wzdłuż obrysu (jasna półka, ciemne zbocze, głębiej ciemniej),
+ * ciemne dno z kryształami i czarny szyb w środku.
+ */
+function openPitGround(pit: OpenPit, p: Vec3): GroundColor {
+  const a = angleBetween(pit.center, p);
+  if (a < pit.floorAngle / pit.look.floor) return { rgb: [0.02, 0.04, 0.05], glow: 0 };
+  const s = pit.sCached(p);
+  if (s >= 0.999) return lotCrystal(p, 0.06) ? { rgb: CRYSTAL, glow: 0.8 } : { rgb: [0.08, 0.1, 0.11], glow: 0 };
+  const { layer, shelf } = pitBand(pit.look, s);
+  const dark = 1 - 0.55 * (layer / Math.max(1, pit.look.layers - 1));
+  if (!shelf && lotCrystal(p, 0.02)) return { rgb: CRYSTAL, glow: 0.5 };
+  return { rgb: shade(shelf ? [0.62, 0.6, 0.62] : [0.3, 0.28, 0.31], dark), glow: 0 };
+}
+
+/** Kolor gruntu kompleksu w punkcie; `pit` — wielka odkrywka ekstraktora (cały obszar to dziura). */
+export function complexGround(c: ColonyComplex, p: Vec3, pit: OpenPit | null = null): GroundColor {
+  if (pit) return openPitGround(pit, p);
   const t = angleBetween(c.core, p) / c.radius;
   const b = lot(c, p);
   const stage = c.stage + (c.mega ? 1 : 0);

@@ -31,6 +31,9 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   w `FAMILIES`), wyrobisko kryształów jako dziura głębsza z poziomem (do 0,14 promienia, ocean nad nią wycięty) — v0.47.4.
 - **v0.48 — odwiert planetarny** (opublikowany v0.48.0): krater kryształów przechodzi w studnię w głąb planety,
   8 etapów z poziomu (`src/data/drill.ts`), warstwy wg typu planety, na etapie 8 jądro (`planet-renderer/drill.ts`).
+- **v0.49 (gałąź, czeka na akceptację) — wielka odkrywka**: na etapach Odkrywka / Megaodkrywka cały obszar ekstraktora to
+  tarasowa dziura wykopana w terenie (krawędź na obrysie pól), ekstraktor wisi nad szybem na 4 / 5 linach-rurach
+  (`src/data/openPit.ts`, `planet-renderer/openPit.ts`, `openPitMeshes.ts`); `SURFACE_VERSION` = 5 (decyzja właściciela).
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
@@ -60,7 +63,7 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   migracje starych zapisów; uszkodzony zapis → kopia `planet-forge.empire.broken` + komunikat; nieudany zapis → komunikat (v0.46).
 - **PWA**: manifest, ikony, service worker (offline, pasek „Dostępna aktualizacja”). **Zgłoszenia**: Ustawienia → „Zgłoś /
   diagnostyka” (GitHub Issue, diagnostyka z płynnością i — w 3D — liczbą rysowań i tekstur).
-- **Testy**: 305 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
+- **Testy**: 326 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
 - **Wydajność** (symulacja, nie iPad): siatka pól ~190 ms na komputerze (najdroższa część zmiany planety), 3D ~43 rysowania /
   105 tys. trójkątów, brak wycieków przy zmianie planety — `docs/PERFORMANCE.md`. Ostatni pomiar na iPadzie: v0.21 (58–59 kl./s).
 
