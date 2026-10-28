@@ -2,6 +2,11 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — pomiar v0.48.0 na iPadzie
+
+- 3D: średnio 59 kl./s, najsłabsza sekunda 53 kl./s (60 s), 43 rysowania, 71 tys. trójkątów (LHS-258 c, budynki poz. 1–8)
+  — `docs/PERFORMANCE.md`. Otwarte (do decyzji właściciela): czy 3D ma zostać domyślne.
+
 ## 2026-10-27 — v0.48: odwiert planetarny i odsłonięte jądro (prompt właściciela)
 
 - Właściciel: zamiast ciemnego obszaru — prawdziwe wgłębienie geometryczne przy ekstraktorze kryształów, głębsze z poziomem,

@@ -111,6 +111,16 @@ node scripts/perf.ts http://localhost:5173 "nazwa" --deep # + grafika 3D i pami�
 Średnia na poziomie v0.21 (58–59). Najsłabsze sekundy przypadają najpewniej na start i ładowanie planety (krótki pomiar).
 Liczby geometrii i tekstur nie rosły — brak oznak wycieku.
 
+## Pomiar właściciela na iPadzie (v0.48.0, 2026-10-28)
+
+| Grafika | Średnio | Najsłabsza sekunda | Grafika 3D | Planeta |
+|---|---:|---:|---|---|
+| 3D (100%) | **59 kl./s** | **53 kl./s** (pomiar 60 s) | 43 rysowania, 71 174 trójkąty, 62 geometrie, 2 tekstury | LHS-258 c (lodowa), 30/321 pól, budynki poz. 1–8 |
+
+Po całej przebudowie grafiki 3D (v0.47–v0.48: nowe modele wszystkich budynków, fundamenty, niecka, odwiert) płynność
+jest lepsza niż w v0.46 (56 / 15) — najsłabsza sekunda 53 kl./s, pomiar 60 s bez startu gry. Geometrie 62 (v0.46: 44) —
+więcej rodzajów modeli; tekstury 2. Do potwierdzenia: kolonia na wysokich poziomach (najwięcej rysowań w symulacji: 49).
+
 ## Pomiar na iPadzie — instrukcja dla właściciela
 
 Tego nie zastąpi żadna symulacja. Zajmuje ok. 5 minut.
