@@ -13,7 +13,7 @@ seed (np. adres „1:16:3”) + definicja typu (src/data/planets.ts) + GENERATOR
 | Wersja | Wartość | Znaczenie |
 |---|---|---|
 | `GENERATOR_VERSION` | 1 | rozgrywka (surowce, pola) — **nie podbijać**, unieważniłoby zapisy |
-| `SURFACE_VERSION` | 4 | wygląd terenu — niezapisywana; podbicie = nowy teren dla wszystkich planet |
+| `SURFACE_VERSION` | 5 | wygląd terenu — niezapisywana; podbicie = nowy teren dla wszystkich planet (5 — wielka odkrywka wykopana w terenie) |
 | `FIELD_GRID_VERSION` | 3 | siatka pól — inna wersja w zapisie = przydział pól od nowa |
 | `PLOTS_LAYOUT` | 2 | układ obszarów budynków (spójny kawałek od v0.45) |
 
