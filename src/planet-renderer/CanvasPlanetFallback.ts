@@ -5,6 +5,7 @@ import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import { cellLookup, collectorOrbit, hash01, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
 import { complexGround } from './complexLook.ts';
+import { buildOpenPit, type OpenPit } from './openPit.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { pickCell, pickComplex, type StructureHit } from './pick.ts';
@@ -33,6 +34,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private readonly rotator = new DragRotator(prefersReducedMotion() ? { idleSpin: 0 } : {});
   private sampler: SurfaceSampler | undefined;
   private colony: ColonyLayout | undefined;
+  /** Wielka odkrywka ekstraktora (Odkrywka, Megaodkrywka) — koncentryczny rysunek dziury w tarczy. */
+  private openPit: OpenPit | null = null;
   private levels: BuildingLevels | undefined;
   private site: BuildSite | null = null;
   private look: DiscLook | undefined;
@@ -87,6 +90,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.outlines = [];
     this.lookup = cellLookup(this.grid);
     this.colony = layoutFromPlots(this.grid, {}, this.sampler, BUILDING_IDS);
+    this.openPit = null;
     this.atmosphere = this.look.atmosphere;
     this.lastDrawn = { yaw: NaN, pitch: NaN };
   }
@@ -99,6 +103,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
         this.plotsKey = key;
         this.colony = layoutFromPlots(this.grid, plots, this.sampler, BUILDING_IDS, levels, complexes);
         this.outlines = this.colony.complexes.flatMap((c) => outlineBorders(this.grid!, c.cells));
+        const crystal = this.colony.complexes.find((c) => c.building === 'crystalMine');
+        this.openPit = crystal ? buildOpenPit(this.grid, this.colony, crystal, () => 1) : null;
         // Kompleks, który urósł albo zmienił etap, wyrasta od nowa (z wczytanej gry — od razu).
         for (const c of this.colony.complexes) {
           if (this.seeded && before.get(c.building) !== `${c.cells.length}@${c.stage}`) this.grownAt.set(c.building, performance.now());
@@ -123,7 +129,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   showBuilding(id: BuildingId): boolean {
     const c = this.colony?.complexes.find((x) => x.building === id);
     if (!c) return false;
-    const { yaw, pitch } = facingAngles(c.core, 0, focusLift(this.zoomer.target));
+    const dir = id === 'crystalMine' && this.openPit ? this.openPit.center : c.core;
+    const { yaw, pitch } = facingAngles(dir, 0, focusLift(this.zoomer.target));
     this.rotator.turnTo(yaw, pitch, performance.now());
     return true;
   }
@@ -334,7 +341,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             // Nowy kompleks wyrasta: grunt pojawia się punkt po punkcie.
             const grow = this.growth(c.building);
             if (grow < 1 && hash01(Math.floor(x * 400) * 7 + Math.floor(z * 400), 3) > grow) return null;
-            return complexGround(c, [x, y, z]);
+            return complexGround(c, [x, y, z], c.building === 'crystalMine' ? this.openPit : null);
           }
         : undefined;
     renderDisc(image.data, this.size, this.look, yaw, pitch, overlay);
@@ -383,7 +390,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     for (const c of this.colony.complexes) {
       const grow = this.growth(c.building);
       if (grow <= 0) continue;
-      const core = toScreen(c.core);
+      // Wielka odkrywka: ekstraktor nad środkiem dziury, nie w środku obszaru.
+      const pit = c.building === 'crystalMine' ? this.openPit : null;
+      const core = toScreen(pit?.center ?? c.core);
       // Zasięg obszaru w pikselach planety — zabudowa nie wychodzi poza obrys.
       const span = Math.max(2, Math.floor((c.radius * r) / pixel));
       const stage = c.stage + (c.mega ? 1 : 0);
@@ -391,7 +400,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const every = stage >= 2 ? 1 : stage === 1 ? 2 : 0;
       for (const [k, spot] of c.spots.entries()) {
         if (k === 0 || every === 0 || k % every !== 0) continue;
-        if (c.building === 'crystalMine' && spot.t < 0.7) continue;
+        if (c.building === 'crystalMine' && (spot.t < 0.7 || pit)) continue;
         const p = toScreen(spot.dir);
         if (p.depth < 0.1) continue;
         const a = Math.min(1, p.depth * 2.5) * grow;
@@ -465,6 +474,18 @@ export class CanvasPlanetFallback implements PlanetDisplay {
           break;
         }
         case 'crystalMine': {
+          if (pit) {
+            // Wiszący ekstraktor nad szybem: złoty pierścień lin, stalowa piasta, kryształ urobku, głowica w dół.
+            const w = Math.max(3 + stage, Math.round(span * 0.08));
+            const hub = Math.max(2, Math.round(w * 0.4));
+            box(-w, -1, w * 2 + 1, 1, '#c9a24a');
+            box(-hub, -hub - 1, hub * 2 + 1, hub + 1, '#6f7b78');
+            box(-1, 1, 3, 1, '#3a4241');
+            box(0, 2, 1, hub, '#3a4241');
+            box(0, -hub - 4, 1, 3, '#9ff3ff', 0);
+            box(-1, -hub - 2, 1, 1, '#6fe9ff', 1.3);
+            break;
+          }
           // Wieża wiertnicza nad środkiem odkrywki: kratownica, świecący rdzeń, złota głowica i ramiona.
           // Wieża rośnie z odkrywką (do ~0,4 promienia obszaru).
           const h = Math.max(5 + stage * 3, Math.round(span * 0.3));
