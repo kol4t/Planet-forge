@@ -2,6 +2,14 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.56.0 — transfer megakonstruktu — 2026-10-28
+
+- Megakompleks można wysłać na inną swoją planetę: okno Kompleks → „Wyślij konstrukt…” (wybór planety, czas lotu, paliwo, koszt, pola, ostrzeżenie o energii na celu).
+- 30 min rozkładania do lotu — budynek nie pracuje, nie da się go ulepszyć ani zburzyć; „Anuluj wysyłkę” zwraca koszt i paliwo.
+- Koszt: 5× paliwo transportowca na trasie + 10% kosztu ostatniego poziomu. Lot 2× wolniej niż transportowiec.
+- Na starej planecie zostają puste pola; na celu konstrukt staje z tym samym poziomem i megakompleksem (cel musi mieć wolne pola — ląd albo lód). Imperium pokazuje rozkładanie i lot.
+- Poprawka: wczytanie zapisu `PF2:` przywraca stację macierzystą i licznik wyeksploatowanych planet. Zapisy zgodne.
+
 ## v0.55.0 — stacja macierzysta — 2026-10-28
 
 - Badanie „Moduł orbitalny” (Stacja i handel) odblokowuje **stację macierzystą**: jedna na imperium, budowana nad aktywną planetą (8000 metalu, 5000 kryształów, 10 min), z rdzeniem SI Matki.
