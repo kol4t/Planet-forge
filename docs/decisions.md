@@ -2,6 +2,18 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Pętla MVP: odpowiedzi właściciela
+
+1. Przeniesienie = nowe kolonie i przewóz surowców **oraz** wysłanie gotowego megakonstruktu na inną kolonię
+   (przygotowanie ~30 min, misja transportowa zależna od odległości); misję mają móc przejąć / zniszczyć inni gracze —
+   w MVP (bez serwera) zagrożenie od komputera (boty, zdarzenia), mechanika gotowa na graczy później.
+2. Zamknięcie pętli: ≥ 80% złóż metalu i kryształów na 3 planetach („wyeksploatowana”, resztki trudniej wydobyć —
+   robocze −50%), + stacja macierzysta → „imperium gwiezdne” (robocze): magazyn orbitalny, loty międzyukładowe.
+3. Stacja macierzysta (SI Matka, stacja główna) + mniejsze stacje łączące się z macierzystą.
+4. Antymateria = paliwo każdego lotu (w układzie mało, między układami dużo).
+5. Flota także bojowa — w MVP propozycja: eskorta i obrona misji / stacji (K-005: walka rzadka, kosztowna); do potwierdzenia w lore.
+Plan 12 etapów: `docs/status.md`, punkt 7.
+
 ## 2026-10-28 — Definicja MVP (decyzja właściciela)
 
 - MVP = model eksploatacji planety, wstępna flota, wstępna ekonomia i pętla rozgrywki (bez endgame'u): planeta → rozwój →

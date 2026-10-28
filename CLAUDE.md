@@ -123,7 +123,7 @@ node scripts/perf.ts <adres> [etykieta] [--deep]     # pomiary w przeglądarce b
 
 ## Zakres — czego NIE robić bez decyzji właściciela
 
-Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacja między urządzeniami, walka/dyplomacja (wstępna flota cywilna wchodzi do MVP — decyzja właściciela 2026-10-28), zadania/osiągnięcia/powiadomienia, sklep i płatności, analityka. Nie dodawaj też nowych frameworków (React, Vite itp.) ani płatnych usług, jeśli bieżący etap tego nie wymaga — najpierw zapytaj.
+Poza zakresem MVP: multiplayer, backend/serwer, konta i logowanie, synchronizacja między urządzeniami, dyplomacja, gra z prawdziwymi graczami (wstępna flota z eskortą i obroną misji wchodzi do MVP — decyzja właściciela 2026-10-28, `docs/status.md`), zadania/osiągnięcia/powiadomienia, sklep i płatności, analityka. Nie dodawaj też nowych frameworków (React, Vite itp.) ani płatnych usług, jeśli bieżący etap tego nie wymaga — najpierw zapytaj.
 
 **Balans (decyzja właściciela):** ceny, czasy i koszty (budynki, badania, antymateria) stroimy **na końcu, przed MVP** — do tego czasu wartości w `src/data` są robocze; nie proponuj strojenia liczb jako osobnego kroku.
 
@@ -143,7 +143,7 @@ Grę testuje kilka osób; błędy i sugestie trafiają jako **GitHub Issues** (`
 ## Najbliższe etapy (każdy to osobna sesja, gałąź `claude/…`, akceptacja przed `main`)
 
 **Od 2026-10-28 obowiązuje plan do MVP w `docs/status.md`** (definicja MVP właściciela: pętla planeta → wyczerpanie →
-transport → 3 planety → stacja orbitalna / flota cywilna / imperium gwiezdne, antymateria jako paliwo). Lista niżej jest starsza.
+transport i przenoszenie megakonstruktów → 80% złóż na 3 planetach → stacja macierzysta / flota / imperium gwiezdne, antymateria jako paliwo). Lista niżej jest starsza.
 
 Ukończone etapy (generator v0.18–v0.25, odnowa ekranów v0.29–v0.33, galaktyka v0.34–v0.34.5, nowe mechaniki v0.35–v0.37.1,
 przemysł v0.38–v0.45, audyt v0.46) — `docs/CHANGELOG.md`.

@@ -142,8 +142,7 @@ Szczegóły i pełną listę ma `docs/lore/nazwy-w-grze.md` (zaktualizowany o no
 Wcześniejsza propozycja (7 kryteriów, m.in. samouczek i lore) jest zastąpiona tą definicją. Samouczek, płynność iPada
 i odporność zapisu zostają jako warunki jakości (punkt 5, „ważne”), nie jako rdzeń MVP.
 
-**Uwaga do zakresu:** `CLAUDE.md` wyklucza „walkę / flotę” z MVP. Właściciel włącza teraz **wstępną flotę** — zakładam
-flotę **cywilną, bez walki** (zgodnie z K-005), dopóki właściciel nie zdecyduje inaczej (pytanie 5).
+**Uwaga do zakresu:** `CLAUDE.md` wykluczał flotę i walkę z MVP. Właściciel włącza **wstępną flotę z obroną** — szczegóły i zastrzeżenia w punkcie 6.
 
 ### Pętla MVP krok po kroku — co jest w kodzie
 
@@ -165,13 +164,15 @@ flotę **cywilną, bez walki** (zgodnie z K-005), dopóki właściciel nie zdecy
 
 ## 5. Co jeszcze do MVP
 
-### Blokujące (rdzeń pętli)
-1. **Symulator pętli** — ile trwa każdy krok (rozwój → wyczerpanie → kolonia → 3 planety). Bez tego nie da się ustawić tempa.
-2. **Antymateria jako paliwo lotów** (krok 8).
-3. **Stacja kosmiczna z magazynem orbitalnym** + energia słoneczna (kroki 6–7).
-4. **Wstępna flota** — widok i budowa statków cywilnych (krok 9).
-5. **Zamknięcie pętli** — postęp „3 planety”, imperium gwiezdne (kroki 5, 11).
-6. **Wstępna ekonomia** — strojenie liczb pod pętlę (krok 10; zgodnie z decyzją „balans na końcu” — to jest ten koniec).
+### Blokujące (rdzeń pętli) — kolejność i wersje w punkcie 7
+1. Symulator pętli (tempo każdego kroku).
+2. Antymateria jako paliwo lotów.
+3. Status „wyeksploatowana” (80%) i licznik pętli 0/3.
+4. Stacja macierzysta z magazynem orbitalnym i energią słoneczną.
+5. Transfer megakonstruktu na inną kolonię.
+6. Wstępna flota (budowa statków, eskorta) i ryzyko misji.
+7. Zamknięcie pętli — imperium gwiezdne.
+8. Wstępna ekonomia (strojenie całej pętli).
 
 ### Ważne (jakość)
 7. **Pierwsze kroki** — SI Matka prowadzi nowego gracza przez pętlę (dziś brak samouczka).
@@ -189,96 +190,81 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 
 ---
 
-## 6. Kolejne etapy (każdy = osobna sesja, gałąź `claude/…`, akceptacja przed `main`)
+## 6. Decyzje właściciela do pętli MVP (2026-10-28)
 
-**🔒** = wymaga decyzji właściciela (pytania w punkcie 7) albo lore.
+1. **Przeniesienie = A + B.**
+   - **A:** gracz zakłada nowe kolonie i przewozi surowce (już w grze).
+   - **B (nowe):** gotowy **megakonstrukt** można wysłać na inną kolonię:
+     - przygotowanie terenu i rozłożenie konstruktu do lotu trwa ok. **30 min**;
+     - potem leci **misja transportowa konstruktu**, której czas zależy od odległości (ta sama planeta → układ → inny układ);
+     - na celu konstrukt staje jako gotowy megakompleks.
+   - Misję **mogą przejąć albo zniszczyć inni gracze** — patrz uwaga o zakresie.
+2. **Zamknięcie pętli = 80% złóż na 3 planetach** — rozwinięcie niżej.
+3. **Stacja macierzysta** (siedziba SI Matki, stacja główna) jako osobny obiekt w kosmosie. Do tego **mniejsze stacje**, które łączą się z macierzystą.
+4. **Antymateria = paliwo każdego lotu:** w układzie mało, między układami dużo.
+5. **Flota również bojowa (wariant B):** obrona i walka, nie tylko statki cywilne.
 
-### Etap 1 — v0.52 „Symulator pętli” (bez zmian w grze)
-- **Cel:** zmierzyć czas każdego kroku pętli MVP.
-- **Zakres:** `scripts/simulate.ts` — „rozsądny gracz” zwykłymi akcjami kontrolera: rozwija planetę, kolonizuje, wozi surowce, aż wyczerpie złoża 3 planet; raport `docs/balans-symulacja.md` (czasy, przestoje > X h, co blokuje).
-- **Nie ruszamy:** kodu gry i liczb w `src/data`.
-- **Ryzyko:** strategia symulacji ≠ prawdziwy gracz — raport to wskazówka.
-- **Na iPadzie:** nic się nie zmienia; czytasz raport.
-- **Prompt:** „Etap 1 z docs/status.md: skrypt symulacji pętli MVP i raport docs/balans-symulacja.md. Bez zmian w grze i w src/data. Gałąź claude/…”
+### Uwagi do zakresu (do świadomej akceptacji)
+- **„Inni gracze przejmą lub zniszczą misję”** wymaga serwera i gry wieloosobowej, a one są poza MVP (`CLAUDE.md`, O-001).
+  - **Propozycja na MVP:** zagrożenie dla misji stwarza **komputer** — istniejące w galaktyce „boty” (dziś tylko znaczniki) albo zdarzenia w drodze.
+  - Ryzyko zależy od trasy i eskorty. Ta sama mechanika (misja z ryzykiem, eskorta) przyda się później do prawdziwych graczy.
+- **Walka (5 B)** to zmiana wobec dotychczasowego zakresu i kanonu K-005: konflikt zbrojny ma być „rzadki i kosztowny, wyjątkiem”.
+  - **Propozycja na MVP:** walka tylko wokół misji — **eskorta i obrona konwojów oraz stacji**. Bez podbijania planet i bez bitew flot jako celu gry.
+  - Do potwierdzenia w Projekcie lore (K-005, O-205).
 
-### Etap 2 — v0.53 „Antymateria jako paliwo” 🔒 (pytanie 4)
-- **Cel:** każdy lot (transportowiec, statek kolonizacyjny, ekspedycja, holownik) kosztuje antymaterię zależnie od odległości.
-- **Zakres:** koszt paliwa w `data/balance.ts`, sprawdzenie i odjęcie w `core` (czytelny błąd po polsku), koszt widoczny przed wysłaniem; „Ukończ teraz” bez zmian.
-- **Nie ruszamy:** grafiki, zapisu (bez nowych pól).
-- **Ryzyko:** gracz bez antymaterii utknie — minimalny przyrost pasywny zostaje.
-- **Na iPadzie:** Mapa → wybierz planetę → Transport: widać „paliwo: X antymaterii”; po wysłaniu licznik antymaterii u góry maleje.
-- **Prompt:** „Etap 2 z docs/status.md: antymateria jako paliwo lotów wg wybranego wariantu. Liczby robocze. Testy w core. Gałąź claude/…, v0.53.”
+### Rozwinięcie: zamknięcie pętli przy 80% złóż
+- **Wyeksploatowana planeta:** gdy na kolonii wydobyto **≥ 80% złoża metalu i ≥ 80% złoża kryształów** (z `depositTotal`), planeta dostaje status „wyeksploatowana”.
+  - Plakietka pojawia się na karcie Imperium.
+  - Wpis w dzienniku: „Złoża na … w większości wydobyte”.
+- **Resztki (20%) dalej się wydobywa, ale trudniej:** kopalnie na wyeksploatowanej planecie mają np. **−50% wydajności** (liczba robocza).
+  - To naturalny powód, żeby ruszyć dalej: przenieść megakonstrukt albo założyć nową kolonię.
+  - Gra nie wymaga „dobierania resztek”.
+- **Licznik pętli** na karcie Imperium: „Wyeksploatowane planety: 1 / 3”.
+  - Liczą się tylko planety gracza.
+  - Ta sama planeta liczy się raz, nawet po przeniesieniu konstruktu.
+- **Zamknięcie pętli:** 3 wyeksploatowane planety + zbudowana **stacja macierzysta** → etap **„imperium gwiezdne”** (nazwa robocza, O-002). Wtedy:
+  - otwiera się **magazyn orbitalny** stacji — wspólny dla imperium, bez limitu planet;
+  - odblokowują się **loty między układami na antymaterii** (dalsze układy, przenoszenie konstruktów daleko);
+  - stacja dostaje moduły energii słonecznej i antymaterii jako główne źródło paliwa;
+  - w dzienniku pojawia się wpis zamykający rozdział — początek tego, co później będzie endgame'em.
+- **Dlaczego 80%:** ostatnie procenty złoża trwałyby najdłużej i dawały najmniej. Próg 80% skraca pętlę i daje graczowi wybór, kiedy się przenieść. Wartość jest robocza — dostroi ją symulator (etap 1).
 
-### Etap 3 — v0.54 „Stacja orbitalna z magazynem” 🔒 (pytanie 3)
-- **Cel:** jedna stacja kosmiczna z magazynem orbitalnym i energią słoneczną.
-- **Zakres:** zamiast zaślepki „Moduł orbitalny”: badanie → budowa stacji na orbicie; magazyn orbitalny (transportowce dowożą do niego surowce z planet), kolektor energii gwiazdy jako moduł stacji; nowe opcjonalne pole zapisu; stacja widoczna na orbicie w 3D i 2D.
-- **Nie ruszamy:** budynków na planetach.
-- **Ryzyko:** nowe pole zapisu — walidacja i opis w `SAVE_FORMAT.md`.
-- **Na iPadzie:** Badania → „Moduł orbitalny” → zbuduj stację; wokół planety krąży stacja; wyślij transport „na stację” i zobacz stan magazynu orbitalnego.
-- **Prompt:** „Etap 3 z docs/status.md: stacja orbitalna z magazynem wg wybranego wariantu. Najpierw plan i szkic wyglądu do akceptacji, potem kod. Gałąź claude/…, v0.54.”
-
-### Etap 4 — v0.55 „Wstępna flota” 🔒 (pytanie 5)
-- **Cel:** gracz widzi swoje statki i buduje je (np. w stoczni na stacji).
-- **Zakres:** ekran / panel Floty: lista statków (w drodze, w doku), budowa transportowca i statku kolonizacyjnego za surowce; bez walki.
-- **Nie ruszamy:** mapy i badań poza odblokowaniem.
-- **Ryzyko:** rozrost interfejsu — jeden panel, zasada okien.
-- **Na iPadzie:** dotknij **Flota** (albo Imperium → Flota) — lista statków; zbuduj transportowiec i wyślij go.
-- **Prompt:** „Etap 4 z docs/status.md: wstępna flota cywilna (lista, budowa statków), bez walki. Plan do akceptacji. Gałąź claude/…, v0.55.”
-
-### Etap 5 — v0.56 „Zamknięcie pętli: imperium gwiezdne” 🔒 (pytanie 2)
-- **Cel:** gracz widzi postęp pętli i przeżywa jej zamknięcie.
-- **Zakres:** licznik „planety wydobyte: X / 3” (karta Imperium), warunek zamknięcia (wydobyte złoża 3 planet + stacja), wpis w dzienniku, odblokowanie lotów między układami na antymaterii. Nazwa „imperium gwiezdne” robocza (O-002).
-- **Nie ruszamy:** endgame'u.
-- **Ryzyko:** warunek zbyt długi do przejścia — liczby z etapu 1.
-- **Na iPadzie:** Imperium → widać postęp pętli; po spełnieniu warunku wpis w dzienniku i nowa możliwość na mapie.
-- **Prompt:** „Etap 5 z docs/status.md: postęp i zamknięcie pętli MVP wg wybranego warunku. Gałąź claude/…, v0.56.”
-
-### Etap 6 — v0.57 „Wstępna ekonomia”
-- **Cel:** cała pętla przechodzi się w docelowym czasie bez martwych punktów.
-- **Zakres:** strojenie `data/balance.ts` (złoża, koszty, czasy, paliwo) wg ponownej symulacji, tabela przed/po do akceptacji, `npm run balance-doc`.
-- **Nie ruszamy:** mechanik.
-- **Ryzyko:** zmiana tempa w trwających grach.
-- **Na iPadzie:** na swojej planecie sprawdź czasy oczekiwania i czas do wyczerpania złoża na karcie budynku.
-- **Prompt:** „Etap 6 z docs/status.md: strojenie liczb pod pętlę MVP wg symulatora. Tabela przed/po do akceptacji. Gałąź claude/…, v0.57.”
-
-### Etap 7 — v0.58 „Pierwsze kroki”
-- **Cel:** nowy gracz rozumie pętlę w 5 minut.
-- **Zakres:** podpowiedzi SI Matki krok po kroku (pomijalne), opcjonalne pole zapisu.
-- **Na iPadzie:** prywatna karta Safari → nowa gra → wykonuj podpowiedzi → „Pomiń”.
-- **Prompt:** „Etap 7 z docs/status.md: pierwsze kroki przez SI Matkę. Teksty do akceptacji. Gałąź claude/…, v0.58.”
-
-### Etap 8 — v0.59 „Płynność i zapis”
-- **Cel:** najsłabsza sekunda ≥ 30 kl./s; zapisy z każdej wersji się wczytują.
-- **Zakres:** Twój pomiar z Diagnostyki → jedna poprawka naraz; testy zapisów z historii git.
-- **Na iPadzie:** Ustawienia → Diagnostyka, minuta obracania w 2D i 3D.
-- **Prompt:** „Etap 8 z docs/status.md: płynność (mój pomiar: [wklej]) i testy zapisów. Gałąź claude/…, v0.59.”
-
-### Etap 9 — v0.60 „Kandydat MVP”
-- **Cel:** sprawdzić pętlę od zera do zamknięcia i wydać MVP.
-- **Zakres:** audyt, drobne poprawki, lista kontrolna, `CLAUDE.md` i `README.md`.
-- **Na iPadzie:** nowa gra od zera wg listy kontrolnej; (pełną pętlę skróci tryb testowy w podglądzie).
-- **Prompt:** „Etap 9 z docs/status.md: audyt kandydata MVP wg tabeli pętli z punktu 4. Gałąź claude/…, v0.60.”
+### Otwarte pytania (dopytam przy właściwym etapie, nie teraz)
+- Czy przeniesiony megakonstrukt potrzebuje na celu wolnego miejsca (pól) jak przy budowie?
+- Co zostaje na starej planecie po wysłaniu konstruktu — puste pola czy poziom niższy?
+- Ile mniejszych stacji można mieć i co one robią (np. przy każdej kolonii: magazyn lokalny, przekaźnik)?
 
 ---
 
-## 7. Decyzje, których potrzebuję od właściciela
+## 7. Kolejne etapy (każdy = osobna sesja, gałąź `claude/…`, akceptacja przed `main`)
 
-1. **„Przeniesienie na inną planetę” — co to znaczy?**
-   - **A (rekomendacja):** kolonizacja nowej planety + przewóz zapasów transportowcami (to już jest w grze); stara planeta zostaje z badaniami.
-   - B: przeniesienie siedziby / części budynków na nową planetę (nowa mechanika).
-2. **Warunek zamknięcia pętli:**
-   - A: złoża metalu i kryształów **całkowicie** wyczerpane na 3 planetach.
-   - **B (rekomendacja):** na 3 planetach wydobyto co najmniej 80% złóż (bez długiego „dobierania resztek”).
-   - C: wystarczy 3 planety i zbudowana stacja, bez warunku złóż.
-3. **Stacja kosmiczna:**
-   - **A (rekomendacja):** jedna stacja imperium na orbicie planety macierzystej, rozbudowywana modułami (magazyn, kolektor słoneczny, kolektor antymaterii, stocznia).
-   - B: osobna stacja przy każdej planecie.
-4. **Antymateria jako paliwo:**
-   - **A (rekomendacja):** każdy lot zużywa antymaterię — w układzie mało, między układami dużo.
-   - B: tylko loty między układami; w układzie za darmo.
-5. **Wstępna flota:**
-   - **A (rekomendacja):** tylko statki cywilne (transport, kolonizacja, ekspedycje), bez walki — zgodnie z K-005.
-   - B: także prosta obrona / walka.
+| # | Wersja | Etap | Cel w jednym zdaniu | Zależy od |
+|---|---|---|---|---|
+| 1 | v0.52 | **Symulator pętli** (bez zmian w grze) | zmierzyć, ile dni trwa rozwój i wyeksploatowanie 3 planet | — |
+| 2 | v0.53 | **Antymateria jako paliwo** | każdy lot kosztuje antymaterię zależnie od odległości | 1 (liczby) |
+| 3 | v0.54 | **Wyeksploatowanie i licznik pętli** | status „wyeksploatowana” przy 80%, spadek wydajności resztek, licznik 0/3 | 1 |
+| 4 | v0.55 | **Stacja macierzysta** | stacja główna z SI Matką na orbicie, magazyn orbitalny, energia słoneczna (zamiast zaślepki „Moduł orbitalny”) | — |
+| 5 | v0.56 | **Transfer megakonstruktu** | przygotowanie ~30 min, misja transportowa zależna od odległości, konstrukt staje na celu | 2 |
+| 6 | v0.57 | **Wstępna flota** | widok floty, budowa statków (stocznia na stacji): transportowce, kolonizacyjne, eskorta | 4 |
+| 7 | v0.58 | **Ryzyko misji i obrona** 🔒 lore K-005 | misje mogą zostać przechwycone przez boty / zdarzenia; eskorta i obrona zmniejszają ryzyko | 5, 6 |
+| 8 | v0.59 | **Zamknięcie pętli: imperium gwiezdne** | 3 wyeksploatowane planety + stacja → magazyn orbitalny dla imperium, loty międzyukładowe | 3, 4 |
+| 9 | v0.60 | **Mniejsze stacje** | stacje przy koloniach łączące się z macierzystą | 4 |
+| 10 | v0.61 | **Wstępna ekonomia** | strojenie całej pętli wg ponownej symulacji | wszystkie |
+| 11 | v0.62 | **Pierwsze kroki** | SI Matka prowadzi nowego gracza przez pętlę | 10 |
+| 12 | v0.63 | **Płynność, zapis, kandydat MVP** | pomiar iPada, testy zapisów, audyt pętli od zera | wszystkie |
+
+**Każdy etap zaczyna się od planu i szkicu do akceptacji, dopiero potem kod.** Wszystkie nowe pola zapisu są opcjonalne.
+
+**Jak sprawdzisz efekt:** po każdym etapie dostaniesz zrzuty i krótką listę kroków dotykowych, np. przy etapie 5:
+1. Karta megakompleksu → „Wyślij konstrukt”.
+2. Wybierz kolonię.
+3. Obserwuj odliczanie przygotowania i lotu.
+4. Sprawdź, czy konstrukt stoi na nowej planecie.
+
+**Prompt na każdą sesję:**
+> „Etap N z docs/status.md (punkt 7). Najpierw plan i szkic do akceptacji, potem kod. Gałąź claude/…, wersja z tabeli.”
+
+---
 
 ## Lista kontrolna do Twojego sprawdzenia na iPadzie (v0.51.0)
 
