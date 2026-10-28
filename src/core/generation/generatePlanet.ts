@@ -15,9 +15,9 @@ export const GENERATOR_VERSION = 1;
  * Wersja WYGLĄDU terenu (`core/surface`). Nie jest zapisywana: po aktualizacji wszystkie planety,
  * także zapisane, dostają nowy teren (decyzja właściciela, wariant A) — rozgrywka bez zmian.
  * 1 = teren v0.1–v0.21 (`legacy`), 2 = trzy metody terenu (v0.22), 3 = profile powierzchni
- * i metoda losowana z wag profilu (v0.23), 4 = jeziora, rzeki i lawa (v0.24).
+ * i metoda losowana z wag profilu (v0.23), 4 = jeziora, rzeki i lawa (v0.24), 5 = wielka odkrywka ekstraktora kryształów wykopana w terenie (v0.49).
  */
-export const SURFACE_VERSION = 4;
+export const SURFACE_VERSION = 5;
 
 const YIELDS: readonly YieldId[] = ['metal', 'crystal', 'energy'];
 const NAME_LETTERS = 'bcdefg';
