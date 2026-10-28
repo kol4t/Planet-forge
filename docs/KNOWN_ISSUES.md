@@ -27,6 +27,8 @@ Stan: v0.46 (audyt). Naprawione w audycie — `docs/CHANGELOG.md` (v0.46). Tu: c
   na iPadzie); w 2D bez otworu (tarcza
   pokazuje odkrywkę wzorem gruntu); krater wysokiego etapu zajmuje dużą część kompleksu (wcześniejsze moduły z jego
   wnętrza znikają).
+- **Ekstraktor kryształów — do poprawy (decyzja właściciela 2026-10-28)**: wygląd z v0.49 (wielka odkrywka z wiszącym
+  ekstraktorem) nie spełnia oczekiwań właściciela; odłożone na później — przed poprawą dopytać o wizję i zacząć od prototypu.
 - **Wielka odkrywka (v0.49)**: linie siatki pól nad dziurą (i nad niecką szybu) są niewidoczne — zostaje obrys krawędzi; tarasy mają szczegół ścianek lądu (~0,027 rad), więc z bliska półki są lekko kanciaste (low-poly);
   Megaodkrywka zajmuje tyle pól, co etap (do ~40% planety startowej), więc liny bywają bardzo długie; w 2D bez lin.
 
