@@ -180,6 +180,13 @@ export function complexGround(c: ColonyComplex, p: Vec3, pit: OpenPit | null = n
         const d = Math.hypot(b.ru, b.rv);
         return d < 0.3 && b.kind < 0.5 ? { rgb: d < 0.14 ? [0.3, 0.33, 0.33] : [0.62, 0.66, 0.65], glow: 0 } : { rgb: CONCRETE, glow: 0 };
       }
+      if (c.stage === 2) {
+        // Elektrownia jądrowa: beton, okrągłe podstawy chłodni, rzadkie niebieskie baseny paliwa.
+        if (b.road) return { rgb: STEEL_DARK, glow: 0 };
+        const d = Math.hypot(b.ru, b.rv);
+        if (b.kind < 0.025 && b.u >= 2 && b.v >= 2) return { rgb: [0.31, 0.71, 1], glow: 0.6 };
+        return d < 0.32 && b.kind < 0.55 ? { rgb: d < 0.16 ? [0.27, 0.3, 0.3] : [0.66, 0.69, 0.67], glow: 0 } : { rgb: CONCRETE, glow: 0 };
+      }
       if (b.road) return { rgb: STEEL_DARK, glow: 0 };
       // Pola paneli i chłodni; brzegi paneli jasne.
       if (b.kind < 0.55 + 0.1 * stage) return b.v === 4 ? { rgb: [0.75, 0.96, 1], glow: 0.55 } : { rgb: shade([0.15, 0.25, 0.38], b.u % 2 ? 1 : 0.85), glow: 0 };

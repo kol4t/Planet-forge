@@ -560,6 +560,23 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             box(-1, -ry - 4, 3, 1, '#c9a24a');
             break;
           }
+          if (stage === 2) {
+            // Elektrownia jądrowa: kopuła reaktora ze złotym pasem, dwie chłodnie z parą, niebieska poświata basenu.
+            const k = Math.max(2, Math.round(span * 0.022));
+            const tower = (x: number, h: number, phase: number) => {
+              box(x, -h, 3 * k, h + 1, '#a7aea9');
+              box(x + k, -h + k, k, h - 2 * k, '#c3c9c6');
+              box(x, -h - 2 * k, 3 * k, 2 * k, '#eef3f2', phase);
+              box(x + k, -h - 4 * k, 3 * k, 2 * k, '#eef3f2', phase + 1);
+            };
+            tower(-6 * k, 9 * k, 0);
+            tower(-2 * k, 7 * k, 2);
+            // Kopuła: coraz węższe rzędy.
+            [5, 5, 4, 3].forEach((w, row) => box(2 * k + ((5 - w) * k) / 2, -(row + 1) * k, w * k, k, '#d8dedc'));
+            box(2 * k, 0, 5 * k, 1, '#c9a24a');
+            box(8 * k, -k, 2 * k, k, '#4fb6ff', 0.5);
+            break;
+          }
           // Wieża przesyłowa z jasną kulą (wyżej z etapem).
           const h = 4 + stage * 2;
           box(0, -h, 1, h + 1, '#6f7b78');

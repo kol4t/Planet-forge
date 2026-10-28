@@ -13,6 +13,9 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
 - Generator fuzyjny (poz. 6–11, „pierścień plazmy” — wybór właściciela): tokamak w środku (świecący różowy torus plazmy
   w pierścieniu cewek, solenoid, bank kondensatorów, słup przesyłowy), jasne skupiska plazmy krążą po pierścieniu (część
   obracana), na polach małe pierścienie plazmy i stacje przesyłowe; 2D: pikselowy pierścień z krążącym skupiskiem.
+- Elektrownia jądrowa (poz. 12–19, wariant A — „kopuła z chłodniami”, wybór właściciela): kopuła reaktora ze złotym pasem,
+  dwie wysokie chłodnie-hiperboloidy z kłębami pary, basen paliwa z niebieską poświatą, hala turbin i słup; na polach
+  mniejsze chłodnie z parą i stacje przesyłowe; 2D: kopuła i dwie chłodnie, betonowy plac z rzadkimi basenami.
 - **Pomysł właściciela na później (zasady gry, nie wdrożone):** megakonstrukty (poz. 20+) zużywają antymaterię — trzeba
   nią gospodarować (dziś służy tylko do „Ukończ teraz”). Wymaga decyzji o liczbach (balans — na końcu, przed MVP).
 

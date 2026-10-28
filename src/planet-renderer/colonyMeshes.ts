@@ -655,25 +655,64 @@ function createFusionCell(): BigShape {
   };
 }
 
-/** Etap 3 — Wielka elektrownia: kopuła reaktora ze świecącym pasem, trzy chłodnie, hala turbin. */
-function createPowerPlantLarge(): BigShape {
-  const p = parts(
-    coolingTower(-0.3, -0.18, 0.78, 0.17),
-    coolingTower(-0.02, -0.32, 0.7, 0.15),
-    coolingTower(0.28, -0.22, 0.74, 0.16),
-    turbineHall(0.2, 0.24, 0.34, 0.18, 0.16, 0.2),
-  );
+const STEAM = '#eef3f2';
+const CHERENKOV = '#4fb6ff';
+
+/** Chłodnia kominowa o kształcie klepsydry (hiperboloida) z kłębami pary nad wylotem. */
+function hyperTower(x: number, z: number, h: number, r: number): THREE.BufferGeometry[] {
+  const profile = [1, 0.86, 0.74, 0.71, 0.74, 0.8].map((k, i, all) => new THREE.Vector2(r * k, (h * i) / (all.length - 1)));
+  const steam = [
+    [0, h + r * 0.45, 0, r * 0.62],
+    [r * 0.35, h + r * 1.05, r * 0.15, r * 0.72],
+    [r * 0.85, h + r * 1.55, r * 0.3, r * 0.6],
+  ].map(([sx, sy, sz, sr]) => paint(at(new THREE.IcosahedronGeometry(sr!, 0), x + sx!, sy!, z + sz!), STEAM));
+  return [
+    paint(at(new THREE.LatheGeometry(profile, 14), x, 0, z), CONCRETE),
+    paint(at(new THREE.CircleGeometry(r * 0.78, 14).rotateX(-Math.PI / 2), x, h * 0.92, z), DARK),
+    ...steam,
+  ];
+}
+
+/** Etap 3 — Elektrownia jądrowa: kopuła reaktora, dwie wysokie chłodnie z parą, basen paliwa (niebieska poświata), hala turbin. */
+function createNuclearPlant(): BigShape {
+  const hall = turbineHall(0.26, 0.26, 0.3, 0.18, 0.16, 0.25);
+  const p = parts(pylon(0.42, -0.08, 0.5));
   return {
     body: prepare([
-      slab(0.52, 8),
+      slab(0.56, 12),
+      ...hyperTower(-0.24, -0.24, 0.95, 0.17),
+      ...hyperTower(0.14, -0.32, 0.85, 0.15),
+      // Obudowa bezpieczeństwa: walec i kopuła, złoty pas.
+      paint(at(new THREE.CylinderGeometry(0.19, 0.2, 0.2, 16), -0.1, 0.14, 0.18), CONCRETE),
+      paint(at(new THREE.SphereGeometry(0.19, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), -0.1, 0.24, 0.18), '#d8dedc'),
+      paint(at(new THREE.CylinderGeometry(0.195, 0.195, 0.03, 16), -0.1, 0.2, 0.18), GOLD),
+      // Budynek basenu paliwa (otwarty dach — poświata).
+      paint(at(new THREE.BoxGeometry(0.18, 0.1, 0.14), 0.16, 0.09, -0.02), STEEL),
+      ...hall.body,
       ...p.body,
-      paint(at(new THREE.CylinderGeometry(0.17, 0.18, 0.12, 12), -0.16, 0.12, 0.16), CONCRETE),
-      paint(at(new THREE.SphereGeometry(0.17, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), -0.16, 0.18, 0.16), CONCRETE),
     ]),
-    pit: prepare(p.pit),
-    // Pierścień wokół kopuły obraca się wolno.
-    rotor: prepare([at(new THREE.TorusGeometry(0.22, 0.01, 3, 18).rotateX(Math.PI / 2), -0.16, 0.2, 0.16)]),
-    glow: prepare([...p.glow, at(new THREE.CylinderGeometry(0.182, 0.182, 0.025, 12, 1, true), -0.16, 0.15, 0.16)]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([
+      at(new THREE.BoxGeometry(0.15, 0.01, 0.11), 0.16, 0.145, -0.02),
+      at(new THREE.CylinderGeometry(0.197, 0.197, 0.012, 16, 1, true), -0.1, 0.17, 0.18),
+      ...hall.glow,
+      ...p.glow,
+    ]),
+  };
+}
+
+/** Moduł elektrowni jądrowej: chłodnia z parą na płycie, pompownia. */
+function createCoolingModule(): BigShape {
+  return {
+    body: prepare([
+      paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), SLAB),
+      ...hyperTower(-0.08, -0.06, 0.5, 0.17),
+      paint(at(new THREE.BoxGeometry(0.18, 0.1, 0.12), 0.3, 0.1, 0.3), STEEL),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.BoxGeometry(0.12, 0.02, 0.01), 0.3, 0.12, 0.365)]),
   };
 }
 
@@ -1115,7 +1154,8 @@ type KindId =
   | 'windTurbine'
   | 'fusionGenerator'
   | 'fusionCell'
-  | 'powerLarge'
+  | 'nuclearPlant'
+  | 'coolingModule'
   | 'powerMega'
   | 'solarField'
   | 'substation'
@@ -1161,7 +1201,8 @@ const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: st
   windTurbine: { shape: createWindTurbine, rotor: BLADE, glow: '#ff6b5a', speed: 1.6, hub: WIND_HUB_SPOT, fixedSpin: true },
   fusionGenerator: { shape: createFusionGenerator, rotor: '#ffe3f5', glow: PLASMA, speed: 2.2 },
   fusionCell: { shape: createFusionCell, rotor: '#ffe3f5', glow: PLASMA, speed: 2.8 },
-  powerLarge: { shape: createPowerPlantLarge, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.3 },
+  nuclearPlant: { shape: createNuclearPlant, rotor: '#e6c77a', glow: CHERENKOV, speed: 0 },
+  coolingModule: { shape: createCoolingModule, rotor: '#e6c77a', glow: CHERENKOV, speed: 0 },
   powerMega: { shape: createPowerMega, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.5 },
   solarField: { shape: createSolarField, rotor: '#8fa3a6', glow: '#bff6ff', speed: 0 },
   substation: { shape: createSubstation, rotor: '#8fa3a6', glow: '#bff6ff', speed: 0 },
@@ -1253,9 +1294,9 @@ const FAMILIES: Record<BuildingId, Family> = {
   },
   // Elektrownia → węzeł → wielka elektrownia → megasieć; pola paneli i stacje przesyłowe, po „Sieci Tesli” co czwarte — węzeł Tesli.
   powerPlant: {
-    cores: ['windFarm', 'fusionGenerator', 'powerLarge', 'powerMega'],
+    cores: ['windFarm', 'fusionGenerator', 'nuclearPlant', 'powerMega'],
     coreScale: [1.6, 2.1, 2.7, 3.4],
-    spot: (stage, k, c) => (c.upgraded && k % 4 === 0 ? 'teslaNode' : stage <= 0 ? 'windTurbine' : stage === 1 ? (k % 2 === 0 ? 'substation' : 'fusionCell') : k % 3 === 0 ? 'substation' : 'solarField'),
+    spot: (stage, k, c) => (c.upgraded && k % 4 === 0 ? 'teslaNode' : stage <= 0 ? 'windTurbine' : stage === 1 ? (k % 2 === 0 ? 'substation' : 'fusionCell') : stage === 2 ? (k % 3 === 0 ? 'substation' : 'coolingModule') : k % 3 === 0 ? 'substation' : 'solarField'),
     beltsToCore: false,
     noBelts: true,
   },
