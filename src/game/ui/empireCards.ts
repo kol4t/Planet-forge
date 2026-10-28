@@ -35,6 +35,7 @@ export function planetBadges(p: PlanetOverview): CardBadge[] {
   if (rich.crystal >= RICH_FROM) badges.push({ label: 'bogata w kryształy', tone: 'gold' });
   if (p.stock.metal >= p.capacity || p.stock.crystal >= p.capacity) badges.push({ label: 'magazyn pełny', tone: 'danger' });
   if (p.deposits.left.metal <= 0 || p.deposits.left.crystal <= 0) badges.push({ label: 'złoże wyczerpane', tone: 'danger' });
+  else if (p.exploited) badges.push({ label: 'wyeksploatowana', tone: 'gold' });
   return badges;
 }
 

@@ -103,6 +103,27 @@ export function depositsLeft(state: EconomyState, planet: Planet, balance: Balan
   return { metal: left('metal'), crystal: left('crystal') };
 }
 
+/** Część złoża już wydobyta (0..1) dla każdego surowca. */
+export function minedShare(state: EconomyState, planet: Planet, balance: Balance = BALANCE): Resources {
+  const total = depositTotal(planet, balance);
+  const share = (id: (typeof RESOURCES)[number]) => (total[id] > 0 ? Math.min(1, (state.mined?.[id] ?? 0) / total[id]) : 1);
+  return { metal: share('metal'), crystal: share('crystal') };
+}
+
+/** Które złoża są już „resztkami” (wydobyto ≥ próg, z tolerancją 1 jednostki na zaokrąglenia). */
+function remnants(state: EconomyState, planet: Planet, balance: Balance): Record<(typeof RESOURCES)[number], boolean> {
+  const total = depositTotal(planet, balance);
+  const th = balance.exploitation.threshold;
+  const is = (id: (typeof RESOURCES)[number]) => (state.mined?.[id] ?? 0) >= total[id] * th - 1;
+  return { metal: is('metal'), crystal: is('crystal') };
+}
+
+/** Planeta wyeksploatowana: oba złoża wydobyte co najmniej w progu (domyślnie 80%). */
+export function isExploited(state: EconomyState, planet: Planet, balance: Balance = BALANCE): boolean {
+  const r = remnants(state, planet, balance);
+  return r.metal && r.crystal;
+}
+
 export function productionRates(state: EconomyState, planet: Planet, balance: Balance = BALANCE): Rates {
   const env = {
     metal: environmentEffect(planet, 'metal', balance),
@@ -112,6 +133,7 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
   const rich = planet.gameplay.richness;
   const growth = balance.levelGrowth;
   const deposits = depositsLeft(state, planet, balance);
+  const remnant = remnants(state, planet, balance);
   let energyProduced = 0;
   let energyUsed = 0;
   const consumers: { def: BuildingDef; output: number; need: number; priority: number }[] = [];
@@ -122,7 +144,9 @@ export function productionRates(state: EconomyState, planet: Planet, balance: Ba
     const dry = (def.produces === 'metal' || def.produces === 'crystal') && deposits[def.produces] <= 0;
     const work = dry ? 0 : setWork;
     // Produktywność skaluje wydobycie i zużycie energii; teren — tylko wydobycie.
-    const output = scaled(def.baseOutput, level, growth) * work * (state.siteFactor?.[def.id] ?? 1);
+    // Resztki złoża (≥ 80% wydobyte) — kopalnia wydobywa wolniej, energię bierze jak dotąd.
+    const slower = def.produces === 'metal' || def.produces === 'crystal' ? (remnant[def.produces] ? balance.exploitation.remnantOutput : 1) : 1;
+    const output = scaled(def.baseOutput, level, growth) * work * (state.siteFactor?.[def.id] ?? 1) * slower;
     const need = scaled(def.baseEnergyUse, level, growth) * work * (state.energyFactor?.[def.id] ?? 1);
     energyUsed += need;
     if (def.produces === 'energy') energyProduced += output * rich.energy * env.energy;
@@ -226,10 +250,16 @@ export function advance(state: EconomyState, planet: Planet, now: number, balanc
       const cap = storageCapacity(s, balance);
       const left = depositsLeft(s, planet, balance);
       let span = seconds;
-      if (round < 4) {
+      if (round < 8) {
+        // Odcinek kończy się wyczerpaniem złoża albo przejściem progu resztek (wtedy kopalnia zwalnia).
+        const total = depositTotal(planet, balance);
+        const keep = 1 - balance.exploitation.threshold;
         for (const id of RESOURCES) {
           const perMinute = rates.fromDeposits[id];
-          if (perMinute > 0 && s.stock[id] < cap) span = Math.min(span, (left[id] / perMinute) * 60);
+          if (!(perMinute > 0) || s.stock[id] >= cap) continue;
+          span = Math.min(span, (left[id] / perMinute) * 60);
+          const toThreshold = left[id] - total[id] * keep;
+          if (toThreshold > 1) span = Math.min(span, (toThreshold / perMinute) * 60);
         }
       }
       budget -= span;

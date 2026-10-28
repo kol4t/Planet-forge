@@ -121,7 +121,8 @@ export class EmpireScene extends OverlayScene {
     if (titleW >= this.s(70)) {
       this.text(bar.x + pad, bar.y + this.s(8), 'IMPERIUM', 15, COLORS.gold, { fontFamily: FONTS.serif, letterSpacing: 2, fixedWidth: this.px(titleW) });
       const f = c.empireTotals();
-      this.text(bar.x + pad, bar.y + this.s(30), `Planet: ${c.slotInfo.used} z ${c.slotInfo.unlocked} · pola ${formatInt(f.fieldsUsed)}/${formatInt(f.fieldsBuildable)}`, 10.5, COLORS.muted, { fixedWidth: this.px(titleW) });
+      const loop = c.loopProgress();
+      this.text(bar.x + pad, bar.y + this.s(30), `Planet: ${c.slotInfo.used} z ${c.slotInfo.unlocked} · pola ${formatInt(f.fieldsUsed)}/${formatInt(f.fieldsBuildable)} · wyeksploatowane ${loop.exploited.length}/${loop.needed}`, 10.5, COLORS.muted, { fixedWidth: this.px(titleW) });
     }
     const tabs: [string, 'planets' | 'journal' | 'ai' | null][] = [
       ['Planety', 'planets'],

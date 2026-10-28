@@ -39,6 +39,7 @@ Kopiuj zapis / Wczytaj zapis).
   "shipments": [ … ],             // transportowce (od v0.36, opcjonalne)
   "comets": [ … ],                // holowniki po komety (od v0.37.1, opcjonalne)
   "finds": { "items": {}, "next": {} },  // znaleziska megakompleksów (od v0.43.1, opcjonalne)
+  "exploited": ["1:16:4"],        // wyeksploatowane planety, każda raz (od v0.54, opcjonalne; błędne adresy pomijane)
   "slots": [ SlotSave, … ]
 }
 ```

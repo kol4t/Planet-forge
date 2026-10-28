@@ -81,6 +81,8 @@ export interface EmpireSave {
   comets?: CometHaul[];
   /** Znaleziska megakompleksów i ich terminy (od v0.43.1; brak = żadnych). */
   finds?: FindsState;
+  /** Planety wyeksploatowane (≥ 80% obu złóż) — adresy, każda liczona raz (od v0.54; brak = żadnych). */
+  exploited?: string[];
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -100,6 +102,12 @@ export function parsePlots(raw: unknown): Plots {
 }
 
 /** Statki z zapisu — błędne pomijane (nie psują reszty zapisu). */
+/** Lista wyeksploatowanych planet z zapisu — tylko poprawne, niepowtarzające się adresy. */
+export function parseExploited(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter((a): a is string => typeof a === 'string' && ADDRESS.test(a)))];
+}
+
 export function parseMissions(raw: unknown): ColonyMission[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((m: any) =>
@@ -199,6 +207,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseShipments(data.shipments).length > 0 ? { shipments: parseShipments(data.shipments) } : {}),
     ...(parseComets(data.comets).length > 0 ? { comets: parseComets(data.comets) } : {}),
     ...(data.finds ? { finds: parseFinds(data.finds) } : {}),
+    ...(parseExploited(data.exploited).length > 0 ? { exploited: parseExploited(data.exploited) } : {}),
   };
 }
 
