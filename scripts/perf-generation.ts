@@ -58,7 +58,10 @@ const game = new GameController(t0);
 game.research = { done: RESEARCH_NODES.filter((r) => r.ring <= 2 && !r.soon).map((r) => r.id), current: null };
 game.economy = { ...game.economy, stock: { metal: 9e6, crystal: 9e6 } };
 const free = game.system(game.homeSystem)!.planets.filter((p) => p.body === 'rocky' && game.occupantAt(p) === 'free');
-for (const p of free.slice(0, 4)) game.colonize(p.address, t0);
+// v0.53: kolonie zakłada statek (koszt, paliwo, lot ok. 2 min) — wysłane wcześniej, doleciały do `t0`.
+game.economy = { ...game.economy, levels: { ...game.economy.levels, storage: 12 }, antimatter: 100 };
+for (const p of free.slice(0, 4)) game.colonize(p.address, t0 - 130_000);
+game.tick(t0);
 console.log(`\nPlanety w imperium: ${game.slotInfo.used}`);
 for (let i = 0; i < game.slotInfo.used; i++) {
   game.switchPlanet(i, t0);

@@ -1,5 +1,6 @@
 // Okno „Wydobycie w kosmosie” (v0.37, v0.37.1): stacja na pasie asteroid układu aktywnej planety
 // (stan, urobek, koszt kolejnego poziomu) i holownik po kometę. Wygląd: #text-panel w index.html.
+import { fuelLabel } from '../../core/economy/fuel.ts';
 import type { ActionMessage, AsteroidView, GameController } from '../../app/GameController.ts';
 import { formatDuration, formatInt, formatRate } from './theme.ts';
 
@@ -87,7 +88,7 @@ export function openAsteroidPanel(options: AsteroidPanelOptions): () => void {
     const range = (id: 'metal' | 'crystal') => `${formatInt(c.cargoMin[id])}–${formatInt(c.cargoMax[id])}`;
     cometText.textContent = c.flying
       ? `Holownik w drodze — wróci za ${formatDuration(c.flying.secondsLeft)} z ${formatInt(c.flying.cargo.metal)} metalu i ${formatInt(c.flying.cargo.crystal)} kryształów.`
-      : `Holownik przyciąga przelatującą kometę — w każdym układzie, także bez pasa. Lot ${Math.round(c.seconds / 60)} min, przywozi ${range('metal')} metalu i ${range('crystal')} kryształów.\nKoszt: ${formatInt(c.cost.metal)} metalu · ${formatInt(c.cost.crystal)} kryształów.`;
+      : `Holownik przyciąga przelatującą kometę — w każdym układzie, także bez pasa. Lot ${Math.round(c.seconds / 60)} min, przywozi ${range('metal')} metalu i ${range('crystal')} kryształów.\nKoszt: ${formatInt(c.cost.metal)} metalu · ${formatInt(c.cost.crystal)} kryształów · ${fuelLabel(c.fuel)}.`;
     launch.textContent = c.flying ? 'Holownik w drodze' : 'Wyślij holownik';
     launch.disabled = !!c.flying || !c.unlocked;
     if (!c.unlocked) {

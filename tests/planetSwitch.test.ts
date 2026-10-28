@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { GameController } from '../src/app/GameController.ts';
 import { cachedFieldGrid, clearFieldGridCache } from '../src/core/colony/fieldGrid.ts';
 import { EMPIRE_KEY } from '../src/core/save/empire.ts';
+import { colonizeNow } from './helpers.ts';
 
 function withMemoryStorage(run: (store: Map<string, string>) => void): void {
   const store = new Map<string, string>();
@@ -30,7 +31,7 @@ test('zgłoszenie #1: lista planet po starcie nie liczy siatek pól nieaktywnych
       .system(first.homeSystem)!
       .planets.filter((p) => p.body === 'rocky' && first.occupantAt(p) === 'free')
       .map((p) => p.address);
-    for (const address of free.slice(0, 2)) assert.ok(first.colonize(address, 0).ok);
+    for (const address of free.slice(0, 2)) assert.ok(colonizeNow(first, address, 0).ok);
     assert.ok(first.switchPlanet(0, 0).ok);
     const expected = first.overview(0).map((p) => p.fields);
     first.save();

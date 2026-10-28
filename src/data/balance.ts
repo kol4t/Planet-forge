@@ -22,6 +22,14 @@ export const BALANCE: Balance = {
   comet: { cost: { metal: 200, crystal: 100 }, seconds: 3600, cargoMin: { metal: 400, crystal: 600 }, cargoMax: { metal: 900, crystal: 1500 } },
   transport: { capacity: 5000, baseSeconds: 60, secondsPerUnit: 5, maxActive: 3 },
   colonyShip: { cost: { metal: 2500, crystal: 1800 }, baseSeconds: 120, secondsPerUnit: 6 },
+  // Paliwo lotów (antymateria, wariant „umiarkowany” — decyzja właściciela 2026-10-28; robocze).
+  // Najbliższy inny układ ~10 jedn., typowy ~77, najdalszy ~143.
+  fuel: {
+    transport: { inSystem: 1, base: 2, unitsPerOne: 20 },
+    colonyShip: { inSystem: 3, base: 3, unitsPerOne: 15 },
+    expedition: { inSystem: 1, base: 1, unitsPerOne: 30 },
+    comet: { inSystem: 1, base: 1, unitsPerOne: 30 },
+  },
   buildings: [
     {
       id: 'metalMine',

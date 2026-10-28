@@ -2,6 +2,39 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Etap 2: antymateria jako paliwo lotów (v0.53, decyzja właściciela)
+
+- Wariant „umiarkowany”: w układzie transport 1, statek kolonizacyjny 3, ekspedycja 1, holownik 1; między układami
+  `base + ⌈odległość / jedn.⌉` (transport 2 + 1/20, statek 3 + 1/15, ekspedycja 1 + 1/30) — `BALANCE.fuel`, `core/economy/fuel.ts`.
+- Kolonizacja we własnym układzie (dotąd darmowa i natychmiastowa — główny powód zbyt szybkiej pętli w symulatorze):
+  teraz statek kolonizacyjny jak do innych układów (koszt 2500 / 1800, paliwo 3, lot `colonyShip.baseSeconds` = 2 min),
+  bez badania. Kolonia powstaje po przylocie, gracz zostaje na swojej planecie.
+- Paliwo płaci wspólny portfel (aktywna planeta); zawrócenie statku zwraca paliwo (pole zapisu `missions[].fuel`,
+  opcjonalne). Testy przeniesione na pomocnika `tests/helpers.ts` (`colonizeNow`).
+- Symulator po zmianie: aktywny gracz wyczerpuje antymaterię (loty wstrzymane z braku paliwa), okazjonalny nie; czas
+  pętli prawie bez zmian (wyznacza go tempo wydobycia) — `docs/status.md`, punkt 8.
+
+## 2026-10-28 — Pętla MVP: odpowiedzi właściciela
+
+1. Przeniesienie = nowe kolonie i przewóz surowców **oraz** wysłanie gotowego megakonstruktu na inną kolonię
+   (przygotowanie ~30 min, misja transportowa zależna od odległości); misję mają móc przejąć / zniszczyć inni gracze —
+   w MVP (bez serwera) zagrożenie od komputera (boty, zdarzenia), mechanika gotowa na graczy później.
+2. Zamknięcie pętli: ≥ 80% złóż metalu i kryształów na 3 planetach („wyeksploatowana”, resztki trudniej wydobyć —
+   robocze −50%), + stacja macierzysta → „imperium gwiezdne” (robocze): magazyn orbitalny, loty międzyukładowe.
+3. Stacja macierzysta (SI Matka, stacja główna) + mniejsze stacje łączące się z macierzystą.
+4. Antymateria = paliwo każdego lotu (w układzie mało, między układami dużo).
+5. Flota także bojowa — w MVP propozycja: eskorta i obrona misji / stacji (K-005: walka rzadka, kosztowna); do potwierdzenia w lore.
+Plan 12 etapów: `docs/status.md`, punkt 7.
+
+## 2026-10-28 — Definicja MVP (decyzja właściciela)
+
+- MVP = model eksploatacji planety, wstępna flota, wstępna ekonomia i pętla rozgrywki (bez endgame'u): planeta → rozwój →
+  wyczerpanie surowców → transport / przeniesienie na inną planetę → po wydobyciu złóż z 3 planet zamknięcie pętli
+  stacją kosmiczną / flotą / „imperium gwiezdnym” z magazynem na orbicie, energią słoneczną i antymaterią;
+  antymateria = główne paliwo podróży między układami. Stan pętli w kodzie i plan etapów: `docs/status.md`.
+- **Zmiana zakresu:** wstępna flota wchodzi do MVP (wcześniej `CLAUDE.md` wykluczał flotę) — roboczo cywilna, bez walki
+  (K-005), do potwierdzenia przez właściciela. Nazwa „imperium gwiezdne” robocza (O-002).
+
 ## 2026-10-28 — Magazyn i Kopalnia metalu: wyraźna różnica wyglądu (decyzja właściciela)
 
 - Właściciel (zrzut z iPada): magazyn i kopalnia metalu wyglądają bardzo podobnie (te same złote dachy, stal, ciemne płyty).

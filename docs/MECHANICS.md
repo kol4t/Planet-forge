@@ -10,7 +10,7 @@ Kod reguł: `src/core/`. Nazwy fabularne są robocze — `docs/LORE_TOUCHPOINTS.
 | **Metal** | Kopalnia metalu + przyrost podstawowy (6/min) | budynki, badania, statki, kompleksy |
 | **Kryształy** | Ekstraktor kryształów + przyrost podstawowy (3/min) | j.w. |
 | **Energia** | Elektrownia (+ kolektor energii gwiazdy w układzie) | nie gromadzi się — bilans na bieżąco |
-| **Antymateria** | 1/h pasywnie + Kolektor antymaterii (+ pulsary, znaleziska) | „Ukończ teraz”, badania od pierścienia 4 |
+| **Antymateria** | 1/h pasywnie + Kolektor antymaterii (+ pulsary, znaleziska) | **paliwo każdego lotu** (v0.53), „Ukończ teraz”, badania od pierścienia 4 |
 
 - Metal i kryształy mieszczą się w **Magazynie** (pojemność osobno dla każdego). Pełny magazyn zatrzymuje przyrost;
   nadwyżka ponad pojemność (np. zwrot kosztu) nie przepada.
@@ -76,7 +76,7 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
 
 ## Imperium (kilka planet)
 
-- 5 miejsc na start (do 10 w przyszłości). Nowe planety: kolonizacja z mapy (własny układ) albo statkiem kolonizacyjnym.
+- 5 miejsc na start (do 10 w przyszłości). Nowe planety: zawsze statkiem kolonizacyjnym (od v0.53 także we własnym układzie — krótki lot ok. 2 min).
 - Aktywna jest jedna planeta; nieaktywne nadrabiają czas przy przejściu (jak nieobecność). Ekran **Imperium**: suma,
   „Sytuacja imperium” (alerty), karty planet, dziennik, SI.
 - **Specjalizacja kolonii** (Górnicza, Energetyczna, Naukowa, Przemysłowa): premia zależna od gwiazdy i strefy orbity;
@@ -104,7 +104,13 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
 - **Wiedza**: nieznany → sygnał → wykryty → rozpoznany → zbadany. Na start znany własny układ i najbliżsi sąsiedzi.
 - **Ekspedycje** (sondy, po badaniu): podnoszą wiedzę o celu; szansa maleje z odległością.
 - **Rzadkie obiekty** (pulsary, czarne dziury) po badaniu „Astrofizyka ekstremalna” dają premie dla imperium.
-- **Kolonizacja**: wolna planeta własnego układu od razu z mapy; inne zbadane układy — statkiem kolonizacyjnym.
+- **Kolonizacja** (od v0.53): statek kolonizacyjny (2500 metalu, 1800 kryształów z aktywnej planety + paliwo);
+  własny układ — bez badania, lot ok. 2 min; inne zbadane układy — po badaniu „Napęd międzygwiezdny”. Kolonia powstaje
+  po przylocie; zawrócenie zwraca koszt i paliwo.
+- **Paliwo lotów** (v0.53, decyzja właściciela): każdy lot zużywa antymaterię ze wspólnego portfela — w układzie stała
+  kwota (transport 1, statek kolonizacyjny 3, ekspedycja 1, holownik 1), między układami `base + ⌈odległość / jedn.⌉`
+  (transport 2 + 1/20 jedn., statek 3 + 1/15, ekspedycja 1 + 1/30). Bez paliwa lot nie startuje (komunikat, nic nie
+  znika). Koszt widać przed wysłaniem. Liczby robocze (`src/data/balance.ts`, `fuel`).
 - Zajęte miejsca w układach: boty („inny gracz”) i formy obce — na razie tylko opis na mapie.
 
 ## SI Matka

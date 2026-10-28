@@ -320,6 +320,11 @@ export interface Balance {
   transport: { capacity: number; baseSeconds: number; secondsPerUnit: number; maxActive: number };
   /** Statek kolonizacyjny (kolonizacja innych układów): koszt i czas lotu = base + odległość × perUnit. */
   colonyShip: { cost: Resources; baseSeconds: number; secondsPerUnit: number };
+  /**
+   * Paliwo lotów (v0.53, decyzja właściciela: antymateria = paliwo każdego lotu): antymateria za lot =
+   * `inSystem` (ten sam układ) albo `base` + ⌈odległość / `unitsPerOne`⌉ (między układami).
+   */
+  fuel: Record<FuelKind, FuelRule>;
   buildings: readonly BuildingDef[];
 }
 
@@ -552,6 +557,15 @@ export interface GalaxyAddress {
 // ——— misje i dziennik ———
 
 /** Statek kolonizacyjny w drodze do planety w innym układzie. */
+/** Rodzaj lotu, który zużywa paliwo. */
+export type FuelKind = 'transport' | 'colonyShip' | 'expedition' | 'comet';
+
+export interface FuelRule {
+  inSystem: number;
+  base: number;
+  unitsPerOne: number;
+}
+
 export interface ColonyMission {
   /** Adres planety docelowej. */
   target: string;
@@ -560,6 +574,8 @@ export interface ColonyMission {
   departedAt: number;
   arrivesAt: number;
   cost: Resources;
+  /** Paliwo (antymateria) zapłacone za lot — zwracane przy zawróceniu (v0.53; brak w starszych zapisach = 0). */
+  fuel?: number;
 }
 
 export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai' | 'expedition' | 'find';
