@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.48.0 — odwiert planetarny i odsłonięte jądro — 2026-10-28
+
+- Ekstraktor kryształów w 3D: równa niecka (szkic właściciela) przechodzi w prawdziwą studnię w głąb planety — 8 etapów z poziomu (1 / 3 / 6 / 9 / 12 / 16 / 22 / 30, robocze), ściany z warstwami geologicznymi (skorupa, głębsza skorupa, płaszcz, strefa gorąca), świecące pęknięcia i rozgrzane dno, na etapie 8 jaskinia płaszcza i jądro w środku planety.
+- Ląd z wnętrza otworu ukryty (przypięty do krawędzi), studnia jako osobna, lokalna bryła; kolory wg typu planety (`src/data/drill.ts`); światło jądra wpieczone w ściany.
+- Główna konstrukcja kryształów obok otworu, taśmy omijają otwór; krater w barwach skorupy planety. +2 rysowania.
+- 2D, mechanika, koszty, pola i zapisy bez zmian.
+
 ## v0.47.4 — grafika 3D, magazyn, kolektor, laboratorium i wyrobisko — 2026-10-27
 
 - Magazyn (skład → magazyn → terminal z żurawiem → megaskład z wieżą silosów), kolektor antymaterii (pułapka → kolektor → pole pułapek → megakolektor), laboratorium (pracownia → laboratorium z anteną → instytut → kampus) w 3D według standardu modelu; wszystkie budynki w `FAMILIES`.
