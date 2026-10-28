@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.49.0 — opublikowana: grafika 3D, odwiert i wielka odkrywka)
+## Stan obecny (v0.50.0 — opublikowana: grafika 3D, nowa Elektrownia — wiatr, fuzja, atom, antymateria)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -34,6 +34,11 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
 - **v0.49 — wielka odkrywka** (opublikowana v0.49.0): na etapach Odkrywka / Megaodkrywka cały obszar ekstraktora to
   tarasowa dziura wykopana w terenie (krawędź na obrysie pól), ekstraktor wisi nad szybem na 4 / 5 linach-rurach
   (`src/data/openPit.ts`, `planet-renderer/openPit.ts`, `openPitMeshes.ts`); `SURFACE_VERSION` = 5 (decyzja właściciela).
+  Wygląd ekstraktora — do poprawy później (właściciel niezadowolony).
+- **v0.50 — Elektrownia, alternatywne źródła energii** (opublikowana v0.50.0, decyzja właściciela): etapy wyglądu i nazwy
+  poz. 1 farma wiatrowa → 6 generator fuzyjny (pierścień plazmy) → 12 elektrownia jądrowa (kopuła z chłodniami) →
+  20 reaktor antymaterii (`colonyMeshes.ts`, 2D w `CanvasPlanetFallback.ts`/`complexLook.ts`); tylko wygląd — zużycie
+  antymaterii przez megakonstrukty to propozycja na później (`docs/decisions.md`).
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody

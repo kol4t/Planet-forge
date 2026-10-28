@@ -2,6 +2,12 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.50.0 — Elektrownia: wiatr, fuzja, atom, antymateria — 2026-10-28
+
+- Elektrownia ma cztery sposoby pozyskiwania energii (wygląd i nazwy etapów, decyzja właściciela): poz. 1 **Farma wiatrowa** (wiatraki na naturalnym terenie, wirniki obracają się), poz. 6 **Generator fuzyjny** (świecący pierścień plazmy w cewkach, krążące skupiska plazmy), poz. 12 **Elektrownia jądrowa** (kopuła reaktora, chłodnie z parą, niebieska poświata basenu), poz. 20 **Reaktor antymaterii** (kula antymaterii w obracających się pierścieniach pułapki, zbiorniki z fioletowymi rurami).
+- Moduły na polach dopasowane do etapu (wiatraki, małe pierścienie plazmy, chłodnie, zbiorniki antymaterii); 2D — pikselowe odpowiedniki i nowe wzory gruntu.
+- Produkcja energii, koszty, pola i zapisy bez zmian. Zużycie antymaterii przez megakonstrukty — propozycja na później.
+
 ## v0.49.0 — wielka odkrywka z wiszącym ekstraktorem — 2026-10-28
 
 - Ekstraktor kryształów na etapach Odkrywka (poz. 12–19) i Megaodkrywka (poz. 20+): cały obszar zajętych pól to jedna tarasowa dziura wykopana w terenie planety — krawędź dokładnie na obrysie pól, warstwy (półka + pochyłe zbocze) wzdłuż obrysu, w głębi coraz bardziej okrągłe; 5 / 7 warstw (robocze, `src/data/openPit.ts`); szyb odwiertu w środku dna; jeziorka w obszarze są częścią dziury, tafla oceanu wycięta wzdłuż krawędzi.
