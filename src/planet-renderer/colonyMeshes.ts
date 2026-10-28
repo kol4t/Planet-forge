@@ -156,8 +156,24 @@ function createTeslaNode(): BigShape {
 // → ŚWIATŁO (okna pieców, wyloty kominów). Jednostki: 1 = szerokość konstrukcji, podstawa na y = 0. Sylwetka zmienia
 // się razem z etapem gry (poz. 1 / 6 / 12 / 20 — decyzja właściciela): kopalnia → zakład → huta → megakompleks.
 const SLAB = '#66706d';
-const ORE = '#6e5b4a';
 const DARK = '#3a4241';
+// Kopalnia metalu = ciężki przemysł (decyzja właściciela 2026-10-28): ciemne żelazo, rdza, okopcone płyty, rdzawa ruda,
+// żar pieców i dym z kominów — bez złotych dachów (złoto/biel/turkus to inne budynki, np. port magazynu).
+const IRON = '#4b4f50';
+const RUSTY = '#8f4a2b';
+const SOOT = '#38332f';
+const ORE = '#8a5234';
+const ORE_DARK = '#5e3a28';
+const SMOKE = '#5a5551';
+
+/** Dym nad wylotem komina: trzy kłęby coraz większe i odpływające na bok. */
+function smoke(x: number, y: number, z: number, r: number): THREE.BufferGeometry[] {
+  return [
+    paint(at(new THREE.IcosahedronGeometry(r, 0), x, y + r, z), SMOKE),
+    paint(at(new THREE.IcosahedronGeometry(r * 1.3, 0), x + r * 0.8, y + r * 2.6, z + r * 0.3), SMOKE),
+    paint(at(new THREE.IcosahedronGeometry(r * 1.55, 0), x + r * 2, y + r * 4.4, z + r * 0.6), SMOKE),
+  ];
+}
 
 /** Platforma: niska płyta wpuszczona w teren (zakrywa nierówności pod budowlą). */
 function slab(radius: number, sides: number, height = 0.08, hex = SLAB): THREE.BufferGeometry {
@@ -167,10 +183,10 @@ function slab(radius: number, sides: number, height = 0.08, hex = SLAB): THREE.B
 /** Wieża wyciągowa szybu: dwie nogi (kozioł), belka, koło na szczycie. */
 function headframe(x: number, z: number, h: number, ry = 0): THREE.BufferGeometry[] {
   return [
-    paint(at(new THREE.BoxGeometry(0.04, h, 0.04).rotateZ(0.12), x - 0.05, h / 2, z, ry), STEEL),
-    paint(at(new THREE.BoxGeometry(0.04, h, 0.04).rotateZ(-0.12), x + 0.05, h / 2, z, ry), STEEL),
-    paint(at(new THREE.BoxGeometry(0.04, h * 0.8, 0.04).rotateX(0.45), x, h * 0.42, z + h * 0.18, ry), STEEL),
-    paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 10).rotateX(Math.PI / 2), x, h, z, ry), GOLD),
+    paint(at(new THREE.BoxGeometry(0.04, h, 0.04).rotateZ(0.12), x - 0.05, h / 2, z, ry), IRON),
+    paint(at(new THREE.BoxGeometry(0.04, h, 0.04).rotateZ(-0.12), x + 0.05, h / 2, z, ry), IRON),
+    paint(at(new THREE.BoxGeometry(0.04, h * 0.8, 0.04).rotateX(0.45), x, h * 0.42, z + h * 0.18, ry), IRON),
+    paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 10).rotateX(Math.PI / 2), x, h, z, ry), RUSTY),
   ];
 }
 
@@ -178,14 +194,17 @@ function headframe(x: number, z: number, h: number, ry = 0): THREE.BufferGeometr
 function createMineHead(): BigShape {
   return {
     body: prepare([
-      slab(0.46, 6),
-      paint(at(new THREE.CylinderGeometry(0.11, 0.13, 0.08, 8), 0, 0.12, 0), STEEL),
+      slab(0.46, 6, 0.08, SOOT),
+      paint(at(new THREE.CylinderGeometry(0.11, 0.13, 0.08, 8), 0, 0.12, 0), IRON),
       ...headframe(0, 0, 0.62),
-      paint(at(new THREE.BoxGeometry(0.22, 0.16, 0.18), 0.24, 0.16, -0.06), STEEL),
-      paint(at(new THREE.BoxGeometry(0.24, 0.03, 0.2), 0.24, 0.255, -0.06), GOLD),
+      paint(at(new THREE.BoxGeometry(0.22, 0.16, 0.18), 0.24, 0.16, -0.06), IRON),
+      paint(at(new THREE.BoxGeometry(0.24, 0.03, 0.2), 0.24, 0.255, -0.06), RUSTY),
       paint(at(new THREE.ConeGeometry(0.16, 0.16, 7), -0.24, 0.16, 0.18), ORE),
-      paint(at(new THREE.BoxGeometry(0.09, 0.05, 0.06), -0.06, 0.1, 0.32, 0.4), GOLD),
-      paint(at(new THREE.BoxGeometry(0.08, 0.05, 0.06), 0.3, 0.1, 0.24, -0.7), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.025, 0.035, 0.3, 6), 0.32, 0.3, -0.14), IRON),
+      ...smoke(0.32, 0.47, -0.14, 0.045),
+      paint(at(new THREE.ConeGeometry(0.1, 0.1, 6), -0.32, 0.12, -0.12), ORE),
+      paint(at(new THREE.BoxGeometry(0.09, 0.05, 0.06), -0.06, 0.1, 0.32, 0.4), RUSTY),
+      paint(at(new THREE.BoxGeometry(0.08, 0.05, 0.06), 0.3, 0.1, 0.24, -0.7), RUSTY),
     ]),
     pit: prepare([at(new THREE.CircleGeometry(0.09, 8).rotateX(-Math.PI / 2), 0, 0.165, 0)]),
     rotor: prepare([at(new THREE.BoxGeometry(0.3, 0.025, 0.03), 0.24, 0.32, -0.06), at(new THREE.BoxGeometry(0.02, 0.07, 0.02), 0.36, 0.29, -0.06)]),
@@ -197,17 +216,18 @@ function createMineHead(): BigShape {
 function createMetalPlant(): BigShape {
   return {
     body: prepare([
-      slab(0.5, 8),
-      paint(at(new THREE.BoxGeometry(0.46, 0.22, 0.26), 0.04, 0.19, -0.1), STEEL),
-      paint(at(new THREE.BoxGeometry(0.5, 0.04, 0.3), 0.04, 0.31, -0.1), GOLD),
-      paint(at(new THREE.BoxGeometry(0.26, 0.16, 0.2), -0.2, 0.16, 0.2), STEEL),
-      paint(at(new THREE.BoxGeometry(0.28, 0.03, 0.22), -0.2, 0.255, 0.2), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.07, 0.07, 0.2, 10), 0.24, 0.18, 0.22), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.16, 10), 0.36, 0.16, 0.08), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.035, 0.05, 0.5, 6), -0.06, 0.45, -0.22), STEEL),
+      slab(0.5, 8, 0.08, SOOT),
+      paint(at(new THREE.BoxGeometry(0.46, 0.22, 0.26), 0.04, 0.19, -0.1), IRON),
+      paint(at(new THREE.BoxGeometry(0.5, 0.04, 0.3), 0.04, 0.31, -0.1), RUSTY),
+      paint(at(new THREE.BoxGeometry(0.26, 0.16, 0.2), -0.2, 0.16, 0.2), IRON),
+      paint(at(new THREE.BoxGeometry(0.28, 0.03, 0.22), -0.2, 0.255, 0.2), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.07, 0.07, 0.2, 10), 0.24, 0.18, 0.22), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.16, 10), 0.36, 0.16, 0.08), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.035, 0.05, 0.5, 6), -0.06, 0.45, -0.22), IRON),
+      ...smoke(-0.06, 0.72, -0.22, 0.06),
       ...headframe(0.34, -0.3, 0.42, 0.6),
       // Taśmociąg od szybu do hali (nachylony).
-      paint(at(new THREE.BoxGeometry(0.05, 0.03, 0.3).rotateX(-0.35), 0.24, 0.22, -0.18, 0.9), DARK),
+      paint(at(new THREE.BoxGeometry(0.05, 0.03, 0.3).rotateX(-0.35), 0.24, 0.22, -0.18, 0.9), SOOT),
     ]),
     pit: prepare([at(new THREE.BoxGeometry(0.12, 0.1, 0.01), 0.1, 0.13, 0.035), at(new THREE.BoxGeometry(0.08, 0.08, 0.01), -0.2, 0.12, 0.305)]),
     rotor: prepare([at(new THREE.BoxGeometry(0.44, 0.025, 0.035), 0.02, 0.4, -0.02), at(new THREE.BoxGeometry(0.02, 0.08, 0.02), 0.2, 0.36, -0.02)]),
@@ -221,24 +241,27 @@ function createMetalPlant(): BigShape {
 /** Etap 3 — Huta: dwa wielkie piece, trzy kominy, hala odlewni, kadzie; światło pieców i kanału z metalem. */
 function createSmelter(): BigShape {
   const furnace = (x: number, z: number, h: number) => [
-    paint(at(new THREE.CylinderGeometry(0.07, 0.12, h, 10), x, h / 2 + 0.02, z), STEEL),
-    paint(at(new THREE.CylinderGeometry(0.125, 0.125, 0.03, 10), x, h * 0.35, z), GOLD),
-    paint(at(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 10), x, h * 0.7, z), GOLD),
+    paint(at(new THREE.CylinderGeometry(0.07, 0.12, h, 10), x, h / 2 + 0.02, z), IRON),
+    paint(at(new THREE.CylinderGeometry(0.125, 0.125, 0.03, 10), x, h * 0.35, z), RUSTY),
+    paint(at(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 10), x, h * 0.7, z), RUSTY),
   ];
   return {
     body: prepare([
-      slab(0.54, 8),
+      slab(0.54, 8, 0.08, SOOT),
       ...furnace(-0.16, -0.14, 0.62),
       ...furnace(0.12, -0.2, 0.54),
-      paint(at(new THREE.BoxGeometry(0.5, 0.18, 0.22), 0, 0.15, 0.2), STEEL),
-      paint(at(new THREE.BoxGeometry(0.54, 0.035, 0.26), 0, 0.255, 0.2), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.035, 0.05, 0.78, 6), 0.34, 0.41, -0.06), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.035, 0.05, 0.86, 6), 0.4, 0.45, 0.08), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.03, 0.045, 0.7, 6), -0.38, 0.37, 0.06), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), -0.32, 0.1, 0.3), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), 0.3, 0.1, 0.32), GOLD),
+      paint(at(new THREE.BoxGeometry(0.5, 0.18, 0.22), 0, 0.15, 0.2), IRON),
+      paint(at(new THREE.BoxGeometry(0.54, 0.035, 0.26), 0, 0.255, 0.2), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.035, 0.05, 0.78, 6), 0.34, 0.41, -0.06), IRON),
+      paint(at(new THREE.CylinderGeometry(0.035, 0.05, 0.86, 6), 0.4, 0.45, 0.08), IRON),
+      paint(at(new THREE.CylinderGeometry(0.03, 0.045, 0.7, 6), -0.38, 0.37, 0.06), IRON),
+      ...smoke(0.34, 0.84, -0.06, 0.06),
+      ...smoke(0.4, 0.92, 0.08, 0.065),
+      ...smoke(-0.38, 0.76, 0.06, 0.055),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), -0.32, 0.1, 0.3), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), 0.3, 0.1, 0.32), RUSTY),
       // Most rurowy między piecami.
-      paint(at(new THREE.BoxGeometry(0.3, 0.035, 0.035), -0.02, 0.42, -0.17), DARK),
+      paint(at(new THREE.BoxGeometry(0.3, 0.035, 0.035), -0.02, 0.42, -0.17), SOOT),
     ]),
     pit: prepare([at(new THREE.BoxGeometry(0.14, 0.1, 0.01), 0.12, 0.12, 0.315), at(new THREE.BoxGeometry(0.12, 0.08, 0.01), -0.14, 0.11, 0.315)]),
     rotor: prepare([at(new THREE.BoxGeometry(0.56, 0.025, 0.035), 0, 0.36, 0.2), at(new THREE.BoxGeometry(0.02, 0.08, 0.02), -0.2, 0.32, 0.2)]),
@@ -261,21 +284,22 @@ function createMetalMega(): BigShape {
     const x = Math.cos(a) * 0.34;
     const z = Math.sin(a) * 0.34;
     return [
-      paint(at(new THREE.CylinderGeometry(0.06, 0.1, 0.42, 8), x, 0.33, z), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.105, 0.105, 0.03, 8), x, 0.3, z), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.025, 0.035, 0.6, 6), x * 1.28, 0.42, z * 1.28), STEEL),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.1, 0.42, 8), x, 0.33, z), IRON),
+      paint(at(new THREE.CylinderGeometry(0.105, 0.105, 0.03, 8), x, 0.3, z), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.025, 0.035, 0.6, 6), x * 1.28, 0.42, z * 1.28), IRON),
       // Łącznik do wieży.
-      paint(at(new THREE.BoxGeometry(0.04, 0.035, 0.24), x * 0.55, 0.36, z * 0.55, -a + Math.PI / 2), DARK),
+      ...smoke(x * 1.28, 0.75, z * 1.28, 0.045),
+      paint(at(new THREE.BoxGeometry(0.04, 0.035, 0.24), x * 0.55, 0.36, z * 0.55, -a + Math.PI / 2), SOOT),
     ];
   });
   return {
     body: prepare([
-      slab(0.56, 8),
-      paint(at(new THREE.CylinderGeometry(0.36, 0.4, 0.08, 8), 0, 0.12, 0), SLAB),
-      paint(at(new THREE.CylinderGeometry(0.1, 0.14, 0.95, 6), 0, 0.6, 0), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 6), 0, 0.42, 0), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 6), 0, 0.7, 0), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.06, 0.1, 0.12, 6), 0, 1.13, 0), GOLD),
+      slab(0.56, 8, 0.08, SOOT),
+      paint(at(new THREE.CylinderGeometry(0.36, 0.4, 0.08, 8), 0, 0.12, 0), SOOT),
+      paint(at(new THREE.CylinderGeometry(0.1, 0.14, 0.95, 6), 0, 0.6, 0), IRON),
+      paint(at(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 6), 0, 0.42, 0), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 6), 0, 0.7, 0), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.1, 0.12, 6), 0, 1.13, 0), RUSTY),
       ...blocks,
     ]),
     pit: prepare([at(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 6), 0, 1.2, 0)]),
@@ -296,12 +320,13 @@ function createMetalMega(): BigShape {
 function createMetalBlock(): BigShape {
   return {
     body: prepare([
-      paint(at(new THREE.BoxGeometry(0.92, 0.12, 0.92), 0, 0.01, 0), SLAB),
-      paint(at(new THREE.BoxGeometry(0.56, 0.24, 0.34), -0.12, 0.19, -0.18), STEEL),
-      paint(at(new THREE.BoxGeometry(0.6, 0.04, 0.38), -0.12, 0.32, -0.18), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), 0.24, 0.2, 0.22), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.08, 0.08, 0.2, 10), 0.02, 0.17, 0.28), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.04, 0.055, 0.5, 6), 0.3, 0.32, -0.26), STEEL),
+      paint(at(new THREE.BoxGeometry(0.92, 0.12, 0.92), 0, 0.01, 0), SOOT),
+      paint(at(new THREE.BoxGeometry(0.56, 0.24, 0.34), -0.12, 0.19, -0.18), IRON),
+      paint(at(new THREE.BoxGeometry(0.6, 0.04, 0.38), -0.12, 0.32, -0.18), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), 0.24, 0.2, 0.22), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.08, 0.08, 0.2, 10), 0.02, 0.17, 0.28), RUSTY),
+      paint(at(new THREE.CylinderGeometry(0.04, 0.055, 0.5, 6), 0.3, 0.32, -0.26), IRON),
+      ...smoke(0.3, 0.6, -0.26, 0.07),
     ]),
     pit: prepare([at(new THREE.BoxGeometry(0.14, 0.1, 0.01), -0.02, 0.14, -0.005)]),
     rotor: prepare([]),
@@ -313,12 +338,13 @@ function createMetalBlock(): BigShape {
 function createMetalYard(): BigShape {
   return {
     body: prepare([
-      paint(at(new THREE.BoxGeometry(0.92, 0.12, 0.92), 0, 0.01, 0), SLAB),
+      paint(at(new THREE.BoxGeometry(0.92, 0.12, 0.92), 0, 0.01, 0), SOOT),
       paint(at(new THREE.ConeGeometry(0.22, 0.22, 7), -0.18, 0.18, 0.12), ORE),
       paint(at(new THREE.ConeGeometry(0.16, 0.16, 7), 0.2, 0.15, -0.16), ORE),
-      paint(at(new THREE.BoxGeometry(0.18, 0.16, 0.14), 0.26, 0.15, 0.24), STEEL),
-      paint(at(new THREE.BoxGeometry(0.19, 0.03, 0.15), 0.26, 0.245, 0.24), GOLD),
-      paint(at(new THREE.BoxGeometry(0.1, 0.06, 0.07), -0.3, 0.1, -0.28, 0.5), GOLD),
+      paint(at(new THREE.ConeGeometry(0.14, 0.13, 7), -0.22, 0.13, -0.24), ORE_DARK),
+      paint(at(new THREE.BoxGeometry(0.18, 0.16, 0.14), 0.26, 0.15, 0.24), IRON),
+      paint(at(new THREE.BoxGeometry(0.19, 0.03, 0.15), 0.26, 0.245, 0.24), RUSTY),
+      paint(at(new THREE.BoxGeometry(0.1, 0.06, 0.07), -0.3, 0.1, -0.28, 0.5), RUSTY),
     ]),
     pit: prepare([]),
     rotor: prepare([]),
@@ -329,10 +355,10 @@ function createMetalYard(): BigShape {
 /** Taśmociąg między modułami (odcinek długości 1 wzdłuż z, na podporach) — tylko bryła. */
 function createConveyor(): THREE.BufferGeometry {
   return prepare([
-    paint(at(new THREE.BoxGeometry(0.16, 0.06, 1), 0, 0.09, 0), DARK),
-    paint(at(new THREE.BoxGeometry(0.2, 0.02, 1), 0, 0.13, 0), STEEL),
-    paint(at(new THREE.BoxGeometry(0.06, 0.08, 0.06), 0, 0.04, -0.3), STEEL),
-    paint(at(new THREE.BoxGeometry(0.06, 0.08, 0.06), 0, 0.04, 0.3), STEEL),
+    paint(at(new THREE.BoxGeometry(0.16, 0.06, 1), 0, 0.09, 0), SOOT),
+    paint(at(new THREE.BoxGeometry(0.2, 0.02, 1), 0, 0.13, 0), IRON),
+    paint(at(new THREE.BoxGeometry(0.06, 0.08, 0.06), 0, 0.04, -0.3), IRON),
+    paint(at(new THREE.BoxGeometry(0.06, 0.08, 0.06), 0, 0.04, 0.3), IRON),
   ]);
 }
 
@@ -1245,12 +1271,12 @@ const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: st
   crystalOutpost: { shape: createCrystalOutpost, rotor: '#8fa3a6', glow: '#6fe9ff', speed: 1.2 },
   crystalRefinery: { shape: createCrystalRefinery, rotor: '#9c8650', glow: '#6fe9ff', speed: 0 },
   // Suwnice i dźwigi rodziny metalowej w przygaszonym złocie (jaskrawe przyćmiewały bryły — v0.47).
-  mineHead: { shape: createMineHead, rotor: '#9c8650', glow: '#ffb35a', speed: 0.3 },
-  metalPlant: { shape: createMetalPlant, rotor: '#9c8650', glow: '#ff9a3c', speed: 0.25 },
-  smelter: { shape: createSmelter, rotor: '#9c8650', glow: '#ff8a2c', speed: 0.2 },
-  metalMega: { shape: createMetalMega, rotor: '#9c8650', glow: '#ff9a3c', speed: 0.12 },
-  metalBlock: { shape: createMetalBlock, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
-  metalYard: { shape: createMetalYard, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
+  mineHead: { shape: createMineHead, rotor: '#7a5a46', glow: '#ffb35a', speed: 0.3 },
+  metalPlant: { shape: createMetalPlant, rotor: '#7a5a46', glow: '#ff9a3c', speed: 0.25 },
+  smelter: { shape: createSmelter, rotor: '#7a5a46', glow: '#ff8a2c', speed: 0.2 },
+  metalMega: { shape: createMetalMega, rotor: '#7a5a46', glow: '#ff9a3c', speed: 0.12 },
+  metalBlock: { shape: createMetalBlock, rotor: '#7a5a46', glow: '#ff9a3c', speed: 0 },
+  metalYard: { shape: createMetalYard, rotor: '#7a5a46', glow: '#ff9a3c', speed: 0 },
   teslaNode: { shape: createTeslaNode, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.8 },
   windFarm: { shape: createWindFarm, rotor: BLADE, glow: '#ff6b5a', speed: 1.3, hub: WIND_HUB_CORE, fixedSpin: true },
   windTurbine: { shape: createWindTurbine, rotor: BLADE, glow: '#ff6b5a', speed: 1.6, hub: WIND_HUB_SPOT, fixedSpin: true },

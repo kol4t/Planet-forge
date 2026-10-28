@@ -13,6 +13,10 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
 - Magazyn (zrobiony): 4 etapy — skład (hala, rzędy kontenerów, silos) → magazyn (suwnica bramowa nad kontenerami) →
   terminal (dwie suwnice, silosy, obrotowy żuraw) → megaskład (magazyn wysokiego składowania); moduły — plac kontenerów
   pod suwnicą, białe silosy; bez taśmociągów (to znak kopalni). Grunt 3D jasny beton; 2D — rzędy kontenerów, suwnica.
+- Kopalnia metalu (zrobiona): te same sylwetki etapów (szyb z wieżą wyciągową → zakład → huta z piecami → megakompleks),
+  nowa paleta ciężkiego przemysłu — ciemne żelazo, rdzawe dachy i kołnierze, okopcone płyty, rdzawe hałdy rudy, dym nad
+  kominami (kłęby w bryle, bez animacji), żar pieców; rdzawo-brązowy grunt 3D, rdzawe taśmociągi. 2D — rdzawe hale,
+  kominy z dymem, hałdy rudy.
 
 ## 2026-10-28 — Elektrownia: alternatywne źródła energii (decyzja właściciela)
 

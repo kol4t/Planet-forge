@@ -946,7 +946,8 @@ export class PlanetView implements PlanetDisplay {
 
 /** Kolor bazowy gruntu kompleksu w 3D (ściany lądu): stal huty, beton krawędzi odkrywki, łupek elektrowni… */
 const GROUND_BASE: Record<BuildingId, readonly [number, number, number]> = {
-  metalMine: [0.36, 0.36, 0.34],
+  // Ciężki przemysł: rdzawo-brązowa, okopcona ziemia (kolory liniowe — ok. #643f2c).
+  metalMine: [0.13, 0.075, 0.05],
   crystalMine: [0.42, 0.44, 0.46],
   powerPlant: [0.24, 0.29, 0.33],
   // Port kontenerowy: ciemny niebiesko-szary asfalt (nie zlewa się z lodem; kopalnia metalu — rdzawa).

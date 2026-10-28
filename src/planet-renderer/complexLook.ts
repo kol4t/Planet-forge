@@ -14,9 +14,7 @@ export interface GroundColor {
   glow: number;
 }
 
-const STEEL: [number, number, number] = [0.3, 0.33, 0.33];
 const STEEL_DARK: [number, number, number] = [0.17, 0.19, 0.19];
-const GOLD: [number, number, number] = [0.79, 0.63, 0.29];
 const ROOF: [number, number, number] = [0.52, 0.56, 0.55];
 const FURNACE: [number, number, number] = [1, 0.58, 0.22];
 const CRYSTAL: [number, number, number] = [0.42, 0.93, 0.98];
@@ -98,13 +96,18 @@ export function pitDepth(c: ColonyComplex, p: Vec3): number {
   return 1 - Math.floor(s * n) / n;
 }
 
+const RUST_ROOF: [number, number, number] = [0.56, 0.29, 0.17];
+const IRON_ROOF: [number, number, number] = [0.29, 0.31, 0.31];
+const SOOT: [number, number, number] = [0.2, 0.18, 0.17];
+
 /**
  * Kwartał przemysłowy: hala (jasna kalenica, dach, ciemna ściana z oknami pieców), dwie hale z alejką,
- * zbiornik (złoty pierścień) albo plac z hałdami rudy. `dense` 0..1 — im wyższy etap, tym mniej placów.
+ * zbiornik (rdzawy pierścień) albo plac z hałdami rudy. `dense` 0..1 — im wyższy etap, tym mniej placów.
+ * Ciężki przemysł (decyzja właściciela 2026-10-28): rdzawe i żelazne dachy, okopcone drogi, rdzawa ruda — bez złota.
  */
 function industrial(b: ReturnType<typeof lot>, dense: number, furnaces: number): GroundColor {
-  if (b.road) return { rgb: STEEL_DARK, glow: 0 };
-  const roof = b.tint < 0.55 ? GOLD : ROOF;
+  if (b.road) return { rgb: SOOT, glow: 0 };
+  const roof = b.tint < 0.55 ? RUST_ROOF : IRON_ROOF;
   if (b.kind < 0.4) {
     // Duża hala: kalenica, dach, ściana z oknami.
     if (b.v === 4) return b.u % 2 === 1 && b.tint < furnaces + 0.35 ? { rgb: FURNACE, glow: 0.9 } : { rgb: shade(roof, 0.45), glow: 0 };
@@ -112,20 +115,20 @@ function industrial(b: ReturnType<typeof lot>, dense: number, furnaces: number):
   }
   if (b.kind < 0.62) {
     // Dwie hale z alejką.
-    if (b.u === 2) return { rgb: STEEL_DARK, glow: 0 };
+    if (b.u === 2) return { rgb: SOOT, glow: 0 };
     if (b.v === 4) return b.tint < furnaces ? { rgb: FURNACE, glow: 0.85 } : { rgb: shade(roof, 0.45), glow: 0 };
     return { rgb: shade(roof, b.v === 1 ? 1.12 : 0.95), glow: 0 };
   }
   if (b.kind < 0.72) {
-    // Zbiornik: złoty pierścień z ciemnym środkiem.
+    // Zbiornik: rdzawy pierścień z ciemnym środkiem.
     const d = Math.hypot(b.ru, b.rv);
-    return d < 0.18 ? { rgb: [0.2, 0.22, 0.22], glow: 0 } : d < 0.32 ? { rgb: GOLD, glow: 0 } : { rgb: STEEL, glow: 0 };
+    return d < 0.18 ? { rgb: [0.16, 0.14, 0.13], glow: 0 } : d < 0.32 ? { rgb: RUST_ROOF, glow: 0 } : { rgb: IRON_ROOF, glow: 0 };
   }
   if (b.kind < 1 - dense * 0.25) {
     // Plac z hałdami rudy.
-    return { rgb: (b.u + b.v) % 3 === 0 ? [0.42, 0.33, 0.27] : [0.3, 0.28, 0.26], glow: 0 };
+    return { rgb: (b.u + b.v) % 3 === 0 ? [0.54, 0.32, 0.2] : [0.36, 0.23, 0.16], glow: 0 };
   }
-  return { rgb: STEEL, glow: 0 };
+  return { rgb: IRON_ROOF, glow: 0 };
 }
 
 /**
