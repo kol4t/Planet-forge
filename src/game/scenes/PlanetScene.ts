@@ -123,7 +123,8 @@ function depositLine(id: ResourceId, d: DepositInfo): string {
   if (d.left <= 0) return `${name}: złoże wyczerpane — kopalnia stoi`;
   const share = Math.ceil((d.left / Math.max(1, d.total)) * 100);
   const when = d.secondsLeft !== null ? ` · wyczerpie się za ok. ${formatSpan(d.secondsLeft)}` : ' · wydobycie stoi';
-  return `${name}: zostało ${formatAmount(d.left)} z ${formatAmount(d.total)} (${share}%)${when}`;
+  const remnant = d.remnant ? ' · resztki — wydobycie wolniejsze' : '';
+  return `${name}: zostało ${formatAmount(d.left)} z ${formatAmount(d.total)} (${share}%)${remnant}${when}`;
 }
 
 const YIELD_NAMES: Record<YieldId, string> = { metal: 'metal', crystal: 'kryształy', energy: 'energia' };
