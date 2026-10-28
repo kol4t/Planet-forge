@@ -13,6 +13,9 @@ export interface ComplexPanelOptions {
   /** Znaleziska (v0.43.1): liczba zebranych i otwarcie okna. */
   finds: () => number;
   openFinds: () => void;
+  /** Wysyłka megakonstruktu na inną kolonię (v0.56): stan w jednym wierszu (null — nic się nie dzieje) i okno. */
+  transferNote: () => string | null;
+  openTransfer: () => void;
   onDone: (message: string) => void;
 }
 
@@ -40,6 +43,8 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
           <button type="button" class="tp-secondary cp-mega-split">Wyłącz</button>
         </div>
         <div class="tp-actions"><button type="button" class="tp-secondary cp-finds"></button></div>
+        <p class="tp-hint cp-transfer" hidden></p>
+        <div class="tp-actions cp-transfer-row" hidden><button type="button" class="tp-primary cp-transfer-open">Wyślij konstrukt…</button></div>
       </div>
       <div class="tp-actions"><button type="button" class="tp-secondary cp-close">Zamknij</button></div>
     </div>`;
@@ -104,6 +109,16 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
   finds.addEventListener('click', () => {
     close();
     options.openFinds();
+  });
+  // Transfer megakonstruktu (v0.56): przy działającym megakompleksie.
+  const note = options.transferNote();
+  q<HTMLElement>('.cp-transfer-row').hidden = !mega.active;
+  q<HTMLElement>('.cp-transfer').hidden = !mega.active || !note;
+  q('.cp-transfer').textContent = note ?? '';
+  q('.cp-transfer-open').textContent = note ? 'Wysyłka konstruktu…' : 'Wyślij konstrukt…';
+  q('.cp-transfer-open').addEventListener('click', () => {
+    close();
+    options.openTransfer();
   });
   let megaArmed = false;
   megaSplit.addEventListener('click', () => {

@@ -66,6 +66,12 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
 
 ## Kompleksy, megakompleksy, znaleziska (przemysł)
 
+- **Transfer megakonstruktu** (v0.56): megakompleks można wysłać na inną planetę gracza (okno Kompleks → „Wyślij
+  konstrukt…”). 30 min rozkładania (budynek nie pracuje; anulowanie zwraca koszt i paliwo), potem lot (2× wolniej niż
+  transportowiec). Koszt: 5× paliwo transportowca na trasie + 10% kosztu ostatniego poziomu. Na starej planecie zostają
+  puste pola; na celu konstrukt staje z tym samym poziomem i megakompleksem — cel musi mieć dość wolnych pól obok siebie
+  (ląd albo lód; ocean i lawa — następny krok). Okno ostrzega, gdy na celu zabraknie energii. Liczby robocze (`BALANCE.transfer`).
+
 - Od etapu „wielka fabryka” gracz może uruchomić **kompleks** całego budynku (badanie + koszt): +30% wydobycia/energii.
   Wielka fabryka ma **tryby pracy** (Zrównoważony / Maksymalna produkcja / Oszczędzanie energii).
 - Od megakonstruktu: **megakompleks** (+60%) — co 4–8 h (także offline) przynosi **znalezisko**: stałą premię dla

@@ -244,14 +244,15 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 | 2 | v0.53 | ✅ **Antymateria jako paliwo** (gałąź `claude/paliwo-antymateria`) | każdy lot kosztuje antymaterię zależnie od odległości | 1 (liczby) |
 | 3 | v0.54 | ✅ **Wyeksploatowanie i licznik pętli** | status „wyeksploatowana” przy 80%, spadek wydajności resztek, licznik 0/3 | 1 |
 | 4 | v0.55 | ✅ **Stacja macierzysta** (gałąź `claude/stacja-macierzysta`) | stacja główna z SI Matką na orbicie, magazyn orbitalny jako węzeł transportu, wygląd „Pierścień”, karta w Imperium (panele słoneczne na razie tylko wygląd) | — |
-| 5 | v0.56 | **Transfer megakonstruktu** | przygotowanie ~30 min, misja transportowa zależna od odległości, konstrukt staje na celu | 2 |
-| 6 | v0.57 | **Wstępna flota** | widok floty, budowa statków (stocznia na stacji): transportowce, kolonizacyjne, eskorta | 4 |
-| 7 | v0.58 | **Ryzyko misji i obrona** 🔒 lore K-005 | misje mogą zostać przechwycone przez boty / zdarzenia; eskorta i obrona zmniejszają ryzyko | 5, 6 |
-| 8 | v0.59 | **Zamknięcie pętli: imperium gwiezdne** | 3 wyeksploatowane planety + stacja → magazyn orbitalny dla imperium, loty międzyukładowe | 3, 4 |
-| 9 | v0.60 | **Mniejsze stacje** | stacje przy koloniach łączące się z macierzystą | 4 |
-| 10 | v0.61 | **Wstępna ekonomia** | strojenie całej pętli wg ponownej symulacji | wszystkie |
-| 11 | v0.62 | **Pierwsze kroki** | SI Matka prowadzi nowego gracza przez pętlę | 10 |
-| 12 | v0.63 | **Płynność, zapis, kandydat MVP** | pomiar iPada, testy zapisów, audyt pętli od zera | wszystkie |
+| 5 | v0.56 | ✅ **Transfer megakonstruktu** (gałąź `claude/transfer-megakonstruktu`) | przygotowanie 30 min (budynek nie pracuje), lot zależny od odległości, koszt paliwo + surowce, konstrukt staje na celu (ląd i lód), puste pola na starej planecie | 2 |
+| 5b | v0.57 | **Pola na oceanie i lawie** (decyzja właściciela) | nowe pola na wodzie i lawie tylko dla megakonstruktów (i przyszłych platform przybrzeżnych), bez przestawiania budynków, pomiar płynności | 5 |
+| 6 | v0.58 | **Wstępna flota** | widok floty, budowa statków (stocznia na stacji): transportowce, kolonizacyjne, eskorta | 4 |
+| 7 | v0.59 | **Ryzyko misji i obrona** 🔒 lore K-005 | misje mogą zostać przechwycone przez boty / zdarzenia; eskorta i obrona zmniejszają ryzyko | 5, 6 |
+| 8 | v0.60 | **Zamknięcie pętli: imperium gwiezdne** | 3 wyeksploatowane planety + stacja → magazyn orbitalny dla imperium, loty międzyukładowe | 3, 4 |
+| 9 | v0.61 | **Mniejsze stacje** | stacje przy koloniach łączące się z macierzystą | 4 |
+| 10 | v0.62 | **Wstępna ekonomia** | strojenie całej pętli wg ponownej symulacji | wszystkie |
+| 11 | v0.63 | **Pierwsze kroki** | SI Matka prowadzi nowego gracza przez pętlę | 10 |
+| 12 | v0.64 | **Płynność, zapis, kandydat MVP** | pomiar iPada, testy zapisów, audyt pętli od zera | wszystkie |
 
 **Każdy etap zaczyna się od planu i szkicu do akceptacji, dopiero potem kod.** Wszystkie nowe pola zapisu są opcjonalne.
 

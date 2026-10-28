@@ -37,6 +37,7 @@ export const BALANCE: Balance = {
     storageSecondsPerLevel: 300,
     storageMaxLevel: 10,
   },
+  transfer: { prepareSeconds: 1800, speedFactor: 2, fuelFactor: 5, costShare: 0.1 },
   fuel: {
     transport: { inSystem: 1, base: 2, unitsPerOne: 20 },
     colonyShip: { inSystem: 3, base: 3, unitsPerOne: 15 },

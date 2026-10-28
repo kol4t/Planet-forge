@@ -40,6 +40,12 @@ Kopiuj zapis / Wczytaj zapis).
   "comets": [ … ],                // holowniki po komety (od v0.37.1, opcjonalne)
   "finds": { "items": {}, "next": {} },  // znaleziska megakompleksów (od v0.43.1, opcjonalne)
   "exploited": ["1:16:4"],        // wyeksploatowane planety, każda raz (od v0.54, opcjonalne; błędne adresy pomijane)
+  "transfers": [                  // megakonstrukty w transferze (od v0.56, opcjonalne; błędne pomijane)
+    { "from": "1:16:4", "to": "1:16:1", "building": "crystalMine", "level": 20, "family": "crystal-drill",
+      "startedAt": 0, "departsAt": 1800000, "arrivesAt": 2040000,   // ms: start rozkładania, odlot, przylot
+      "cost": { "metal": 36268, "crystal": 18134 }, "fuel": 5,      // do zwrotu przy anulowaniu przed odlotem
+      "departed": true }                                              // opcjonalne „mode” (tryb kompleksu)
+  ],
   "station": {                    // stacja macierzysta (od v0.55, opcjonalne; błędna = brak stacji)
     "address": "1:16:3",          //   planeta, nad którą krąży
     "core": { "level": 1, "readyAt": 0 },       //   rdzeń SI Matki (readyAt — koniec budowy, ms)
@@ -75,7 +81,8 @@ Kopiuj zapis / Wczytaj zapis).
   "fields": { "used": 57, "buildable": 160 },    // pola z ostatniego liczenia (lista planet bez liczenia siatek)
   "specialization": { "id": "mining", "readyAt": 0 },
   "asteroidStation": { "level": 2, "readyAt": 0 },
-  "starCollector": { "level": 1, "readyAt": 0 }
+  "starCollector": { "level": 1, "readyAt": 0 },
+  "afloat": ["crystalMine"]                      // megakonstrukty po transferze — stoją na każdym polu (od v0.56, opcjonalne)
 }
 ```
 

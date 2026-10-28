@@ -6,6 +6,7 @@ import { COMPLEX_STAGE, complexCandidate, MEGA_STAGE, megaCandidate, validComple
 import { COMPLEX_FAMILIES, complexMode, findFamily, MEGA_RULES, type ComplexFamily } from '../data/complexes.ts';
 import { INDUSTRY_STAGES } from '../data/industry.ts';
 import { fuelCost, fuelLabel, fuelShortage } from '../core/economy/fuel.ts';
+import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAnywhere } from '../core/economy/constructTransfer.ts';
 import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeStationStorage } from '../core/economy/homeStation.ts';
 import {
   advance,
@@ -91,7 +92,7 @@ import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownC
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, inspectStoredEmpire, JOURNAL_LIMIT, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { AsteroidStation, Balance, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { AsteroidStation, Balance, ConstructTransfer, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -129,6 +130,10 @@ interface Slot {
   complexes?: Complex[];
   /** Pole wybrane przez gracza dla następnej grupy budynku (v0.38.2, do chwili przydziału — bez zapisu). */
   preferred?: Partial<Record<BuildingId, number>>;
+  /** Megakonstrukty po transferze — stoją na każdym polu, także na wodzie i lawie (v0.56). */
+  afloat?: BuildingId[];
+  /** Budynek rozkładany do lotu (v0.56, z `transfers` — bez zapisu): nie pracuje, nie da się go ulepszyć ani zburzyć. */
+  packing?: BuildingId;
 }
 
 /** Karta budowli obok przybliżonej planety (v0.38.1): parametry i etapy rozwoju. */
@@ -369,6 +374,20 @@ export interface ShipmentView extends Shipment {
   progress: number;
 }
 
+/** Wysyłka megakonstruktu z aktywnej planety (v0.56). */
+export interface TransferView {
+  level: number;
+  /** Surowce na rozłożenie (płaci aktywna planeta). */
+  cost: Resources;
+  prepareSeconds: number;
+  /** Dlaczego nie można wysłać (null — można). */
+  reason: string | null;
+  /** Trwa rozkładanie do lotu. */
+  packing: { toName: string; secondsLeft: number } | null;
+  /** Dla każdej innej planety: lot, paliwo, pola (potrzebne / wolne obok siebie), zastępowany poziom, energia po lądowaniu (produkcja / zużycie). */
+  targets: { address: string; name: string; seconds: number; fuel: number; needed: number; available: number; replaces: number; energy: number }[];
+}
+
 /** Stacja macierzysta do karty w Imperium (v0.55). */
 export interface HomeStationView {
   /** Badanie „Moduł orbitalny” zbadane. */
@@ -453,6 +472,8 @@ export class GameController {
   private exploited: string[] = [];
   /** Stacja macierzysta (v0.55) — jedna na imperium; null = nie zbudowana. */
   private station: HomeStation | null = null;
+  /** Megakonstrukty w transferze (v0.56). */
+  private transfers: ConstructTransfer[] = [];
   private findCache: { items: Record<string, number>; effects: ResearchEffect[]; key: string } | null = null;
   private readonly shipmentListeners = new Set<(text: string) => void>();
   /** Dostawy rozliczone podczas nieobecności (do jednorazowego komunikatu). */
@@ -495,6 +516,8 @@ export class GameController {
       this.finds = saved.finds ?? { items: {}, next: {} };
       this.exploited = saved.exploited ?? [];
       this.station = saved.station ?? null;
+      this.transfers = saved.transfers ?? [];
+      this.markPacking();
       this.journal = saved.journal ?? [];
       this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
@@ -508,7 +531,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -875,7 +898,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     if (exploited || done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
@@ -956,6 +979,8 @@ export class GameController {
   /** Rozpoczyna ulepszenie (budowę). Ukończenie przychodzi przez `onBuildComplete`. */
   upgrade(id: BuildingId, now = Date.now()): UpgradeResult {
     this.tick(now);
+    const packed = this.packingMessage(id);
+    if (packed) return { ok: false, state: this.economy, reason: 'busy', message: packed };
     const result = upgradeBuilding(this.economy, id, now, this.balance, { hasRoom: this.roomCheck(this.slots[this.active]!) });
     this.economy = result.state;
     if (result.ok) this.save();
@@ -966,6 +991,8 @@ export class GameController {
   /** Dopisanie ulepszenia do kolejki budowy (koszt pobierany dopiero przy starcie). */
   enqueue(id: BuildingId, now = Date.now()): QueueResult {
     this.tick(now);
+    const packed = this.packingMessage(id);
+    if (packed) return { ok: false, state: this.economy, reason: 'queue-full', message: packed };
     const result = enqueueBuilding(this.economy, id, this.balance, { hasRoom: this.roomCheck(this.slots[this.active]!) });
     this.economy = result.state;
     if (result.ok) this.save();
@@ -997,6 +1024,8 @@ export class GameController {
    */
   demolish(id: BuildingId, now = Date.now()): ActionMessage {
     this.tick(now);
+    const packed = this.packingMessage(id);
+    if (packed) return { ok: false, message: packed };
     if (id === 'laboratory' && this.research.current) {
       return { ok: false, message: 'Laboratorium: najpierw poczekaj na koniec badania.' };
     }
@@ -1749,6 +1778,210 @@ export class GameController {
     slot.economy = { ...economy, stock: { metal: economy.stock.metal + cargo.metal, crystal: economy.stock.crystal + cargo.crystal } };
   }
 
+  // ——— transfer megakonstruktu (v0.56) ———
+
+  /** Komunikat, gdy budynek aktywnej planety jest rozkładany do lotu (blokuje ulepszenia, burzenie, kompleksy). */
+  private packingMessage(id: BuildingId): string | null {
+    return this.slots[this.active]!.packing === id ? 'Ten megakonstrukt jest rozkładany do lotu — anuluj wysyłkę albo poczekaj na odlot.' : null;
+  }
+
+  /** Budynki tej planety rozkładane z `transfers` (po wczytaniu i zmianach). */
+  private markPacking(): void {
+    for (const slot of this.slots) delete slot.packing;
+    for (const t of this.transfers) {
+      if (t.departed) continue;
+      const slot = this.slots.find((x) => x.address === t.from);
+      if (slot) slot.packing = t.building;
+    }
+  }
+
+  /**
+   * Wysyłka megakonstruktu budynku `id` z aktywnej planety: stan (rozkładanie, gotowość) i cele — dla każdej innej
+   * planety czas, paliwo, potrzebne i dostępne pola (konstrukt stanie także na wodzie i lawie).
+   */
+  transferView(id: BuildingId, now = Date.now()): TransferView {
+    const slot = this.slots[this.active]!;
+    const level = this.economy.levels[id] ?? 0;
+    const complex = slot.complexes?.find((c) => c.building === id);
+    const packing = this.transfers.find((t) => t.from === this.address && t.building === id && !t.departed) ?? null;
+    const reason = !complex?.mega
+      ? 'Wysłać można tylko megakompleks.'
+      : this.economy.construction?.building === id || (this.economy.queue ?? []).includes(id)
+        ? 'Najpierw dokończ albo anuluj budowę tego budynku (także w kolejce).'
+        : this.slots.length < 2
+          ? 'Potrzebna druga planeta — konstrukt leci na inną Twoją kolonię.'
+          : null;
+    return {
+      level,
+      cost: transferCost(id, level, this.balance),
+      prepareSeconds: this.balance.transfer.prepareSeconds,
+      reason,
+      packing: packing ? { toName: this.slotName(packing.to), secondsLeft: Math.max(0, (packing.departsAt - now) / 1000) } : null,
+      targets: this.slots
+        .filter((x) => x !== slot)
+        .map((x) => {
+          const distance = this.distanceBetween(this.address, x.address);
+          const room = transferRoom(fieldGrid(x.planet), x.plots, x.economy.levels, id, level, BUILDING_ORDER, withAnywhere(this.buildRules, x.afloat));
+          const replaces = x.economy.levels[id] ?? 0;
+          // Energia celu po lądowaniu (konstrukt pracuje na celu jak tutaj — z poziomem i trybem megakompleksu).
+          const mode = complex ? complexEnergyFactors([complex])[id] : undefined;
+          const after = productionRates(
+            { ...x.economy, levels: { ...x.economy.levels, [id]: level }, energyFactor: { ...x.economy.energyFactor, [id]: mode ?? 1 } },
+            x.planet,
+            this.balanceFor(x, now),
+          );
+          const energy = after.energyUsed > 0 ? Math.min(9.99, after.energyProduced / after.energyUsed) : 1;
+          return { address: x.address, name: x.planet.displayName, seconds: transferFlightSeconds(distance, this.balance), fuel: transferFuel(distance, this.balance), ...room, replaces, energy };
+        }),
+    };
+  }
+
+  /** Start wysyłki: koszt i paliwo od razu, budynek przestaje pracować; po `prepareSeconds` odlatuje. */
+  startTransfer(id: BuildingId, to: string, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const view = this.transferView(id, now);
+    if (view.packing) return { ok: false, message: 'Ten konstrukt jest już rozkładany do lotu.' };
+    if (view.reason) return { ok: false, message: view.reason };
+    if (this.slots[this.active]!.packing) return { ok: false, message: 'Na tej planecie rozkładany jest już inny konstrukt — jeden naraz.' };
+    const target = view.targets.find((t) => t.address === to);
+    if (!target) return { ok: false, message: 'Wybierz inną swoją planetę.' };
+    if ((this.slots[this.slotAt(to)]!.economy.levels[id] ?? 0) >= view.level) {
+      return { ok: false, message: `Na ${target.name} ten budynek ma już poziom ${target.replaces} — konstrukt by go nie ulepszył.` };
+    }
+    if (target.available < target.needed) {
+      return { ok: false, message: `Na ${target.name} brakuje miejsca: konstrukt potrzebuje ${target.needed} pól obok siebie, wolnych jest ${target.available}.` };
+    }
+    const short = fuelShortage(target.fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    const family = findFamily(id)!;
+    const failed = this.payFor(view.cost, `Wysyłka: ${family.megaName}`);
+    if (failed) return failed;
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter - target.fuel };
+    const slot = this.slots[this.active]!;
+    const complex = slot.complexes!.find((c) => c.building === id)!;
+    const departsAt = now + view.prepareSeconds * 1000;
+    this.transfers.push({
+      from: this.address,
+      to,
+      building: id,
+      level: view.level,
+      family: complex.family,
+      ...(complex.mode ? { mode: complex.mode } : {}),
+      startedAt: now,
+      departsAt,
+      arrivesAt: departsAt + target.seconds * 1000,
+      cost: view.cost,
+      fuel: target.fuel,
+    });
+    slot.packing = id;
+    syncPlots(slot, this.buildRules);
+    this.log('ship', `${this.planet.displayName}: ${family.megaName} rozkładany do lotu na ${target.name} (odlot za ${formatFlight(view.prepareSeconds)}).`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `${family.megaName}: rozkładanie do lotu — odlot za ${formatFlight(view.prepareSeconds)}, lot ${formatFlight(target.seconds)} (${fuelLabel(target.fuel)}).` };
+  }
+
+  /** Anulowanie przed odlotem: budynek wraca do pracy, koszt i paliwo wracają. */
+  cancelTransfer(id: BuildingId, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const t = this.transfers.find((x) => x.from === this.address && x.building === id && !x.departed);
+    if (!t) return { ok: false, message: 'Nie ma wysyłki do anulowania (konstrukt już odleciał?).' };
+    this.transfers = this.transfers.filter((x) => x !== t);
+    const stock = this.economy.stock;
+    this.economy = { ...this.economy, stock: { metal: stock.metal + t.cost.metal, crystal: stock.crystal + t.cost.crystal }, antimatter: this.economy.antimatter + t.fuel };
+    this.markPacking();
+    syncPlots(this.slots[this.active]!, this.buildRules);
+    const name = COMPLEX_FAMILIES.find((f) => f.id === t.family)?.megaName ?? 'Megakonstrukt';
+    this.log('ship', `${this.planet.displayName}: wysyłka — ${name.toLowerCase()} — anulowana, pracuje dalej.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Wysyłka anulowana — ${name} pracuje dalej (koszt i paliwo zwrócone).` };
+  }
+
+  /** Konstrukty w drodze i w rozkładaniu (do „Imperium”). */
+  transfersView(now = Date.now()): { name: string; fromName: string; toName: string; phase: 'packing' | 'flight'; secondsLeft: number }[] {
+    return this.transfers.map((t) => {
+      const packing = now < t.departsAt;
+      return {
+        name: COMPLEX_FAMILIES.find((f) => f.id === t.family)?.megaName ?? 'Megakonstrukt',
+        fromName: this.slotName(t.from),
+        toName: this.slotName(t.to),
+        phase: packing ? 'packing' : 'flight',
+        secondsLeft: Math.max(0, ((packing ? t.departsAt : t.arrivesAt) - now) / 1000),
+      };
+    });
+  }
+
+  /**
+   * Odloty i przyloty konstruktów do `now`. Odlot: budynek znika z planety nadawcy (puste pola). Przylot: konstrukt
+   * staje na celu z poziomem i megakompleksem (zastępuje budynek tego typu; nieaktywny cel najpierw nadrabia czas);
+   * gdy celu już nie ma — wraca na planetę nadawcy, gdy i jej — przepada.
+   */
+  private processTransfers(now: number): string[] {
+    const texts: string[] = [];
+    let changed = false;
+    // Odlot i przylot zwracają komunikat (zapis i powiadomienie jak przy transportowcach).
+    for (const t of [...this.transfers].sort((a, b) => a.departsAt - b.departsAt)) {
+      const name = COMPLEX_FAMILIES.find((f) => f.id === t.family)?.megaName ?? 'Megakonstrukt';
+      if (!t.departed && t.departsAt <= now) {
+        t.departed = true;
+        changed = true;
+        const index = this.slotAt(t.from);
+        if (index >= 0) {
+          const slot = this.slots[index]!;
+          // Budynek nie pracował od początku rozkładania, więc zdjęcie go teraz nie zmienia naliczonej produkcji.
+          slot.economy = { ...slot.economy, levels: { ...slot.economy.levels, [t.building]: 0 } };
+          slot.complexes = slot.complexes?.filter((c) => c.building !== t.building);
+          if (slot.complexes?.length === 0) delete slot.complexes;
+          slot.afloat = slot.afloat?.filter((b) => b !== t.building);
+          if (slot.afloat?.length === 0) delete slot.afloat;
+          const { [`${slot.planet.seed}:${t.building}`]: _gone, ...next } = this.finds.next;
+          this.finds = { ...this.finds, next };
+          this.markPacking();
+          syncPlots(slot, this.buildRules);
+        }
+        const text = `${name} odleciał z ${this.slotName(t.from)} na ${this.slotName(t.to)} — zostały puste pola.`;
+        this.log('ship', text, t.departsAt);
+        texts.push(text);
+      }
+      if (t.arrivesAt > now) continue;
+      this.transfers = this.transfers.filter((x) => x !== t);
+      changed = true;
+      let index = this.slotAt(t.to);
+      const returned = index < 0;
+      if (returned) index = this.slotAt(t.from);
+      if (index < 0) {
+        this.log('ship', `${name} nie miał dokąd wrócić — konstrukt przepadł.`, t.arrivesAt);
+        continue;
+      }
+      this.land(index, t);
+      const slot = this.slots[index]!;
+      const text = returned
+        ? `${name} wrócił na ${slot.planet.displayName} — planety celu już nie ma.`
+        : `${name} wylądował na ${slot.planet.displayName} — poziom ${t.level}, megakompleks działa.`;
+      this.log('ship', text, t.arrivesAt);
+      texts.push(text);
+    }
+    if (changed) this.markPacking();
+    return texts;
+  }
+
+  /** Konstrukt staje na planecie `index` (poziom, megakompleks, pola „na każdym terenie”, znaleziska od nowa). */
+  private land(index: number, t: ConstructTransfer): void {
+    const slot = this.slots[index]!;
+    let economy = index === this.active || slot.economy.lastUpdate >= t.arrivesAt ? slot.economy : this.advanceSlot(slot, slot.economy, t.arrivesAt, catchUpBalance);
+    // Budowa i kolejka tego budynku na celu tracą sens — budowa anulowana ze zwrotem kosztu.
+    if (economy.construction?.building === t.building) economy = cancelConstruction(economy, this.balance).state;
+    if (economy.queue?.includes(t.building)) economy = { ...economy, queue: economy.queue.filter((b) => b !== t.building) };
+    slot.economy = { ...economy, levels: { ...economy.levels, [t.building]: Math.max(economy.levels[t.building] ?? 0, t.level) } };
+    const complex: Complex = { family: t.family, building: t.building, ...(t.mode ? { mode: t.mode } : {}), mega: true };
+    slot.complexes = [...(slot.complexes ?? []).filter((c) => c.building !== t.building), complex];
+    slot.afloat = [...new Set([...(slot.afloat ?? []), t.building])];
+    const key = `${slot.planet.seed}:${t.building}`;
+    this.finds = { ...this.finds, next: { ...this.finds.next, [key]: t.arrivesAt + findInterval(key, t.arrivesAt) } };
+    syncPlots(slot, this.buildRules);
+  }
+
   // ——— przechwyt komet (v0.37.1) ———
 
   /** Holownik aktywnej planety: odblokowanie, lot w toku, koszt i czas, możliwy ładunek. */
@@ -2357,6 +2590,10 @@ export class GameController {
     this.shipments = result.data.shipments ?? [];
     this.comets = result.data.comets ?? [];
     this.finds = result.data.finds ?? { items: {}, next: {} };
+    this.exploited = result.data.exploited ?? [];
+    this.station = result.data.station ?? null;
+    this.transfers = result.data.transfers ?? [];
+    this.markPacking();
     this.journal = result.data.journal ?? [];
     this.aiLevels = result.data.ai ?? { ...DEFAULT_AI_LEVELS };
     this.active = result.data.active;
@@ -2369,6 +2606,7 @@ export class GameController {
     this.processExpeditions(now);
     this.processShipments(now);
     this.processComets(now);
+    this.processTransfers(now);
     this.processFinds(now);
     this.offlineGain = null;
     this.completedWhileAway = null;
@@ -2396,6 +2634,7 @@ export class GameController {
       finds: this.finds,
       ...(this.exploited.length > 0 ? { exploited: this.exploited } : {}),
       ...(this.station ? { station: this.station } : {}),
+      ...(this.transfers.length > 0 ? { transfers: this.transfers } : {}),
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,
@@ -2418,6 +2657,7 @@ export class GameController {
         ...(slot.specialization ? { specialization: slot.specialization } : {}),
         ...(slot.asteroid ? { asteroidStation: slot.asteroid } : {}),
         ...(slot.collector ? { starCollector: slot.collector } : {}),
+        ...(slot.afloat?.length ? { afloat: slot.afloat } : {}),
       })),
     };
   }
@@ -2464,7 +2704,7 @@ export class GameController {
     const level = this.economy.levels[id] ?? 0;
     const needed = !this.economy.construction && fieldsFor(id, level + 1) > fieldsFor(id, level) && level < this.balance.maxLevel;
     const plots = syncPlots(slot, this.buildRules);
-    const cells = needed ? choiceCells(fieldGrid(slot.planet), plots, id, this.buildRules) : [];
+    const cells = needed ? choiceCells(fieldGrid(slot.planet), plots, id, withAnywhere(this.buildRules, slot.afloat)) : [];
     return { needed, cells, terrain: TERRAIN_NAMES[id] ?? null, level: level + 1 };
   }
 
@@ -2686,6 +2926,8 @@ export class GameController {
   /** Uruchomienie kompleksu na budynku (decyzja gracza: badanie, etap, koszt) — premia dla całego budynku. */
   mergeComplex(id: BuildingId, now = Date.now()): ActionMessage {
     this.tick(now);
+    const packed = this.packingMessage(id);
+    if (packed) return { ok: false, message: packed };
     const family = findFamily(id);
     if (!family) return { ok: false, message: 'Ten budynek nie tworzy kompleksów.' };
     if (!this.unlocked(family.unlock)) return { ok: false, message: `Najpierw zbadaj ${family.research}.` };
@@ -2705,6 +2947,8 @@ export class GameController {
   /** Wyłączenie kompleksu budynku (bez zwrotu kosztu; razem z megakompleksem). */
   splitComplex(id: BuildingId, now = Date.now()): ActionMessage {
     this.tick(now);
+    const packed = this.packingMessage(id);
+    if (packed) return { ok: false, message: packed };
     const slot = this.slots[this.active]!;
     const list = slot.complexes ?? [];
     const own = list.find((c) => c.building === id);
@@ -2722,6 +2966,8 @@ export class GameController {
   /** Uruchomienie megakompleksu (v0.43, od v0.45 na najwyższym etapie budynku): +60%, znaleziska. */
   mergeMega(id: BuildingId, now = Date.now()): ActionMessage {
     this.tick(now);
+    const packed = this.packingMessage(id);
+    if (packed) return { ok: false, message: packed };
     const family = findFamily(id);
     if (!family) return { ok: false, message: 'Ten budynek nie tworzy kompleksów.' };
     if (!this.unlocked(MEGA_RULES.unlock)) return { ok: false, message: `Najpierw zbadaj ${MEGA_RULES.research}.` };
@@ -2746,6 +2992,8 @@ export class GameController {
   /** Wyłączenie megakompleksu (kompleks zostaje, bez zwrotu kosztu). */
   splitMega(id: BuildingId, now = Date.now()): ActionMessage {
     this.tick(now);
+    const packed = this.packingMessage(id);
+    if (packed) return { ok: false, message: packed };
     const family = findFamily(id);
     const slot = this.slots[this.active]!;
     const list = slot.complexes ?? [];
@@ -2764,7 +3012,7 @@ export class GameController {
 
   /** Czy następny poziom budynku zmieści się na planecie (obszar rośnie o pola z etapu; siatka liczona raz na planetę). */
   private roomCheck(slot: Slot): (id: BuildingId, levels: BuildingLevels) => boolean {
-    const rules = this.buildRules;
+    const rules = withAnywhere(this.buildRules, slot.afloat);
     return (id, levels) => hasRoomFor(fieldGrid(slot.planet), slot.plots, levels, id, BUILDING_ORDER, rules);
   }
 
@@ -2798,16 +3046,18 @@ export class GameController {
 /** Czas lotu do komunikatu: „45 s”, „3 min”. */
 const formatFlight = (seconds: number) => (seconds >= 60 ? `${Math.ceil(seconds / 60)} min` : `${seconds} s`);
 
-function fieldsOf(slot: Slot, active: boolean, rules: BuildRules): { used: number; buildable: number } {
+function fieldsOf(slot: Slot, active: boolean, base: BuildRules): { used: number; buildable: number } {
+  const rules = withAnywhere(base, slot.afloat);
   const grid = active ? fieldGrid(slot.planet) : cachedFieldGrid(slot.planet);
   if (!grid && slot.fields) return slot.fields;
   const ready = grid ?? fieldGrid(slot.planet);
-  const plots = active ? syncPlots(slot, rules) : slot.plots;
+  const plots = active ? syncPlots(slot, base) : slot.plots;
   slot.fields = { used: usedLandFields(ready, plots), buildable: fieldCapacity(ready, plots, rules) };
   return slot.fields;
 }
 
-function syncPlots(slot: Slot, rules: BuildRules): Plots {
+function syncPlots(slot: Slot, base: BuildRules): Plots {
+  const rules = withAnywhere(base, slot.afloat);
   const c = slot.economy.construction;
   const levels = c ? { ...slot.economy.levels, [c.building]: Math.max(slot.economy.levels[c.building] ?? 0, c.targetLevel) } : slot.economy.levels;
   const grid = fieldGrid(slot.planet);
@@ -2825,8 +3075,11 @@ function syncPlots(slot: Slot, rules: BuildRules): Plots {
   }
   // Dopasowanie obszaru do terenu (pola na niepasującym terenie produkują słabiej) i premia kompleksu.
   const factors = siteFactors(grid, slot.plots, slot.economy.levels, complexBuildingBonus(slot.complexes ?? []));
+  // Konstrukt rozkładany do lotu (v0.56) nie wydobywa i nie zużywa energii.
+  if (slot.packing) factors[slot.packing] = 0;
   if (JSON.stringify(factors) !== JSON.stringify(slot.economy.siteFactor ?? {})) slot.economy = { ...slot.economy, siteFactor: factors };
   const energy = complexEnergyFactors(slot.complexes ?? []);
+  if (slot.packing) energy[slot.packing] = 0;
   if (JSON.stringify(energy) !== JSON.stringify(slot.economy.energyFactor ?? {})) {
     const { energyFactor: _old, ...rest } = slot.economy;
     slot.economy = Object.keys(energy).length > 0 ? { ...rest, energyFactor: energy } : rest;
@@ -2888,6 +3141,7 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       ...(slot.specialization ? { specialization: slot.specialization } : {}),
       ...(slot.asteroidStation ? { asteroid: slot.asteroidStation } : {}),
       ...(slot.starCollector ? { collector: slot.starCollector } : {}),
+      ...(slot.afloat?.length ? { afloat: slot.afloat } : {}),
     });
   }
   return slots;

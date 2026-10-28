@@ -61,6 +61,8 @@ export interface FieldGrid {
 export interface BuildRules {
   water?: boolean;
   ice?: boolean;
+  /** Budynki, które stoją na każdym polu — także na wodzie, lawie i lodzie (megakonstrukt po transferze, v0.56). */
+  anywhere?: readonly string[];
 }
 
 export function isBuildable(kind: FieldKind, rules: BuildRules = {}): boolean {
