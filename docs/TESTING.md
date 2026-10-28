@@ -45,6 +45,10 @@ Testy nie potrzebują przeglądarki: `localStorage` zastępuje prosta pamięć (
   poziomy w zakresie, obszary spójne i bez nakładania, POLA = suma obszarów. **0 naruszeń.**
 - **Zgodność naliczania:** jeden skok czasu (offline) vs kroki co ~1 s z budową i kolejką — różnica ≤ 2·10⁻¹⁰.
 - **Siatka pól przed/po optymalizacji:** hash SHA-256 siatek 12 planet — identyczny.
+- **Symulator pętli MVP** (etap 1 planu w `docs/status.md`): `npm run simulate` — „rozsądny gracz” (2 profile aktywności ×
+  2 strategie kolonizacji) gra zwykłymi akcjami kontrolera do 3 planet z ≥ 80% wydobytych złóż; raport
+  `docs/balans-symulacja.md` (deterministyczny, kilka sekund). Uwaga: „symulacja losowa” z audytu v0.46 była jednorazowa —
+  jej skryptu nie zachowano.
 - Zrzuty ekranów: `node scripts/screens.ts <folder> [2d|3d] [rozmiary]` (przy `npm run dev`).
 - Pomiary: `docs/PERFORMANCE.md`.
 

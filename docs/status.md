@@ -240,7 +240,7 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 
 | # | Wersja | Etap | Cel w jednym zdaniu | Zależy od |
 |---|---|---|---|---|
-| 1 | v0.52 | **Symulator pętli** (bez zmian w grze) | zmierzyć, ile dni trwa rozwój i wyeksploatowanie 3 planet | — |
+| 1 | v0.52 | ✅ **Symulator pętli** (bez zmian w grze; wyniki — punkt 8) | zmierzyć, ile dni trwa rozwój i wyeksploatowanie 3 planet | — |
 | 2 | v0.53 | **Antymateria jako paliwo** | każdy lot kosztuje antymaterię zależnie od odległości | 1 (liczby) |
 | 3 | v0.54 | **Wyeksploatowanie i licznik pętli** | status „wyeksploatowana” przy 80%, spadek wydajności resztek, licznik 0/3 | 1 |
 | 4 | v0.55 | **Stacja macierzysta** | stacja główna z SI Matką na orbicie, magazyn orbitalny, energia słoneczna (zamiast zaślepki „Moduł orbitalny”) | — |
@@ -263,6 +263,44 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 
 **Prompt na każdą sesję:**
 > „Etap N z docs/status.md (punkt 7). Najpierw plan i szkic do akceptacji, potem kod. Gałąź claude/…, wersja z tabeli.”
+
+---
+
+## 8. Wyniki etapu 1 — symulator pętli (2026-10-28)
+
+Skrypt `npm run simulate` (`scripts/simulate.ts`) gra za „rozsądnego gracza” zwykłymi akcjami gry (jak przyciski), bez zmian w grze.
+Pełne dane i osie czasu: `docs/balans-symulacja.md`. Wynik jest powtarzalny (dwa uruchomienia dają identyczny raport).
+
+| Profil gracza | Strategia | Pętla zamknięta (3 planety ≥ 80%) | 1. planeta ≥ 80% |
+|---|---|---|---|
+| Aktywny (co 15 min, 16 h na dobę) | nowa kolonia przy 50% ostatniej | **4,3 dnia** | 1,5 dnia |
+| Aktywny | kolonizuje, gdy tylko może | **1,5 dnia** | 1,3 dnia |
+| Okazjonalny (co 3 h, 15 h na dobę) | nowa kolonia przy 50% ostatniej | **26 dni** | 9,5 dnia |
+| Okazjonalny | kolonizuje, gdy tylko może | **9,5 dnia** | 9,3 dnia |
+
+**Wnioski (do etapów 3, 5 i 6 — liczb teraz nie zmieniam, decyzja „balans na końcu”):**
+1. **Pętla jest za szybka dla aktywnego gracza.**
+   - Kopalnie dochodzą do poz. ~20 w ok. dobę aktywnej gry.
+   - Planeta (ok. 2,2–3,5 mln metalu i 0,9–2 mln kryształów) wyczerpuje się wtedy w ok. dobę.
+   - Etapy wyglądu budynków (6 / 12 / 20) mijają w godzinach.
+2. **Pętla nie wymusza ani statków, ani antymaterii.**
+   - Kolonie we własnym układzie są darmowe i natychmiastowe, więc 3 planety zdobywa się bez lotu.
+   - Antymateria tylko się zbiera (na koniec 41–607 sztuk bez użycia).
+   - Etapy 2 (paliwo) i 5 (transfer megakonstruktu) mają to zmienić. Do decyzji: czy kolonizacja we własnym układzie ma kosztować (statek, antymateria).
+3. **„Chciwy” gracz wygrywa z pętlą.** Kolonizowanie wszystkiego od razu zamyka pętlę 3–3,5× szybciej. Nic nie zachęca do kolejności „wyczerp → przenieś się”.
+4. **Martwy punkt (realny w grze):**
+   - Na małej kolonii brakuje pól na większy Magazyn, magazyn się zapełnia i **wydobycie staje na zawsze**.
+   - Ratują tylko transportowce, a te są dopiero po badaniu.
+   - Bez nich symulacja utknęła na 118 dni.
+   - Kandydat do etapu 3 / 6: np. ostrzeżenie SI albo automatyczny wywóz.
+5. **Okazjonalny gracz jest ok. 6× wolniejszy.**
+   - Kolejka ma 1 miejsce, więc przez większość czasu planeta czeka na wizytę gracza.
+   - Do rozważenia przy ekonomii (etap 6): dłuższa kolejka albo dłuższe, mniej liczne budowy.
+
+**Ograniczenia symulacji:**
+- Gracz w symulacji nie używa „Ukończ teraz”, kompleksów, specjalizacji, asteroid, komet ani ekspedycji.
+- Buduje według prostych reguł, a magazyn rozbudowuje chętniej niż człowiek.
+- To wskazówka, nie pomiar prawdziwych graczy.
 
 ---
 
