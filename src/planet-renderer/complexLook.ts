@@ -200,10 +200,12 @@ export function complexGround(c: ColonyComplex, p: Vec3, pit: OpenPit | null = n
       return d < 0.3 ? { rgb: d < 0.15 ? [0.3, 0.33, 0.33] : [0.62, 0.66, 0.65], glow: 0 } : { rgb: [0.27, 0.31, 0.33], glow: 0 };
     }
     case 'storage': {
-      if (b.road) return { rgb: CONCRETE, glow: 0 };
-      const palette: [number, number, number][] = [[0.62, 0.33, 0.2], [0.24, 0.5, 0.48], [0.82, 0.66, 0.26], ROOF];
-      // Kontenery w rzędach.
-      return b.kind < 0.65 + 0.08 * stage ? { rgb: shade(palette[Math.floor(((b.tint + b.u * 0.21) % 1) * palette.length)]!, b.v % 2 ? 1 : 0.8), glow: 0 } : { rgb: CONCRETE, glow: 0 };
+      // Port kontenerowy: jasny beton z białymi liniami, rzędy kolorowych kontenerów (niebieskie, czerwone, turkusowe, białe).
+      if (b.road) return { rgb: b.u === 0 && b.v === 0 ? [0.93, 0.95, 0.94] : [0.7, 0.73, 0.71], glow: 0 };
+      const palette: [number, number, number][] = [[0.24, 0.44, 0.71], [0.75, 0.27, 0.23], [0.18, 0.61, 0.57], [0.89, 0.91, 0.9], [0.82, 0.54, 0.18]];
+      // Jeden kolor na rząd (wzdłuż u), przerwa między rzędami; część kwartałów — pusty plac.
+      if (b.kind >= 0.4 + 0.06 * stage || b.v === 2) return { rgb: [0.76, 0.79, 0.77], glow: 0 };
+      return { rgb: shade(palette[Math.floor(((b.tint + b.v * 0.37) % 1) * palette.length)]!, b.u % 2 ? 1 : 0.88), glow: 0 };
     }
     case 'antimatterCollector': {
       // Koncentryczne pierścienie pułapek.
