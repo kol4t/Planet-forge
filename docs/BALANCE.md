@@ -267,7 +267,7 @@ Koszt i czas w tabeli: bez wcześniejszych badań, przy Laboratorium wymaganym d
 |---|---|---|---|---|
 | Górnictwo asteroid | 1 | 240 / 320 / 0 | 1 min 30 s | stacja wydobywcza na pasie asteroid (w układzie z Twoją planetą) |
 | Rafinacja w próżni | 3 | 1622 / 2163 / 0 | 5 min 51 s | wydobycie stacji na pasie asteroid +50% |
-| Moduł orbitalny (wkrótce) | 2 | 624 / 832 / 0 | 3 min 3 s | — |
+| Moduł orbitalny | 2 | 624 / 832 / 0 | 3 min 3 s | stacja macierzysta na orbicie — magazyn orbitalny i węzeł transportu |
 | Przechwyt komet | 2 | 624 / 832 / 0 | 3 min 3 s | holownik po kometę — metal i kryształy w każdym układzie |
 | Dok handlowy (wkrótce) | 3 | 1622 / 2163 / 0 | 5 min 51 s | — |
 | Rynek galaktyczny (wkrótce) | 4 | 4218 / 5624 / 2 | 11 min 25 s | — |

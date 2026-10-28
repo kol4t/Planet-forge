@@ -331,6 +331,20 @@ export interface Balance {
    * a `loopPlanets` takich planet zamyka pętlę MVP.
    */
   exploitation: { threshold: number; remnantOutput: number; loopPlanets: number };
+  /**
+   * Stacja macierzysta (v0.55): rdzeń (koszt, czas budowy w s) i magazyn orbitalny — pojemność poz. n =
+   * `storageBase` × `storageGrowth`^(n − 1), koszt `storageCost` × `storageCostGrowth`^(n − 1), czas `storageSecondsPerLevel` × n.
+   */
+  homeStation: {
+    coreCost: Resources;
+    coreSeconds: number;
+    storageBase: number;
+    storageGrowth: number;
+    storageCost: Resources;
+    storageCostGrowth: number;
+    storageSecondsPerLevel: number;
+    storageMaxLevel: number;
+  };
   buildings: readonly BuildingDef[];
 }
 
@@ -367,7 +381,7 @@ export type ResearchEffect =
   | { kind: 'unlock'; feature: UnlockFeature };
 
 /** Funkcje gry odblokowywane badaniami (działają w całym imperium). */
-export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport' | 'asteroid-mining' | 'comet-capture' | 'crystal-complex' | 'metal-factory' | 'tesla-grid' | 'megastructures' | 'star-energy';
+export type UnlockFeature = 'colony-ship' | 'ai-mother' | 'ai-executors' | 'ai-offline' | 'specialization-change' | 'expeditions' | 'extreme-astrophysics' | 'build-ice' | 'build-water' | 'transport' | 'asteroid-mining' | 'comet-capture' | 'crystal-complex' | 'metal-factory' | 'tesla-grid' | 'megastructures' | 'star-energy' | 'home-station';
 
 /**
  * Rzadki obiekt astronomiczny (v0.34.4): rodzaj gwiazdy, którego bez badania „Astrofizyka ekstremalna”
@@ -602,12 +616,25 @@ export interface CometHaul {
 
 /** Transport surowców między planetami gracza (v0.36). */
 export interface Shipment {
-  /** Adres planety nadawcy i odbiorcy. */
+  /** Adres planety nadawcy i odbiorcy (przy stacji — adres planety, nad którą krąży). */
   from: string;
   to: string;
   departedAt: number;
   arrivesAt: number;
   cargo: Resources;
+  /** Lot na stację macierzystą albo ze stacji (v0.55; brak = między planetami). */
+  station?: 'to' | 'from';
+}
+
+/**
+ * Stacja macierzysta (v0.55, decyzja właściciela): jedna na imperium, na orbicie planety `address`, z rdzeniem SI Matki
+ * (`core`) i modułem magazynu orbitalnego (`storage`) — węzeł transportu: transportowce wożą surowce na stację i ze stacji.
+ */
+export interface HomeStation {
+  address: string;
+  core: AsteroidStation;
+  storage?: AsteroidStation;
+  stock: Resources;
 }
 
 /** Wpis w dzienniku ekspedycji. */

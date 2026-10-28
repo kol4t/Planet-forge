@@ -243,7 +243,7 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 | 1 | v0.52 | ✅ **Symulator pętli** (bez zmian w grze; wyniki — punkt 8) | zmierzyć, ile dni trwa rozwój i wyeksploatowanie 3 planet | — |
 | 2 | v0.53 | ✅ **Antymateria jako paliwo** (gałąź `claude/paliwo-antymateria`) | każdy lot kosztuje antymaterię zależnie od odległości | 1 (liczby) |
 | 3 | v0.54 | ✅ **Wyeksploatowanie i licznik pętli** | status „wyeksploatowana” przy 80%, spadek wydajności resztek, licznik 0/3 | 1 |
-| 4 | v0.55 | **Stacja macierzysta** | stacja główna z SI Matką na orbicie, magazyn orbitalny, energia słoneczna (zamiast zaślepki „Moduł orbitalny”) | — |
+| 4 | v0.55 | ✅ **Stacja macierzysta** (gałąź `claude/stacja-macierzysta`) | stacja główna z SI Matką na orbicie, magazyn orbitalny jako węzeł transportu, wygląd „Pierścień”, karta w Imperium (panele słoneczne na razie tylko wygląd) | — |
 | 5 | v0.56 | **Transfer megakonstruktu** | przygotowanie ~30 min, misja transportowa zależna od odległości, konstrukt staje na celu | 2 |
 | 6 | v0.57 | **Wstępna flota** | widok floty, budowa statków (stocznia na stacji): transportowce, kolonizacyjne, eskorta | 4 |
 | 7 | v0.58 | **Ryzyko misji i obrona** 🔒 lore K-005 | misje mogą zostać przechwycone przez boty / zdarzenia; eskorta i obrona zmniejszają ryzyko | 5, 6 |

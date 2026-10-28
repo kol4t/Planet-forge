@@ -3,13 +3,13 @@ import { BALANCE } from '../data/balance.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
-import { cellLookup, collectorOrbit, hash01, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
+import { cellLookup, collectorOrbit, hash01, stationOrbit, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
 import { complexGround } from './complexLook.ts';
 import { buildOpenPit, type OpenPit } from './openPit.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { pickCell, pickComplex, type StructureHit } from './pick.ts';
-import { facingAngles, focusLift, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
+import { facingAngles, focusLift, type BuildSite, type HomeStationLook, type PlanetDisplay } from './PlanetDisplay.ts';
 import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
 import { ZoomSmoother } from './input/zoom.ts';
 import type { RGB, SurfaceSampler } from './surface.ts';
@@ -67,6 +67,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private spinHeld = false;
   private readonly reducedMotion = prefersReducedMotion();
   private orbital = 0;
+  private homeStation: HomeStationLook | null = null;
   /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
   private size = BUFFER;
 
@@ -198,6 +199,11 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   /** Kolektor energii gwiazdy na orbicie (v0.44). */
   setOrbital(level: number): void {
     this.orbital = Math.max(0, Math.floor(level));
+  }
+
+  /** Stacja macierzysta (v0.55). */
+  setHomeStation(look: HomeStationLook | null): void {
+    this.homeStation = look;
   }
 
   setGridVisible(visible: boolean): void {
@@ -778,6 +784,58 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.drawHighlight();
     this.drawStructures();
     this.drawCollector(cx, cy, r);
+    this.drawHomeStation(cx, cy, r);
+  }
+
+  /**
+   * Stacja macierzysta (v0.55): pikselowy pierścień-elipsa ze stali, w środku turkusowy rdzeń SI Matki,
+   * moduły magazynu krążą po pierścieniu, z boków złote panele; w budowie — niedomknięty pierścień.
+   */
+  private drawHomeStation(cx: number, cy: number, r: number): void {
+    const look = this.homeStation;
+    if (!look) return;
+    const t = performance.now() / 1000;
+    const [x, y, z] = stationOrbit(t, this.reducedMotion);
+    const sx = cx + x * r;
+    const sy = cy - y * r;
+    if (z < 0 && Math.hypot(sx - cx, sy - cy) < r * 1.02) return;
+    const ctx = this.ctx;
+    const p = Math.max(2, Math.round(r / 60));
+    const x0 = Math.round(sx / p) * p;
+    const y0 = Math.round(sy / p) * p;
+    const rx = 6;
+    const ry = 2.6;
+    const dot = (u: number, v: number, color: string) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(x0 + Math.round(u) * p, y0 + Math.round(v) * p, p, p);
+    };
+    ctx.globalAlpha = z < 0 ? 0.7 : 1;
+    // Panele po bokach (na maszcie).
+    ctx.fillStyle = '#c9a24a';
+    ctx.fillRect(x0 - 12 * p, y0 - p, 4 * p, 3 * p);
+    if (!look.building) ctx.fillRect(x0 + 9 * p, y0 - p, 4 * p, 3 * p);
+    ctx.fillStyle = '#6f7b78';
+    ctx.fillRect(x0 - 8 * p, y0, 17 * p, p);
+    // Pierścień z pikseli.
+    const steps = 30;
+    const shown = look.building ? Math.round(steps * 0.6) : steps;
+    for (let i = 0; i < shown; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      dot(Math.cos(a) * rx, Math.sin(a) * ry, '#8f9b98');
+    }
+    // Moduły magazynu — obracają się z pierścieniem.
+    const spin = this.reducedMotion ? 0 : t * 0.35;
+    for (let i = 0; i < look.modules; i++) {
+      const a = spin + (i / look.modules) * Math.PI * 2;
+      dot(Math.cos(a) * rx, Math.sin(a) * ry, '#d8c9a8');
+    }
+    // Rdzeń SI Matki.
+    ctx.fillStyle = '#6f7b78';
+    ctx.fillRect(x0 - p, y0 - p, 3 * p, 3 * p);
+    ctx.globalAlpha *= this.reducedMotion ? 1 : 0.75 + 0.25 * Math.sin(t * 2.1);
+    ctx.fillStyle = '#6fe9ff';
+    ctx.fillRect(x0, y0, p, p);
+    ctx.globalAlpha = 1;
   }
 
   /**

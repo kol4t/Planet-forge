@@ -6,6 +6,7 @@ import { COMPLEX_STAGE, complexCandidate, MEGA_STAGE, megaCandidate, validComple
 import { COMPLEX_FAMILIES, complexMode, findFamily, MEGA_RULES, type ComplexFamily } from '../data/complexes.ts';
 import { INDUSTRY_STAGES } from '../data/industry.ts';
 import { fuelCost, fuelLabel, fuelShortage } from '../core/economy/fuel.ts';
+import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeStationStorage } from '../core/economy/homeStation.ts';
 import {
   advance,
   antimatterAmount,
@@ -90,7 +91,7 @@ import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownC
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, inspectStoredEmpire, JOURNAL_LIMIT, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import type { AsteroidStation, Balance, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { AsteroidStation, Balance, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -368,6 +369,34 @@ export interface ShipmentView extends Shipment {
   progress: number;
 }
 
+/** Stacja macierzysta do karty w Imperium (v0.55). */
+export interface HomeStationView {
+  /** Badanie „Moduł orbitalny” zbadane. */
+  unlocked: boolean;
+  built: boolean;
+  /** Rdzeń gotowy (budowa skończona). */
+  ready: boolean;
+  /** Planeta, nad którą krąży (przed budową — aktywna). */
+  planetName: string;
+  coreSecondsLeft: number;
+  coreCost: Resources;
+  /** Działający poziom magazynu orbitalnego i czas trwającej rozbudowy. */
+  storageLevel: number;
+  storageSecondsLeft: number;
+  /** Postęp trwającej budowy (rdzeń albo magazyn) 0–1; null — nic się nie buduje. */
+  buildProgress: number | null;
+  /** Koszt następnego poziomu magazynu (null — najwyższy). */
+  nextStorageCost: Resources | null;
+  capacity: number;
+  stock: Resources;
+  /** Ładunki w drodze na stację. */
+  incoming: Resources;
+  /** Paliwo i czas lotu (s) między aktywną planetą a stacją. */
+  fuel: number;
+  seconds: number;
+  transportUnlocked: boolean;
+}
+
 /** Zasady transportu z najlepszych badań w imperium (v0.36). */
 export interface TransportView {
   unlocked: boolean;
@@ -422,6 +451,8 @@ export class GameController {
   private finds: FindsState = { items: {}, next: {} };
   /** Wyeksploatowane planety (adresy, w kolejności) — postęp pętli MVP (v0.54). */
   private exploited: string[] = [];
+  /** Stacja macierzysta (v0.55) — jedna na imperium; null = nie zbudowana. */
+  private station: HomeStation | null = null;
   private findCache: { items: Record<string, number>; effects: ResearchEffect[]; key: string } | null = null;
   private readonly shipmentListeners = new Set<(text: string) => void>();
   /** Dostawy rozliczone podczas nieobecności (do jednorazowego komunikatu). */
@@ -463,6 +494,7 @@ export class GameController {
       this.comets = saved.comets ?? [];
       this.finds = saved.finds ?? { items: {}, next: {} };
       this.exploited = saved.exploited ?? [];
+      this.station = saved.station ?? null;
       this.journal = saved.journal ?? [];
       this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
@@ -1458,6 +1490,141 @@ export class GameController {
     return from && to ? Math.hypot(to.x - from.x, to.y - from.y) : 0;
   }
 
+  // ——— stacja macierzysta (v0.55) ———
+
+  /** Stan stacji do karty w Imperium: budowa, magazyn orbitalny, zapasy, koszty i paliwo lotów z aktywnej planety. */
+  stationView(now = Date.now()): HomeStationView {
+    const s = this.station;
+    const capacity = stationCapacity(s, now, this.balance);
+    const incoming = this.shipments.filter((x) => x.station === 'to').reduce((sum, x) => ({ metal: sum.metal + x.cargo.metal, crystal: sum.crystal + x.cargo.crystal }), { metal: 0, crystal: 0 });
+    const storage = s?.storage;
+    const nextLevel = (storage?.level ?? 0) + 1;
+    const h = this.balance.homeStation;
+    const progress = (readyAt: number, seconds: number) => Math.min(1, Math.max(0, 1 - (readyAt - now) / (seconds * 1000)));
+    const buildProgress = !s
+      ? null
+      : now < s.core.readyAt
+        ? progress(s.core.readyAt, h.coreSeconds)
+        : storage && now < storage.readyAt
+          ? progress(storage.readyAt, h.storageSecondsPerLevel * storage.level)
+          : null;
+    return {
+      unlocked: this.unlocked('home-station'),
+      built: !!s,
+      ready: stationReady(s, now),
+      planetName: s ? (this.slots.find((x) => x.address === s.address)?.planet.displayName ?? s.address) : this.planet.displayName,
+      coreSecondsLeft: s ? Math.max(0, (s.core.readyAt - now) / 1000) : 0,
+      coreCost: h.coreCost,
+      storageLevel: storage ? (now >= storage.readyAt ? storage.level : storage.level - 1) : 0,
+      storageSecondsLeft: storage ? Math.max(0, (storage.readyAt - now) / 1000) : 0,
+      buildProgress,
+      nextStorageCost: nextLevel <= h.storageMaxLevel ? storageModuleCost(nextLevel, this.balance) : null,
+      capacity,
+      stock: s?.stock ?? { metal: 0, crystal: 0 },
+      incoming,
+      fuel: s ? this.transportFuelTo(s.address) : 0,
+      seconds: s ? this.transportSecondsTo(s.address) : 0,
+      transportUnlocked: this.unlocked('transport'),
+    };
+  }
+
+  /** Stacja nad aktywną planetą (do wyglądu orbity, tanie — co klatkę); null — brak albo krąży nad inną. */
+  stationHere(now = Date.now()): { ready: boolean; storageLevel: number } | null {
+    const s = this.station;
+    if (!s || s.address !== this.address) return null;
+    return { ready: stationReady(s, now), storageLevel: stationLevelAt(s.storage, now) };
+  }
+
+  /** Budowa rdzenia stacji nad aktywną planetą (płaci aktywna planeta). */
+  buildStation(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const result = buildHomeStation(this.station, { unlocked: this.unlocked('home-station'), address: this.address, stock: this.economy.stock, now }, this.balance);
+    if (!result.ok) return result;
+    this.pay(result.cost);
+    this.station = result.station;
+    this.log('build', `Rozpoczęto budowę stacji macierzystej nad ${this.planet.displayName} — rdzeń SI Matki gotowy za ${formatFlight(result.seconds)}.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Stacja macierzysta w budowie — gotowa za ${formatFlight(result.seconds)}.` };
+  }
+
+  /** Rozbudowa magazynu orbitalnego o poziom (płaci aktywna planeta). */
+  upgradeStationStorage(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const result = upgradeStationStorage(this.station, { stock: this.economy.stock, now }, this.balance);
+    if (!result.ok) return result;
+    this.pay(result.cost);
+    this.station = result.station;
+    const level = result.station.storage!.level;
+    this.log('build', `Magazyn orbitalny stacji macierzystej — rozbudowa do poz. ${level}.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Magazyn orbitalny poz. ${level} — gotowy za ${formatFlight(result.seconds)}.` };
+  }
+
+  /** Transportowiec z aktywnej planety na stację (paliwo jak lot do planety stacji; miejsce liczone z ładunkami w drodze). */
+  sendToStation(cargo: Resources, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const s = this.station;
+    if (!s || !stationReady(s, now)) return { ok: false, message: 'Stacja macierzysta nie jest jeszcze gotowa.' };
+    if (!this.unlocked('transport')) return { ok: false, message: 'Najpierw zbadaj „Transportowce” (Badania → Flota).' };
+    const view = this.stationView(now);
+    if (view.capacity <= 0) return { ok: false, message: 'Na stacji nie ma jeszcze magazynu — rozbuduj magazyn orbitalny.' };
+    const balance = this.transportBalance();
+    const check = checkShipment(cargo, this.economy.stock, this.shipments.length, balance);
+    if (!check.ok) return check;
+    const load = check.cargo;
+    const free = (id: 'metal' | 'crystal') => view.capacity - view.stock[id] - view.incoming[id];
+    if (load.metal > free('metal') || load.crystal > free('crystal')) {
+      return { ok: false, message: `Na stacji zmieści się jeszcze ${Math.max(0, Math.floor(free('metal')))} metalu i ${Math.max(0, Math.floor(free('crystal')))} kryształów.` };
+    }
+    const fuel = view.fuel;
+    const short = fuelShortage(fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    const seconds = transportSeconds(this.distanceBetween(this.address, s.address), balance);
+    this.economy = {
+      ...this.economy,
+      stock: { metal: this.economy.stock.metal - load.metal, crystal: this.economy.stock.crystal - load.crystal },
+      antimatter: this.economy.antimatter - fuel,
+    };
+    this.shipments.push({ from: this.address, to: s.address, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'to' });
+    this.log('ship', `Transportowiec wyruszył z ${this.planet.displayName} na stację macierzystą: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Transportowiec leci na stację — dotrze za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
+  }
+
+  /** Transportowiec ze stacji na planetę `to` (paliwo z portfela, jak lot ze stacji do tej planety). */
+  sendFromStation(to: string, cargo: Resources, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const s = this.station;
+    if (!s || !stationReady(s, now)) return { ok: false, message: 'Stacja macierzysta nie jest jeszcze gotowa.' };
+    if (!this.unlocked('transport')) return { ok: false, message: 'Najpierw zbadaj „Transportowce” (Badania → Flota).' };
+    if (this.slotAt(to) < 0) return { ok: false, message: 'Transportowce latają tylko do Twoich planet.' };
+    const balance = this.transportBalance();
+    const check = checkShipment(cargo, s.stock, this.shipments.length, balance);
+    if (!check.ok) return { ok: false, message: check.message.replace('Na planecie nadawcy', 'Na stacji') };
+    const load = check.cargo;
+    const fuel = fuelCost('transport', this.distanceBetween(s.address, to), this.balance);
+    const short = fuelShortage(fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    const seconds = transportSeconds(this.distanceBetween(s.address, to), balance);
+    this.station = { ...s, stock: { metal: s.stock.metal - load.metal, crystal: s.stock.crystal - load.crystal } };
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
+    this.shipments.push({ from: s.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'from' });
+    const toName = this.slotName(to);
+    this.log('ship', `Transportowiec wyruszył ze stacji macierzystej do ${toName}: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Transportowiec leci ze stacji do ${toName} — dotrze za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
+  }
+
+  /** Koszt płacony z magazynu aktywnej planety. */
+  private pay(cost: Resources): void {
+    const stock = this.economy.stock;
+    this.economy = { ...this.economy, stock: { metal: stock.metal - cost.metal, crystal: stock.crystal - cost.crystal } };
+  }
+
   /** Paliwo (antymateria) za lot transportowca z aktywnej planety do planety `to`. */
   transportFuelTo(to: string): number {
     return fuelCost('transport', this.distanceBetween(this.address, to), this.balance);
@@ -1476,6 +1643,16 @@ export class GameController {
   /** Czas lotu transportowca (s) z aktywnej planety do planety `to`. */
   transportSecondsTo(to: string): number {
     return transportSeconds(this.distanceBetween(this.address, to), this.transportBalance());
+  }
+
+  /** Trasy ze stacji macierzystej do każdej planety gracza: czas lotu i paliwo (puste bez stacji). */
+  stationRoutes(): { address: string; name: string; seconds: number; fuel: number }[] {
+    const s = this.station;
+    if (!s) return [];
+    return this.slots.map((slot) => {
+      const distance = this.distanceBetween(s.address, slot.address);
+      return { address: slot.address, name: slot.planet.displayName, seconds: transportSeconds(distance, this.transportBalance()), fuel: fuelCost('transport', distance, this.balance) };
+    });
   }
 
   private slotName(address: string): string {
@@ -1514,8 +1691,8 @@ export class GameController {
       const total = s.arrivesAt - s.departedAt;
       return {
         ...s,
-        fromName: this.slotName(s.from),
-        toName: this.slotName(s.to),
+        fromName: s.station === 'from' ? 'stacja macierzysta' : this.slotName(s.from),
+        toName: s.station === 'to' ? 'stacja macierzysta' : this.slotName(s.to),
         secondsLeft: Math.max(0, (s.arrivesAt - now) / 1000),
         progress: total <= 0 ? 1 : Math.min(1, Math.max(0, (now - s.departedAt) / total)),
       };
@@ -1536,6 +1713,15 @@ export class GameController {
     for (const shipment of [...this.shipments].sort((a, b) => a.arrivesAt - b.arrivesAt)) {
       if (shipment.arrivesAt > now) continue;
       this.shipments = this.shipments.filter((s) => s !== shipment);
+      const { metal: m, crystal: c } = shipment.cargo;
+      if (shipment.station === 'to' && this.station) {
+        // Rozładunek na stacji (miejsce sprawdzone przy wysłaniu; nadwyżka ponad pojemność nie przepada).
+        this.station = { ...this.station, stock: { metal: this.station.stock.metal + m, crystal: this.station.stock.crystal + c } };
+        const text = `Transportowiec dotarł na stację macierzystą: +${m} metalu, +${c} kryształów.`;
+        this.log('ship', text, shipment.arrivesAt);
+        texts.push(text);
+        continue;
+      }
       let index = this.slotAt(shipment.to);
       const returned = index < 0;
       if (returned) index = this.slotAt(shipment.from);
@@ -2209,6 +2395,7 @@ export class GameController {
       comets: this.comets,
       finds: this.finds,
       ...(this.exploited.length > 0 ? { exploited: this.exploited } : {}),
+      ...(this.station ? { station: this.station } : {}),
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,

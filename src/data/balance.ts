@@ -26,6 +26,17 @@ export const BALANCE: Balance = {
   // Najbliższy inny układ ~10 jedn., typowy ~77, najdalszy ~143.
   // Wyeksploatowanie planety (decyzja właściciela: 80% złóż; resztki trudniej wydobyć — robocze 50%; pętla — 3 planety).
   exploitation: { threshold: 0.8, remnantOutput: 0.5, loopPlanets: 3 },
+  // Stacja macierzysta (v0.55, robocze): rdzeń z SI Matką i magazyn orbitalny (węzeł transportu).
+  homeStation: {
+    coreCost: { metal: 8000, crystal: 5000 },
+    coreSeconds: 600,
+    storageBase: 50_000,
+    storageGrowth: 1.8,
+    storageCost: { metal: 3000, crystal: 2000 },
+    storageCostGrowth: 1.6,
+    storageSecondsPerLevel: 300,
+    storageMaxLevel: 10,
+  },
   fuel: {
     transport: { inSystem: 1, base: 2, unitsPerOne: 20 },
     colonyShip: { inSystem: 3, base: 3, unitsPerOne: 15 },

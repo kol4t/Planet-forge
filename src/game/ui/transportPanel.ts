@@ -1,5 +1,6 @@
 // Okno „Wyślij surowce” (v0.36): suwaki metalu i kryształów, ładowność, czas lotu.
-// Wysyła z aktywnej planety do wybranej. Wygląd: #text-panel w index.html.
+// Wysyła z aktywnej planety do wybranej; v0.55 — także na stację macierzystą i ze stacji (wybór planety, `targets`).
+// Wygląd: #text-panel w index.html.
 import type { ActionMessage, TransportView } from '../../app/GameController.ts';
 import type { Resources } from '../../core/types.ts';
 import { fuelLabel } from '../../core/economy/fuel.ts';
@@ -14,6 +15,11 @@ export interface TransportPanelOptions {
   /** Paliwo (antymateria) za lot. */
   fuel: number;
   send: (cargo: Resources) => ActionMessage;
+  /** Kilka możliwych celów (lot ze stacji): wybór z listy, każdy z własnym czasem, paliwem i wysyłką. */
+  targets?: { name: string; seconds: number; fuel: number; send: (cargo: Resources) => ActionMessage }[];
+  /** Ile każdego surowca zmieści cel (np. wolne miejsce na stacji); brak — bez limitu. */
+  room?: Resources;
+  title?: string;
   onSent: (message: string) => void;
 }
 
@@ -23,7 +29,8 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
   root.id = 'text-panel';
   root.innerHTML = `
     <div class="tp-box fb-box tr-box" role="dialog" aria-modal="true" aria-labelledby="tr-title">
-      <h2 id="tr-title">Wyślij surowce</h2>
+      <h2 id="tr-title"></h2>
+      <label class="tr-row tr-target" hidden><span class="tr-label">Dokąd</span><select></select></label>
       <p class="tp-hint tr-route"></p>
       <label class="tr-row"><span class="tr-label">Metal</span><span class="tr-value" data-for="metal"></span>
         <input type="range" min="0" step="1" data-res="metal" /></label>
@@ -52,9 +59,23 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
     metal: root.querySelector<HTMLElement>('[data-for="metal"]')!,
     crystal: root.querySelector<HTMLElement>('[data-for="crystal"]')!,
   };
-  root.querySelector('.tr-route')!.textContent =
-    `${options.fromName} → ${options.toName} · lot ${formatDuration(options.seconds)} · ${fuelLabel(options.fuel)} · ` +
-    `w drodze ${transport.active} z ${transport.maxActive} transportowców`;
+  root.querySelector('#tr-title')!.textContent = options.title ?? 'Wyślij surowce';
+  const targets = options.targets ?? [{ name: options.toName, seconds: options.seconds, fuel: options.fuel, send: options.send }];
+  const select = root.querySelector<HTMLSelectElement>('.tr-target select')!;
+  if (options.targets) {
+    root.querySelector<HTMLElement>('.tr-target')!.hidden = false;
+    select.innerHTML = targets.map((_, i) => `<option value="${i}"></option>`).join('');
+    targets.forEach((t, i) => (select.options[i]!.textContent = t.name));
+  }
+  const target = () => targets[Number(select.value) || 0]!;
+  const route = () => {
+    const t = target();
+    root.querySelector('.tr-route')!.textContent =
+      `${options.fromName} → ${t.name} · lot ${formatDuration(t.seconds)} · ${fuelLabel(t.fuel)} · ` +
+      `w drodze ${transport.active} z ${transport.maxActive} transportowców`;
+  };
+  select.addEventListener('change', route);
+  route();
 
   const showError = (text: string) => {
     error.textContent = text;
@@ -76,7 +97,7 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
     sendButton.disabled = now.metal + now.crystal <= 0;
   };
   for (const id of ['metal', 'crystal'] as const) {
-    sliders[id].max = String(Math.max(0, Math.min(Math.floor(stock[id]), transport.capacity)));
+    sliders[id].max = String(Math.max(0, Math.min(Math.floor(stock[id]), transport.capacity, Math.floor(options.room?.[id] ?? Infinity))));
     sliders[id].value = '0';
     sliders[id].addEventListener('input', () => update(id));
   }
@@ -85,13 +106,14 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
       const share = Number(b.dataset.quick);
       // Po równo z obu surowców, w granicach zapasu i ładowności.
       const half = Math.floor(transport.capacity / 2);
-      let metal = Math.min(Math.floor(stock.metal * share), share === 0 ? 0 : half);
-      let crystal = Math.min(Math.floor(stock.crystal * share), share === 0 ? 0 : half);
+      const avail = { metal: Math.min(Number(sliders.metal.max), Math.floor(stock.metal * share)), crystal: Math.min(Number(sliders.crystal.max), Math.floor(stock.crystal * share)) };
+      let metal = Math.min(avail.metal, share === 0 ? 0 : half);
+      let crystal = Math.min(avail.crystal, share === 0 ? 0 : half);
       if (share > 0) {
         const room = transport.capacity - metal - crystal;
-        const moreMetal = Math.min(room, Math.floor(stock.metal * share) - metal);
+        const moreMetal = Math.min(room, avail.metal - metal);
         metal += moreMetal;
-        crystal += Math.min(room - moreMetal, Math.floor(stock.crystal * share) - crystal);
+        crystal += Math.min(room - moreMetal, avail.crystal - crystal);
       }
       sliders.metal.value = String(metal);
       sliders.crystal.value = String(crystal);
@@ -104,7 +126,7 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
     if (event.target === root) close();
   });
   sendButton.addEventListener('click', () => {
-    const result = options.send(cargo());
+    const result = target().send(cargo());
     if (!result.ok) {
       showError(result.message);
       return;

@@ -75,6 +75,8 @@ export class EmpireScene extends OverlayScene {
   }
 
   private closeTransport: (() => void) | null = null;
+  /** Teksty i paski karty stacji macierzystej (odświeżane co klatkę). */
+  private stationLive: { status: Phaser.GameObjects.Text; stock: Phaser.GameObjects.Text; graphics: Phaser.GameObjects.Graphics; bar: Rect } | null = null;
 
   /** Statki w drodze: kolonizacyjne, ekspedycje i transportowce (wiersze nad alertami). */
   private travelling(): number {
@@ -97,6 +99,7 @@ export class EmpireScene extends OverlayScene {
     this.content?.destroy(true);
     this.clearThumbs();
     this.cards = [];
+    this.stationLive = null;
     this.content = this.add.container(0, 0);
     const mask = this.make.graphics({}, false).fillRect(this.px(this.area.x), this.px(this.area.y), this.px(this.area.w), this.px(this.area.h));
     this.content.setMask(mask.createGeometryMask());
@@ -155,6 +158,7 @@ export class EmpireScene extends OverlayScene {
       EmpireScene.sort,
       this.alertsOpen,
       alerts.map((a) => `${a.level}${a.target.kind}${a.index}`).join(','),
+      this.stationShape(),
       ...overview.map((p) => `${p.index}${p.active ? '*' : ''}:${planetBadges(p).map((b) => b.label).join(',')}`),
     ].join('|');
   }
@@ -206,6 +210,9 @@ export class EmpireScene extends OverlayScene {
 
     // Kolejność kart.
     y = this.buildSort(items, y);
+
+    // Stacja macierzysta — pierwsza karta (v0.55).
+    y = this.buildStation(items, y) + gap;
 
     // Karty planet.
     const cols = Math.max(1, Math.min(3, Math.floor((area.w + gap) / (this.s(300) + gap))));
@@ -477,6 +484,153 @@ export class EmpireScene extends OverlayScene {
     return items;
   }
 
+  // ——— stacja macierzysta (v0.55) ———
+
+  private stationShape(): string {
+    const v = this.deps.controller.stationView();
+    return `st${v.unlocked ? 1 : 0}${v.built ? 1 : 0}${v.ready ? 1 : 0}${v.storageLevel}${v.buildProgress === null ? '' : 'b'}${v.nextStorageCost ? '' : 'max'}`;
+  }
+
+  /** Karta stacji: budowa, rdzeń SI Matki, magazyn orbitalny, loty na stację i ze stacji. Zwraca dół karty. */
+  private buildStation(items: Phaser.GameObjects.GameObject[], top: number): number {
+    const c = this.deps.controller;
+    const v = c.stationView();
+    const area = this.area;
+    const pad = this.s(12);
+    const showButtons = v.unlocked;
+    const h = this.s(showButtons ? 152 : 96);
+    const rect = { x: area.x, y: top, w: area.w, h };
+    const radius = this.px(this.s(12));
+    const bg = this.add.graphics();
+    bg.fillStyle(COLORS.panel, 0.92).fillRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), radius);
+    bg.lineStyle(this.px(1), v.built ? COLORS.tealHex : COLORS.panelBorder, v.built ? 0.7 : 1).strokeRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), radius);
+    // Znak stacji: pierścień z rdzeniem SI i dwoma skrzydłami paneli.
+    const iconR = this.s(20);
+    const cx = rect.x + pad + iconR + this.s(4);
+    const cy = rect.y + pad + iconR + this.s(2);
+    const alpha = v.built ? 1 : 0.45;
+    bg.lineStyle(this.px(this.s(3)), COLORS.stoneHex, alpha).strokeCircle(this.px(cx), this.px(cy), this.px(iconR * 0.72));
+    bg.fillStyle(COLORS.tealHex, alpha).fillCircle(this.px(cx), this.px(cy), this.px(iconR * 0.26));
+    bg.fillStyle(COLORS.goldHex, alpha * 0.85);
+    bg.fillRect(this.px(cx - iconR * 1.15), this.px(cy - iconR * 0.12), this.px(iconR * 0.38), this.px(iconR * 0.24));
+    bg.fillRect(this.px(cx + iconR * 0.77), this.px(cy - iconR * 0.12), this.px(iconR * 0.38), this.px(iconR * 0.24));
+    const tx = cx + iconR * 1.3 + this.s(8);
+    const tw = rect.x + rect.w - pad - tx;
+    const subtitle = !v.unlocked
+      ? 'zablokowana — badanie „Moduł orbitalny” (Badania → Stacja i handel)'
+      : v.built
+        ? `na orbicie ${v.planetName} · rdzeń SI Matki`
+        : `jedna na imperium · powstanie nad ${v.planetName}`;
+    const status = this.text(tx, rect.y + pad + this.s(42), '', 11, COLORS.gold, { fixedWidth: this.px(tw) }, false);
+    const stock = this.text(tx, rect.y + pad + this.s(58), '', 11, COLORS.stone, { fixedWidth: this.px(tw) }, false);
+    const graphics = this.add.graphics();
+    items.push(
+      bg,
+      this.text(tx, rect.y + pad, 'Stacja macierzysta', 16, v.built ? COLORS.teal : COLORS.text, { fontFamily: FONTS.serif, fixedWidth: this.px(tw) }, false),
+      this.text(tx, rect.y + pad + this.s(23), subtitle, 10.5, COLORS.faint, { fixedWidth: this.px(tw) }, false),
+      status,
+      stock,
+      graphics,
+    );
+    this.stationLive = { status, stock, graphics, bar: { x: tx, y: rect.y + pad + this.s(76), w: tw, h: this.s(3) } };
+    if (!showButtons) return rect.y + rect.h;
+    const by = rect.y + rect.h - pad - TOUCH;
+    const gap = this.s(8);
+    const done = (result: { ok: boolean; message: string }) => {
+      this.showToast(result.message, result.ok ? 'info' : 'error');
+      this.relayout();
+    };
+    if (!v.built) {
+      items.push(this.button(tx, by, Math.min(this.s(240), tw), 'Zbuduj stację', 'primary', () => done(c.buildStation())));
+      return rect.y + rect.h;
+    }
+    const bx = rect.x + pad;
+    const third = (rect.w - 2 * pad - 2 * gap) / 3;
+    const narrow = third < this.s(150);
+    const ready = v.ready;
+    const upgrading = v.storageSecondsLeft > 0;
+    items.push(
+      this.button(bx, by, third, narrow ? (v.storageLevel === 0 && !upgrading ? 'Magazyn' : 'Rozbuduj') : v.storageLevel === 0 && !upgrading ? 'Magazyn orbitalny' : 'Rozbuduj magazyn', ready && !upgrading && v.nextStorageCost ? 'secondary' : 'disabled', () => done(c.upgradeStationStorage())),
+      this.button(bx + third + gap, by, third, 'Na stację', ready && v.capacity > 0 ? 'primary' : 'disabled', () =>
+        !ready ? done({ ok: false, message: 'Rdzeń stacji jest jeszcze w budowie.' }) : v.capacity <= 0 ? done({ ok: false, message: 'Najpierw zbuduj magazyn orbitalny.' }) : this.openStationTransport('to'),
+      ),
+      this.button(bx + 2 * (third + gap), by, third, 'Ze stacji', ready && v.stock.metal + v.stock.crystal > 0 ? 'secondary' : 'disabled', () =>
+        v.stock.metal + v.stock.crystal > 0 ? this.openStationTransport('from') : done({ ok: false, message: 'Na stacji nie ma jeszcze surowców.' }),
+      ),
+    );
+    return rect.y + rect.h;
+  }
+
+  private refreshStation(): void {
+    const live = this.stationLive;
+    if (!live) return;
+    const v = this.deps.controller.stationView();
+    const cost = (r: { metal: number; crystal: number }) => `${formatInt(r.metal)} metalu, ${formatInt(r.crystal)} kryształów`;
+    let status: string;
+    if (!v.unlocked) status = 'Magazyn orbitalny i węzeł transportu dla całego imperium.';
+    else if (!v.built) status = `Koszt: ${cost(v.coreCost)} (płaci aktywna planeta).`;
+    else if (!v.ready) status = `Rdzeń SI Matki w budowie · ${formatDuration(v.coreSecondsLeft)}`;
+    else if (v.storageSecondsLeft > 0) status = `Magazyn orbitalny → poz. ${v.storageLevel + 1} · ${formatDuration(v.storageSecondsLeft)}`;
+    else if (v.storageLevel === 0) status = `Rdzeń gotowy · magazyn orbitalny: ${v.nextStorageCost ? cost(v.nextStorageCost) : '—'}`;
+    else status = `Magazyn orbitalny poz. ${v.storageLevel} · ${v.nextStorageCost ? `następny: ${cost(v.nextStorageCost)}` : 'najwyższy poziom'}`;
+    live.status.setText(status);
+    const incoming = v.incoming.metal + v.incoming.crystal > 0 ? ` · w drodze ${formatInt(v.incoming.metal + v.incoming.crystal)}` : '';
+    live.stock.setText(
+      v.capacity > 0
+        ? `Metal ${formatInt(v.stock.metal)} / ${formatInt(v.capacity)} · Kryształy ${formatInt(v.stock.crystal)} / ${formatInt(v.capacity)}${incoming}`
+        : v.built
+          ? 'Zapasy: brak magazynu — rozbuduj magazyn orbitalny.'
+          : '',
+    );
+    const g = live.graphics.clear();
+    const { x, y, w, h } = live.bar;
+    const fill = v.buildProgress ?? (v.capacity > 0 ? Math.max(v.stock.metal, v.stock.crystal) / v.capacity : null);
+    if (fill === null) return;
+    g.fillStyle(COLORS.divider, 1).fillRect(this.px(x), this.px(y), this.px(w), this.px(h));
+    g.fillStyle(v.buildProgress !== null ? COLORS.goldHex : COLORS.tealHex, 1).fillRect(this.px(x), this.px(y), this.px(Math.max(h, w * Math.min(1, fill))), this.px(h));
+  }
+
+  /** Okno wysyłki: z aktywnej planety na stację (`to`) albo ze stacji na wybraną planetę (`from`). */
+  private openStationTransport(direction: 'to' | 'from'): void {
+    const c = this.deps.controller;
+    const v = c.stationView();
+    const onSent = (message: string) => {
+      this.closeTransport = null;
+      this.showToast(message, 'info');
+      this.relayout();
+    };
+    this.closeTransport?.();
+    if (direction === 'to') {
+      const room = { metal: Math.max(0, v.capacity - v.stock.metal - v.incoming.metal), crystal: Math.max(0, v.capacity - v.stock.crystal - v.incoming.crystal) };
+      this.closeTransport = openTransportPanel({
+        title: 'Wyślij na stację',
+        fromName: c.planet.displayName,
+        toName: 'stacja macierzysta',
+        stock: c.economy.stock,
+        transport: c.transportView(),
+        seconds: v.seconds,
+        fuel: v.fuel,
+        room,
+        send: (cargo) => c.sendToStation(cargo),
+        onSent,
+      });
+      return;
+    }
+    const routes = c.stationRoutes();
+    this.closeTransport = openTransportPanel({
+      title: 'Wyślij ze stacji',
+      fromName: 'Stacja macierzysta',
+      toName: routes[0]?.name ?? '',
+      stock: v.stock,
+      transport: c.transportView(),
+      seconds: routes[0]?.seconds ?? 0,
+      fuel: routes[0]?.fuel ?? 0,
+      targets: routes.map((r) => ({ name: r.name, seconds: r.seconds, fuel: r.fuel, send: (cargo) => c.sendFromStation(r.address, cargo) })),
+      send: () => ({ ok: false, message: '' }),
+      onSent,
+    });
+  }
+
   /** Okno „Wyślij surowce” z aktywnej planety do planety z karty. */
   private openTransport(target: PlanetOverview): void {
     const c = this.deps.controller;
@@ -650,6 +804,7 @@ export class EmpireScene extends OverlayScene {
         ...c.shipmentsView().map((t) => `Transportowiec: ${t.fromName} → ${t.toName} · ${formatInt(t.cargo.metal + t.cargo.crystal)} · ${formatDuration(t.secondsLeft)}`),
       ].join('\n'),
     );
+    this.refreshStation();
     for (const card of this.cards) {
       const p = overview.find((o) => o.index === card.index);
       if (!p) continue;

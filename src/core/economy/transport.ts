@@ -55,7 +55,17 @@ export function parseShipments(raw: unknown): Shipment[] {
     isNum(s.cargo?.crystal) &&
     s.cargo.metal >= 0 &&
     s.cargo.crystal >= 0
-      ? [{ from: s.from, to: s.to, departedAt: s.departedAt, arrivesAt: s.arrivesAt, cargo: { metal: s.cargo.metal, crystal: s.cargo.crystal } }]
+      ? [
+          {
+            from: s.from,
+            to: s.to,
+            departedAt: s.departedAt,
+            arrivesAt: s.arrivesAt,
+            cargo: { metal: s.cargo.metal, crystal: s.cargo.crystal },
+            // Lot na stację macierzystą albo ze stacji (v0.55) — opcjonalne; inne wartości pomijane.
+            ...(s.station === 'to' || s.station === 'from' ? { station: s.station } : {}),
+          },
+        ]
       : [],
   );
 }

@@ -270,7 +270,9 @@ const NODES: readonly ResearchNodeDef[] = [
   node('station', 3, 0, 'station-refine', 'Rafinacja w próżni', 'Stacja na pasie wydobywa o połowę więcej.', ['station-1', 'mining-1'], [
     { kind: 'asteroidOutput', percent: 50 },
   ]),
-  { ...node('station', 2, 1, 'station-orbit', 'Moduł orbitalny', 'Pierwszy moduł stacji kosmicznej nad planetą.', ['station-1'], []), soon: true },
+  node('station', 2, 1, 'station-orbit', 'Moduł orbitalny', 'Stacja macierzysta z rdzeniem SI Matki na orbicie Twojej planety — magazyn orbitalny i węzeł transportu (Imperium).', ['station-1'], [
+    { kind: 'unlock', feature: 'home-station' },
+  ]),
   node('station', 2, 0, 'station-comet', 'Przechwyt komet', 'Holownik przyciąga kometę — surowce w każdym układzie, także bez pasa.', ['station-1', 'explore-1'], [
     { kind: 'unlock', feature: 'comet-capture' },
   ]),
