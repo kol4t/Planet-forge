@@ -7,8 +7,10 @@ import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import type { Pad } from './colonyMeshes.ts';
-import { cellLookup, collectorOrbit, hash01, layoutFromPlots, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
+import { cellLookup, collectorOrbit, hash01, layoutFromPlots, offsetOnSphere, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
 import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
+import { bearingOf, buildDrill, drillParams, drillStage, rimPoint, type DrillParams } from './drill.ts';
+import { drillLook } from '../data/drill.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -72,6 +74,9 @@ export class PlanetView implements PlanetDisplay {
   private readonly rotator = new DragRotator(prefersReducedMotion() ? { idleSpin: 0 } : {});
   private readonly colony = new ColonyMeshes(prefersReducedMotion());
   private planetObjects: THREE.Object3D[] = [];
+  /** Odwiert planetarny (v0.48): ściany, warstwy i jaskinia (cieniowane) + blask i jądro; przebudowa przy zmianie etapu. */
+  private drill: THREE.Group | null = null;
+  private planetType = '';
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
   private readonly fill = new THREE.DirectionalLight(0x6f9fc0, FILL_INTENSITY);
@@ -152,6 +157,8 @@ export class PlanetView implements PlanetDisplay {
   }
 
   setPlanet(planet: Planet): void {
+    this.planetType = planet.definitionId;
+    this.setDrill(null, null);
     for (const object of this.planetObjects) {
       object.parent?.remove(object);
       disposeObject(object);
@@ -318,7 +325,8 @@ export class PlanetView implements PlanetDisplay {
 
   setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = []): void {
     if (plots && this.grid && this.shaped) {
-      const key = plotsKey(plots, BUILDING_IDS, levels, complexes);
+      // Etap odwiertu zmienia się częściej niż etap kompleksu — też przebudowuje wygląd.
+      const key = `${plotsKey(plots, BUILDING_IDS, levels, complexes)}|d${drillStage(levels.crystalMine ?? 0)}`;
       if (key !== this.plotsKey) {
         this.plotsKey = key;
         this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS, levels, complexes, true);
@@ -331,11 +339,15 @@ export class PlanetView implements PlanetDisplay {
 
   /** Nowy układ kolonii: grunt i odkrywki w ścianach lądu, obrys kompleksów, zabudowa (wszystko raz, nie co klatkę). */
   private applyColony(layout: ColonyLayout, fresh: boolean): void {
-    // Obniżenie odkrywki → rozstawienie budowli (stoją w odkrywce) → teren: grunt, odkrywka i fundamenty budowli.
+    // Obniżenie odkrywki → rozstawienie budowli (stoją w odkrywce) → teren: grunt, odkrywka, fundamenty budowli
+    // i otwór odwiertu (ląd z wnętrza otworu przypięty do okręgu krawędzi) → ściany studni, warstwy i jądro.
     this.colony.setSink(this.pitSink(layout));
     if (fresh) this.colony.setLayout(layout);
     else this.colony.updateLayout(layout);
-    this.paintLand(layout, this.colony.pads());
+    const pitComplex = layout.complexes.find((c) => c.building === 'crystalMine') ?? null;
+    const drill = pitComplex ? this.drillFor(pitComplex) : null;
+    this.paintLand(layout, this.colony.pads(), drill);
+    this.setDrill(pitComplex, drill);
     // Wyrobisko może zejść poniżej poziomu morza — tafla oceanu nad nim jest wycięta.
     const pit = layout.complexes.find((c) => c.building === 'crystalMine');
     if (pit) this.oceanCut.value.set(...pit.core, Math.cos(pit.radius * pitShare(pit.stage)));
@@ -358,16 +370,58 @@ export class PlanetView implements PlanetDisplay {
     };
   }
 
-  /** Obniżenie terenu odkrywki w punkcie (tarasy, głębsze z etapem). */
+  /** O ile niecka obniża teren w punkcie (budowle w niej stoją na jej dnie) — jak w `paintLand`. */
   private pitSink(layout: ColonyLayout): (dir: Vec3) => number {
     const complexAt = this.complexAt(layout);
+    const sampler = this.shaped;
     return (dir) => {
       const c = complexAt(...dir);
-      return c ? pitSink3d(c, dir) : 0;
+      const depth = c ? pitSink3d(c, dir) : 0;
+      if (!c || depth <= 0 || !sampler) return 0;
+      const level = Math.max(sampler.height(...dir), sampler.lakeLevel(...dir));
+      const ground = sampler.isLand(level) ? sampler.radius(level) : 1.001;
+      return Math.max(0, ground - Math.max(PIT_MIN_RADIUS, Math.min(ground, c.surface - depth)));
     };
   }
 
-  private paintLand(layout: ColonyLayout, pads: readonly Pad[]): void {
+  /** Parametry studni dla niecki kryształów (null — etap 1, bez studni). Krawędź na dnie niecki w kącie otworu. */
+  private drillFor(pit: ColonyComplex): DrillParams | null {
+    const craterAngle = pit.radius * pitShare(pit.stage);
+    const probe = drillParams(drillStage(pit.level), craterAngle, 1);
+    if (!probe) return null;
+    const edge = offsetOnSphere(pit.core, 0, probe.rimAngle);
+    const rimRadius = Math.max(PIT_MIN_RADIUS, pit.surface - pitSink3d(pit, edge));
+    return drillParams(drillStage(pit.level), craterAngle, rimRadius);
+  }
+
+  /** Siatki odwiertu: tworzone przy zmianie etapu (nie co klatkę), stare zwalniane. */
+  private setDrill(pit: ColonyComplex | null, params: DrillParams | null): void {
+    if (this.drill) {
+      this.drill.parent?.remove(this.drill);
+      disposeObject(this.drill);
+      this.drill = null;
+    }
+    if (!pit || !params) return;
+    const built = buildDrill(pit.core, params, drillLook(this.planetType), pit.cells[0] ?? 0);
+    const mesh = (part: { position: Float32Array; color: Float32Array }, material: THREE.Material) => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(part.position, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(part.color, 3));
+      geometry.computeVertexNormals();
+      return new THREE.Mesh(geometry, material);
+    };
+    const group = new THREE.Group();
+    group.name = 'drill';
+    // Ściany oglądane od środka studni — obie strony; kolory wpieczone (ciemniej w głąb, poświata jądra).
+    group.add(mesh(built.walls, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true, side: THREE.DoubleSide })));
+    if (built.glow.position.length > 0) {
+      group.add(mesh(built.glow, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide })));
+    }
+    this.spinGroup.add(group);
+    this.drill = group;
+  }
+
+  private paintLand(layout: ColonyLayout, pads: readonly Pad[], drill: DrillParams | null = null): void {
     const land = this.land;
     const grid = this.grid;
     if (!land || !grid) return;
@@ -380,6 +434,14 @@ export class PlanetView implements PlanetDisplay {
     pos.set(land.positions);
     col.set(land.colors);
     const complexAt = this.complexAt(layout);
+    // Niecka kryształów obejmuje cały teren w swoim zasięgu (także jeziorka i pola spoza obszaru) — bez „wysp”.
+    const pit = layout.complexes.find((c) => c.building === 'crystalMine') ?? null;
+    // Krater w barwach skorupy typu planety (jak ściany odwiertu); dno — głębsza skorupa.
+    const look = drillLook(this.planetType);
+    const rock = new THREE.Color(look.crust);
+    const floor = new THREE.Color(look.deepCrust).multiplyScalar(0.7);
+    const pitRock = [rock.r, rock.g, rock.b];
+    const pitFloor = [floor.r, floor.g, floor.b];
     for (let t = 0; t < pos.length; t += 9) {
       const mx = pos[t]! + pos[t + 3]! + pos[t + 6]!;
       const my = pos[t + 1]! + pos[t + 4]! + pos[t + 7]!;
@@ -387,36 +449,63 @@ export class PlanetView implements PlanetDisplay {
       const len = Math.hypot(mx, my, mz) || 1;
       const dir: Vec3 = [mx / len, my / len, mz / len];
       const cell = lookup(...dir);
-      const c = complexAt(...dir);
+      const sunk = pit ? pitSink3d(pit, dir) : 0;
+      const c = sunk > 0 ? pit : complexAt(...dir);
       if (!c) continue;
       // Ścianki lądu (~0,03 rad) są ok. 3× większe niż działki wzoru zabudowy (`complexGround`) — w 3D wzór dawał
-      // szachownicę (v0.47). Grunt = spokojna płyta w kolorze budynku, lekko inna na każdym polu; odkrywka zachowuje
-      // tarasy (wzór o niskiej częstotliwości), bez świecących kryształów na pojedynczych ściankach. Szczegół — zabudowa 3D.
+      // szachownicę (v0.47). Grunt = spokojna płyta w kolorze budynku, lekko inna na każdym polu. Szczegół — zabudowa 3D.
       const base = GROUND_BASE[c.building];
       const tone = 0.93 + 0.14 * hash01(cell, 7);
-      // Wyrobisko: skała ciemniejsza z głębokością, tarasy na przemian jaśniejsze (warstwy), dno — ciemne.
-      const sunk = pitSink3d(c, dir);
+      // Niecka: skała coraz ciemniejsza ku dnu, środek dna — ciemny.
       const deep = sunk / pitDepthMax(c.level);
-      const strata = Math.round(deep * 9) % 2 === 0 ? 1 : 0.88;
-      const rgb = sunk <= 0 ? base.map((v) => Math.min(1, v * tone)) : deep >= 0.999 ? PIT_FLOOR : PIT_ROCK.map((v) => v * (1 - 0.55 * deep) * strata * tone);
+      const rgb = sunk <= 0 ? base.map((v) => Math.min(1, v * tone)) : deep >= 0.97 ? pitFloor : pitRock.map((v) => Math.min(1, v * (1 - 0.5 * deep) * tone));
       for (let v = 0; v < 3; v++) {
         const i = t + v * 3;
         col[i] = rgb[0]!;
         col[i + 1] = rgb[1]!;
         col[i + 2] = rgb[2]!;
-        if (c.building !== 'crystalMine') continue;
-        // Wyrobisko: wierzchołek obniżony schodkami tarasów — także poniżej poziomu morza (ocean nad nim wycięty).
+      }
+    }
+    // Niecka: każdy wierzchołek w jej zasięgu na kulistym profilu poniżej wysokości środka kompleksu (równo, niezależnie
+    // od wzgórz), nigdy wyżej niż teren — także poniżej poziomu morza (ocean nad nią wycięty). Decyzja tylko z położenia
+    // wierzchołka, więc ścianki zostają szczelne.
+    if (pit) {
+      for (let i = 0; i < pos.length; i += 3) {
         const r = Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!);
-        const vd: Vec3 = [pos[i]! / r, pos[i + 1]! / r, pos[i + 2]! / r];
-        const depth = pitSink3d(c, vd);
+        const depth = pitSink3d(pit, [pos[i]! / r, pos[i + 1]! / r, pos[i + 2]! / r]);
         if (depth <= 0) continue;
-        const target = Math.max(PIT_MIN_RADIUS, r - depth) / r;
+        const target = Math.max(PIT_MIN_RADIUS, Math.min(r, pit.surface - depth)) / r;
         pos[i] = pos[i]! * target;
         pos[i + 1] = pos[i + 1]! * target;
         pos[i + 2] = pos[i + 2]! * target;
       }
     }
     this.levelPads(pos, pads, complexAt);
+    // Otwór odwiertu: wierzchołki lądu z wnętrza otworu przypięte do okręgu krawędzi (tam zaczynają się ściany studni);
+    // ścianka całkiem w otworze ściągnięta do jednego punktu (znika) — pierwotna powierzchnia nie przechodzi przez otwór.
+    if (pit && drill) {
+      const cosRim = Math.cos(drill.rimAngle);
+      const n = pit.core;
+      const inside = (i: number) =>
+        (pos[i]! * n[0] + pos[i + 1]! * n[1] + pos[i + 2]! * n[2]) / Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!) > cosRim;
+      const pin = (i: number, from: number) => {
+        const rim = rimPoint(n, drill, bearingOf(n, [pos[from]!, pos[from + 1]!, pos[from + 2]!]));
+        pos[i] = rim[0];
+        pos[i + 1] = rim[1];
+        pos[i + 2] = rim[2];
+      };
+      for (let t = 0; t < pos.length; t += 9) {
+        const ins = [inside(t), inside(t + 3), inside(t + 6)];
+        if (!ins[0] && !ins[1] && !ins[2]) continue;
+        if (ins[0] && ins[1] && ins[2]) {
+          pin(t + 3, t);
+          pin(t + 6, t);
+          pin(t, t);
+          continue;
+        }
+        for (let v = 0; v < 3; v++) if (ins[v]) pin(t + v * 3, t + v * 3);
+      }
+    }
     positions.needsUpdate = true;
     colors.needsUpdate = true;
     geometry.setAttribute('normal', new THREE.BufferAttribute(facetNormals(positions.array as Float32Array), 3));
@@ -475,9 +564,13 @@ export class PlanetView implements PlanetDisplay {
     }
     if (!this.grid || !this.liftPoint || layout.complexes.length === 0) return;
     const positions: number[] = [];
+    // Obrysy wewnątrz niecki kryształów (np. wokół jeziorek) wisiałyby nad nią — pomijane; obrys krawędzi zostaje.
+    const pit = layout.complexes.find((c) => c.building === 'crystalMine');
+    const inPit = (p: Vec3) => !!pit && pitSink3d(pit, p) > 0;
     for (const c of layout.complexes) {
       for (const i of outlineBorders(this.grid, c.cells)) {
         const border = this.grid.borders[i]!;
+        if (inPit(border.from) || inPit(border.to)) continue;
         positions.push(...this.liftPoint(border.from), ...this.liftPoint(border.to));
       }
     }
@@ -671,6 +764,7 @@ export class PlanetView implements PlanetDisplay {
     if (this.highlight) disposeObject(this.highlight.object);
     if (this.outlines) disposeObject(this.outlines.object);
     if (this.orbital) disposeObject(this.orbital);
+    if (this.drill) disposeObject(this.drill);
     this.colony.dispose();
     this.renderer.dispose();
   }
@@ -686,11 +780,8 @@ const GROUND_BASE: Record<BuildingId, readonly [number, number, number]> = {
   laboratory: [0.6, 0.65, 0.64],
 };
 
-/** Dno odkrywki kryształów w 3D (zamiast świecących kryształów na pojedynczych ściankach) i skała jej ścian. */
-const PIT_FLOOR: readonly number[] = [0.07, 0.13, 0.16];
-const PIT_ROCK: readonly number[] = [0.5, 0.46, 0.44];
 /** Najgłębszy punkt wyrobiska (promień) — zapas nad środkiem planety. */
-const PIT_MIN_RADIUS = 0.82;
+const PIT_MIN_RADIUS = 0.74;
 
 /**
  * Tafla oceanu (i morza lawy) z otworem: piksele w stożku `cut` (kierunek, cos kąta) są odrzucane, więc wyrobisko

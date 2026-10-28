@@ -149,7 +149,7 @@ test('wolne miejsce budowli (v0.47): w promieniu `free` tylko suchy ląd własne
   assert.ok(flat.complexes.every((c) => c.free === 0 && c.spots.every((s) => s.free === 0)));
 });
 
-test('wyrobisko kryształów w 3D (v0.47): dziura głębsza z poziomem, najgłębiej w środku, 0 poza wyrobiskiem', () => {
+test('wyrobisko kryształów w 3D (v0.47): równa niecka głębsza z poziomem, najgłębiej w środku, 0 poza wyrobiskiem', () => {
   const planet = generatePlanet(PLANET_DEFINITIONS[0]!, 'PF-PIT');
   const grid = fieldGrid(planet);
   let previous = 0;
