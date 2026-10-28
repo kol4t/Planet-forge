@@ -548,7 +548,8 @@ export class PlanetView implements PlanetDisplay {
       const sunk = pit && !open ? pitSink3d(pit, dir) : 0;
       const c = sunk > 0 ? pit : complexAt(...dir);
       // Wielka odkrywka — kolory po wykopaniu (niżej, z kształtu ścianek).
-      if (!c || (open && c === pit)) continue;
+      // Farma wiatrowa stoi na naturalnym terenie (bez płyty gruntu kompleksu).
+      if (!c || (open && c === pit) || isWindFarm(c)) continue;
       // Ścianki lądu (~0,03 rad) są ok. 3× większe niż działki wzoru zabudowy (`complexGround`) — w 3D wzór dawał
       // szachownicę (v0.47). Grunt = spokojna płyta w kolorze budynku, lekko inna na każdym polu. Szczegół — zabudowa 3D.
       const base = GROUND_BASE[c.building];
@@ -952,6 +953,9 @@ const GROUND_BASE: Record<BuildingId, readonly [number, number, number]> = {
   antimatterCollector: [0.2, 0.17, 0.27],
   laboratory: [0.6, 0.65, 0.64],
 };
+
+/** Elektrownia na etapie farmy wiatrowej — wiatraki na naturalnym terenie. */
+const isWindFarm = (c: ColonyComplex) => c.building === 'powerPlant' && c.stage === 0;
 
 /** Najgłębszy punkt wyrobiska (promień) — zapas nad środkiem planety. */
 const PIT_MIN_RADIUS = 0.74;

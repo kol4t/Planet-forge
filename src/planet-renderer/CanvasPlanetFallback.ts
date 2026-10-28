@@ -338,6 +338,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             const index = cell >= 0 ? colony.owner[cell]! : -1;
             if (index < 0) return null;
             const c = colony.complexes[index]!;
+            // Farma wiatrowa stoi na naturalnym terenie.
+            if (c.building === 'powerPlant' && c.stage === 0) return null;
             // Nowy kompleks wyrasta: grunt pojawia się punkt po punkcie.
             const grow = this.growth(c.building);
             if (grow < 1 && hash01(Math.floor(x * 400) * 7 + Math.floor(z * 400), 3) > grow) return null;
@@ -397,7 +399,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const span = Math.max(2, Math.floor((c.radius * r) / pixel));
       const stage = c.stage + (c.mega ? 1 : 0);
       // Zabudowa pól obszaru (pole = jedna konstrukcja z konturem): gęściej z etapem, odkrywka — tylko na krawędzi.
-      const every = stage >= 2 ? 1 : stage === 1 ? 2 : 0;
+      // Farma wiatrowa — wiatrak na każdym polu.
+      const every = stage >= 2 || (c.building === 'powerPlant' && stage === 0) ? 1 : stage === 1 ? 2 : 0;
       for (const [k, spot] of c.spots.entries()) {
         if (k === 0 || every === 0 || k % every !== 0) continue;
         if (c.building === 'crystalMine' && (spot.t < 0.7 || pit)) continue;
@@ -425,6 +428,23 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             part(0, -5, 1, 1, '#9ff3ff', ph);
             break;
           case 'powerPlant':
+            if (stage === 0) {
+              // Wiatrak: biały maszt, wirnik na zmianę „X” i „+” (obraca się), czerwone światło na gondoli.
+              const turn = now === 0 || Math.floor(now / 260 + ph) % 2 === 0;
+              part(0, -4, 1, 5, '#e8eeec');
+              if (turn) {
+                part(-1, -6, 1, 1, '#e8eeec');
+                part(1, -6, 1, 1, '#e8eeec');
+                part(-1, -4, 1, 1, '#e8eeec');
+                part(1, -4, 1, 1, '#e8eeec');
+              } else {
+                part(-2, -5, 2, 1, '#e8eeec');
+                part(1, -5, 2, 1, '#e8eeec');
+                part(0, -7, 1, 2, '#e8eeec');
+              }
+              part(0, -5, 1, 1, '#ff6b5a', ph);
+              break;
+            }
             // Chłodnia z parą.
             part(-1, -2, 3, 3, '#8a9592');
             part(0, -3, 1, 1, '#8a9592');
@@ -500,6 +520,21 @@ export class CanvasPlanetFallback implements PlanetDisplay {
           break;
         }
         case 'powerPlant': {
+          if (stage === 0) {
+            // Farma wiatrowa: duży wiatrak z obracającym się wirnikiem i dyspozytornia u podstawy.
+            const h = Math.max(7, Math.round(span * 0.22));
+            const b = Math.max(3, Math.round(h * 0.45));
+            const turn = now === 0 || Math.floor(now / 300) % 2 === 0;
+            box(0, -h, 1, h + 1, '#e8eeec');
+            box(2, -1, 3, 2, '#c9a24a');
+            if (turn) {
+              for (let k = 1; k <= b; k++) box(-k, -h - k, 1, 1, '#e8eeec'), box(k, -h - k, 1, 1, '#e8eeec'), box(0, -h + k, 1, 1, '#e8eeec');
+            } else {
+              for (let k = 1; k <= b; k++) box(-k, -h + Math.floor(k / 2), 1, 1, '#e8eeec'), box(k, -h + Math.floor(k / 2), 1, 1, '#e8eeec'), box(0, -h - k, 1, 1, '#e8eeec');
+            }
+            box(0, -h, 1, 1, '#ff6b5a', 0);
+            break;
+          }
           // Wieża przesyłowa z jasną kulą (wyżej z etapem).
           const h = 4 + stage * 2;
           box(0, -h, 1, h + 1, '#6f7b78');

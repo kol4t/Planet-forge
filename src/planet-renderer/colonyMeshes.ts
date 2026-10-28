@@ -540,14 +540,66 @@ const parts = (...list: { body?: THREE.BufferGeometry[]; pit?: THREE.BufferGeome
   glow: list.flatMap((l) => l.glow ?? []),
 });
 
-/** Etap 1 — Elektrownia: chłodnia, hala turbin z wentylatorem, transformator. */
-function createPowerStation(): BigShape {
-  const p = parts(coolingTower(-0.14, -0.06, 0.66, 0.2), turbineHall(0.22, 0.14, 0.3, 0.2, 0.16));
+// ——— Elektrownia: alternatywne źródła energii (decyzja właściciela 2026-10-28) ———
+// Poz. 1 farma wiatrowa → poz. 6 generator fuzyjny → poz. 12 elektrownia jądrowa → poz. 20 reaktor antymaterii.
+// Wiatraki: wirnik obraca się wokół poziomej osi w piaście (`hub` w `KIND_LOOK`), wszystkie zwrócone w tę samą stronę.
+const BLADE = '#e8eeec';
+/** Jasny beton fundamentów wiatraków (bez ciemnej płyty — farma stoi na naturalnym terenie). */
+const WIND_PAD = '#a3aba8';
+
+/** Wieża wiatraka: smukły maszt, gondola, piasta na wysokości `h` (wirnik osobno — `windRotor`). */
+function windTower(h: number, r: number): THREE.BufferGeometry[] {
+  return [
+    paint(at(new THREE.CylinderGeometry(r * 0.55, r, h, 8), 0, h / 2, 0), BLADE),
+    paint(at(new THREE.BoxGeometry(r * 1.6, r * 1.5, r * 4.2), 0, h, -r * 0.6), BLADE),
+    paint(at(new THREE.BoxGeometry(r * 1.7, r * 0.3, r * 4.3), 0, h + r * 0.7, -r * 0.6), GOLD),
+  ];
+}
+
+/** Wirnik: trzy łopaty i kołpak wokół piasty (0, h, z) w płaszczyźnie x–y — obraca się wokół osi z w piaście. */
+function windRotor(h: number, z: number, blade: number, r: number): THREE.BufferGeometry[] {
+  const blades = [0, 1, 2].map((k) => {
+    const g = new THREE.BoxGeometry(r * 1.1, blade, r * 0.25);
+    // Łopata zwęża się ku końcowi.
+    const pos = g.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0) pos.setX(i, pos.getX(i) * 0.35);
+    g.translate(0, blade / 2 + r * 0.5, 0);
+    g.rotateY(0.25);
+    g.rotateZ((k * Math.PI * 2) / 3);
+    return g.translate(0, h, z);
+  });
+  return [...blades, new THREE.ConeGeometry(r * 0.75, r * 1.6, 8).rotateX(Math.PI / 2).translate(0, h, z + r * 0.6)];
+}
+
+const WIND_HUB_CORE = [0, 0.95, 0.09] as const;
+const WIND_HUB_SPOT = [0, 0.72, 0.075] as const;
+
+/** Etap 1 — Farma wiatrowa: wielki wiatrak na fundamencie, dyspozytornia z transformatorem, maszt pomiarowy. */
+function createWindFarm(): BigShape {
   return {
-    body: prepare([slab(0.46, 6), ...p.body, paint(at(new THREE.BoxGeometry(0.1, 0.1, 0.1), 0.26, 0.11, -0.2), GOLD)]),
-    pit: prepare(p.pit),
-    rotor: prepare([at(new THREE.BoxGeometry(0.12, 0.012, 0.025), 0.22, 0.27, 0.14), at(new THREE.BoxGeometry(0.025, 0.012, 0.12), 0.22, 0.27, 0.14)]),
-    glow: prepare(p.glow),
+    body: prepare([
+      paint(at(new THREE.CylinderGeometry(0.12, 0.15, 0.1, 8), 0, 0.01, 0), WIND_PAD),
+      paint(at(new THREE.BoxGeometry(0.46, 0.05, 0.26), 0.12, 0.0, 0.2), WIND_PAD),
+      ...windTower(WIND_HUB_CORE[1], 0.055),
+      paint(at(new THREE.BoxGeometry(0.2, 0.1, 0.14), 0.24, 0.09, 0.18), STEEL),
+      paint(at(new THREE.BoxGeometry(0.22, 0.025, 0.16), 0.24, 0.15, 0.18), GOLD),
+      paint(at(new THREE.BoxGeometry(0.1, 0.09, 0.1), -0.24, 0.08, 0.2), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.01, 0.01, 0.42, 4), -0.26, 0.24, -0.22), STEEL),
+    ]),
+    pit: prepare([]),
+    rotor: prepare(windRotor(WIND_HUB_CORE[1], WIND_HUB_CORE[2], 0.46, 0.055)),
+    // Światło ostrzegawcze na gondoli i lampka na maszcie pomiarowym.
+    glow: prepare([at(new THREE.BoxGeometry(0.03, 0.03, 0.03), 0, WIND_HUB_CORE[1] + 0.07, -0.08), at(new THREE.BoxGeometry(0.025, 0.025, 0.025), -0.26, 0.46, -0.22)]),
+  };
+}
+
+/** Moduł farmy wiatrowej: wiatrak na małym fundamencie. */
+function createWindTurbine(): BigShape {
+  return {
+    body: prepare([paint(at(new THREE.CylinderGeometry(0.1, 0.13, 0.1, 8), 0, 0.01, 0), WIND_PAD), ...windTower(WIND_HUB_SPOT[1], 0.045)]),
+    pit: prepare([]),
+    rotor: prepare(windRotor(WIND_HUB_SPOT[1], WIND_HUB_SPOT[2], 0.36, 0.045)),
+    glow: prepare([at(new THREE.BoxGeometry(0.025, 0.025, 0.025), 0, WIND_HUB_SPOT[1] + 0.06, -0.06)]),
   };
 }
 
@@ -1019,7 +1071,8 @@ type KindId =
   | 'metalBlock'
   | 'metalYard'
   | 'teslaNode'
-  | 'powerStation'
+  | 'windFarm'
+  | 'windTurbine'
   | 'powerNode'
   | 'powerLarge'
   | 'powerMega'
@@ -1044,7 +1097,11 @@ type KindId =
   | 'labBlock'
   | 'dishModule';
 
-const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: string; speed: number }> = {
+/**
+ * `hub` — wirnik obraca się wokół poziomej osi z przez ten punkt modelu (wiatraki), zamiast wokół pionu;
+ * `fixedSpin` — bez losowego obrotu budowli (wiatraki zwrócone w tę samą stronę).
+ */
+const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: string; speed: number; hub?: readonly [number, number, number]; fixedSpin?: boolean }> = {
   crystalDrillRig: { shape: createCrystalDrillRig, rotor: '#8fa3a6', glow: '#6fe9ff', speed: 1.6 },
   crystalShaft: { shape: createCrystalShaft, rotor: '#9c8650', glow: '#6fe9ff', speed: 0.5 },
   pitStation: { shape: createPitStation, rotor: '#9c8650', glow: '#7ff0ff', speed: 0.4 },
@@ -1059,7 +1116,8 @@ const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: st
   metalBlock: { shape: createMetalBlock, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
   metalYard: { shape: createMetalYard, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
   teslaNode: { shape: createTeslaNode, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.8 },
-  powerStation: { shape: createPowerStation, rotor: '#8fa3a6', glow: '#ffd27a', speed: 2.4 },
+  windFarm: { shape: createWindFarm, rotor: BLADE, glow: '#ff6b5a', speed: 1.3, hub: WIND_HUB_CORE, fixedSpin: true },
+  windTurbine: { shape: createWindTurbine, rotor: BLADE, glow: '#ff6b5a', speed: 1.6, hub: WIND_HUB_SPOT, fixedSpin: true },
   powerNode: { shape: createPowerNode, rotor: '#8fa3a6', glow: '#ffd27a', speed: 2.4 },
   powerLarge: { shape: createPowerPlantLarge, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.3 },
   powerMega: { shape: createPowerMega, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.5 },
@@ -1121,6 +1179,10 @@ function crossesHole(a: Vec3, b: Vec3, center: Vec3, reach: number): boolean {
   return false;
 }
 
+const hubMatrix = new THREE.Matrix4();
+const hubSpin = new THREE.Matrix4();
+const hubBack = new THREE.Matrix4();
+
 /** Odstęp głównej konstrukcji od otworu odwiertu (rad). */
 const HOLE_GAP = 0.012;
 /** Odstęp między płytami sąsiednich budowli (rad). */
@@ -1149,9 +1211,9 @@ const FAMILIES: Record<BuildingId, Family> = {
   },
   // Elektrownia → węzeł → wielka elektrownia → megasieć; pola paneli i stacje przesyłowe, po „Sieci Tesli” co czwarte — węzeł Tesli.
   powerPlant: {
-    cores: ['powerStation', 'powerNode', 'powerLarge', 'powerMega'],
+    cores: ['windFarm', 'powerNode', 'powerLarge', 'powerMega'],
     coreScale: [1.6, 2.1, 2.7, 3.4],
-    spot: (stage, k, c) => (c.upgraded && k % 4 === 0 ? 'teslaNode' : stage <= 0 ? 'solarField' : k % (stage === 1 ? 2 : 3) === 0 ? 'substation' : 'solarField'),
+    spot: (stage, k, c) => (c.upgraded && k % 4 === 0 ? 'teslaNode' : stage <= 0 ? 'windTurbine' : k % (stage === 1 ? 2 : 3) === 0 ? 'substation' : 'solarField'),
     beltsToCore: false,
     noBelts: true,
   },
@@ -1215,6 +1277,8 @@ interface Kind {
   items: Item[];
   glowColor: string;
   speed: number;
+  hub: readonly [number, number, number] | null;
+  fixedSpin: boolean;
 }
 
 export class ColonyMeshes {
@@ -1277,6 +1341,8 @@ export class ColonyMeshes {
         items: [],
         glowColor: look.glow,
         speed: look.speed,
+        hub: look.hub ?? null,
+        fixedSpin: !!look.fixedSpin,
       };
       for (const mesh of [kind.body, kind.pit, kind.rotor, kind.glow]) {
         mesh.count = 0;
@@ -1382,7 +1448,13 @@ export class ColonyMeshes {
       const kind = this.kinds.get(family.spot(stage, k, c))!;
       if (kind.items.length >= MAX_ITEMS) return;
       const surface = spot.surface - this.sink(spot.dir);
-      kind.items.push({ building: c.building, dir: spot.dir, surface, spin: spot.spin, size, pad: size * SPOT_EXTENT });
+      if (kind === this.kinds.get('windTurbine')) {
+        // Farma wiatrowa: na polu trzy wiatraki w trójkącie (wirniki się nie zahaczają), każdy na małym fundamencie.
+        for (let w = 0; w < 3 && kind.items.length < MAX_ITEMS; w++) {
+          const dir = offsetOnSphere(spot.dir, spot.spin + (w * Math.PI * 2) / 3, size * 0.34);
+          kind.items.push({ building: c.building, dir, surface, spin: 0, size: size * 0.6, pad: size * 0.12 });
+        }
+      } else kind.items.push({ building: c.building, dir: spot.dir, surface, spin: spot.spin, size, pad: size * SPOT_EXTENT });
       taken.push({ dir: spot.dir, reach: size * SPOT_EXTENT });
       if (stage >= 1 && placed.length > 0 && !family.noBelts) {
         // Taśmociąg do najbliższego już postawionego modułu (spoty są posortowane od środka — drzewo transportu).
@@ -1438,7 +1510,7 @@ export class ColonyMeshes {
         const pop = g < 1 ? g * (1 + Math.sin(g * Math.PI) * 0.15) : 1;
         n.set(item.dir[0], item.dir[1], item.dir[2]);
         q.setFromUnitVectors(up, n);
-        spin.setFromAxisAngle(up, item.spin);
+        spin.setFromAxisAngle(up, kind.fixedSpin ? 0 : item.spin);
         q.multiply(spin);
         p.copy(n).multiplyScalar(item.surface - item.size * 0.06);
         s.setScalar(Math.max(item.size * pop, 1e-5));
@@ -1446,9 +1518,17 @@ export class ColonyMeshes {
         kind.body.setMatrixAt(i, m);
         kind.pit.setMatrixAt(i, m);
         kind.glow.setMatrixAt(i, m);
-        spin.setFromAxisAngle(up, moving ? this.time * kind.speed : 0);
-        q.multiply(spin);
-        m.compose(p, q, s);
+        const angle = moving ? this.time * kind.speed : 0;
+        if (kind.hub) {
+          // Wirnik wiatraka: obrót wokół osi z przez piastę (macierz budowli × przesunięcie × obrót × przesunięcie wstecz).
+          const [hx, hy, hz] = kind.hub;
+          hubMatrix.makeTranslation(hx, hy, hz).multiply(hubSpin.makeRotationZ(angle)).multiply(hubBack.makeTranslation(-hx, -hy, -hz));
+          m.multiply(hubMatrix);
+        } else {
+          spin.setFromAxisAngle(up, angle);
+          q.multiply(spin);
+          m.compose(p, q, s);
+        }
         kind.rotor.setMatrixAt(i, m);
       });
       if (dirty) for (const mesh of [kind.body, kind.pit, kind.rotor, kind.glow]) mesh.instanceMatrix.needsUpdate = true;
