@@ -445,6 +445,15 @@ export class CanvasPlanetFallback implements PlanetDisplay {
               part(0, -5, 1, 1, '#ff6b5a', ph);
               break;
             }
+            if (stage >= 3) {
+              // Zbiornik-pułapka antymaterii: jasna kula na nogach z fioletowym pasem.
+              part(-1, -4, 3, 1, '#d8dedc');
+              part(-1, -3, 3, 1, '#c9b8ff', ph);
+              part(-1, -2, 3, 1, '#d8dedc');
+              part(-1, -1, 1, 1, '#6f7b78');
+              part(1, -1, 1, 1, '#6f7b78');
+              break;
+            }
             if (stage === 1) {
               // Mały pierścień plazmy z jasnym skupiskiem krążącym po nim.
               const ring: [number, number][] = [[-1, -3], [0, -3], [1, -3], [2, -2], [1, -1], [0, -1], [-1, -1], [-2, -2]];
@@ -558,6 +567,26 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             }
             box(0, -ry - 3, 1, 3, '#6f7b78');
             box(-1, -ry - 4, 3, 1, '#c9a24a');
+            break;
+          }
+          if (stage >= 3) {
+            // Reaktor antymaterii: fioletowa kula na łukach, pierścienie pułapki (na zmianę poziomy i pionowy — obrót),
+            // cztery zbiorniki paliwa z rurami do podstawy.
+            const k = Math.max(2, Math.round(span * 0.02));
+            const turn = now === 0 || Math.floor(now / 400) % 2 === 0;
+            const cy = -6 * k;
+            box(-k, cy - k, 2 * k + 1, 2 * k + 1, '#c9b8ff', 0);
+            if (turn) box(-3 * k, cy, 6 * k + 1, 1, '#c9a24a');
+            else box(0, cy - 3 * k, 1, 6 * k + 1, '#c9a24a');
+            box(-2 * k, cy - 2 * k, 1, 1, '#c9a24a');
+            box(2 * k, cy + 2 * k, 1, 1, '#c9a24a');
+            box(-2 * k, -4 * k, 1, 4 * k, '#6f7b78');
+            box(2 * k, -4 * k, 1, 4 * k, '#6f7b78');
+            for (const dx of [-6 * k, 5 * k]) {
+              box(dx, -2 * k, 2 * k, 2 * k, '#d8dedc');
+              box(dx < 0 ? dx + 2 * k : -k, -1, Math.abs(dx) - k, 1, '#c9b8ff', 1);
+            }
+            box(-k, 0, 2 * k + 1, 1, '#c9a24a');
             break;
           }
           if (stage === 2) {

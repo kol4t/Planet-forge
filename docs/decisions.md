@@ -16,8 +16,13 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
 - Elektrownia jądrowa (poz. 12–19, wariant A — „kopuła z chłodniami”, wybór właściciela): kopuła reaktora ze złotym pasem,
   dwie wysokie chłodnie-hiperboloidy z kłębami pary, basen paliwa z niebieską poświatą, hala turbin i słup; na polach
   mniejsze chłodnie z parą i stacje przesyłowe; 2D: kopuła i dwie chłodnie, betonowy plac z rzadkimi basenami.
+- Reaktor antymaterii (poz. 20+): kula antymaterii na trzech łukach w trzech obracających się pierścieniach pułapki,
+  cztery zbiorniki-pułapki z fioletowymi rurami paliwa, słupy przesyłowe; na polach zbiorniki-pułapki i stacje przesyłowe;
+  2D: kula w pierścieniu, zbiorniki, fioletowe przewody. Stare modele (chłodnie z wieżą Tesli, panele słoneczne) usunięte.
 - **Pomysł właściciela na później (zasady gry, nie wdrożone):** megakonstrukty (poz. 20+) zużywają antymaterię — trzeba
-  nią gospodarować (dziś służy tylko do „Ukończ teraz”). Wymaga decyzji o liczbach (balans — na końcu, przed MVP).
+  nią gospodarować (dziś służy tylko do „Ukończ teraz”). Propozycja przedstawiona właścicielowi: reaktor (poz. 20+) zużywa
+  stałą ilość antymaterii na godzinę i daje dużo więcej energii niż jądrowa; bez antymaterii — tryb awaryjny (energia jak
+  jądrowa); w „Zarządzaniu” tryb oszczędny bez zużycia. Liczby i decyzja — przy strojeniu balansu (na końcu, przed MVP).
 
 ## 2026-10-28 — v0.49: wielka odkrywka z wiszącym ekstraktorem (prompt właściciela)
 
