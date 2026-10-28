@@ -603,15 +603,55 @@ function createWindTurbine(): BigShape {
   };
 }
 
-/** Etap 2 — Węzeł energetyczny: dwie chłodnie, długa hala generatorów, plac transformatorów ze słupem. */
-function createPowerNode(): BigShape {
-  const p = parts(coolingTower(-0.2, -0.16, 0.72, 0.19), coolingTower(0.12, -0.26, 0.6, 0.16), turbineHall(0.02, 0.2, 0.48, 0.2, 0.18), pylon(-0.34, 0.24, 0.5));
-  const transformers = [0, 1, 2].map((k) => paint(at(new THREE.BoxGeometry(0.08, 0.09, 0.08), 0.3 + (k % 2) * 0.1, 0.1, -0.02 + k * 0.08), GOLD));
+const PLASMA = '#ff6fcf';
+
+/**
+ * Pierścień plazmy (tokamak): świecący torus plazmy w pierścieniu cewek magnetycznych, solenoid w środku.
+ * Zwraca bryłę, plazmę (świeci) i jasne skupiska plazmy krążące po pierścieniu (część obracana).
+ */
+function plasmaRing(R: number, y: number, coils: number): { body: THREE.BufferGeometry[]; glow: THREE.BufferGeometry[]; rotor: THREE.BufferGeometry[] } {
+  const coilParts = Array.from({ length: coils }, (_, k) => {
+    const a = (k * Math.PI * 2) / coils;
+    return paint(at(new THREE.TorusGeometry(R * 0.32, R * 0.06, 4, 10).rotateY(Math.PI / 2), Math.cos(a) * R, y, -Math.sin(a) * R, a), k % 2 ? STEEL : GOLD);
+  });
   return {
-    body: prepare([slab(0.5, 8), ...p.body, ...transformers]),
-    pit: prepare(p.pit),
-    rotor: prepare([at(new THREE.BoxGeometry(0.14, 0.012, 0.025), -0.1, 0.29, 0.2), at(new THREE.BoxGeometry(0.14, 0.012, 0.025), 0.14, 0.29, 0.2)]),
-    glow: prepare(p.glow),
+    body: [
+      ...coilParts,
+      // Kriostat: niski pierścień pod plazmą i solenoid w środku.
+      paint(at(new THREE.CylinderGeometry(R * 1.25, R * 1.3, y * 0.5, 16, 1, true), 0, y * 0.25, 0), STEEL),
+      paint(at(new THREE.CylinderGeometry(R * 0.28, R * 0.32, y * 1.9, 10), 0, y * 0.95, 0), STEEL),
+      paint(at(new THREE.CylinderGeometry(R * 0.36, R * 0.36, R * 0.12, 10), 0, y * 1.9, 0), GOLD),
+    ],
+    glow: [at(new THREE.TorusGeometry(R, R * 0.11, 6, 32).rotateX(Math.PI / 2), 0, y, 0)],
+    rotor: [0, 1, 2].map((k) => {
+      const a = (k * Math.PI * 2) / 3;
+      return at(new THREE.SphereGeometry(R * 0.15, 6, 4).scale(1, 1, 2.6), Math.cos(a) * R, y, -Math.sin(a) * R, a);
+    }),
+  };
+}
+
+/** Etap 2 — Generator fuzyjny: tokamak z pierścieniem plazmy, bank kondensatorów, hala sterowni, słup przesyłowy. */
+function createFusionGenerator(): BigShape {
+  const ring = plasmaRing(0.32, 0.28, 16);
+  const p = parts(pylon(-0.42, 0.3, 0.55));
+  const capacitors = [0, 1, 2, 3].map((k) => paint(at(new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8), 0.36 + (k % 2) * 0.08, 0.08, -0.36 + Math.floor(k / 2) * 0.08), GOLD));
+  return {
+    body: prepare([slab(0.56, 16), ...ring.body, ...p.body, ...capacitors, paint(at(new THREE.BoxGeometry(0.2, 0.1, 0.12), 0.36, 0.07, 0.36), STEEL)]),
+    pit: prepare([]),
+    rotor: prepare(ring.rotor),
+    // Plazma i jej odblask na posadzce (płaski pierścień pod torusem).
+    glow: prepare([...ring.glow, at(new THREE.RingGeometry(0.4, 0.43, 32).rotateX(-Math.PI / 2), 0, 0.045, 0), ...p.glow, at(new THREE.BoxGeometry(0.1, 0.02, 0.01), 0.36, 0.09, 0.425)]),
+  };
+}
+
+/** Moduł generatora fuzyjnego: mały pierścień plazmy na okrągłej płycie. */
+function createFusionCell(): BigShape {
+  const ring = plasmaRing(0.24, 0.2, 8);
+  return {
+    body: prepare([paint(at(new THREE.CylinderGeometry(0.44, 0.48, 0.1, 12), 0, 0.01, 0), SLAB), ...ring.body]),
+    pit: prepare([]),
+    rotor: prepare(ring.rotor),
+    glow: prepare(ring.glow),
   };
 }
 
@@ -1073,7 +1113,8 @@ type KindId =
   | 'teslaNode'
   | 'windFarm'
   | 'windTurbine'
-  | 'powerNode'
+  | 'fusionGenerator'
+  | 'fusionCell'
   | 'powerLarge'
   | 'powerMega'
   | 'solarField'
@@ -1118,7 +1159,8 @@ const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: st
   teslaNode: { shape: createTeslaNode, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.8 },
   windFarm: { shape: createWindFarm, rotor: BLADE, glow: '#ff6b5a', speed: 1.3, hub: WIND_HUB_CORE, fixedSpin: true },
   windTurbine: { shape: createWindTurbine, rotor: BLADE, glow: '#ff6b5a', speed: 1.6, hub: WIND_HUB_SPOT, fixedSpin: true },
-  powerNode: { shape: createPowerNode, rotor: '#8fa3a6', glow: '#ffd27a', speed: 2.4 },
+  fusionGenerator: { shape: createFusionGenerator, rotor: '#ffe3f5', glow: PLASMA, speed: 2.2 },
+  fusionCell: { shape: createFusionCell, rotor: '#ffe3f5', glow: PLASMA, speed: 2.8 },
   powerLarge: { shape: createPowerPlantLarge, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.3 },
   powerMega: { shape: createPowerMega, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.5 },
   solarField: { shape: createSolarField, rotor: '#8fa3a6', glow: '#bff6ff', speed: 0 },
@@ -1211,9 +1253,9 @@ const FAMILIES: Record<BuildingId, Family> = {
   },
   // Elektrownia → węzeł → wielka elektrownia → megasieć; pola paneli i stacje przesyłowe, po „Sieci Tesli” co czwarte — węzeł Tesli.
   powerPlant: {
-    cores: ['windFarm', 'powerNode', 'powerLarge', 'powerMega'],
+    cores: ['windFarm', 'fusionGenerator', 'powerLarge', 'powerMega'],
     coreScale: [1.6, 2.1, 2.7, 3.4],
-    spot: (stage, k, c) => (c.upgraded && k % 4 === 0 ? 'teslaNode' : stage <= 0 ? 'windTurbine' : k % (stage === 1 ? 2 : 3) === 0 ? 'substation' : 'solarField'),
+    spot: (stage, k, c) => (c.upgraded && k % 4 === 0 ? 'teslaNode' : stage <= 0 ? 'windTurbine' : stage === 1 ? (k % 2 === 0 ? 'substation' : 'fusionCell') : k % 3 === 0 ? 'substation' : 'solarField'),
     beltsToCore: false,
     noBelts: true,
   },

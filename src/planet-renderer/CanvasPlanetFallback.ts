@@ -399,8 +399,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const span = Math.max(2, Math.floor((c.radius * r) / pixel));
       const stage = c.stage + (c.mega ? 1 : 0);
       // Zabudowa pól obszaru (pole = jedna konstrukcja z konturem): gęściej z etapem, odkrywka — tylko na krawędzi.
-      // Farma wiatrowa — wiatrak na każdym polu.
-      const every = stage >= 2 || (c.building === 'powerPlant' && stage === 0) ? 1 : stage === 1 ? 2 : 0;
+      // Farma wiatrowa i generator fuzyjny — moduł na każdym polu.
+      const every = stage >= 2 || (c.building === 'powerPlant' && stage <= 1) ? 1 : stage === 1 ? 2 : 0;
       for (const [k, spot] of c.spots.entries()) {
         if (k === 0 || every === 0 || k % every !== 0) continue;
         if (c.building === 'crystalMine' && (spot.t < 0.7 || pit)) continue;
@@ -443,6 +443,14 @@ export class CanvasPlanetFallback implements PlanetDisplay {
                 part(0, -7, 1, 2, '#e8eeec');
               }
               part(0, -5, 1, 1, '#ff6b5a', ph);
+              break;
+            }
+            if (stage === 1) {
+              // Mały pierścień plazmy z jasnym skupiskiem krążącym po nim.
+              const ring: [number, number][] = [[-1, -3], [0, -3], [1, -3], [2, -2], [1, -1], [0, -1], [-1, -1], [-2, -2]];
+              const hot = now === 0 ? 0 : Math.floor(now / 140 + ph) % ring.length;
+              ring.forEach(([x, y], i) => part(x, y, 1, 1, i === hot ? '#ffe3f5' : '#ff6fcf', i === hot ? undefined : ph));
+              part(0, -2, 1, 1, '#6f7b78');
               break;
             }
             // Chłodnia z parą.
@@ -533,6 +541,23 @@ export class CanvasPlanetFallback implements PlanetDisplay {
               for (let k = 1; k <= b; k++) box(-k, -h + Math.floor(k / 2), 1, 1, '#e8eeec'), box(k, -h + Math.floor(k / 2), 1, 1, '#e8eeec'), box(0, -h - k, 1, 1, '#e8eeec');
             }
             box(0, -h, 1, 1, '#ff6b5a', 0);
+            break;
+          }
+          if (stage === 1) {
+            // Generator fuzyjny: pierścień plazmy (elipsa) w cewkach, solenoid w środku, skupisko plazmy krąży.
+            const rx = Math.max(4, Math.round(span * 0.12));
+            const ry = Math.max(2, Math.round(rx * 0.5));
+            const steps = rx * 6;
+            const hot = now === 0 ? 0 : Math.floor(now / 90) % steps;
+            for (let k = 0; k < steps; k++) {
+              const a = (k / steps) * Math.PI * 2;
+              const x = Math.round(Math.cos(a) * rx);
+              const y = Math.round(Math.sin(a) * ry) - ry - 1;
+              const coil = k % Math.max(2, Math.round(steps / 8)) === 0;
+              box(x, y, 1, 1, coil ? '#c9a24a' : Math.abs(k - hot) < 2 ? '#ffe3f5' : '#ff6fcf', coil || Math.abs(k - hot) < 2 ? undefined : k * 0.2);
+            }
+            box(0, -ry - 3, 1, 3, '#6f7b78');
+            box(-1, -ry - 4, 3, 1, '#c9a24a');
             break;
           }
           // Wieża przesyłowa z jasną kulą (wyżej z etapem).

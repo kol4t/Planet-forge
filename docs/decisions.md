@@ -10,6 +10,9 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
 - Farma wiatrowa (zrobiona jako pierwsza): wiatraki na naturalnym terenie (bez płyty gruntu kompleksu), duży wiatrak
   z dyspozytornią w środku, po trzy mniejsze na każdym polu; wirniki obracają się wokół poziomej osi w piaście
   (`hub` w `KIND_LOOK`, bez dodatkowych rysowań), wszystkie zwrócone w tę samą stronę. 2D: pikselowe wiatraki.
+- Generator fuzyjny (poz. 6–11, „pierścień plazmy” — wybór właściciela): tokamak w środku (świecący różowy torus plazmy
+  w pierścieniu cewek, solenoid, bank kondensatorów, słup przesyłowy), jasne skupiska plazmy krążą po pierścieniu (część
+  obracana), na polach małe pierścienie plazmy i stacje przesyłowe; 2D: pikselowy pierścień z krążącym skupiskiem.
 - **Pomysł właściciela na później (zasady gry, nie wdrożone):** megakonstrukty (poz. 20+) zużywają antymaterię — trzeba
   nią gospodarować (dziś służy tylko do „Ukończ teraz”). Wymaga decyzji o liczbach (balans — na końcu, przed MVP).
 
