@@ -2,6 +2,12 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.54.0 — wyeksploatowanie planet i licznik pętli — 2026-10-28
+
+- Po wydobyciu 80% złoża metalu albo kryształów kopalnia wydobywa resztki o połowę wolniej (energia bez zmian); karta złóż pokazuje „resztki — wydobycie wolniejsze”, czas do wyczerpania uwzględnia zwolnienie.
+- Planeta z oboma złożami ≥ 80% jest **wyeksploatowana**: plakietka na karcie Imperium, wpis w dzienniku, licznik „wyeksploatowane X/3” w nagłówku Imperium (każda planeta liczy się raz, zapamiętane w zapisie).
+- Liczby robocze (`BALANCE.exploitation`). Zapisy zgodne.
+
 ## v0.53.0 — plan MVP, symulator pętli i antymateria jako paliwo — 2026-10-28
 
 - Plan do MVP według definicji właściciela (pętla: planeta → wyczerpanie złóż → transport / przeniesienie → 3 planety → stacja macierzysta, flota, imperium gwiezdne) — `docs/status.md`.
