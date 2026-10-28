@@ -24,11 +24,10 @@ Stan: v0.46 (audyt). Naprawione w audycie — `docs/CHANGELOG.md` (v0.46). Tu: c
 ## Znane ograniczenia (świadome, drobne)
 
 - **Odwiert (v0.48, tylko 3D)**: światło jądra jest wpieczone w kolory ścian (nie ma prawdziwego źródła światła — koszt
-  na iPadzie); siatka pól (Planeta → siatka) nie omija krateru i otworu (linie nad dziurą); w 2D bez otworu (tarcza
+  na iPadzie); w 2D bez otworu (tarcza
   pokazuje odkrywkę wzorem gruntu); krater wysokiego etapu zajmuje dużą część kompleksu (wcześniejsze moduły z jego
   wnętrza znikają).
-- **Wielka odkrywka (v0.49)**: siatka pól (Planeta → siatka, domyślnie wyłączona) dalej nie omija dziury — linie pól
-  wiszą nad nią; tarasy mają szczegół ścianek lądu (~0,027 rad), więc z bliska półki są lekko kanciaste (low-poly);
+- **Wielka odkrywka (v0.49)**: linie siatki pól nad dziurą (i nad niecką szybu) są niewidoczne — zostaje obrys krawędzi; tarasy mają szczegół ścianek lądu (~0,027 rad), więc z bliska półki są lekko kanciaste (low-poly);
   Megaodkrywka zajmuje tyle pól, co etap (do ~40% planety startowej), więc liny bywają bardzo długie; w 2D bez lin.
 
 - **Kilka budów ukończonych pod nieobecność** (kolejka): komunikat „Podczas nieobecności” i dziennik wymieniają tylko

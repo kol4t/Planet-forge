@@ -106,6 +106,8 @@ export class PlanetView implements PlanetDisplay {
   /** Siatka pól: ciemna obwódka + kolorowe linie (grube linie — zwykłe mają w WebGL zawsze 1 piksel). */
   private fieldLines: THREE.Group | null = null;
   private fieldColors: LineSegmentsGeometry | null = null;
+  /** Położenia linii siatki pól nad pierwotnym terenem (bez ukrycia nad wyrobiskiem). */
+  private fieldPositions: Float32Array | null = null;
   private readonly lineMaterials: LineMaterial[] = [];
   private gridVisible = false;
   private readonly still = prefersReducedMotion();
@@ -315,7 +317,26 @@ export class PlanetView implements PlanetDisplay {
     this.fieldLines.name = 'fields';
     this.fieldLines.visible = this.gridVisible;
     this.spinGroup.add(this.fieldLines);
+    this.fieldPositions = Float32Array.from(positions);
     this.colorFieldLines({});
+  }
+
+  /**
+   * Linie siatki pól nad wyrobiskiem kryształów wisiałyby w powietrzu — są niewidoczne (odcinek zwinięty do punktu).
+   * Obrys na krawędzi dziury zostaje. Wołane przy zmianie układu kolonii.
+   */
+  private hideFieldLinesInPit(layout: ColonyLayout): void {
+    const source = this.fieldPositions;
+    if (!source || !this.fieldLines || !this.grid) return;
+    const crystal = layout.complexes.find((c) => c.building === 'crystalMine') ?? null;
+    const open = this.openPit;
+    const inPit = (p: Vec3) => (open ? open.s(p) > 0.02 : !!crystal && pitSink3d(crystal, p) > 0);
+    const positions = source.slice();
+    this.grid.borders.forEach((border, i) => {
+      if (!inPit(border.from) && !inPit(border.to)) return;
+      positions.copyWithin(i * 6 + 3, i * 6, i * 6 + 3);
+    });
+    for (const object of this.fieldLines.children) ((object as LineSegments2).geometry as LineSegmentsGeometry).setPositions(positions);
   }
 
   /** Kolory obrysów według zajętości (wołane, gdy zmieniają się zajęte pola). */
@@ -365,6 +386,7 @@ export class PlanetView implements PlanetDisplay {
     if (pitComplex && !this.openPit) this.oceanCut.value.set(...pitComplex.core, Math.cos(pitComplex.radius * pitShare(pitComplex.stage)));
     else this.oceanCut.value.set(0, 1, 0, 2);
     this.cutOceanAlongPit();
+    this.hideFieldLinesInPit(layout);
     this.buildOutlines(layout);
   }
 
