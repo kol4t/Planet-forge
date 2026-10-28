@@ -792,15 +792,16 @@ const GLASS = '#cfe3e0';
 const ROOF_LIGHT = '#4f8580';
 const ROOF_LIGHT_DISH = '#dfe8e6';
 
-// Magazyn = port kontenerowy (decyzja właściciela 2026-10-28): jasny beton z liniami, kolorowe kontenery, turkusowe
+// Magazyn = port kontenerowy (decyzja właściciela 2026-10-28): ciemny asfalt z białymi liniami, kolorowe kontenery, turkusowe
 // suwnice i dachy, białe silosy — bez złota i ognia, wyraźnie inny niż kopalnia metalu (ciężki przemysł).
-const PORT_PAD = '#c3c9c5';
+// Ciemny niebiesko-szary asfalt — jasny beton zlewał się z lodem i śniegiem (uwaga właściciela).
+const PORT_PAD = '#4e5a64';
 const PORT_LINE = '#eef2ef';
 const PORT_TEAL = '#2f9c92';
 const PORT_WHITE = '#e4e9e6';
 const BOX_COLORS = ['#3d6fb6', '#c0453a', PORT_TEAL, PORT_WHITE, '#d08a2e'] as const;
 
-/** Jasna płyta portu z białymi liniami placów. */
+/** Asfaltowa płyta portu z białymi liniami placów. */
 function portPad(radius: number, sides: number): THREE.BufferGeometry[] {
   return [
     slab(radius, sides, 0.08, PORT_PAD),

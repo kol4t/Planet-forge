@@ -949,8 +949,8 @@ const GROUND_BASE: Record<BuildingId, readonly [number, number, number]> = {
   metalMine: [0.36, 0.36, 0.34],
   crystalMine: [0.42, 0.44, 0.46],
   powerPlant: [0.24, 0.29, 0.33],
-  // Port kontenerowy: jasny beton (kopalnia metalu — ciemna, rdzawa).
-  storage: [0.66, 0.69, 0.67],
+  // Port kontenerowy: ciemny niebiesko-szary asfalt (nie zlewa się z lodem; kopalnia metalu — rdzawa).
+  storage: [0.075, 0.095, 0.12],
   antimatterCollector: [0.2, 0.17, 0.27],
   laboratory: [0.6, 0.65, 0.64],
 };

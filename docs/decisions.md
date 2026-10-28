@@ -8,6 +8,8 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
   Wybrane kierunki: **Kopalnia metalu = ciężki przemysł** (ciemne, rdzawe kolory, wieże wyciągowe, hałdy rudy, piece
   z żarem, kominy z dymem, taśmociągi, bez złotych dachów); **Magazyn = port kontenerowy** (jasny beton z liniami,
   kolorowe kontenery, turkusowe suwnice, białe silosy, bez złota i ognia). Najpierw magazyn, zrzuty, po akceptacji kopalnia.
+- Poprawka po uwadze właściciela: jasny beton zlewał się z lodem — podłoże portu to ciemny niebiesko-szary asfalt
+  z białymi liniami (3D i 2D).
 - Magazyn (zrobiony): 4 etapy — skład (hala, rzędy kontenerów, silos) → magazyn (suwnica bramowa nad kontenerami) →
   terminal (dwie suwnice, silosy, obrotowy żuraw) → megaskład (magazyn wysokiego składowania); moduły — plac kontenerów
   pod suwnicą, białe silosy; bez taśmociągów (to znak kopalni). Grunt 3D jasny beton; 2D — rzędy kontenerów, suwnica.
