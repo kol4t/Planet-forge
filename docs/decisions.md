@@ -2,6 +2,18 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Etap 2: antymateria jako paliwo lotów (v0.53, decyzja właściciela)
+
+- Wariant „umiarkowany”: w układzie transport 1, statek kolonizacyjny 3, ekspedycja 1, holownik 1; między układami
+  `base + ⌈odległość / jedn.⌉` (transport 2 + 1/20, statek 3 + 1/15, ekspedycja 1 + 1/30) — `BALANCE.fuel`, `core/economy/fuel.ts`.
+- Kolonizacja we własnym układzie (dotąd darmowa i natychmiastowa — główny powód zbyt szybkiej pętli w symulatorze):
+  teraz statek kolonizacyjny jak do innych układów (koszt 2500 / 1800, paliwo 3, lot `colonyShip.baseSeconds` = 2 min),
+  bez badania. Kolonia powstaje po przylocie, gracz zostaje na swojej planecie.
+- Paliwo płaci wspólny portfel (aktywna planeta); zawrócenie statku zwraca paliwo (pole zapisu `missions[].fuel`,
+  opcjonalne). Testy przeniesione na pomocnika `tests/helpers.ts` (`colonizeNow`).
+- Symulator po zmianie: aktywny gracz wyczerpuje antymaterię (loty wstrzymane z braku paliwa), okazjonalny nie; czas
+  pętli prawie bez zmian (wyznacza go tempo wydobycia) — `docs/status.md`, punkt 8.
+
 ## 2026-10-28 — Pętla MVP: odpowiedzi właściciela
 
 1. Przeniesienie = nowe kolonie i przewóz surowców **oraz** wysłanie gotowego megakonstruktu na inną kolonię

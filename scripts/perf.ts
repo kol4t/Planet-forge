@@ -32,7 +32,10 @@ function midGameSave(): string {
   game.research = { done: RESEARCH_NODES.filter((n) => n.ring <= 2 && !n.soon).map((n) => n.id), current: null };
   game.economy = { ...game.economy, stock: { metal: 9e6, crystal: 9e6 } };
   const free = game.system(game.homeSystem)!.planets.filter((p) => p.body === 'rocky' && game.occupantAt(p) === 'free');
-  for (const p of free.slice(0, 2)) game.colonize(p.address, now);
+  // v0.53: kolonie zakłada statek (koszt, paliwo, lot ok. 2 min) — wysłane wcześniej, doleciały do `now`.
+  game.economy = { ...game.economy, levels: { ...game.economy.levels, storage: 12 }, antimatter: 100 };
+  for (const p of free.slice(0, 2)) game.colonize(p.address, now - 130_000);
+  game.tick(now);
   game.switchPlanet(0, now);
   game.economy = {
     ...game.economy,

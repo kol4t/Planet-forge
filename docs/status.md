@@ -241,7 +241,7 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 | # | Wersja | Etap | Cel w jednym zdaniu | Zależy od |
 |---|---|---|---|---|
 | 1 | v0.52 | ✅ **Symulator pętli** (bez zmian w grze; wyniki — punkt 8) | zmierzyć, ile dni trwa rozwój i wyeksploatowanie 3 planet | — |
-| 2 | v0.53 | **Antymateria jako paliwo** | każdy lot kosztuje antymaterię zależnie od odległości | 1 (liczby) |
+| 2 | v0.53 | ✅ **Antymateria jako paliwo** (gałąź `claude/paliwo-antymateria`) | każdy lot kosztuje antymaterię zależnie od odległości | 1 (liczby) |
 | 3 | v0.54 | **Wyeksploatowanie i licznik pętli** | status „wyeksploatowana” przy 80%, spadek wydajności resztek, licznik 0/3 | 1 |
 | 4 | v0.55 | **Stacja macierzysta** | stacja główna z SI Matką na orbicie, magazyn orbitalny, energia słoneczna (zamiast zaślepki „Moduł orbitalny”) | — |
 | 5 | v0.56 | **Transfer megakonstruktu** | przygotowanie ~30 min, misja transportowa zależna od odległości, konstrukt staje na celu | 2 |
@@ -296,6 +296,19 @@ Pełne dane i osie czasu: `docs/balans-symulacja.md`. Wynik jest powtarzalny (dw
 5. **Okazjonalny gracz jest ok. 6× wolniejszy.**
    - Kolejka ma 1 miejsce, więc przez większość czasu planeta czeka na wizytę gracza.
    - Do rozważenia przy ekonomii (etap 6): dłuższa kolejka albo dłuższe, mniej liczne budowy.
+
+**Po etapie 2 (paliwo, kolonizacja statkiem także w układzie) — ponowna symulacja:**
+
+| Profil | Strategia | Pętla zamknięta (przed → po) | Loty wstrzymane — brak paliwa | Antymateria na koniec |
+|---|---|---|---|---|
+| Aktywny | pętla | 4,3 → **4,5 dnia** | **213** | 0 |
+| Aktywny | chciwy | 1,5 → **2,0 dnia** | 23 | 5 |
+| Okazjonalny | pętla | 26 → **26,4 dnia** | 0 | 480 |
+| Okazjonalny | chciwy | 9,5 → **10,5 dnia** | 0 | 204 |
+
+- **Aktywny gracz** naprawdę odczuwa paliwo: wiele lotów (głównie transporty nadwyżek) czeka na antymaterię.
+- **Okazjonalny gracz** zbiera antymaterii dość.
+- **Długość pętli prawie się nie zmienia**, bo wyznacza ją tempo wydobycia. To zadanie dla etapów 3 (spadek wydajności po 80%) i 6 (ekonomia).
 
 **Ograniczenia symulacji:**
 - Gracz w symulacji nie używa „Ukończ teraz”, kompleksów, specjalizacji, asteroid, komet ani ekspedycji.

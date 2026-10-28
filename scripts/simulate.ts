@@ -78,6 +78,9 @@ class Sim {
   private readonly seen = new Set<string>();
   exploitedAt: (number | null)[] = [];
   transports = 0;
+  /** Ile razy lot nie wystartował z braku paliwa (antymaterii). */
+  fuelBlocked = 0;
+  private planetsSeen = 1;
 
   readonly profile: Profile;
   readonly strategy: Strategy;
@@ -246,25 +249,39 @@ class Sim {
       if (result.ok) {
         this.transports++;
         this.once(`t:${i}`, now, `${game.planet.displayName}: pierwszy transport nadwyżki na ${overview[best]!.name}`);
-      } else this.once(`tf:${result.message}`, now, `Transport niemożliwy: ${result.message}`);
+      } else {
+        if (/paliwa/.test(result.message)) this.fuelBlocked++;
+        this.once(`tf:${result.message.slice(0, 20)}`, now, `Transport niemożliwy: ${result.message}`);
+      }
     });
   }
 
+  /**
+   * Kolonizacja wolnej planety własnego układu (od v0.53 statkiem: koszt, paliwo, lot ok. 2 min) — z planety
+   * z największym zapasem; nowa kolonia liczy się po przylocie (`track`).
+   */
   private colonize(now: number): void {
     const game = this.game;
-    if (!this.strategy.colonizeWhen(this)) return;
+    if (game.missionsView(now).length > 0 || !this.strategy.colonizeWhen(this)) return;
     const system = generateSystem(game.galaxy, game.homeSystem)!;
-    for (const p of system.planets) {
-      if (game.occupantAt(p) !== 'free' || p.body !== 'rocky') continue;
-      const result = game.colonize(p.address, now);
-      if (result.ok) {
-        this.log(now, `Nowa kolonia: ${game.planet.displayName} (${p.address}) — planeta nr ${game.planets().length}`);
-        return;
-      }
-    }
+    const target = system.planets.find((p) => game.occupantAt(p) === 'free' && p.body === 'rocky');
+    if (!target) return;
+    const richest = game
+      .overview(now)
+      .map((p, i) => ({ i, have: Math.min(p.stock.metal, p.stock.crystal) }))
+      .sort((x, y) => y.have - x.have)[0]!;
+    game.switchPlanet(richest.i, now);
+    const result = game.colonize(target.address, now);
+    if (result.ok) this.log(now, `Statek kolonizacyjny wyrusza do ${target.name} (${game.balance.fuel.colonyShip.inSystem} antymaterii paliwa)`);
+    else if (/paliwa/.test(result.message)) this.fuelBlocked++;
   }
 
   private track(now: number): void {
+    const count = this.game.planets().length;
+    if (count > this.planetsSeen) {
+      for (let k = this.planetsSeen; k < count; k++) this.log(now, `Nowa kolonia: ${this.game.planets()[k]!.name} — planeta nr ${k + 1}`);
+      this.planetsSeen = count;
+    }
     const shares = this.shares(now);
     shares.forEach((share, i) => {
       const name = this.game.planets()[i]?.name ?? `planeta ${i + 1}`;
@@ -342,16 +359,16 @@ lines.push('# Symulacja pętli MVP (etap 1)');
 lines.push('');
 lines.push(`Wygenerowano skryptem \`npm run simulate\` (limit ${MAX_DAYS} dni czasu gry). **To symulacja „rozsądnego gracza”, nie prawdziwa rozgrywka** — wskazówka do strojenia, nie wyrok. Gra nie została zmieniona. **Wnioski:** \`docs/status.md\`, punkt 8.`);
 lines.push('');
-lines.push('**Gracz w symulacji:** przy każdej wizycie na każdej planecie zaczyna najtańsze dostępne badanie (bez antymaterii), buduje według potrzeb (energia → magazyn → tańsza kopalnia → laboratorium do połowy poziomu kopalń) z kolejką, planety wyeksploatowane albo z pełnym magazynem wysyłają nadwyżkę transportowcami tam, gdzie jest miejsce, kolonizuje wolne planety własnego układu (bez statku). Nie używa „Ukończ teraz”, specjalizacji, kompleksów, asteroid ani komet. Warunek końca: 3 planety z ≥ 80% wydobytych złóż metalu **i** kryształów.');
+lines.push('**Gracz w symulacji:** przy każdej wizycie na każdej planecie zaczyna najtańsze dostępne badanie (bez antymaterii), buduje według potrzeb (energia → magazyn → tańsza kopalnia → laboratorium do połowy poziomu kopalń) z kolejką, planety wyeksploatowane albo z pełnym magazynem wysyłają nadwyżkę transportowcami tam, gdzie jest miejsce, kolonizuje wolne planety własnego układu statkiem (od v0.53: koszt, paliwo z antymaterii, lot ok. 2 min); każdy lot płaci paliwo. Nie używa „Ukończ teraz”, specjalizacji, kompleksów, asteroid ani komet. Warunek końca: 3 planety z ≥ 80% wydobytych złóż metalu **i** kryształów.');
 lines.push('');
-lines.push('| Profil gracza | Strategia kolonii | Wyeksploatowane planety | Czas | 1. planeta ≥ 80% | Planet założonych | Najdłuższy przestój planety | Transporty | Antymateria na koniec | Najczęstsza blokada budowy |');
-lines.push('|---|---|---|---|---|---|---|---|---|---|');
+lines.push('| Profil gracza | Strategia kolonii | Wyeksploatowane planety | Czas | 1. planeta ≥ 80% | Planet założonych | Najdłuższy przestój planety | Transporty | Loty wstrzymane — brak paliwa | Antymateria na koniec | Najczęstsza blokada budowy |');
+lines.push('|---|---|---|---|---|---|---|---|---|---|---|');
 for (const r of runs) {
   const s = r.sim;
   const first = s.exploitedAt.filter((x): x is number => typeof x === 'number').sort((a, b) => a - b)[0];
   const top = [...s.blocked.entries()].sort((a, b) => b[1] - a[1])[0];
   lines.push(
-    `| ${s.profile.name} | ${s.strategy.name} | ${s.exploitedCount()} / 3 | ${days(r.endedAt - START)} d | ${first ? days(first - START) + ' d' : '—'} | ${s.game.planets().length} | ${s.longestIdle.ms > 0 ? `${hours(s.longestIdle.ms)} (${s.longestIdle.planet})` : '—'} | ${s.transports} | ${Math.floor(s.game.economy.antimatter)} | ${top ? `${REASONS[top[0]] ?? top[0]} (${top[1]}×)` : '—'} |`,
+    `| ${s.profile.name} | ${s.strategy.name} | ${s.exploitedCount()} / 3 | ${days(r.endedAt - START)} d | ${first ? days(first - START) + ' d' : '—'} | ${s.game.planets().length} | ${s.longestIdle.ms > 0 ? `${hours(s.longestIdle.ms)} (${s.longestIdle.planet})` : '—'} | ${s.transports} | ${s.fuelBlocked} | ${Math.floor(s.game.economy.antimatter)} | ${top ? `${REASONS[top[0]] ?? top[0]} (${top[1]}×)` : '—'} |`,
   );
 }
 lines.push('');

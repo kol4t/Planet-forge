@@ -31,7 +31,7 @@ Kopiuj zapis / Wczytaj zapis).
   "antimatter": 37.2,             // wspólny portfel antymaterii (ułamki się kumulują)
   "research": { "done": [], "current": null },   // pole zgodności — badania są przy planetach (od v0.15)
   "home": "1:16:3",               // miejsce startowe w galaktyce
-  "missions": [ … ],              // statki kolonizacyjne w drodze (od v0.13)
+  "missions": [ … ],              // statki kolonizacyjne w drodze (od v0.13; od v0.53 opcjonalne "fuel" — paliwo do zwrotu)
   "journal": [ { "at": 0, "kind": "build", "text": "…" } ],  // dziennik, maks. 80 wpisów
   "ai": { "energy": "ask", … },   // samodzielność SI dla każdej reguły (od v0.14)
   "discoveries": { "16": 4, … },  // wiedza o galaktyce: układ → poziom 1–4 (od v0.34.2)
