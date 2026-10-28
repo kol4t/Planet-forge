@@ -211,9 +211,6 @@ export class EmpireScene extends OverlayScene {
     // Kolejność kart.
     y = this.buildSort(items, y);
 
-    // Stacja macierzysta — pierwsza karta (v0.55).
-    y = this.buildStation(items, y) + gap;
-
     // Karty planet.
     const cols = Math.max(1, Math.min(3, Math.floor((area.w + gap) / (this.s(300) + gap))));
     const cardW = (area.w - gap * (cols - 1)) / cols;
@@ -230,6 +227,8 @@ export class EmpireScene extends OverlayScene {
       items.push(...this.freeSlotCard(rect, free));
     }
     y += Math.ceil(count / cols) * (cardH + gap);
+    // Stacja macierzysta — ostatnia karta, pod planetami (v0.55).
+    y = this.buildStation(items, y) + gap;
     if (free === 0) {
       items.push(this.button(area.x, y + this.s(4), Math.min(this.s(240), area.w), 'Mapa układu', 'secondary', () => this.scene.start('map', { system: c.homeSystem })));
       y += this.s(4) + TOUCH + this.s(12);
@@ -497,8 +496,7 @@ export class EmpireScene extends OverlayScene {
     const v = c.stationView();
     const area = this.area;
     const pad = this.s(12);
-    const showButtons = v.unlocked;
-    const h = this.s(showButtons ? 152 : 96);
+    const h = this.s(152);
     const rect = { x: area.x, y: top, w: area.w, h };
     const radius = this.px(this.s(12));
     const bg = this.add.graphics();
@@ -533,29 +531,42 @@ export class EmpireScene extends OverlayScene {
       graphics,
     );
     this.stationLive = { status, stock, graphics, bar: { x: tx, y: rect.y + pad + this.s(76), w: tw, h: this.s(3) } };
-    if (!showButtons) return rect.y + rect.h;
     const by = rect.y + rect.h - pad - TOUCH;
     const gap = this.s(8);
     const done = (result: { ok: boolean; message: string }) => {
       this.showToast(result.message, result.ok ? 'info' : 'error');
       this.relayout();
     };
-    if (!v.built) {
-      items.push(this.button(tx, by, Math.min(this.s(240), tw), 'Zbuduj stację', 'primary', () => done(c.buildStation())));
-      return rect.y + rect.h;
-    }
+    // Trzy przyciski zawsze widoczne; niedostępne mówią po dotknięciu, czego brakuje.
     const bx = rect.x + pad;
     const third = (rect.w - 2 * pad - 2 * gap) / 3;
     const narrow = third < this.s(150);
     const ready = v.ready;
     const upgrading = v.storageSecondsLeft > 0;
+    const blocked = !v.unlocked
+      ? 'Najpierw zbadaj „Moduł orbitalny” (Badania → Stacja i handel).'
+      : !v.built
+        ? 'Najpierw zbuduj stację macierzystą.'
+        : !ready
+          ? 'Rdzeń stacji jest jeszcze w budowie.'
+          : null;
+    const first = !v.built
+      ? this.button(bx, by, third, narrow ? 'Zbuduj' : 'Zbuduj stację', v.unlocked ? 'primary' : 'disabled', () => done(c.buildStation()))
+      : this.button(
+          bx,
+          by,
+          third,
+          narrow ? (v.storageLevel === 0 && !upgrading ? 'Magazyn' : 'Rozbuduj') : v.storageLevel === 0 && !upgrading ? 'Magazyn orbitalny' : 'Rozbuduj magazyn',
+          ready && !upgrading && v.nextStorageCost ? 'secondary' : 'disabled',
+          () => done(c.upgradeStationStorage()),
+        );
     items.push(
-      this.button(bx, by, third, narrow ? (v.storageLevel === 0 && !upgrading ? 'Magazyn' : 'Rozbuduj') : v.storageLevel === 0 && !upgrading ? 'Magazyn orbitalny' : 'Rozbuduj magazyn', ready && !upgrading && v.nextStorageCost ? 'secondary' : 'disabled', () => done(c.upgradeStationStorage())),
-      this.button(bx + third + gap, by, third, 'Na stację', ready && v.capacity > 0 ? 'primary' : 'disabled', () =>
-        !ready ? done({ ok: false, message: 'Rdzeń stacji jest jeszcze w budowie.' }) : v.capacity <= 0 ? done({ ok: false, message: 'Najpierw zbuduj magazyn orbitalny.' }) : this.openStationTransport('to'),
+      first,
+      this.button(bx + third + gap, by, third, 'Na stację', !blocked && v.capacity > 0 ? 'primary' : 'disabled', () =>
+        blocked ? done({ ok: false, message: blocked }) : v.capacity <= 0 ? done({ ok: false, message: 'Najpierw zbuduj magazyn orbitalny.' }) : this.openStationTransport('to'),
       ),
-      this.button(bx + 2 * (third + gap), by, third, 'Ze stacji', ready && v.stock.metal + v.stock.crystal > 0 ? 'secondary' : 'disabled', () =>
-        v.stock.metal + v.stock.crystal > 0 ? this.openStationTransport('from') : done({ ok: false, message: 'Na stacji nie ma jeszcze surowców.' }),
+      this.button(bx + 2 * (third + gap), by, third, 'Ze stacji', !blocked && v.stock.metal + v.stock.crystal > 0 ? 'secondary' : 'disabled', () =>
+        blocked ? done({ ok: false, message: blocked }) : v.stock.metal + v.stock.crystal > 0 ? this.openStationTransport('from') : done({ ok: false, message: 'Na stacji nie ma jeszcze surowców.' }),
       ),
     );
     return rect.y + rect.h;

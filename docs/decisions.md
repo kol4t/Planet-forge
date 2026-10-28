@@ -16,8 +16,8 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
   pierścieniu (2–8 wg poziomu), złote panele na maszcie (na razie tylko wygląd — energia słoneczna stacji nie jest częścią
   etapu). Własna orbita (`HOME_STATION_ORBIT`), 3D `planet-renderer/stationMesh.ts` (≤ 8 rysowań), 2D pikselowo
   w `CanvasPlanetFallback`. Widoczna tylko przy planecie, nad którą krąży.
-- UI: karta „Stacja macierzysta” jako pierwsza na liście planet w Imperium (budowa, odliczanie, magazyn, „Na stację”,
-  „Ze stacji” z wyborem planety). Mniejsze stacje łączące się z macierzystą — etap 9.
+- UI: karta „Stacja macierzysta” jako ostatnia na liście planet w Imperium (pod planetami; przyciski zawsze widoczne, niedostępne mówią po dotknięciu, czego brakuje): budowa, odliczanie, magazyn, „Na stację”,
+  „Ze stacji” z wyborem planety. Mniejsze stacje łączące się z macierzystą — etap 9.
 
 ## 2026-10-28 — Etap 3: wyeksploatowanie i licznik pętli (v0.54)
 
