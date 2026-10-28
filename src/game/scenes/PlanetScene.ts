@@ -13,7 +13,7 @@ import { ringLimit } from '../../core/research/research.ts';
 import type { BuildingId, BuildingSettings, ResourceId, SpecializationId, YieldId } from '../../core/types.ts';
 import { BALANCE } from '../../data/balance.ts';
 import { findResearch } from '../../data/research.ts';
-import type { PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
+import { stationModules, type PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
 import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
@@ -1365,6 +1365,9 @@ export class PlanetScene extends Phaser.Scene {
     );
     // Kolektor energii gwiazdy na orbicie (v0.44) — tani zapis liczby; renderer przebudowuje tylko przy zmianie.
     this.deps.display.setOrbital(controller.collectorView(now).level);
+    // Stacja macierzysta (v0.55) — pierścień na orbicie planety, nad którą krąży.
+    const station = controller.stationHere(now);
+    this.deps.display.setHomeStation(station ? { modules: stationModules(station.storageLevel), building: !station.ready } : null);
     if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
       this.relayout();
       return;

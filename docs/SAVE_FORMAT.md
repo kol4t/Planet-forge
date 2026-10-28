@@ -36,10 +36,16 @@ Kopiuj zapis / Wczytaj zapis).
   "ai": { "energy": "ask", … },   // samodzielność SI dla każdej reguły (od v0.14)
   "discoveries": { "16": 4, … },  // wiedza o galaktyce: układ → poziom 1–4 (od v0.34.2)
   "expeditions": [ … ],           // ekspedycje w drodze (od v0.34.3, opcjonalne)
-  "shipments": [ … ],             // transportowce (od v0.36, opcjonalne)
+  "shipments": [ … ],             // transportowce (od v0.36, opcjonalne; od v0.55 "station": "to" | "from" — lot na stację / ze stacji)
   "comets": [ … ],                // holowniki po komety (od v0.37.1, opcjonalne)
   "finds": { "items": {}, "next": {} },  // znaleziska megakompleksów (od v0.43.1, opcjonalne)
   "exploited": ["1:16:4"],        // wyeksploatowane planety, każda raz (od v0.54, opcjonalne; błędne adresy pomijane)
+  "station": {                    // stacja macierzysta (od v0.55, opcjonalne; błędna = brak stacji)
+    "address": "1:16:3",          //   planeta, nad którą krąży
+    "core": { "level": 1, "readyAt": 0 },       //   rdzeń SI Matki (readyAt — koniec budowy, ms)
+    "storage": { "level": 2, "readyAt": 0 },    //   magazyn orbitalny (opcjonalny; błędny pomijany)
+    "stock": { "metal": 1200, "crystal": 0 }    //   zapasy na stacji (ujemne → 0)
+  },
   "slots": [ SlotSave, … ]
 }
 ```

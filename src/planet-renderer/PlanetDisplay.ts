@@ -3,6 +3,17 @@ import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import type { StructureHit } from './pick.ts';
 
+/** Wygląd stacji macierzystej na orbicie (v0.55). */
+export interface HomeStationLook {
+  /** Liczba modułów magazynu na pierścieniu (0 — sam rdzeń; `stationModules`). */
+  modules: number;
+  /** Rdzeń jeszcze w budowie. */
+  building: boolean;
+}
+
+/** Ile modułów rysować dla poziomu magazynu orbitalnego (poz. 1 → 2, maks. 8). */
+export const stationModules = (storageLevel: number) => (storageLevel <= 0 ? 0 : Math.min(8, 1 + Math.ceil(storageLevel * 0.7)));
+
 export type { StructureHit };
 
 /** JEDYNY interfejs między Phaser (UI) a rendererem planety. */
@@ -40,6 +51,8 @@ export interface PlanetDisplay {
   setGridVisible(visible: boolean): void;
   /** Kolektor energii gwiazdy na orbicie (v0.44): poziom 0 = brak. */
   setOrbital(level: number): void;
+  /** Stacja macierzysta na orbicie tej planety (v0.55): null — brak (albo krąży nad inną planetą). */
+  setHomeStation(look: HomeStationLook | null): void;
   /**
    * Obrys pól: zajętość wybranej budowli (`footprint`, turkus, jeden kontur) albo pola do wyboru miejsca
    * budowy (`choice`, złote obrysy każdego pola, v0.38.2); null — bez obrysu.

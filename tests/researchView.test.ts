@@ -20,7 +20,7 @@ test('badania — szlak do celu: niezbadane wymagania aż do jądra, bez zbadany
 test('badania — postęp ramienia liczy tylko badania do zrobienia', () => {
   assert.deepEqual(armProgress('productivity', []), { done: 0, total: 26 });
   assert.deepEqual(armProgress('productivity', ['prod-core', 'mining-1', 'planet-1']), { done: 2, total: 26 });
-  assert.equal(armProgress('station', []).total, 3, 'Stacja i handel: Górnictwo asteroid, Przechwyt komet, Rafinacja (reszta wkrótce)');
+  assert.equal(armProgress('station', []).total, 4, 'Stacja i handel: Górnictwo asteroid, Przechwyt komet, Rafinacja, Moduł orbitalny (reszta wkrótce)');
 });
 
 test('badania — efekt „przed → po” zgodny z gospodarką (wydobycie, magazyn, czas budowy)', () => {

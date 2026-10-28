@@ -2,6 +2,23 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Etap 4: stacja macierzysta (v0.55, decyzja właściciela)
+
+- Badanie „Moduł orbitalny” (`station-orbit`, ramię Stacja i handel) przestało być zaślepką: odblokowuje funkcję
+  `home-station`. Jedna stacja na imperium, budowana nad aktywną planetą (płaci ona; rdzeń SI Matki 8000 / 5000, 10 min).
+- Moduły w tym etapie: tylko **magazyn orbitalny** (rdzeń SI Matki jest zawsze; stocznia przyjdzie z flotą — etap 6).
+  Poziomy 1–10, pojemność osobno dla metalu i kryształów `50 000 × 1,8^(poz − 1)`, koszt `3000 / 2000 × 1,6^(poz − 1)`,
+  czas `300 s × poz.` — `BALANCE.homeStation`, wartości robocze.
+- Magazyn = **węzeł transportu**: transportowiec z aktywnej planety na stację i ze stacji na dowolną planetę gracza,
+  paliwo jak lot do / z planety, nad którą krąży stacja (`fuelCost('transport', …)`). Wolne miejsce na stacji liczy też
+  ładunki w drodze; przesyłki mają pole `station: 'to' | 'from'` (opcjonalne). Limit 3 transportowców wspólny.
+- Wygląd „Pierścień”: obracający się stalowy pierścień na szprychach, rdzeń z turkusowym światłem, moduły magazynu na
+  pierścieniu (2–8 wg poziomu), złote panele na maszcie (na razie tylko wygląd — energia słoneczna stacji nie jest częścią
+  etapu). Własna orbita (`HOME_STATION_ORBIT`), 3D `planet-renderer/stationMesh.ts` (≤ 8 rysowań), 2D pikselowo
+  w `CanvasPlanetFallback`. Widoczna tylko przy planecie, nad którą krąży.
+- UI: karta „Stacja macierzysta” jako ostatnia na liście planet w Imperium (pod planetami; przyciski zawsze widoczne, niedostępne mówią po dotknięciu, czego brakuje): budowa, odliczanie, magazyn, „Na stację”,
+  „Ze stacji” z wyborem planety. Mniejsze stacje łączące się z macierzystą — etap 9.
+
 ## 2026-10-28 — Etap 3: wyeksploatowanie i licznik pętli (v0.54)
 
 - Próg 80% złoża osobno dla metalu i kryształów: resztki wydobywane z wydajnością 50% (energia bez zmian); naliczenie

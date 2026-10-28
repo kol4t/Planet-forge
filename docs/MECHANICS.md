@@ -62,7 +62,7 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
 - **Wyeksploatowanie** (v0.54, decyzja właściciela): po wydobyciu **80%** złoża danego surowca kopalnia wydobywa
   resztki **wolniej (50%)**, przy tej samej energii. Planeta z oboma złożami ≥ 80% jest **wyeksploatowana**: plakietka na
   karcie Imperium, wpis w dzienniku, licznik pętli „wyeksploatowane X/3” w nagłówku Imperium (każda planeta raz).
-  3 wyeksploatowane planety + stacja macierzysta (etap 8 planu) zamkną pętlę MVP. Liczby robocze (`BALANCE.exploitation`).
+  3 wyeksploatowane planety + stacja macierzysta (od v0.55) zamkną pętlę MVP w etapie 8 planu. Liczby robocze (`BALANCE.exploitation`).
 
 ## Kompleksy, megakompleksy, znaleziska (przemysł)
 
@@ -92,6 +92,10 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
 - **Stacja na pasie asteroid** (układ z pasem i planetą gracza): urobek doliczany do przyrostu planety.
 - **Holownik po kometę**: raz na jakiś czas ładunek metalu i kryształów (także w układach bez pasa).
 - **Kolektor energii gwiazdy** na orbicie: energia dla wszystkich planet gracza w układzie, zależna od jasności gwiazdy.
+- **Stacja macierzysta** (v0.55, badanie „Moduł orbitalny”): jedna na imperium, na orbicie planety, nad którą ją
+  zbudowano — rdzeń SI Matki (10 min budowy) i **magazyn orbitalny** (poz. 1–10, pojemność 50 000 × 1,8^(poz − 1) osobno
+  dla metalu i kryształów). Węzeł transportu: Imperium → karta stacji → „Na stację” (z aktywnej planety) albo „Ze stacji”
+  (na wybraną planetę); każdy lot kosztuje paliwo jak zwykły transport. Liczby robocze (`BALANCE.homeStation`).
 
 ## Badania
 

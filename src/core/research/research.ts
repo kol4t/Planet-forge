@@ -306,6 +306,7 @@ export function describeEffectList(effects: readonly ResearchEffect[]): string {
       case 'unlock':
         return {
           'colony-ship': 'statek kolonizacyjny — kolonizacja innych układów',
+          'home-station': 'stacja macierzysta na orbicie — magazyn orbitalny i węzeł transportu',
           'ai-mother': 'SI Matka — propozycje działań',
           'ai-executors': 'SI działa sama (poziom „działa samo”)',
           'ai-offline': 'SI buduje przy zamkniętej grze (budowy o 50% dłuższe)',

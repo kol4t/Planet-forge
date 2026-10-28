@@ -10,7 +10,8 @@ import { parseExpeditions } from '../galaxy/expeditions.ts';
 import { parseShipments } from '../economy/transport.ts';
 import { parseComets } from '../economy/comets.ts';
 import { parseFinds, type FindsState } from '../economy/finds.ts';
-import type { AsteroidStation, CometHaul, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import { parseHomeStation } from '../economy/homeStation.ts';
+import type { AsteroidStation, CometHaul, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 import { parseComplexes, type Complex } from '../colony/complexes.ts';
@@ -83,6 +84,8 @@ export interface EmpireSave {
   finds?: FindsState;
   /** Planety wyeksploatowane (≥ 80% obu złóż) — adresy, każda liczona raz (od v0.54; brak = żadnych). */
   exploited?: string[];
+  /** Stacja macierzysta (od v0.55; brak = nie zbudowana). */
+  station?: HomeStation;
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -208,6 +211,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseComets(data.comets).length > 0 ? { comets: parseComets(data.comets) } : {}),
     ...(data.finds ? { finds: parseFinds(data.finds) } : {}),
     ...(parseExploited(data.exploited).length > 0 ? { exploited: parseExploited(data.exploited) } : {}),
+    ...(parseHomeStation(data.station) ? { station: parseHomeStation(data.station)! } : {}),
   };
 }
 

@@ -94,6 +94,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     holdSpin: (hold) => display.holdSpin(hold),
     setGridVisible: (visible) => display.setGridVisible(visible),
     setOrbital: (level) => display.setOrbital(level),
+    setHomeStation: (look) => display.setHomeStation(look),
     orientation: () => display.orientation(),
     setOrientation: (yaw, pitch) => display.setOrientation(yaw, pitch),
     setFocus(cx, cy, r) {

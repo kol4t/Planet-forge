@@ -7,7 +7,8 @@ import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import type { Pad } from './colonyMeshes.ts';
-import { cellLookup, collectorOrbit, hash01, layoutFromPlots, offsetOnSphere, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
+import { createStationMesh, type StationMesh } from './stationMesh.ts';
+import { cellLookup, collectorOrbit, hash01, stationOrbit, layoutFromPlots, offsetOnSphere, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
 import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, rimPoint, type DrillParams } from './drill.ts';
 import { drillLook } from '../data/drill.ts';
@@ -23,7 +24,7 @@ import { DragRotator } from './input/dragRotator.ts';
 import { ZoomSmoother } from './input/zoom.ts';
 import { AdaptiveResolution } from './adaptiveResolution.ts';
 import { pickCell, pickComplex, type StructureHit } from './pick.ts';
-import { facingAngles, focusLift, type BuildSite, type PlanetDisplay } from './PlanetDisplay.ts';
+import { facingAngles, focusLift, type BuildSite, type HomeStationLook, type PlanetDisplay } from './PlanetDisplay.ts';
 import { buildLowPolyLand, facetNormals, shapedRadius } from './lowPoly.ts';
 import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler } from './surface.ts';
 
@@ -113,6 +114,8 @@ export class PlanetView implements PlanetDisplay {
   private readonly still = prefersReducedMotion();
   private orbital: THREE.Group | null = null;
   private orbitalLevel = 0;
+  private homeStation: StationMesh | null = null;
+  private homeStationKey = '';
   /** Ląd i jego pierwotne pozycje i kolory — grunt kompleksów i odkrywki malowane od nowa przy zmianie kolonii (v0.45). */
   private land: { mesh: THREE.Mesh; positions: Float32Array; colors: Float32Array } | null = null;
   /** Subtelny obrys wszystkich kompleksów (linie nad terenem). */
@@ -233,6 +236,21 @@ export class PlanetView implements PlanetDisplay {
     group.children[group.children.length - 1]!.position.y = 0.024;
     this.orbital = group;
     this.scene.add(group);
+  }
+
+  /** Stacja macierzysta (v0.55): pierścień na własnej orbicie; przebudowa tylko przy zmianie wyglądu. */
+  setHomeStation(look: HomeStationLook | null): void {
+    const key = look ? `${look.modules}|${look.building}` : '';
+    if (key === this.homeStationKey) return;
+    this.homeStationKey = key;
+    if (this.homeStation) {
+      this.scene.remove(this.homeStation.group);
+      disposeObject(this.homeStation.group);
+      this.homeStation = null;
+    }
+    if (!look) return;
+    this.homeStation = createStationMesh(look);
+    this.scene.add(this.homeStation.group);
   }
 
   setGridVisible(visible: boolean): void {
@@ -920,6 +938,11 @@ export class PlanetView implements PlanetDisplay {
       // Lustra zwrócone ku gwieździe (światło z lewej-góry).
       this.orbital.lookAt(LIGHT_POSITION);
     }
+    if (this.homeStation) {
+      const [x, y, z] = stationOrbit(this.time, this.still);
+      this.homeStation.group.position.set(x, y, z);
+      this.homeStation.update(dt, this.still);
+    }
     if (this.highlight && !this.still) this.highlight.material.opacity = 0.75 + 0.25 * Math.sin(this.time * 2.2);
     this.renderer.render(this.scene, this.camera);
   }
@@ -937,6 +960,7 @@ export class PlanetView implements PlanetDisplay {
     if (this.highlight) disposeObject(this.highlight.object);
     if (this.outlines) disposeObject(this.outlines.object);
     if (this.orbital) disposeObject(this.orbital);
+    if (this.homeStation) disposeObject(this.homeStation.group);
     if (this.drill) disposeObject(this.drill);
     if (this.cables) disposeObject(this.cables.object);
     this.colony.dispose();

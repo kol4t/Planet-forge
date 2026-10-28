@@ -317,3 +317,13 @@ export function collectorOrbit(seconds: number, still = false): Vec3 {
   const R = COLLECTOR_ORBIT.radius;
   return [R * Math.cos(a), R * COLLECTOR_ORBIT.tilt * Math.sin(a), R * Math.sin(a)];
 }
+
+/** Orbita stacji macierzystej (v0.55): bliżej planety, nachylona odwrotnie niż kolektor, wolniejsza i z przesunięciem. */
+export const HOME_STATION_ORBIT = { radius: 1.3, tilt: -0.34, period: 80, phase: Math.PI };
+
+/** Położenie stacji macierzystej (jak `collectorOrbit`); `still` — stałe miejsce z przodu po lewej, nisko. */
+export function stationOrbit(seconds: number, still = false): Vec3 {
+  const o = HOME_STATION_ORBIT;
+  const a = still ? Math.PI - 0.7 : o.phase + (seconds / o.period) * Math.PI * 2;
+  return [o.radius * Math.cos(a), o.radius * o.tilt * Math.sin(a), o.radius * Math.sin(a)];
+}
