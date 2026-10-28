@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { MapOccupant } from '../../app/GameController.ts';
+import { fuelLabel } from '../../core/economy/fuel.ts';
 import { findStar, parseAddress, SPIRAL, spiralPoint, type GasGiantLook, type StarSystem, type SystemPlanet, type SystemSummary } from '../../core/galaxy/galaxy.ts';
 import { createRng } from '../../core/random/rng.ts';
 import { DISCOVERY, DISCOVERY_LABELS } from '../../core/galaxy/discovery.ts';
@@ -925,11 +926,11 @@ export class MapScene extends OverlayScene {
           action = ['W drodze', 'disabled', () => undefined];
         } else if (plan.ok) {
           line(
-            `Ekspedycja: ok. ${Math.max(1, Math.round(plan.seconds / 60))} min · ${formatInt(plan.cost.metal)} metalu, ${formatInt(plan.cost.crystal)} kryształów · szansa ${Math.round(plan.chance * 100)}%`,
+            `Ekspedycja: ok. ${Math.max(1, Math.round(plan.seconds / 60))} min · ${formatInt(plan.cost.metal)} metalu, ${formatInt(plan.cost.crystal)} kryształów · ${fuelLabel(controller.expeditionFuel(s.index))} · szansa ${Math.round(plan.chance * 100)}%`,
             11.5,
             COLORS.text,
           );
-          line('Wyprawa może wrócić bez wyników — koszt przepada.', 10.5, COLORS.faint);
+          line('Wyprawa może wrócić bez wyników — koszt i paliwo przepadają.', 10.5, COLORS.faint);
           action = ['Wyślij ekspedycję', 'primary', () => this.afterShip(controller.sendExpedition(s.index))];
         } else {
           line(plan.reason ?? '', 11, COLORS.faint);
@@ -1047,22 +1048,21 @@ export class MapScene extends OverlayScene {
         p.address === controller.address
           ? ['Tu jesteś', 'disabled', () => undefined]
           : ['Przejdź', 'primary', () => this.finish(controller.switchPlanet(slot))];
-    } else if (occupant === 'free' && this.systemIndex === controller.homeSystem) {
-      action = ['Skolonizuj', 'primary', () => this.finish(controller.colonize(p.address))];
     } else if (occupant === 'free') {
-      // Inny układ: statek kolonizacyjny (po badaniu „Napęd międzygwiezdny”).
+      // Statek kolonizacyjny (od v0.53 także we własnym układzie — krótki lot); inne układy po badaniu „Napęd międzygwiezdny”.
+      const own = this.systemIndex === controller.homeSystem;
       const mission = controller.missionTo(p.address);
       const cost = controller.colonyShipCost;
       if (mission) {
         this.countdown = { text: line('', 11.5, COLORS.gold, { fontStyle: '600' }), target: p.address };
         action = ['Zawróć statek', 'secondary', () => this.afterShip(controller.cancelMission(p.address))];
-      } else if (controller.colonyShipUnlocked) {
+      } else if (own || controller.colonyShipUnlocked) {
         line(
-          `Statek kolonizacyjny: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów (z ${controller.planet.displayName}) · lot ${formatDuration(controller.flightSeconds(this.systemIndex))}`,
+          `Statek kolonizacyjny: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów (z ${controller.planet.displayName}) · ${fuelLabel(controller.colonyFuelTo(p.address))} · lot ${formatDuration(controller.flightSeconds(this.systemIndex))}`,
           11,
           COLORS.text,
         );
-        action = ['Wyślij statek', 'primary', () => this.afterShip(controller.sendColonyShip(p.address))];
+        action = ['Wyślij statek', 'primary', () => this.afterShip(own ? controller.colonize(p.address) : controller.sendColonyShip(p.address))];
       } else {
         line('Do innych układów poleci statek kolonizacyjny — najpierw badanie „Napęd międzygwiezdny” (Eksploracja).', 11, COLORS.faint);
         action = ['Wymaga badania', 'disabled', () => this.showToast(controller.colonize(p.address).message, 'info', 3600)];

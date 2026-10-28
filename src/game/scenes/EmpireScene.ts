@@ -487,6 +487,7 @@ export class EmpireScene extends OverlayScene {
       stock: c.economy.stock,
       transport: c.transportView(),
       seconds: c.transportSecondsTo(address),
+      fuel: c.transportFuelTo(address),
       send: (cargo) => c.sendResources(address, cargo),
       onSent: (message) => {
         this.closeTransport = null;

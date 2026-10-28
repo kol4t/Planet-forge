@@ -2,6 +2,7 @@
 // Wysyła z aktywnej planety do wybranej. Wygląd: #text-panel w index.html.
 import type { ActionMessage, TransportView } from '../../app/GameController.ts';
 import type { Resources } from '../../core/types.ts';
+import { fuelLabel } from '../../core/economy/fuel.ts';
 import { formatDuration, formatInt } from './theme.ts';
 
 export interface TransportPanelOptions {
@@ -10,6 +11,8 @@ export interface TransportPanelOptions {
   stock: Resources;
   transport: TransportView;
   seconds: number;
+  /** Paliwo (antymateria) za lot. */
+  fuel: number;
   send: (cargo: Resources) => ActionMessage;
   onSent: (message: string) => void;
 }
@@ -50,7 +53,7 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
     crystal: root.querySelector<HTMLElement>('[data-for="crystal"]')!,
   };
   root.querySelector('.tr-route')!.textContent =
-    `${options.fromName} → ${options.toName} · lot ${formatDuration(options.seconds)} · ` +
+    `${options.fromName} → ${options.toName} · lot ${formatDuration(options.seconds)} · ${fuelLabel(options.fuel)} · ` +
     `w drodze ${transport.active} z ${transport.maxActive} transportowców`;
 
   const showError = (text: string) => {
