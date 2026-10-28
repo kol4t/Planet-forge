@@ -338,6 +338,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             const index = cell >= 0 ? colony.owner[cell]! : -1;
             if (index < 0) return null;
             const c = colony.complexes[index]!;
+            // Farma wiatrowa stoi na naturalnym terenie.
+            if (c.building === 'powerPlant' && c.stage === 0) return null;
             // Nowy kompleks wyrasta: grunt pojawia się punkt po punkcie.
             const grow = this.growth(c.building);
             if (grow < 1 && hash01(Math.floor(x * 400) * 7 + Math.floor(z * 400), 3) > grow) return null;
@@ -397,7 +399,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const span = Math.max(2, Math.floor((c.radius * r) / pixel));
       const stage = c.stage + (c.mega ? 1 : 0);
       // Zabudowa pól obszaru (pole = jedna konstrukcja z konturem): gęściej z etapem, odkrywka — tylko na krawędzi.
-      const every = stage >= 2 ? 1 : stage === 1 ? 2 : 0;
+      // Farma wiatrowa i generator fuzyjny — moduł na każdym polu.
+      const every = stage >= 2 || (c.building === 'powerPlant' && stage <= 1) ? 1 : stage === 1 ? 2 : 0;
       for (const [k, spot] of c.spots.entries()) {
         if (k === 0 || every === 0 || k % every !== 0) continue;
         if (c.building === 'crystalMine' && (spot.t < 0.7 || pit)) continue;
@@ -425,6 +428,40 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             part(0, -5, 1, 1, '#9ff3ff', ph);
             break;
           case 'powerPlant':
+            if (stage === 0) {
+              // Wiatrak: biały maszt, wirnik na zmianę „X” i „+” (obraca się), czerwone światło na gondoli.
+              const turn = now === 0 || Math.floor(now / 260 + ph) % 2 === 0;
+              part(0, -4, 1, 5, '#e8eeec');
+              if (turn) {
+                part(-1, -6, 1, 1, '#e8eeec');
+                part(1, -6, 1, 1, '#e8eeec');
+                part(-1, -4, 1, 1, '#e8eeec');
+                part(1, -4, 1, 1, '#e8eeec');
+              } else {
+                part(-2, -5, 2, 1, '#e8eeec');
+                part(1, -5, 2, 1, '#e8eeec');
+                part(0, -7, 1, 2, '#e8eeec');
+              }
+              part(0, -5, 1, 1, '#ff6b5a', ph);
+              break;
+            }
+            if (stage >= 3) {
+              // Zbiornik-pułapka antymaterii: jasna kula na nogach z fioletowym pasem.
+              part(-1, -4, 3, 1, '#d8dedc');
+              part(-1, -3, 3, 1, '#c9b8ff', ph);
+              part(-1, -2, 3, 1, '#d8dedc');
+              part(-1, -1, 1, 1, '#6f7b78');
+              part(1, -1, 1, 1, '#6f7b78');
+              break;
+            }
+            if (stage === 1) {
+              // Mały pierścień plazmy z jasnym skupiskiem krążącym po nim.
+              const ring: [number, number][] = [[-1, -3], [0, -3], [1, -3], [2, -2], [1, -1], [0, -1], [-1, -1], [-2, -2]];
+              const hot = now === 0 ? 0 : Math.floor(now / 140 + ph) % ring.length;
+              ring.forEach(([x, y], i) => part(x, y, 1, 1, i === hot ? '#ffe3f5' : '#ff6fcf', i === hot ? undefined : ph));
+              part(0, -2, 1, 1, '#6f7b78');
+              break;
+            }
             // Chłodnia z parą.
             part(-1, -2, 3, 3, '#8a9592');
             part(0, -3, 1, 1, '#8a9592');
@@ -500,6 +537,75 @@ export class CanvasPlanetFallback implements PlanetDisplay {
           break;
         }
         case 'powerPlant': {
+          if (stage === 0) {
+            // Farma wiatrowa: duży wiatrak z obracającym się wirnikiem i dyspozytornia u podstawy.
+            const h = Math.max(7, Math.round(span * 0.22));
+            const b = Math.max(3, Math.round(h * 0.45));
+            const turn = now === 0 || Math.floor(now / 300) % 2 === 0;
+            box(0, -h, 1, h + 1, '#e8eeec');
+            box(2, -1, 3, 2, '#c9a24a');
+            if (turn) {
+              for (let k = 1; k <= b; k++) box(-k, -h - k, 1, 1, '#e8eeec'), box(k, -h - k, 1, 1, '#e8eeec'), box(0, -h + k, 1, 1, '#e8eeec');
+            } else {
+              for (let k = 1; k <= b; k++) box(-k, -h + Math.floor(k / 2), 1, 1, '#e8eeec'), box(k, -h + Math.floor(k / 2), 1, 1, '#e8eeec'), box(0, -h - k, 1, 1, '#e8eeec');
+            }
+            box(0, -h, 1, 1, '#ff6b5a', 0);
+            break;
+          }
+          if (stage === 1) {
+            // Generator fuzyjny: pierścień plazmy (elipsa) w cewkach, solenoid w środku, skupisko plazmy krąży.
+            const rx = Math.max(4, Math.round(span * 0.12));
+            const ry = Math.max(2, Math.round(rx * 0.5));
+            const steps = rx * 6;
+            const hot = now === 0 ? 0 : Math.floor(now / 90) % steps;
+            for (let k = 0; k < steps; k++) {
+              const a = (k / steps) * Math.PI * 2;
+              const x = Math.round(Math.cos(a) * rx);
+              const y = Math.round(Math.sin(a) * ry) - ry - 1;
+              const coil = k % Math.max(2, Math.round(steps / 8)) === 0;
+              box(x, y, 1, 1, coil ? '#c9a24a' : Math.abs(k - hot) < 2 ? '#ffe3f5' : '#ff6fcf', coil || Math.abs(k - hot) < 2 ? undefined : k * 0.2);
+            }
+            box(0, -ry - 3, 1, 3, '#6f7b78');
+            box(-1, -ry - 4, 3, 1, '#c9a24a');
+            break;
+          }
+          if (stage >= 3) {
+            // Reaktor antymaterii: fioletowa kula na łukach, pierścienie pułapki (na zmianę poziomy i pionowy — obrót),
+            // cztery zbiorniki paliwa z rurami do podstawy.
+            const k = Math.max(2, Math.round(span * 0.02));
+            const turn = now === 0 || Math.floor(now / 400) % 2 === 0;
+            const cy = -6 * k;
+            box(-k, cy - k, 2 * k + 1, 2 * k + 1, '#c9b8ff', 0);
+            if (turn) box(-3 * k, cy, 6 * k + 1, 1, '#c9a24a');
+            else box(0, cy - 3 * k, 1, 6 * k + 1, '#c9a24a');
+            box(-2 * k, cy - 2 * k, 1, 1, '#c9a24a');
+            box(2 * k, cy + 2 * k, 1, 1, '#c9a24a');
+            box(-2 * k, -4 * k, 1, 4 * k, '#6f7b78');
+            box(2 * k, -4 * k, 1, 4 * k, '#6f7b78');
+            for (const dx of [-6 * k, 5 * k]) {
+              box(dx, -2 * k, 2 * k, 2 * k, '#d8dedc');
+              box(dx < 0 ? dx + 2 * k : -k, -1, Math.abs(dx) - k, 1, '#c9b8ff', 1);
+            }
+            box(-k, 0, 2 * k + 1, 1, '#c9a24a');
+            break;
+          }
+          if (stage === 2) {
+            // Elektrownia jądrowa: kopuła reaktora ze złotym pasem, dwie chłodnie z parą, niebieska poświata basenu.
+            const k = Math.max(2, Math.round(span * 0.022));
+            const tower = (x: number, h: number, phase: number) => {
+              box(x, -h, 3 * k, h + 1, '#a7aea9');
+              box(x + k, -h + k, k, h - 2 * k, '#c3c9c6');
+              box(x, -h - 2 * k, 3 * k, 2 * k, '#eef3f2', phase);
+              box(x + k, -h - 4 * k, 3 * k, 2 * k, '#eef3f2', phase + 1);
+            };
+            tower(-6 * k, 9 * k, 0);
+            tower(-2 * k, 7 * k, 2);
+            // Kopuła: coraz węższe rzędy.
+            [5, 5, 4, 3].forEach((w, row) => box(2 * k + ((5 - w) * k) / 2, -(row + 1) * k, w * k, k, '#d8dedc'));
+            box(2 * k, 0, 5 * k, 1, '#c9a24a');
+            box(8 * k, -k, 2 * k, k, '#4fb6ff', 0.5);
+            break;
+          }
           // Wieża przesyłowa z jasną kulą (wyżej z etapem).
           const h = 4 + stage * 2;
           box(0, -h, 1, h + 1, '#6f7b78');

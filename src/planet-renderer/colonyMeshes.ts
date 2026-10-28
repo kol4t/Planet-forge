@@ -499,24 +499,9 @@ function createCrystalRefinery(): BigShape {
 }
 
 // ——— Rodzina energetyczna (v0.47) — standard modelu: PLATFORMA → BRYŁA → DETAL → ŚWIATŁO ———
-// Etapy (poz. 1 / 6 / 12 / 20): elektrownia → węzeł energetyczny → wielka elektrownia → megasieć. Na pozostałych polach
-// pola paneli i stacje przesyłowe; po usprawnieniu „Sieć Tesli” — także węzły Tesli.
+// Etapy (poz. 1 / 6 / 12 / 20, od 2026-10-28): farma wiatrowa → generator fuzyjny → elektrownia jądrowa → reaktor antymaterii.
+// Na pozostałych polach moduły etapu i stacje przesyłowe; po usprawnieniu „Sieć Tesli” — także węzły Tesli.
 const CONCRETE = '#a7aea9';
-const PANEL = '#27405e';
-
-/** Chłodnia kominowa: talia u ~2/3 wysokości, otwarta u góry (wnętrze — ciemnoszary krążek). */
-function coolingTower(x: number, z: number, h: number, r: number): { body: THREE.BufferGeometry[]; pit: THREE.BufferGeometry[]; glow: THREE.BufferGeometry[] } {
-  return {
-    body: [
-      paint(at(new THREE.CylinderGeometry(r * 0.72, r, h * 0.65, 12, 1, true), x, h * 0.325, z), CONCRETE),
-      paint(at(new THREE.CylinderGeometry(r * 0.8, r * 0.72, h * 0.35, 12, 1, true), x, h * 0.825, z), CONCRETE),
-      paint(at(new THREE.CircleGeometry(r * 0.76, 12).rotateX(-Math.PI / 2), x, h * 0.86, z), DARK),
-    ],
-    pit: [],
-    // Ciepły blask z wnętrza na krawędzi.
-    glow: [at(new THREE.TorusGeometry(r * 0.8, 0.008, 3, 14).rotateX(Math.PI / 2), x, h, z)],
-  };
-}
 
 /** Hala turbin ze złotym dachem i świecącym pasem okien od strony +z. */
 function turbineHall(x: number, z: number, w: number, d: number, h: number, ry = 0): { body: THREE.BufferGeometry[]; glow: THREE.BufferGeometry[] } {
@@ -540,92 +525,248 @@ const parts = (...list: { body?: THREE.BufferGeometry[]; pit?: THREE.BufferGeome
   glow: list.flatMap((l) => l.glow ?? []),
 });
 
-/** Etap 1 — Elektrownia: chłodnia, hala turbin z wentylatorem, transformator. */
-function createPowerStation(): BigShape {
-  const p = parts(coolingTower(-0.14, -0.06, 0.66, 0.2), turbineHall(0.22, 0.14, 0.3, 0.2, 0.16));
-  return {
-    body: prepare([slab(0.46, 6), ...p.body, paint(at(new THREE.BoxGeometry(0.1, 0.1, 0.1), 0.26, 0.11, -0.2), GOLD)]),
-    pit: prepare(p.pit),
-    rotor: prepare([at(new THREE.BoxGeometry(0.12, 0.012, 0.025), 0.22, 0.27, 0.14), at(new THREE.BoxGeometry(0.025, 0.012, 0.12), 0.22, 0.27, 0.14)]),
-    glow: prepare(p.glow),
-  };
+// ——— Elektrownia: alternatywne źródła energii (decyzja właściciela 2026-10-28) ———
+// Poz. 1 farma wiatrowa → poz. 6 generator fuzyjny → poz. 12 elektrownia jądrowa → poz. 20 reaktor antymaterii.
+// Wiatraki: wirnik obraca się wokół poziomej osi w piaście (`hub` w `KIND_LOOK`), wszystkie zwrócone w tę samą stronę.
+const BLADE = '#e8eeec';
+/** Jasny beton fundamentów wiatraków (bez ciemnej płyty — farma stoi na naturalnym terenie). */
+const WIND_PAD = '#a3aba8';
+
+/** Wieża wiatraka: smukły maszt, gondola, piasta na wysokości `h` (wirnik osobno — `windRotor`). */
+function windTower(h: number, r: number): THREE.BufferGeometry[] {
+  return [
+    paint(at(new THREE.CylinderGeometry(r * 0.55, r, h, 8), 0, h / 2, 0), BLADE),
+    paint(at(new THREE.BoxGeometry(r * 1.6, r * 1.5, r * 4.2), 0, h, -r * 0.6), BLADE),
+    paint(at(new THREE.BoxGeometry(r * 1.7, r * 0.3, r * 4.3), 0, h + r * 0.7, -r * 0.6), GOLD),
+  ];
 }
 
-/** Etap 2 — Węzeł energetyczny: dwie chłodnie, długa hala generatorów, plac transformatorów ze słupem. */
-function createPowerNode(): BigShape {
-  const p = parts(coolingTower(-0.2, -0.16, 0.72, 0.19), coolingTower(0.12, -0.26, 0.6, 0.16), turbineHall(0.02, 0.2, 0.48, 0.2, 0.18), pylon(-0.34, 0.24, 0.5));
-  const transformers = [0, 1, 2].map((k) => paint(at(new THREE.BoxGeometry(0.08, 0.09, 0.08), 0.3 + (k % 2) * 0.1, 0.1, -0.02 + k * 0.08), GOLD));
-  return {
-    body: prepare([slab(0.5, 8), ...p.body, ...transformers]),
-    pit: prepare(p.pit),
-    rotor: prepare([at(new THREE.BoxGeometry(0.14, 0.012, 0.025), -0.1, 0.29, 0.2), at(new THREE.BoxGeometry(0.14, 0.012, 0.025), 0.14, 0.29, 0.2)]),
-    glow: prepare(p.glow),
-  };
+/** Wirnik: trzy łopaty i kołpak wokół piasty (0, h, z) w płaszczyźnie x–y — obraca się wokół osi z w piaście. */
+function windRotor(h: number, z: number, blade: number, r: number): THREE.BufferGeometry[] {
+  const blades = [0, 1, 2].map((k) => {
+    const g = new THREE.BoxGeometry(r * 1.1, blade, r * 0.25);
+    // Łopata zwęża się ku końcowi.
+    const pos = g.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0) pos.setX(i, pos.getX(i) * 0.35);
+    g.translate(0, blade / 2 + r * 0.5, 0);
+    g.rotateY(0.25);
+    g.rotateZ((k * Math.PI * 2) / 3);
+    return g.translate(0, h, z);
+  });
+  return [...blades, new THREE.ConeGeometry(r * 0.75, r * 1.6, 8).rotateX(Math.PI / 2).translate(0, h, z + r * 0.6)];
 }
 
-/** Etap 3 — Wielka elektrownia: kopuła reaktora ze świecącym pasem, trzy chłodnie, hala turbin. */
-function createPowerPlantLarge(): BigShape {
-  const p = parts(
-    coolingTower(-0.3, -0.18, 0.78, 0.17),
-    coolingTower(-0.02, -0.32, 0.7, 0.15),
-    coolingTower(0.28, -0.22, 0.74, 0.16),
-    turbineHall(0.2, 0.24, 0.34, 0.18, 0.16, 0.2),
-  );
+const WIND_HUB_CORE = [0, 0.95, 0.09] as const;
+const WIND_HUB_SPOT = [0, 0.72, 0.075] as const;
+
+/** Etap 1 — Farma wiatrowa: wielki wiatrak na fundamencie, dyspozytornia z transformatorem, maszt pomiarowy. */
+function createWindFarm(): BigShape {
   return {
     body: prepare([
-      slab(0.52, 8),
-      ...p.body,
-      paint(at(new THREE.CylinderGeometry(0.17, 0.18, 0.12, 12), -0.16, 0.12, 0.16), CONCRETE),
-      paint(at(new THREE.SphereGeometry(0.17, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), -0.16, 0.18, 0.16), CONCRETE),
+      paint(at(new THREE.CylinderGeometry(0.12, 0.15, 0.1, 8), 0, 0.01, 0), WIND_PAD),
+      paint(at(new THREE.BoxGeometry(0.46, 0.05, 0.26), 0.12, 0.0, 0.2), WIND_PAD),
+      ...windTower(WIND_HUB_CORE[1], 0.055),
+      paint(at(new THREE.BoxGeometry(0.2, 0.1, 0.14), 0.24, 0.09, 0.18), STEEL),
+      paint(at(new THREE.BoxGeometry(0.22, 0.025, 0.16), 0.24, 0.15, 0.18), GOLD),
+      paint(at(new THREE.BoxGeometry(0.1, 0.09, 0.1), -0.24, 0.08, 0.2), GOLD),
+      paint(at(new THREE.CylinderGeometry(0.01, 0.01, 0.42, 4), -0.26, 0.24, -0.22), STEEL),
     ]),
-    pit: prepare(p.pit),
-    // Pierścień wokół kopuły obraca się wolno.
-    rotor: prepare([at(new THREE.TorusGeometry(0.22, 0.01, 3, 18).rotateX(Math.PI / 2), -0.16, 0.2, 0.16)]),
-    glow: prepare([...p.glow, at(new THREE.CylinderGeometry(0.182, 0.182, 0.025, 12, 1, true), -0.16, 0.15, 0.16)]),
+    pit: prepare([]),
+    rotor: prepare(windRotor(WIND_HUB_CORE[1], WIND_HUB_CORE[2], 0.46, 0.055)),
+    // Światło ostrzegawcze na gondoli i lampka na maszcie pomiarowym.
+    glow: prepare([at(new THREE.BoxGeometry(0.03, 0.03, 0.03), 0, WIND_HUB_CORE[1] + 0.07, -0.08), at(new THREE.BoxGeometry(0.025, 0.025, 0.025), -0.26, 0.46, -0.22)]),
   };
 }
 
-/** Etap 4 — Megasieć: dwupoziomowa platforma, wieża przesyłowa Tesli z pierścieniami i kulą, cztery chłodnie. */
-function createPowerMega(): BigShape {
-  const towers = [0, 1, 2, 3].map((k) => {
-    const a = (k * Math.PI) / 2 + Math.PI / 4;
-    return coolingTower(Math.cos(a) * 0.36, Math.sin(a) * 0.36, 0.62, 0.13);
+/** Moduł farmy wiatrowej: wiatrak na małym fundamencie. */
+function createWindTurbine(): BigShape {
+  return {
+    body: prepare([paint(at(new THREE.CylinderGeometry(0.1, 0.13, 0.1, 8), 0, 0.01, 0), WIND_PAD), ...windTower(WIND_HUB_SPOT[1], 0.045)]),
+    pit: prepare([]),
+    rotor: prepare(windRotor(WIND_HUB_SPOT[1], WIND_HUB_SPOT[2], 0.36, 0.045)),
+    glow: prepare([at(new THREE.BoxGeometry(0.025, 0.025, 0.025), 0, WIND_HUB_SPOT[1] + 0.06, -0.06)]),
+  };
+}
+
+const PLASMA = '#ff6fcf';
+
+/**
+ * Pierścień plazmy (tokamak): świecący torus plazmy w pierścieniu cewek magnetycznych, solenoid w środku.
+ * Zwraca bryłę, plazmę (świeci) i jasne skupiska plazmy krążące po pierścieniu (część obracana).
+ */
+function plasmaRing(R: number, y: number, coils: number): { body: THREE.BufferGeometry[]; glow: THREE.BufferGeometry[]; rotor: THREE.BufferGeometry[] } {
+  const coilParts = Array.from({ length: coils }, (_, k) => {
+    const a = (k * Math.PI * 2) / coils;
+    return paint(at(new THREE.TorusGeometry(R * 0.32, R * 0.06, 4, 10).rotateY(Math.PI / 2), Math.cos(a) * R, y, -Math.sin(a) * R, a), k % 2 ? STEEL : GOLD);
   });
-  const legs = [0, 1, 2, 3].map((k) => {
-    const a = (k * Math.PI) / 2;
-    return paint(at(new THREE.BoxGeometry(0.04, 0.9, 0.04).rotateZ(-0.16), Math.cos(a) * 0.12, 0.56, Math.sin(a) * 0.12, -a), STEEL);
-  });
-  const p = parts(...towers);
+  return {
+    body: [
+      ...coilParts,
+      // Kriostat: niski pierścień pod plazmą i solenoid w środku.
+      paint(at(new THREE.CylinderGeometry(R * 1.25, R * 1.3, y * 0.5, 16, 1, true), 0, y * 0.25, 0), STEEL),
+      paint(at(new THREE.CylinderGeometry(R * 0.28, R * 0.32, y * 1.9, 10), 0, y * 0.95, 0), STEEL),
+      paint(at(new THREE.CylinderGeometry(R * 0.36, R * 0.36, R * 0.12, 10), 0, y * 1.9, 0), GOLD),
+    ],
+    glow: [at(new THREE.TorusGeometry(R, R * 0.11, 6, 32).rotateX(Math.PI / 2), 0, y, 0)],
+    rotor: [0, 1, 2].map((k) => {
+      const a = (k * Math.PI * 2) / 3;
+      return at(new THREE.SphereGeometry(R * 0.15, 6, 4).scale(1, 1, 2.6), Math.cos(a) * R, y, -Math.sin(a) * R, a);
+    }),
+  };
+}
+
+/** Etap 2 — Generator fuzyjny: tokamak z pierścieniem plazmy, bank kondensatorów, hala sterowni, słup przesyłowy. */
+function createFusionGenerator(): BigShape {
+  const ring = plasmaRing(0.32, 0.28, 16);
+  const p = parts(pylon(-0.42, 0.3, 0.55));
+  const capacitors = [0, 1, 2, 3].map((k) => paint(at(new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8), 0.36 + (k % 2) * 0.08, 0.08, -0.36 + Math.floor(k / 2) * 0.08), GOLD));
+  return {
+    body: prepare([slab(0.56, 16), ...ring.body, ...p.body, ...capacitors, paint(at(new THREE.BoxGeometry(0.2, 0.1, 0.12), 0.36, 0.07, 0.36), STEEL)]),
+    pit: prepare([]),
+    rotor: prepare(ring.rotor),
+    // Plazma i jej odblask na posadzce (płaski pierścień pod torusem).
+    glow: prepare([...ring.glow, at(new THREE.RingGeometry(0.4, 0.43, 32).rotateX(-Math.PI / 2), 0, 0.045, 0), ...p.glow, at(new THREE.BoxGeometry(0.1, 0.02, 0.01), 0.36, 0.09, 0.425)]),
+  };
+}
+
+/** Moduł generatora fuzyjnego: mały pierścień plazmy na okrągłej płycie. */
+function createFusionCell(): BigShape {
+  const ring = plasmaRing(0.24, 0.2, 8);
+  return {
+    body: prepare([paint(at(new THREE.CylinderGeometry(0.44, 0.48, 0.1, 12), 0, 0.01, 0), SLAB), ...ring.body]),
+    pit: prepare([]),
+    rotor: prepare(ring.rotor),
+    glow: prepare(ring.glow),
+  };
+}
+
+const STEAM = '#eef3f2';
+const CHERENKOV = '#4fb6ff';
+
+/** Chłodnia kominowa o kształcie klepsydry (hiperboloida) z kłębami pary nad wylotem. */
+function hyperTower(x: number, z: number, h: number, r: number): THREE.BufferGeometry[] {
+  const profile = [1, 0.86, 0.74, 0.71, 0.74, 0.8].map((k, i, all) => new THREE.Vector2(r * k, (h * i) / (all.length - 1)));
+  const steam = [
+    [0, h + r * 0.45, 0, r * 0.62],
+    [r * 0.35, h + r * 1.05, r * 0.15, r * 0.72],
+    [r * 0.85, h + r * 1.55, r * 0.3, r * 0.6],
+  ].map(([sx, sy, sz, sr]) => paint(at(new THREE.IcosahedronGeometry(sr!, 0), x + sx!, sy!, z + sz!), STEAM));
+  return [
+    paint(at(new THREE.LatheGeometry(profile, 14), x, 0, z), CONCRETE),
+    paint(at(new THREE.CircleGeometry(r * 0.78, 14).rotateX(-Math.PI / 2), x, h * 0.92, z), DARK),
+    ...steam,
+  ];
+}
+
+/** Etap 3 — Elektrownia jądrowa: kopuła reaktora, dwie wysokie chłodnie z parą, basen paliwa (niebieska poświata), hala turbin. */
+function createNuclearPlant(): BigShape {
+  const hall = turbineHall(0.26, 0.26, 0.3, 0.18, 0.16, 0.25);
+  const p = parts(pylon(0.42, -0.08, 0.5));
   return {
     body: prepare([
-      slab(0.56, 8),
-      paint(at(new THREE.CylinderGeometry(0.24, 0.28, 0.08, 8), 0, 0.12, 0), SLAB),
+      slab(0.56, 12),
+      ...hyperTower(-0.24, -0.24, 0.95, 0.17),
+      ...hyperTower(0.14, -0.32, 0.85, 0.15),
+      // Obudowa bezpieczeństwa: walec i kopuła, złoty pas.
+      paint(at(new THREE.CylinderGeometry(0.19, 0.2, 0.2, 16), -0.1, 0.14, 0.18), CONCRETE),
+      paint(at(new THREE.SphereGeometry(0.19, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), -0.1, 0.24, 0.18), '#d8dedc'),
+      paint(at(new THREE.CylinderGeometry(0.195, 0.195, 0.03, 16), -0.1, 0.2, 0.18), GOLD),
+      // Budynek basenu paliwa (otwarty dach — poświata).
+      paint(at(new THREE.BoxGeometry(0.18, 0.1, 0.14), 0.16, 0.09, -0.02), STEEL),
+      ...hall.body,
       ...p.body,
-      ...legs,
-      paint(at(new THREE.CylinderGeometry(0.035, 0.07, 1.1, 6), 0, 0.66, 0), STEEL),
-      paint(at(new THREE.CylinderGeometry(0.12, 0.12, 0.03, 8), 0, 0.6, 0), GOLD),
-      paint(at(new THREE.CylinderGeometry(0.09, 0.09, 0.03, 8), 0, 0.88, 0), GOLD),
     ]),
-    pit: prepare(p.pit),
-    rotor: prepare([
-      at(new THREE.TorusGeometry(0.24, 0.018, 4, 18).rotateX(Math.PI / 2), 0, 1.12, 0),
-      at(new THREE.TorusGeometry(0.16, 0.015, 4, 14).rotateX(Math.PI / 2), 0, 1.0, 0),
-    ]),
-    glow: prepare([...p.glow, at(new THREE.IcosahedronGeometry(0.11, 0), 0, 1.24, 0)]),
-  };
-}
-
-/** Moduł: pole paneli słonecznych — trzy rzędy pochylonych paneli w złotych ramach. */
-function createSolarField(): BigShape {
-  const rows = [-0.26, 0, 0.26].flatMap((z) => [
-    paint(at(new THREE.BoxGeometry(0.76, 0.02, 0.18).rotateX(-0.45), 0, 0.14, z), PANEL),
-    paint(at(new THREE.BoxGeometry(0.78, 0.015, 0.02), 0, 0.1, z + 0.08), GOLD),
-  ]);
-  return {
-    body: prepare([paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), SLAB), ...rows]),
     pit: prepare([]),
     rotor: prepare([]),
-    glow: prepare([at(new THREE.BoxGeometry(0.06, 0.04, 0.06), 0.4, 0.1, 0.4)]),
+    glow: prepare([
+      at(new THREE.BoxGeometry(0.15, 0.01, 0.11), 0.16, 0.145, -0.02),
+      at(new THREE.CylinderGeometry(0.197, 0.197, 0.012, 16, 1, true), -0.1, 0.17, 0.18),
+      ...hall.glow,
+      ...p.glow,
+    ]),
+  };
+}
+
+/** Moduł elektrowni jądrowej: chłodnia z parą na płycie, pompownia. */
+function createCoolingModule(): BigShape {
+  return {
+    body: prepare([
+      paint(at(new THREE.BoxGeometry(0.92, 0.1, 0.92), 0, 0.01, 0), SLAB),
+      ...hyperTower(-0.08, -0.06, 0.5, 0.17),
+      paint(at(new THREE.BoxGeometry(0.18, 0.1, 0.12), 0.3, 0.1, 0.3), STEEL),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([]),
+    glow: prepare([at(new THREE.BoxGeometry(0.12, 0.02, 0.01), 0.3, 0.12, 0.365)]),
+  };
+}
+
+const ANTIMATTER = '#c9b8ff';
+
+/**
+ * Etap 4 — Reaktor antymaterii: kula antymaterii zawieszona na trzech łukach w środku, wokół niej trzy obracające się
+ * pierścienie magnetyczne (pułapka); rurami z czterech zbiorników-pułapek płynie paliwo (fioletowe pasy), słupy przesyłowe.
+ */
+function createAntimatterReactor(): BigShape {
+  const arches = [0, 1, 2].map((k) => {
+    const a = (k * Math.PI * 2) / 3;
+    return paint(at(new THREE.BoxGeometry(0.045, 0.62, 0.045).rotateZ(0.42), Math.cos(a) * 0.17, 0.3, -Math.sin(a) * 0.17, a), STEEL);
+  });
+  const tanks = [0, 1, 2, 3].map((k) => {
+    const a = (k * Math.PI) / 2 + Math.PI / 4;
+    return { x: Math.cos(a) * 0.4, z: -Math.sin(a) * 0.4, a };
+  });
+  const p = parts(pylon(-0.5, 0, 0.62), pylon(0.5, 0, 0.62));
+  return {
+    body: prepare([
+      slab(0.6, 16),
+      paint(at(new THREE.CylinderGeometry(0.22, 0.26, 0.1, 12), 0, 0.09, 0), SLAB),
+      paint(at(new THREE.CylinderGeometry(0.06, 0.09, 0.22, 8), 0, 0.2, 0), STEEL),
+      ...arches,
+      ...tanks.flatMap(({ x, z, a }) => [
+        paint(at(new THREE.SphereGeometry(0.075, 10, 6), x, 0.14, z), '#d8dedc'),
+        paint(at(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 10), x, 0.07, z), GOLD),
+        // Rura paliwa od zbiornika do podstawy kuli.
+        paint(at(new THREE.BoxGeometry(0.3, 0.03, 0.03), x * 0.55, 0.1, z * 0.55, a), STEEL),
+      ]),
+      ...p.body,
+    ]),
+    pit: prepare([]),
+    // Trzy pierścienie pułapki w różnych nachyleniach — obracają się jak żyroskop.
+    rotor: prepare([
+      at(new THREE.TorusGeometry(0.2, 0.014, 4, 24).rotateX(Math.PI / 2), 0, 0.58, 0),
+      at(new THREE.TorusGeometry(0.17, 0.012, 4, 24).rotateX(Math.PI / 2 + 0.9), 0, 0.58, 0),
+      at(new THREE.TorusGeometry(0.17, 0.012, 4, 24).rotateX(Math.PI / 2 - 0.9).rotateY(Math.PI / 2), 0, 0.58, 0),
+    ]),
+    glow: prepare([
+      at(new THREE.IcosahedronGeometry(0.1, 1), 0, 0.58, 0),
+      // Paliwo płynące rurami i pasy na zbiornikach.
+      ...tanks.flatMap(({ x, z, a }) => [
+        at(new THREE.BoxGeometry(0.3, 0.012, 0.034), x * 0.55, 0.118, z * 0.55, a),
+        at(new THREE.CylinderGeometry(0.077, 0.077, 0.015, 10, 1, true), x, 0.14, z),
+      ]),
+      ...p.glow,
+    ]),
+  };
+}
+
+/** Moduł reaktora antymaterii: zbiornik-pułapka antymaterii na nogach, świecący pas, pompa. */
+function createAntimatterTank(): BigShape {
+  const legs = [0, 1, 2, 3].map((k) => {
+    const a = (k * Math.PI) / 2 + Math.PI / 4;
+    return paint(at(new THREE.BoxGeometry(0.03, 0.22, 0.03), Math.cos(a) * 0.15, 0.11, Math.sin(a) * 0.15), STEEL);
+  });
+  return {
+    body: prepare([
+      paint(at(new THREE.CylinderGeometry(0.44, 0.48, 0.1, 12), 0, 0.01, 0), SLAB),
+      ...legs,
+      paint(at(new THREE.SphereGeometry(0.2, 12, 8), 0, 0.36, 0), '#d8dedc'),
+      paint(at(new THREE.BoxGeometry(0.14, 0.1, 0.12), 0.3, 0.1, 0.22), STEEL),
+      paint(at(new THREE.BoxGeometry(0.34, 0.03, 0.03), 0.16, 0.08, -0.26, 0.5), STEEL),
+    ]),
+    pit: prepare([]),
+    rotor: prepare([at(new THREE.TorusGeometry(0.24, 0.012, 4, 20).rotateX(Math.PI / 2), 0, 0.36, 0)]),
+    glow: prepare([at(new THREE.CylinderGeometry(0.205, 0.205, 0.035, 12, 1, true), 0, 0.36, 0), at(new THREE.BoxGeometry(0.34, 0.012, 0.034), 0.16, 0.098, -0.26, 0.5)]),
   };
 }
 
@@ -1019,11 +1160,14 @@ type KindId =
   | 'metalBlock'
   | 'metalYard'
   | 'teslaNode'
-  | 'powerStation'
-  | 'powerNode'
-  | 'powerLarge'
-  | 'powerMega'
-  | 'solarField'
+  | 'windFarm'
+  | 'windTurbine'
+  | 'fusionGenerator'
+  | 'fusionCell'
+  | 'nuclearPlant'
+  | 'coolingModule'
+  | 'antimatterReactor'
+  | 'antimatterTank'
   | 'substation'
   | 'storageDepot'
   | 'storageHouse'
@@ -1044,7 +1188,11 @@ type KindId =
   | 'labBlock'
   | 'dishModule';
 
-const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: string; speed: number }> = {
+/**
+ * `hub` — wirnik obraca się wokół poziomej osi z przez ten punkt modelu (wiatraki), zamiast wokół pionu;
+ * `fixedSpin` — bez losowego obrotu budowli (wiatraki zwrócone w tę samą stronę).
+ */
+const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: string; speed: number; hub?: readonly [number, number, number]; fixedSpin?: boolean }> = {
   crystalDrillRig: { shape: createCrystalDrillRig, rotor: '#8fa3a6', glow: '#6fe9ff', speed: 1.6 },
   crystalShaft: { shape: createCrystalShaft, rotor: '#9c8650', glow: '#6fe9ff', speed: 0.5 },
   pitStation: { shape: createPitStation, rotor: '#9c8650', glow: '#7ff0ff', speed: 0.4 },
@@ -1059,11 +1207,14 @@ const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: st
   metalBlock: { shape: createMetalBlock, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
   metalYard: { shape: createMetalYard, rotor: '#e6c77a', glow: '#ff9a3c', speed: 0 },
   teslaNode: { shape: createTeslaNode, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.8 },
-  powerStation: { shape: createPowerStation, rotor: '#8fa3a6', glow: '#ffd27a', speed: 2.4 },
-  powerNode: { shape: createPowerNode, rotor: '#8fa3a6', glow: '#ffd27a', speed: 2.4 },
-  powerLarge: { shape: createPowerPlantLarge, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.3 },
-  powerMega: { shape: createPowerMega, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.5 },
-  solarField: { shape: createSolarField, rotor: '#8fa3a6', glow: '#bff6ff', speed: 0 },
+  windFarm: { shape: createWindFarm, rotor: BLADE, glow: '#ff6b5a', speed: 1.3, hub: WIND_HUB_CORE, fixedSpin: true },
+  windTurbine: { shape: createWindTurbine, rotor: BLADE, glow: '#ff6b5a', speed: 1.6, hub: WIND_HUB_SPOT, fixedSpin: true },
+  fusionGenerator: { shape: createFusionGenerator, rotor: '#ffe3f5', glow: PLASMA, speed: 2.2 },
+  fusionCell: { shape: createFusionCell, rotor: '#ffe3f5', glow: PLASMA, speed: 2.8 },
+  nuclearPlant: { shape: createNuclearPlant, rotor: '#e6c77a', glow: CHERENKOV, speed: 0 },
+  coolingModule: { shape: createCoolingModule, rotor: '#e6c77a', glow: CHERENKOV, speed: 0 },
+  antimatterReactor: { shape: createAntimatterReactor, rotor: '#e6c77a', glow: ANTIMATTER, speed: 0.9 },
+  antimatterTank: { shape: createAntimatterTank, rotor: '#e6c77a', glow: ANTIMATTER, speed: 0.6 },
   substation: { shape: createSubstation, rotor: '#8fa3a6', glow: '#bff6ff', speed: 0 },
   storageDepot: { shape: createStorageDepot, rotor: '#c9a24a', glow: '#ffd27a', speed: 0 },
   storageHouse: { shape: createStorageHouse, rotor: '#c9a24a', glow: '#ffd27a', speed: 0 },
@@ -1121,6 +1272,10 @@ function crossesHole(a: Vec3, b: Vec3, center: Vec3, reach: number): boolean {
   return false;
 }
 
+const hubMatrix = new THREE.Matrix4();
+const hubSpin = new THREE.Matrix4();
+const hubBack = new THREE.Matrix4();
+
 /** Odstęp głównej konstrukcji od otworu odwiertu (rad). */
 const HOLE_GAP = 0.012;
 /** Odstęp między płytami sąsiednich budowli (rad). */
@@ -1149,9 +1304,9 @@ const FAMILIES: Record<BuildingId, Family> = {
   },
   // Elektrownia → węzeł → wielka elektrownia → megasieć; pola paneli i stacje przesyłowe, po „Sieci Tesli” co czwarte — węzeł Tesli.
   powerPlant: {
-    cores: ['powerStation', 'powerNode', 'powerLarge', 'powerMega'],
+    cores: ['windFarm', 'fusionGenerator', 'nuclearPlant', 'antimatterReactor'],
     coreScale: [1.6, 2.1, 2.7, 3.4],
-    spot: (stage, k, c) => (c.upgraded && k % 4 === 0 ? 'teslaNode' : stage <= 0 ? 'solarField' : k % (stage === 1 ? 2 : 3) === 0 ? 'substation' : 'solarField'),
+    spot: (stage, k, c) => (c.upgraded && k % 4 === 0 ? 'teslaNode' : stage <= 0 ? 'windTurbine' : stage === 1 ? (k % 2 === 0 ? 'substation' : 'fusionCell') : k % 3 === 0 ? 'substation' : stage === 2 ? 'coolingModule' : 'antimatterTank'),
     beltsToCore: false,
     noBelts: true,
   },
@@ -1215,6 +1370,8 @@ interface Kind {
   items: Item[];
   glowColor: string;
   speed: number;
+  hub: readonly [number, number, number] | null;
+  fixedSpin: boolean;
 }
 
 export class ColonyMeshes {
@@ -1277,6 +1434,8 @@ export class ColonyMeshes {
         items: [],
         glowColor: look.glow,
         speed: look.speed,
+        hub: look.hub ?? null,
+        fixedSpin: !!look.fixedSpin,
       };
       for (const mesh of [kind.body, kind.pit, kind.rotor, kind.glow]) {
         mesh.count = 0;
@@ -1382,7 +1541,13 @@ export class ColonyMeshes {
       const kind = this.kinds.get(family.spot(stage, k, c))!;
       if (kind.items.length >= MAX_ITEMS) return;
       const surface = spot.surface - this.sink(spot.dir);
-      kind.items.push({ building: c.building, dir: spot.dir, surface, spin: spot.spin, size, pad: size * SPOT_EXTENT });
+      if (kind === this.kinds.get('windTurbine')) {
+        // Farma wiatrowa: na polu trzy wiatraki w trójkącie (wirniki się nie zahaczają), każdy na małym fundamencie.
+        for (let w = 0; w < 3 && kind.items.length < MAX_ITEMS; w++) {
+          const dir = offsetOnSphere(spot.dir, spot.spin + (w * Math.PI * 2) / 3, size * 0.34);
+          kind.items.push({ building: c.building, dir, surface, spin: 0, size: size * 0.6, pad: size * 0.12 });
+        }
+      } else kind.items.push({ building: c.building, dir: spot.dir, surface, spin: spot.spin, size, pad: size * SPOT_EXTENT });
       taken.push({ dir: spot.dir, reach: size * SPOT_EXTENT });
       if (stage >= 1 && placed.length > 0 && !family.noBelts) {
         // Taśmociąg do najbliższego już postawionego modułu (spoty są posortowane od środka — drzewo transportu).
@@ -1438,7 +1603,7 @@ export class ColonyMeshes {
         const pop = g < 1 ? g * (1 + Math.sin(g * Math.PI) * 0.15) : 1;
         n.set(item.dir[0], item.dir[1], item.dir[2]);
         q.setFromUnitVectors(up, n);
-        spin.setFromAxisAngle(up, item.spin);
+        spin.setFromAxisAngle(up, kind.fixedSpin ? 0 : item.spin);
         q.multiply(spin);
         p.copy(n).multiplyScalar(item.surface - item.size * 0.06);
         s.setScalar(Math.max(item.size * pop, 1e-5));
@@ -1446,9 +1611,17 @@ export class ColonyMeshes {
         kind.body.setMatrixAt(i, m);
         kind.pit.setMatrixAt(i, m);
         kind.glow.setMatrixAt(i, m);
-        spin.setFromAxisAngle(up, moving ? this.time * kind.speed : 0);
-        q.multiply(spin);
-        m.compose(p, q, s);
+        const angle = moving ? this.time * kind.speed : 0;
+        if (kind.hub) {
+          // Wirnik wiatraka: obrót wokół osi z przez piastę (macierz budowli × przesunięcie × obrót × przesunięcie wstecz).
+          const [hx, hy, hz] = kind.hub;
+          hubMatrix.makeTranslation(hx, hy, hz).multiply(hubSpin.makeRotationZ(angle)).multiply(hubBack.makeTranslation(-hx, -hy, -hz));
+          m.multiply(hubMatrix);
+        } else {
+          spin.setFromAxisAngle(up, angle);
+          q.multiply(spin);
+          m.compose(p, q, s);
+        }
         kind.rotor.setMatrixAt(i, m);
       });
       if (dirty) for (const mesh of [kind.body, kind.pit, kind.rotor, kind.glow]) mesh.instanceMatrix.needsUpdate = true;

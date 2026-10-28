@@ -43,7 +43,7 @@ export const LAST_STAGE_LEVELS = 6;
 export const STAGE_NAMES: Record<BuildingId, readonly [string, string, string, string]> = {
   metalMine: ['Kopalnia', 'Zakład przetwórczy', 'Huta', 'Megakompleks metalowy'],
   crystalMine: ['Wiertło', 'Szyb wiertniczy', 'Odkrywka', 'Megaodkrywka'],
-  powerPlant: ['Elektrownia', 'Węzeł energetyczny', 'Wielka elektrownia', 'Megasieć energetyczna'],
+  powerPlant: ['Farma wiatrowa', 'Generator fuzyjny', 'Elektrownia jądrowa', 'Reaktor antymaterii'],
   storage: ['Skład', 'Magazyn', 'Terminal magazynowy', 'Megaskład'],
   antimatterCollector: ['Pułapka', 'Kolektor', 'Pole pułapek', 'Megakolektor'],
   laboratory: ['Pracownia', 'Laboratorium', 'Instytut', 'Kampus badawczy'],

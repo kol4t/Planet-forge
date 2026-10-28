@@ -2,6 +2,28 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Elektrownia: alternatywne źródła energii (decyzja właściciela)
+
+- Etapy wyglądu Elektrowni: poz. 1 **farma wiatrowa** → poz. 6 **generator fuzyjny** → poz. 12 **elektrownia jądrowa**
+  (większy budynek) → poz. 20 **reaktor antymaterii** (sci-fi). Tylko wygląd i nazwy etapów (robocze) — produkcja energii,
+  koszty i pola bez zmian. Kolejność pracy: najpierw jeden etap, zrzuty dla właściciela, po akceptacji następne.
+- Farma wiatrowa (zrobiona jako pierwsza): wiatraki na naturalnym terenie (bez płyty gruntu kompleksu), duży wiatrak
+  z dyspozytornią w środku, po trzy mniejsze na każdym polu; wirniki obracają się wokół poziomej osi w piaście
+  (`hub` w `KIND_LOOK`, bez dodatkowych rysowań), wszystkie zwrócone w tę samą stronę. 2D: pikselowe wiatraki.
+- Generator fuzyjny (poz. 6–11, „pierścień plazmy” — wybór właściciela): tokamak w środku (świecący różowy torus plazmy
+  w pierścieniu cewek, solenoid, bank kondensatorów, słup przesyłowy), jasne skupiska plazmy krążą po pierścieniu (część
+  obracana), na polach małe pierścienie plazmy i stacje przesyłowe; 2D: pikselowy pierścień z krążącym skupiskiem.
+- Elektrownia jądrowa (poz. 12–19, wariant A — „kopuła z chłodniami”, wybór właściciela): kopuła reaktora ze złotym pasem,
+  dwie wysokie chłodnie-hiperboloidy z kłębami pary, basen paliwa z niebieską poświatą, hala turbin i słup; na polach
+  mniejsze chłodnie z parą i stacje przesyłowe; 2D: kopuła i dwie chłodnie, betonowy plac z rzadkimi basenami.
+- Reaktor antymaterii (poz. 20+): kula antymaterii na trzech łukach w trzech obracających się pierścieniach pułapki,
+  cztery zbiorniki-pułapki z fioletowymi rurami paliwa, słupy przesyłowe; na polach zbiorniki-pułapki i stacje przesyłowe;
+  2D: kula w pierścieniu, zbiorniki, fioletowe przewody. Stare modele (chłodnie z wieżą Tesli, panele słoneczne) usunięte.
+- **Pomysł właściciela na później (zasady gry, nie wdrożone):** megakonstrukty (poz. 20+) zużywają antymaterię — trzeba
+  nią gospodarować (dziś służy tylko do „Ukończ teraz”). Propozycja przedstawiona właścicielowi: reaktor (poz. 20+) zużywa
+  stałą ilość antymaterii na godzinę i daje dużo więcej energii niż jądrowa; bez antymaterii — tryb awaryjny (energia jak
+  jądrowa); w „Zarządzaniu” tryb oszczędny bez zużycia. Liczby i decyzja — przy strojeniu balansu (na końcu, przed MVP).
+
 ## 2026-10-28 — v0.49: wielka odkrywka z wiszącym ekstraktorem (prompt właściciela)
 
 - Właściciel: na etapach „Odkrywka” (poz. 12–19) i „Megaodkrywka” (poz. 20+) cały obszar zajętych pól ma być jedną tarasową
