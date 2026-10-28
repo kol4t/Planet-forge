@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.51.0 — Magazyn jako port, Kopalnia metalu jako ciężki przemysł — 2026-10-28
+
+- Magazyn i Kopalnia metalu wyraźnie się różnią (zrzut właściciela: wyglądały prawie tak samo).
+- **Magazyn = port kontenerowy:** ciemny niebiesko-szary asfalt z białymi liniami (nie zlewa się z lodem), kolorowe kontenery w rzędach, turkusowe suwnice bramowe i żuraw, białe silosy, magazyn wysokiego składowania na etapie 4; bez złota, ognia i taśmociągów.
+- **Kopalnia metalu = ciężki przemysł:** ciemne żelazo, rdzawe dachy, okopcone płyty, rdzawe hałdy rudy, dym nad kominami, żar pieców, rdzawo-brązowy grunt i taśmociągi; bez złotych dachów.
+- 3D i 2D. Pojemność, wydobycie, koszty, pola i zapisy bez zmian.
+
 ## v0.50.0 — Elektrownia: wiatr, fuzja, atom, antymateria — 2026-10-28
 
 - Elektrownia ma cztery sposoby pozyskiwania energii (wygląd i nazwy etapów, decyzja właściciela): poz. 1 **Farma wiatrowa** (wiatraki na naturalnym terenie, wirniki obracają się), poz. 6 **Generator fuzyjny** (świecący pierścień plazmy w cewkach, krążące skupiska plazmy), poz. 12 **Elektrownia jądrowa** (kopuła reaktora, chłodnie z parą, niebieska poświata basenu), poz. 20 **Reaktor antymaterii** (kula antymaterii w obracających się pierścieniach pułapki, zbiorniki z fioletowymi rurami).

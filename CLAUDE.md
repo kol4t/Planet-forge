@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.50.0 — opublikowana: grafika 3D, nowa Elektrownia — wiatr, fuzja, atom, antymateria)
+## Stan obecny (v0.51.0 — opublikowana: grafika 3D, nowa Elektrownia, Magazyn-port i Kopalnia-ciężki przemysł)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -39,6 +39,9 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   poz. 1 farma wiatrowa → 6 generator fuzyjny (pierścień plazmy) → 12 elektrownia jądrowa (kopuła z chłodniami) →
   20 reaktor antymaterii (`colonyMeshes.ts`, 2D w `CanvasPlanetFallback.ts`/`complexLook.ts`); tylko wygląd — zużycie
   antymaterii przez megakonstrukty to propozycja na później (`docs/decisions.md`).
+- **v0.51 — Magazyn i Kopalnia metalu wyraźnie różne** (opublikowana v0.51.0, decyzja właściciela): Magazyn = port
+  kontenerowy (ciemny asfalt, kolorowe kontenery, turkusowe suwnice, białe silosy, bez taśm), Kopalnia metalu = ciężki
+  przemysł (żelazo, rdza, hałdy rudy, dym z kominów, żar pieców, bez złotych dachów); 3D i 2D.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
