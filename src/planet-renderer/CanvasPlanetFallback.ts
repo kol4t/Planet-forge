@@ -414,11 +414,12 @@ export class CanvasPlanetFallback implements PlanetDisplay {
         const part = (dx: number, dy: number, w: number, h: number, color: string, glow?: number) => parts.push([dx, dy, w, h, color, glow]);
         switch (c.building) {
           case 'metalMine':
-            // Hala z kominem i żarem.
-            part(-1, -5, 1, 3, '#3c4543');
+            // Hala z kominem, dymem i żarem (rdzawy dach — ciężki przemysł).
+            part(-1, -5, 1, 3, '#38332f');
             part(-1, -6, 1, 1, '#ff9a3c', ph);
-            part(-2, -2, 5, 3, '#6f7b78');
-            part(-2, -2, 5, 1, k % 3 === 0 ? '#8a9592' : '#c9a24a');
+            part(0, -8, 2, 2, '#5a5551');
+            part(-2, -2, 5, 3, '#4b4f50');
+            part(-2, -2, 5, 1, k % 3 === 0 ? '#5e3a28' : '#8f4a2b');
             part(0, 0, 1, 1, '#ffb15a', ph + 1);
             break;
           case 'crystalMine':
@@ -468,7 +469,13 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             part(0, -4, 1, 1, '#e8f1ef', ph);
             break;
           case 'storage':
-            part(-1, -1, 3, 2, '#c9a24a');
+            // Stos kontenerów pod turkusową suwnicą.
+            part(-2, -3, 1, 4, '#2f9c92');
+            part(2, -3, 1, 4, '#2f9c92');
+            part(-2, -3, 5, 1, '#2f9c92');
+            part(-1, -1, 1, 2, '#3d6fb6');
+            part(0, -1, 1, 2, '#c0453a');
+            part(1, 0, 1, 1, '#e4e9e6');
             break;
           case 'antimatterCollector':
             part(0, -2, 1, 2, '#6f7b78');
@@ -495,17 +502,20 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const box = (dx: number, dy: number, w: number, h: number, color: string, glowPhase?: number) => rects.push([dx, dy, w, h, color, glowPhase]);
       switch (c.building) {
         case 'metalMine': {
-          // Huta: blok hal (stal, złote dachy pasami), kominy na całej szerokości, rząd okien pieców; rośnie z obszarem.
+          // Huta (ciężki przemysł): blok hal z żelaza z rdzawymi dachami pasami, kominy z dymem na całej szerokości,
+          // rząd okien pieców, hałda rudy obok; rośnie z obszarem.
           const w = Math.min(Math.max(4, span), Math.max(4 + stage * 3, Math.round(span * 0.35)));
           const h = Math.max(3 + stage, Math.round(w * 0.4));
           const left = -Math.floor(w / 2);
-          box(left, -h + 1, w, h, '#6f7b78');
-          for (let r = 0; r < h - 2; r += 3) box(left, -h + 1 + r, w, 1, '#c9a24a');
-          if (stage >= 2) box(left - 2, -1, 3, 2, '#8a9592');
+          box(left, -h + 1, w, h, '#4b4f50');
+          for (let r = 0; r < h - 2; r += 3) box(left, -h + 1 + r, w, 1, '#8f4a2b');
+          box(left - 3, -1, 3, 2, '#8a5234');
+          box(left - 2, -2, 1, 1, '#8a5234');
           for (let k = 0, dx = left + 1; dx < left + w - 1; k++, dx += 3) {
             const ch = 3 + stage + (k % 3);
-            box(dx, -h + 1 - ch, 1, ch, '#3c4543');
+            box(dx, -h + 1 - ch, 1, ch, '#38332f');
             box(dx, -h - ch, 1, 1, '#ff9a3c', k * 1.3);
+            box(dx, -h - ch - 3, 2, 2, '#5a5551');
           }
           for (let k = left + 1; k < left + w - 1; k += 2) box(k, -1, 1, 1, '#ffb15a', k * 0.7);
           break;
@@ -615,11 +625,22 @@ export class CanvasPlanetFallback implements PlanetDisplay {
           break;
         }
         case 'storage': {
-          // Suwnica nad składem.
-          const w = Math.min(Math.max(4, span), 4 + stage * 2);
-          box(-Math.floor(w / 2), -4, w, 1, '#c9a24a');
-          box(-Math.floor(w / 2), -4, 1, 5, '#6f7b78');
-          box(Math.ceil(w / 2) - 1, -4, 1, 5, '#6f7b78');
+          // Port: turkusowa suwnica bramowa nad rzędem kolorowych kontenerów, biały silos z turkusowym pasem.
+          const w = Math.min(Math.max(5, span), 6 + stage * 3);
+          const left = -Math.floor(w / 2);
+          const colors = ['#3d6fb6', '#c0453a', '#2f9c92', '#e4e9e6', '#d08a2e'];
+          for (let k = 1; k < w - 1; k++) {
+            const h = 1 + ((k * 7 + stage) % (2 + Math.min(2, stage)));
+            box(left + k, -h + 1, 1, h, colors[(k * 3 + stage) % colors.length]!);
+          }
+          box(left, -5 - stage, 1, 6 + stage, '#2f9c92');
+          box(left + w - 1, -5 - stage, 1, 6 + stage, '#2f9c92');
+          box(left, -5 - stage, w, 1, '#2f9c92');
+          box(left + 2, -4 - stage, 2, 1, '#e4e9e6');
+          if (stage >= 1) {
+            box(left + w + 1, -3 - stage, 3, 4 + stage, '#e4e9e6');
+            box(left + w + 1, -1 - stage, 3, 1, '#2f9c92');
+          }
           break;
         }
         case 'antimatterCollector': {

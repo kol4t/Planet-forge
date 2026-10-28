@@ -2,6 +2,22 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Magazyn i Kopalnia metalu: wyraźna różnica wyglądu (decyzja właściciela)
+
+- Właściciel (zrzut z iPada): magazyn i kopalnia metalu wyglądają bardzo podobnie (te same złote dachy, stal, ciemne płyty).
+  Wybrane kierunki: **Kopalnia metalu = ciężki przemysł** (ciemne, rdzawe kolory, wieże wyciągowe, hałdy rudy, piece
+  z żarem, kominy z dymem, taśmociągi, bez złotych dachów); **Magazyn = port kontenerowy** (jasny beton z liniami,
+  kolorowe kontenery, turkusowe suwnice, białe silosy, bez złota i ognia). Najpierw magazyn, zrzuty, po akceptacji kopalnia.
+- Poprawka po uwadze właściciela: jasny beton zlewał się z lodem — podłoże portu to ciemny niebiesko-szary asfalt
+  z białymi liniami (3D i 2D).
+- Magazyn (zrobiony): 4 etapy — skład (hala, rzędy kontenerów, silos) → magazyn (suwnica bramowa nad kontenerami) →
+  terminal (dwie suwnice, silosy, obrotowy żuraw) → megaskład (magazyn wysokiego składowania); moduły — plac kontenerów
+  pod suwnicą, białe silosy; bez taśmociągów (to znak kopalni). Grunt 3D jasny beton; 2D — rzędy kontenerów, suwnica.
+- Kopalnia metalu (zrobiona): te same sylwetki etapów (szyb z wieżą wyciągową → zakład → huta z piecami → megakompleks),
+  nowa paleta ciężkiego przemysłu — ciemne żelazo, rdzawe dachy i kołnierze, okopcone płyty, rdzawe hałdy rudy, dym nad
+  kominami (kłęby w bryle, bez animacji), żar pieców; rdzawo-brązowy grunt 3D, rdzawe taśmociągi. 2D — rdzawe hale,
+  kominy z dymem, hałdy rudy.
+
 ## 2026-10-28 — Elektrownia: alternatywne źródła energii (decyzja właściciela)
 
 - Etapy wyglądu Elektrowni: poz. 1 **farma wiatrowa** → poz. 6 **generator fuzyjny** → poz. 12 **elektrownia jądrowa**
