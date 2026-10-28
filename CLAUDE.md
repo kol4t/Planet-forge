@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.54.0 — opublikowana: pętla MVP — paliwo z antymaterii, wyeksploatowanie planet i licznik 3 planet)
+## Stan obecny (v0.55.0 — opublikowana: pętla MVP — paliwo z antymaterii, wyeksploatowanie planet, stacja macierzysta)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -47,6 +47,10 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   `core/economy/fuel.ts`), kolonizacja także we własnym układzie statkiem (koszt, paliwo, lot 2 min).
 - **v0.54 — etap 3 pętli**: ≥ 80% złoża = resztki wydobywane wolniej (50%), oba złoża ≥ 80% = planeta wyeksploatowana
   (plakietka, dziennik, licznik „wyeksploatowane X/3” w Imperium, `BALANCE.exploitation`, zapis `exploited`).
+- **v0.55 — etap 4 pętli, stacja macierzysta** (decyzja właściciela): badanie „Moduł orbitalny” odblokowuje jedną stację
+  na imperium (rdzeń SI Matki + magazyn orbitalny poz. 1–10 = węzeł transportu: „Na stację” / „Ze stacji” za paliwo),
+  wygląd „Pierścień” na własnej orbicie (3D `stationMesh.ts`, 2D pikselowo), karta na końcu listy w Imperium,
+  `core/economy/homeStation.ts`, `BALANCE.homeStation`, zapis `station`.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
@@ -76,7 +80,7 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   migracje starych zapisów; uszkodzony zapis → kopia `planet-forge.empire.broken` + komunikat; nieudany zapis → komunikat (v0.46).
 - **PWA**: manifest, ikony, service worker (offline, pasek „Dostępna aktualizacja”). **Zgłoszenia**: Ustawienia → „Zgłoś /
   diagnostyka” (GitHub Issue, diagnostyka z płynnością i — w 3D — liczbą rysowań i tekstur).
-- **Testy**: 335 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
+- **Testy**: 340 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
 - **Wydajność** (symulacja, nie iPad): siatka pól ~190 ms na komputerze (najdroższa część zmiany planety), 3D ~43 rysowania /
   105 tys. trójkątów, brak wycieków przy zmianie planety — `docs/PERFORMANCE.md`. Ostatni pomiar na iPadzie: v0.46 (2D 54 / najsłabsza s. 24 kl./s, 3D 56 / 15 kl./s).
 

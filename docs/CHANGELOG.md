@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.55.0 — stacja macierzysta — 2026-10-28
+
+- Badanie „Moduł orbitalny” (Stacja i handel) odblokowuje **stację macierzystą**: jedna na imperium, budowana nad aktywną planetą (8000 metalu, 5000 kryształów, 10 min), z rdzeniem SI Matki.
+- **Magazyn orbitalny** (poz. 1–10, od 50 000 metalu i 50 000 kryształów) jako węzeł transportu: „Na stację” z aktywnej planety i „Ze stacji” na wybraną planetę, każdy lot za paliwo z antymaterii; miejsce liczy też ładunki w drodze.
+- Wygląd „Pierścień”: obracający się pierścień, turkusowy rdzeń, moduły magazynu (więcej z poziomem), złote panele; w budowie niedomknięty — 3D i 2D.
+- Karta stacji na końcu listy w Imperium. Liczby robocze (`BALANCE.homeStation`). Zapisy zgodne (nowe pola opcjonalne).
+
 ## v0.54.0 — wyeksploatowanie planet i licznik pętli — 2026-10-28
 
 - Po wydobyciu 80% złoża metalu albo kryształów kopalnia wydobywa resztki o połowę wolniej (energia bez zmian); karta złóż pokazuje „resztki — wydobycie wolniejsze”, czas do wyczerpania uwzględnia zwolnienie.
