@@ -158,7 +158,7 @@ test('blokada (v0.45): gdy obok kompleksu brakuje pól na kolejny etap — uleps
     const result = game.upgrade('powerPlant', 0);
     assert.equal(result.ok, false);
     assert.equal(result.reason, 'no-fields');
-    assert.match(result.message, /Elektrownia poz\. 20 \(Megasieć energetyczna\) potrzebuje 40 pól/);
+    assert.match(result.message, /Elektrownia poz\. 20 \(Reaktor antymaterii\) potrzebuje 40 pól/);
     assert.ok(game.fields.used <= game.fields.buildable);
   });
 });

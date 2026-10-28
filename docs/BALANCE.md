@@ -74,20 +74,20 @@ Koszt poz. 1: 75 metalu, 30 kryształów; wzrost kosztu ×1.5 na poziom.
 
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (energia) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
-| 1 | 75 | 30 | 30 s | 24,2 | 0 | 1 | Elektrownia |
-| 2 | 112 | 45 | 1 min | 53,2 | 0 | 2 | Elektrownia |
-| 3 | 168 | 67 | 1 min 30 s | 87,8 | 0 | 2 | Elektrownia |
-| 5 | 379 | 151 | 2 min 30 s | 177,2 | 0 | 3 | Elektrownia |
-| 6 | 569 | 227 | 3 min | 233,8 | 0 | 6 | Węzeł energetyczny |
-| 8 | 1281 | 512 | 4 min | 377,3 | 0 | 8 | Węzeł energetyczny |
-| 10 | 2883 | 1153 | 5 min | 570,6 | 0 | 10 | Węzeł energetyczny |
-| 12 | 6487 | 2594 | 6 min | 828,5 | 0 | 16 | Wielka elektrownia |
-| 15 | 21 894 | 8757 | 7 min 30 s | 1378,5 | 0 | 19 | Wielka elektrownia |
-| 19 | 110 841 | 44 336 | 9 min 30 s | 2556,4 | 0 | 22 | Wielka elektrownia |
-| 20 | 166 262 | 66 505 | 10 min | 2960,1 | 0 | 40 | Megasieć energetyczna |
-| 25 | 1 262 558 | 505 023 | 12 min 30 s | 5959,1 | 0 | 50 | Megasieć energetyczna |
-| 30 | 9 587 552 | 3 835 021 | 15 min | 11 517 | 0 | 50 | Megasieć energetyczna |
-| 40 | 552 866 616 | 221 146 646 | 20 min | 39 828 | 0 | 50 | Megasieć energetyczna |
+| 1 | 75 | 30 | 30 s | 24,2 | 0 | 1 | Farma wiatrowa |
+| 2 | 112 | 45 | 1 min | 53,2 | 0 | 2 | Farma wiatrowa |
+| 3 | 168 | 67 | 1 min 30 s | 87,8 | 0 | 2 | Farma wiatrowa |
+| 5 | 379 | 151 | 2 min 30 s | 177,2 | 0 | 3 | Farma wiatrowa |
+| 6 | 569 | 227 | 3 min | 233,8 | 0 | 6 | Generator fuzyjny |
+| 8 | 1281 | 512 | 4 min | 377,3 | 0 | 8 | Generator fuzyjny |
+| 10 | 2883 | 1153 | 5 min | 570,6 | 0 | 10 | Generator fuzyjny |
+| 12 | 6487 | 2594 | 6 min | 828,5 | 0 | 16 | Elektrownia jądrowa |
+| 15 | 21 894 | 8757 | 7 min 30 s | 1378,5 | 0 | 19 | Elektrownia jądrowa |
+| 19 | 110 841 | 44 336 | 9 min 30 s | 2556,4 | 0 | 22 | Elektrownia jądrowa |
+| 20 | 166 262 | 66 505 | 10 min | 2960,1 | 0 | 40 | Reaktor antymaterii |
+| 25 | 1 262 558 | 505 023 | 12 min 30 s | 5959,1 | 0 | 50 | Reaktor antymaterii |
+| 30 | 9 587 552 | 3 835 021 | 15 min | 11 517 | 0 | 50 | Reaktor antymaterii |
+| 40 | 552 866 616 | 221 146 646 | 20 min | 39 828 | 0 | 50 | Reaktor antymaterii |
 
 ### Magazyn (`storage`)
 
@@ -156,7 +156,7 @@ Koszt poz. 1: 200 metalu, 400 kryształów; wzrost kosztu ×1.6 na poziom.
 
 - **Kopalnia metalu:** Kopalnia od poz. 1 — 1–3 pól; Zakład przetwórczy od poz. 6 — 6–10 pól; Huta od poz. 12 — 16–22 pól; Megakompleks metalowy od poz. 20 — 40–50 pól.
 - **Ekstraktor kryształów:** Wiertło od poz. 1 — 1–3 pól; Szyb wiertniczy od poz. 6 — 6–10 pól; Odkrywka od poz. 12 — 16–22 pól; Megaodkrywka od poz. 20 — 40–50 pól.
-- **Elektrownia:** Elektrownia od poz. 1 — 1–3 pól; Węzeł energetyczny od poz. 6 — 6–10 pól; Wielka elektrownia od poz. 12 — 16–22 pól; Megasieć energetyczna od poz. 20 — 40–50 pól.
+- **Elektrownia:** Farma wiatrowa od poz. 1 — 1–3 pól; Generator fuzyjny od poz. 6 — 6–10 pól; Elektrownia jądrowa od poz. 12 — 16–22 pól; Reaktor antymaterii od poz. 20 — 40–50 pól.
 - **Magazyn:** Skład od poz. 1 — 1–2 pól; Magazyn od poz. 6 — 3–5 pól; Terminal magazynowy od poz. 12 — 6–9 pól; Megaskład od poz. 20 — 10–14 pól.
 - **Kolektor antymaterii:** Pułapka od poz. 1 — 1–2 pól; Kolektor od poz. 6 — 3–5 pól; Pole pułapek od poz. 12 — 6–9 pól; Megakolektor od poz. 20 — 10–14 pól.
 - **Laboratorium:** Pracownia od poz. 1 — 1–2 pól; Laboratorium od poz. 6 — 3–5 pól; Instytut od poz. 12 — 6–9 pól; Kampus badawczy od poz. 20 — 10–14 pól.
