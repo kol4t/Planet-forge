@@ -132,153 +132,153 @@ Szczegóły i pełną listę ma `docs/lore/nazwy-w-grze.md` (zaktualizowany o no
 
 ---
 
-## 4. Definicja grywalnego MVP — **PROPOZYCJA do zatwierdzenia przez właściciela**
+## 4. Definicja grywalnego MVP — **decyzja właściciela (2026-10-28)**
 
-| # | Kryterium (sprawdzalne) | Stan | Dlaczego |
+> MVP = model eksploatacji planety, wstępna flota, wstępna ekonomia i pętla rozgrywki (bez endgame'u):
+> **planeta → rozwój planety → wyczerpanie surowców → transport / przeniesienie na inną planetę → po wydobyciu złóż
+> z 3 planet pętla zamyka się stworzeniem stacji kosmicznej / floty / imperium gwiezdnego** z magazynem na orbicie,
+> pozyskiwaniem energii słonecznej i antymaterii. Antymateria = główne paliwo podróży między układami.
+
+Wcześniejsza propozycja (7 kryteriów, m.in. samouczek i lore) jest zastąpiona tą definicją. Samouczek, płynność iPada
+i odporność zapisu zostają jako warunki jakości (punkt 5, „ważne”), nie jako rdzeń MVP.
+
+**Uwaga do zakresu:** `CLAUDE.md` wyklucza „walkę / flotę” z MVP. Właściciel włącza teraz **wstępną flotę** — zakładam
+flotę **cywilną, bez walki** (zgodnie z K-005), dopóki właściciel nie zdecyduje inaczej (pytanie 5).
+
+### Pętla MVP krok po kroku — co jest w kodzie
+
+| Krok pętli | Stan | Co jest (kod / test) | Czego brakuje |
 |---|---|---|---|
-| 1 | Nowy gracz w ciągu **5 minut** wie, co robić: rozumie zasoby, buduje pierwsze budynki i wie, po co | ❌ nie | Brak samouczka i pierwszych kroków. SI Matka podpowiada tylko gospodarkę i zakłada, że gracz zna grę. |
-| 2 | Jest **pętla celów na kilka dni gry**: widać, co odblokuje się dalej, i czuć postęp | 🟡 częściowo | Są etapy budynków, badania, kolonizacja i przemysł. Brakuje jednak widocznej listy celów. `CLAUDE.md` wyklucza „zadania i osiągnięcia” bez decyzji właściciela. |
-| 3 | **Balans nie psuje gry**: brak martwych punktów (czekania wiele godzin bez wyboru) i nadużyć | ❌ nie sprawdzono | Wartości są robocze z decyzji właściciela, a strojenie odłożono na koniec. Nie ma symulacji całej rozgrywki, która wykryłaby martwe punkty. |
-| 4 | **Płynność na iPadzie**: 2D i 3D średnio ≥ 50 kl./s, najsłabsza sekunda ≥ 30 kl./s przy typowej kolonii | 🟡 częściowo | Pomiar z v0.46: średnia dobra (54 / 56), ale najsłabsza sekunda 24 (2D) i 15 (3D). Po v0.47–v0.51 (nowe modele, odkrywka) nie było nowego pomiaru na iPadzie. |
-| 5 | **Zapis odporny** na błędy i aktualizacje: stary zapis z każdej wersji się wczytuje, uszkodzony nie kasuje gry, eksport działa | ✅ w większości | Są testy migracji (v0.1–0.6, kilka planet, inna siatka pól), kopia uszkodzonego zapisu i eksport `PF2:`. Brakuje testu „zapis z każdej opublikowanej wersji”. |
-| 6 | **Brak błędów blokujących**: 0 otwartych zgłoszeń `bug`, żadna akcja nie zawiesza gry | ✅ na dziś | 0 otwartych zgłoszeń na GitHubie (sprawdzone 2026-10-28), 326 testów zaliczonych. Brakuje świeżego testu na iPadzie. |
-| 7 | **Nazwy w grze nie kłócą się z kanonem** lore (filtr K-011) | 🟡 częściowo | Wszystko jest oznaczone jako robocze, ale O-002 (Imperium), obcy i boty są nierozstrzygnięte. |
+| 1. **Planeta** — start, pola, złoża | ✅ | planeta z seeda, pola, złoża skończone `depositTotal` (2 mln metalu i 1,2 mln kryształów na 100 pól × bogactwo planety) — `core/economy/economy.ts`, testy `deposits`, `fields` | — |
+| 2. **Rozwój planety** | ✅ | 6 budynków do poz. 40, etapy 1/6/12/20, kompleksy, badania — testy `economy`, `complexes`, `research` | tempo nie sprawdzone symulacją |
+| 3. **Wyczerpanie surowców** | ✅ mechanika · 🟡 tempo | kopalnia na wyczerpanym złożu stoi i nie bierze energii; alert „złoże wyczerpane”, czas do wyczerpania na karcie; burzenie poziomów — `economy.ts`, `empireCards.ts`, `PlanetScene.ts` | nie wiadomo, **po ilu dniach** gry złoże się kończy (brak symulacji) |
+| 4. **Transport / przeniesienie** | 🟡 | transportowce: metal + kryształy, 5000 na lot, 3 naraz — `core/economy/transport.ts`; statek kolonizacyjny — `GameController`, test `controller`; holownik po kometę, stacja na pasie asteroid | „przeniesienie” (np. budynków lub siedziby) nie istnieje — **do wyjaśnienia** (pytanie 1); loty **nie zużywają antymaterii** |
+| 5. **Warunek „3 planety wydobyte”** | ❌ | — (gra liczy złoża każdej planety, ale nic na tym nie buduje) | licznik postępu pętli i warunek zamknięcia |
+| 6. **Stacja kosmiczna z magazynem na orbicie** | ❌ | jest tylko zaślepka badania „Moduł orbitalny (wkrótce)” (`station-orbit` w `data/research.ts`) i osobne rzeczy na orbicie: kolektor energii gwiazdy (`starEnergy.ts`), stacja asteroidowa | stacja, magazyn orbitalny wspólny dla imperium, wygląd w 2D/3D |
+| 7. **Energia słoneczna na orbicie** | 🟡 | kolektor energii gwiazdy zasila planety gracza w układzie (v0.44) — test `controller` | powiązanie ze stacją |
+| 8. **Antymateria — paliwo podróży** | ❌ | antymateria jest (Kolektor, +1/h, „Ukończ teraz”), ale żaden lot jej nie zużywa | koszt paliwa lotów (w układzie / między układami) |
+| 9. **Wstępna flota** | 🟡 | statki istnieją jako akcje (transportowiec, kolonizacyjny, holownik, ekspedycja), ramię badań „Flota cywilna” | widok floty (lista statków), budowa statków (np. na stacji), bez walki |
+| 10. **Wstępna ekonomia** | 🟡 | wszystkie liczby robocze (`data/balance.ts`), tabela `docs/BALANCE.md` | sprawdzenie, czy cała pętla da się przejść w rozsądnym czasie (symulacja + strojenie) |
+| 11. **Imperium gwiezdne** — zamknięcie pętli | ❌ | — | moment „pętla zamknięta”: wpis w dzienniku, odblokowanie lotów międzyukładowych na antymaterii |
 
 ---
 
 ## 5. Co jeszcze do MVP
 
-### Blokujące
-1. **Pierwsze kroki dla nowego gracza** (kryterium 1).
-2. **Symulacja rozgrywki i strojenie balansu** (kryterium 3). Najpierw narzędzie pomiarowe, potem liczby, zgodnie z decyzją „balans na końcu, przed MVP”.
-3. **Pomiar płynności na iPadzie po v0.51** i ewentualna poprawa najsłabszych sekund (kryterium 4).
+### Blokujące (rdzeń pętli)
+1. **Symulator pętli** — ile trwa każdy krok (rozwój → wyczerpanie → kolonia → 3 planety). Bez tego nie da się ustawić tempa.
+2. **Antymateria jako paliwo lotów** (krok 8).
+3. **Stacja kosmiczna z magazynem orbitalnym** + energia słoneczna (kroki 6–7).
+4. **Wstępna flota** — widok i budowa statków cywilnych (krok 9).
+5. **Zamknięcie pętli** — postęp „3 planety”, imperium gwiezdne (kroki 5, 11).
+6. **Wstępna ekonomia** — strojenie liczb pod pętlę (krok 10; zgodnie z decyzją „balans na końcu” — to jest ten koniec).
 
-### Ważne
-4. **Widoczne cele / kamienie milowe** (kryterium 2). Wymaga decyzji właściciela, bo `CLAUDE.md` wyklucza „zadania i osiągnięcia”.
-5. **Nazwy a lore** (kryterium 7): Imperium, obcy, boty. Wymaga decyzji w Projekcie lore.
-6. **Test wczytania zapisów z różnych wersji** (kryterium 5).
+### Ważne (jakość)
+7. **Pierwsze kroki** — SI Matka prowadzi nowego gracza przez pętlę (dziś brak samouczka).
+8. **Płynność iPada** — nowy pomiar po v0.51; v0.46 miał najsłabszą sekundę 24 (2D) i 15 kl./s (3D).
+9. **Odporność zapisu** — nowe pola (stacja, paliwo, postęp pętli) opcjonalne; test zapisów z różnych wersji.
 
-### Miłe do posiadania (nadal przed MVP, jeśli starczy czasu)
-7. Ikony na dolnym pasku i podział `PlanetScene.ts`.
-8. Poprawa wyglądu Ekstraktora kryształów (najpierw szkic właściciela).
-9. Antymateria zużywana przez reaktor i megakonstrukty (pomysł właściciela). Wymaga decyzji i liczb.
+### Miłe do posiadania
+10. Ikony na dolnym pasku, podział `PlanetScene.ts`.
+11. Nazwy a lore (Imperium, obcy, boty — O-002, O-301, O-304).
+12. Poprawa wyglądu Ekstraktora kryształów (po szkicu właściciela).
 
-### Po MVP (świadomie poza zakresem)
-- Laboratorium planet (etap 8 generatora) i dalsza przebudowa generatora.
-- Księżyc i lokacje wokół planety, gwiazdy mistrzowskie, osobny ekran SI.
-- DNA i stworzenia, Stocznia, flota i walka.
-- Treści fabularne: anomalie, dawna cywilizacja.
-- Backend, konta, multiplayer, synchronizacja, płatności — nie są częścią MVP.
+### Po MVP
+Endgame; walka; dalsze moduły stacji (dok handlowy, czerpanie gazu); księżyc; gwiazdy mistrzowskie; ekran SI; DNA;
+Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 
 ---
 
 ## 6. Kolejne etapy (każdy = osobna sesja, gałąź `claude/…`, akceptacja przed `main`)
 
-Etapy wymagające decyzji właściciela albo lore oznaczam **🔒**.
+**🔒** = wymaga decyzji właściciela (pytania w punkcie 7) albo lore.
 
-### Etap A — v0.52 „Pierwsze kroki” 🔒 (forma do wyboru — pytanie 2)
-- **Cel:** nowy gracz w 5 minut rozumie zasoby i buduje pierwsze budynki.
-- **Zakres:** krótkie podpowiedzi SI Matki krok po kroku przy pierwszej grze, pomijalne, z zapamiętaniem postępu w zapisie (nowe pole opcjonalne); teksty robocze w ramie dziennika (K-008).
-- **Nie ruszamy:** balansu, budynków, grafiki.
-- **Ryzyko:** natrętność podpowiedzi; zgodność ze starymi zapisami (stary gracz nie może zobaczyć samouczka).
-- **Sprawdzenie na iPadzie:**
-  1. Otwórz grę w prywatnej karcie Safari (w grze nie ma dziś przycisku „Nowa gra”).
-  2. Wykonuj kolejne podpowiedzi.
-  3. Dotknij „Pomiń”.
-  4. Zamknij i otwórz grę — podpowiedzi nie wracają.
-- **Prompt:** „Etap A z docs/status.md: pierwsze kroki dla nowego gracza wg wybranej formy. Najpierw pokaż plan i teksty do akceptacji, potem kod. Nowe pole zapisu opcjonalne, stare zapisy bez samouczka. npm run check, gałąź claude/…, wersja v0.52.”
+### Etap 1 — v0.52 „Symulator pętli” (bez zmian w grze)
+- **Cel:** zmierzyć czas każdego kroku pętli MVP.
+- **Zakres:** `scripts/simulate.ts` — „rozsądny gracz” zwykłymi akcjami kontrolera: rozwija planetę, kolonizuje, wozi surowce, aż wyczerpie złoża 3 planet; raport `docs/balans-symulacja.md` (czasy, przestoje > X h, co blokuje).
+- **Nie ruszamy:** kodu gry i liczb w `src/data`.
+- **Ryzyko:** strategia symulacji ≠ prawdziwy gracz — raport to wskazówka.
+- **Na iPadzie:** nic się nie zmienia; czytasz raport.
+- **Prompt:** „Etap 1 z docs/status.md: skrypt symulacji pętli MVP i raport docs/balans-symulacja.md. Bez zmian w grze i w src/data. Gałąź claude/…”
 
-### Etap B — v0.53 „Symulator rozgrywki” (bez zmian w grze)
-- **Cel:** zmierzyć, ile trwają kolejne etapy gry i gdzie gracz czeka bez wyboru.
-- **Zakres:** skrypt `scripts/simulate.ts` gra przez kilka dni czasu gry (zwykłe akcje kontrolera, strategia „rozsądny gracz”) i zapisuje raport `docs/balans-symulacja.md`: czasy do poz. 6 / 12 / 20, przerwy dłuższe niż X h, zasób, który blokuje.
-- **Nie ruszamy:** liczb w `src/data`.
-- **Ryzyko:** strategia symulacji ≠ prawdziwy gracz (raport to wskazówka).
-- **Sprawdzenie na iPadzie:** brak zmian w grze — czytasz raport w repozytorium.
-- **Prompt:** „Etap B z docs/status.md: skrypt symulacji rozgrywki i raport docs/balans-symulacja.md. Bez zmian w kodzie gry i w src/data. Gałąź claude/…, v0.53 (tylko skrypt i dokument).”
+### Etap 2 — v0.53 „Antymateria jako paliwo” 🔒 (pytanie 4)
+- **Cel:** każdy lot (transportowiec, statek kolonizacyjny, ekspedycja, holownik) kosztuje antymaterię zależnie od odległości.
+- **Zakres:** koszt paliwa w `data/balance.ts`, sprawdzenie i odjęcie w `core` (czytelny błąd po polsku), koszt widoczny przed wysłaniem; „Ukończ teraz” bez zmian.
+- **Nie ruszamy:** grafiki, zapisu (bez nowych pól).
+- **Ryzyko:** gracz bez antymaterii utknie — minimalny przyrost pasywny zostaje.
+- **Na iPadzie:** Mapa → wybierz planetę → Transport: widać „paliwo: X antymaterii”; po wysłaniu licznik antymaterii u góry maleje.
+- **Prompt:** „Etap 2 z docs/status.md: antymateria jako paliwo lotów wg wybranego wariantu. Liczby robocze. Testy w core. Gałąź claude/…, v0.53.”
 
-### Etap C — v0.54 „Strojenie ekonomii” 🔒 (decyzja: liczby z raportu B)
-- **Cel:** usunąć martwe punkty i nadużycia wskazane przez symulator.
-- **Zakres:** wartości w `src/data/balance.ts` i powiązanych plikach, ponowna symulacja przed i po, `npm run balance-doc`.
-- **Nie ruszamy:** mechaniki i zapisu (stare zapisy zachowują poziomy).
-- **Ryzyko:** gracze w trakcie gry odczują zmianę tempa.
-- **Sprawdzenie na iPadzie:** na swojej planecie sprawdź czasy oczekiwania przy kolejnych ulepszeniach i porównaj z tabelą w raporcie.
-- **Prompt:** „Etap C z docs/status.md: strojenie liczb wg raportu docs/balans-symulacja.md. Pokaż tabelę zmian przed/po do akceptacji, potem wdroż. Gałąź claude/…, v0.54.”
+### Etap 3 — v0.54 „Stacja orbitalna z magazynem” 🔒 (pytanie 3)
+- **Cel:** jedna stacja kosmiczna z magazynem orbitalnym i energią słoneczną.
+- **Zakres:** zamiast zaślepki „Moduł orbitalny”: badanie → budowa stacji na orbicie; magazyn orbitalny (transportowce dowożą do niego surowce z planet), kolektor energii gwiazdy jako moduł stacji; nowe opcjonalne pole zapisu; stacja widoczna na orbicie w 3D i 2D.
+- **Nie ruszamy:** budynków na planetach.
+- **Ryzyko:** nowe pole zapisu — walidacja i opis w `SAVE_FORMAT.md`.
+- **Na iPadzie:** Badania → „Moduł orbitalny” → zbuduj stację; wokół planety krąży stacja; wyślij transport „na stację” i zobacz stan magazynu orbitalnego.
+- **Prompt:** „Etap 3 z docs/status.md: stacja orbitalna z magazynem wg wybranego wariantu. Najpierw plan i szkic wyglądu do akceptacji, potem kod. Gałąź claude/…, v0.54.”
 
-### Etap D — v0.55 „Płynność iPada”
-- **Cel:** najsłabsza sekunda ≥ 30 kl./s w 2D i 3D.
-- **Zakres:** najpierw Twój pomiar (instrukcja w `docs/PERFORMANCE.md`), potem jedna poprawka naraz, np. rysowanie paneli tylko po zmianie (KNOWN_ISSUES pkt 3), wspólne materiały, mniej rysowań.
-- **Nie ruszamy:** wyglądu budynków ani zasad gry.
-- **Ryzyko:** regresja interfejsu przy przebudowie rysowania paneli.
-- **Sprawdzenie na iPadzie:**
-  1. Ustawienia → Diagnostyka.
-  2. Minuta obracania planety z otwartą Produkcją.
-  3. Zanotuj średnią i najsłabszą sekundę.
-- **Prompt:** „Etap D z docs/status.md: płynność iPada. Oto mój pomiar z Diagnostyki: [wklej]. Znajdź najdroższą część i popraw jedną rzecz naraz, z pomiarem przed/po. Gałąź claude/…, v0.55.”
+### Etap 4 — v0.55 „Wstępna flota” 🔒 (pytanie 5)
+- **Cel:** gracz widzi swoje statki i buduje je (np. w stoczni na stacji).
+- **Zakres:** ekran / panel Floty: lista statków (w drodze, w doku), budowa transportowca i statku kolonizacyjnego za surowce; bez walki.
+- **Nie ruszamy:** mapy i badań poza odblokowaniem.
+- **Ryzyko:** rozrost interfejsu — jeden panel, zasada okien.
+- **Na iPadzie:** dotknij **Flota** (albo Imperium → Flota) — lista statków; zbuduj transportowiec i wyślij go.
+- **Prompt:** „Etap 4 z docs/status.md: wstępna flota cywilna (lista, budowa statków), bez walki. Plan do akceptacji. Gałąź claude/…, v0.55.”
 
-### Etap E — v0.56 „Odporność zapisu”
-- **Cel:** zapis z każdej opublikowanej wersji wczytuje się bez utraty postępu.
-- **Zakres:** zestaw przykładowych zapisów z wersji v0.1 → v0.51 w `tests/`, test wczytania każdego, kopia zapasowa przed migracją.
-- **Nie ruszamy:** formatu zapisu (tylko testy i ewentualne poprawki migracji).
-- **Ryzyko:** brak prawdziwych starych zapisów — trzeba je odtworzyć z historii git.
-- **Sprawdzenie na iPadzie:** Ustawienia → „Kopiuj zapis”, aktualizacja, gra wczytuje Twoją planetę bez zmian.
-- **Prompt:** „Etap E z docs/status.md: testy wczytania zapisów ze wszystkich wersji i kopia przed migracją. Bez zmiany formatu. Gałąź claude/…, v0.56.”
+### Etap 5 — v0.56 „Zamknięcie pętli: imperium gwiezdne” 🔒 (pytanie 2)
+- **Cel:** gracz widzi postęp pętli i przeżywa jej zamknięcie.
+- **Zakres:** licznik „planety wydobyte: X / 3” (karta Imperium), warunek zamknięcia (wydobyte złoża 3 planet + stacja), wpis w dzienniku, odblokowanie lotów między układami na antymaterii. Nazwa „imperium gwiezdne” robocza (O-002).
+- **Nie ruszamy:** endgame'u.
+- **Ryzyko:** warunek zbyt długi do przejścia — liczby z etapu 1.
+- **Na iPadzie:** Imperium → widać postęp pętli; po spełnieniu warunku wpis w dzienniku i nowa możliwość na mapie.
+- **Prompt:** „Etap 5 z docs/status.md: postęp i zamknięcie pętli MVP wg wybranego warunku. Gałąź claude/…, v0.56.”
 
-### Etap F — v0.57 „Cele i kamienie milowe” 🔒 (pytanie 3 — `CLAUDE.md` wyklucza „zadania i osiągnięcia”)
-- **Cel:** gracz zawsze widzi 1–3 najbliższe cele i co dadzą.
-- **Zakres (wariant lekki):** cele wynikające z gry (następny etap budynku, badanie, kolonia) w dzienniku lub na karcie Imperium, bez nagród, punktów i powiadomień.
-- **Nie ruszamy:** balansu ani grafiki.
-- **Ryzyko:** dodanie mechaniki spoza zakresu.
-- **Sprawdzenie na iPadzie:** dotknij **Imperium** — widać najbliższe cele; po osiągnięciu jednego pojawia się kolejny.
-- **Prompt:** „Etap F z docs/status.md, wariant [wybrany]: najbliższe cele gracza. Najpierw plan do akceptacji. Gałąź claude/…, v0.57.”
+### Etap 6 — v0.57 „Wstępna ekonomia”
+- **Cel:** cała pętla przechodzi się w docelowym czasie bez martwych punktów.
+- **Zakres:** strojenie `data/balance.ts` (złoża, koszty, czasy, paliwo) wg ponownej symulacji, tabela przed/po do akceptacji, `npm run balance-doc`.
+- **Nie ruszamy:** mechanik.
+- **Ryzyko:** zmiana tempa w trwających grach.
+- **Na iPadzie:** na swojej planecie sprawdź czasy oczekiwania i czas do wyczerpania złoża na karcie budynku.
+- **Prompt:** „Etap 6 z docs/status.md: strojenie liczb pod pętlę MVP wg symulatora. Tabela przed/po do akceptacji. Gałąź claude/…, v0.57.”
 
-### Etap G — v0.58 „Nazwy a lore” 🔒 (O-002 Imperium, obcy, boty, O-304 antymateria, O-301 galaktyka)
-- **Cel:** nazwy widoczne dla gracza zgodne z kanonem albo jasno robocze.
-- **Zakres:** zmiana tylko tekstów (identyfikatory i klucze zapisu zostają), aktualizacja `docs/lore/` nową kopią z Projektu.
-- **Nie ruszamy:** mechaniki.
-- **Ryzyko:** decyzje lore mogą nie zapaść na czas — wtedy etap czeka.
-- **Sprawdzenie na iPadzie:** przejdź przez pasek dolny, mapę i badania; sprawdź nowe nazwy.
-- **Prompt:** „Etap G z docs/status.md: wklejam nową kopię lore [pliki]. Porównaj nazwy w grze z kanonem i zaproponuj zmiany tekstów (bez identyfikatorów i kluczy zapisu). Gałąź claude/…, v0.58.”
+### Etap 7 — v0.58 „Pierwsze kroki”
+- **Cel:** nowy gracz rozumie pętlę w 5 minut.
+- **Zakres:** podpowiedzi SI Matki krok po kroku (pomijalne), opcjonalne pole zapisu.
+- **Na iPadzie:** prywatna karta Safari → nowa gra → wykonuj podpowiedzi → „Pomiń”.
+- **Prompt:** „Etap 7 z docs/status.md: pierwsze kroki przez SI Matkę. Teksty do akceptacji. Gałąź claude/…, v0.58.”
 
-### Etap H — v0.59 „Interfejs: ikony i porządek”
-- **Cel:** ikony na dolnym pasku, `PlanetScene.ts` podzielony na mniejsze pliki (etap 7 generatora).
-- **Nie ruszamy:** układu ekranów ani zasad gry.
-- **Ryzyko:** regresje interfejsu — testy układu i zrzuty przed i po.
-- **Sprawdzenie na iPadzie:** każdy przycisk dolnego paska ma ikonę i działa; panele otwierają się jak dawniej.
-- **Prompt:** „Etap H z docs/status.md: ikony dolnego paska i podział PlanetScene.ts bez zmian zachowania. Zrzuty przed/po. Gałąź claude/…, v0.59.”
+### Etap 8 — v0.59 „Płynność i zapis”
+- **Cel:** najsłabsza sekunda ≥ 30 kl./s; zapisy z każdej wersji się wczytują.
+- **Zakres:** Twój pomiar z Diagnostyki → jedna poprawka naraz; testy zapisów z historii git.
+- **Na iPadzie:** Ustawienia → Diagnostyka, minuta obracania w 2D i 3D.
+- **Prompt:** „Etap 8 z docs/status.md: płynność (mój pomiar: [wklej]) i testy zapisów. Gałąź claude/…, v0.59.”
 
-### Etap I — v0.60 „Kandydat MVP”
-- **Cel:** sprawdzić wszystkie kryteria z punktu 4 i wypuścić wersję MVP.
-- **Zakres:** audyt, poprawki drobnych błędów, lista kontrolna, aktualizacja `CLAUDE.md` i `README.md`.
-- **Nie ruszamy:** żadnych nowych funkcji.
-- **Ryzyko:** odkrycie braków wymagających kolejnego etapu.
-- **Sprawdzenie na iPadzie:** pełna lista kontrolna (niżej) plus nowa gra od zera przez 30 minut.
-- **Prompt:** „Etap I z docs/status.md: audyt kandydata MVP wg kryteriów z punktu 4. Raport spełnione/nie, poprawki tylko drobne. Gałąź claude/…, v0.60.”
+### Etap 9 — v0.60 „Kandydat MVP”
+- **Cel:** sprawdzić pętlę od zera do zamknięcia i wydać MVP.
+- **Zakres:** audyt, drobne poprawki, lista kontrolna, `CLAUDE.md` i `README.md`.
+- **Na iPadzie:** nowa gra od zera wg listy kontrolnej; (pełną pętlę skróci tryb testowy w podglądzie).
+- **Prompt:** „Etap 9 z docs/status.md: audyt kandydata MVP wg tabeli pętli z punktu 4. Gałąź claude/…, v0.60.”
 
 ---
 
 ## 7. Decyzje, których potrzebuję od właściciela
 
-1. **Czy przyjmujesz definicję MVP z punktu 4?**
-   - **A (rekomendacja):** tak, 7 kryteriów jak wyżej.
-   - B: tak, ale bez kryterium 7 (lore) — nazwy rozstrzygniemy po MVP.
-   - C: chcę zmienić kryteria (napisz które).
-2. **Forma pierwszych kroków (etap A):**
-   - **A (rekomendacja):** podpowiedzi SI Matki w dymku, krok po kroku, z „Pomiń”. Pasuje do istniejącej SI i ramy dziennika.
-   - B: osobny ekran samouczka z obrazkami przed pierwszą grą.
-   - C: tylko przycisk „?” z opisem zasad, bez prowadzenia.
-3. **Cele gracza (etap F), mimo że `CLAUDE.md` wyklucza „zadania i osiągnięcia”:**
-   - **A (rekomendacja):** lekkie „najbliższe cele” wynikające z gry, bez nagród i punktów.
-   - B: pełne zadania z nagrodami (większa zmiana zakresu).
-   - C: bez celów w MVP — wystarczy SI Matka.
-4. **Kolejność pierwszych etapów:**
-   - **A (rekomendacja):** B → C → A (najpierw symulator i balans, potem pierwsze kroki dopasowane do strojonej gry).
-   - B: A → B → C (najpierw nowy gracz).
-   - C: D najpierw (płynność iPada), jeśli Twój nowy pomiar pokaże problem.
-5. **Nazwa „Imperium” (O-002):**
-   - **A (rekomendacja):** zostaje do decyzji w Projekcie lore (etap G).
-   - B: od razu robocza zmiana tekstu (np. „Kolonie”) — klucz zapisu bez zmian.
-
----
+1. **„Przeniesienie na inną planetę” — co to znaczy?**
+   - **A (rekomendacja):** kolonizacja nowej planety + przewóz zapasów transportowcami (to już jest w grze); stara planeta zostaje z badaniami.
+   - B: przeniesienie siedziby / części budynków na nową planetę (nowa mechanika).
+2. **Warunek zamknięcia pętli:**
+   - A: złoża metalu i kryształów **całkowicie** wyczerpane na 3 planetach.
+   - **B (rekomendacja):** na 3 planetach wydobyto co najmniej 80% złóż (bez długiego „dobierania resztek”).
+   - C: wystarczy 3 planety i zbudowana stacja, bez warunku złóż.
+3. **Stacja kosmiczna:**
+   - **A (rekomendacja):** jedna stacja imperium na orbicie planety macierzystej, rozbudowywana modułami (magazyn, kolektor słoneczny, kolektor antymaterii, stocznia).
+   - B: osobna stacja przy każdej planecie.
+4. **Antymateria jako paliwo:**
+   - **A (rekomendacja):** każdy lot zużywa antymaterię — w układzie mało, między układami dużo.
+   - B: tylko loty między układami; w układzie za darmo.
+5. **Wstępna flota:**
+   - **A (rekomendacja):** tylko statki cywilne (transport, kolonizacja, ekspedycje), bez walki — zgodnie z K-005.
+   - B: także prosta obrona / walka.
 
 ## Lista kontrolna do Twojego sprawdzenia na iPadzie (v0.51.0)
 

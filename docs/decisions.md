@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Definicja MVP (decyzja właściciela)
+
+- MVP = model eksploatacji planety, wstępna flota, wstępna ekonomia i pętla rozgrywki (bez endgame'u): planeta → rozwój →
+  wyczerpanie surowców → transport / przeniesienie na inną planetę → po wydobyciu złóż z 3 planet zamknięcie pętli
+  stacją kosmiczną / flotą / „imperium gwiezdnym” z magazynem na orbicie, energią słoneczną i antymaterią;
+  antymateria = główne paliwo podróży między układami. Stan pętli w kodzie i plan etapów: `docs/status.md`.
+- **Zmiana zakresu:** wstępna flota wchodzi do MVP (wcześniej `CLAUDE.md` wykluczał flotę) — roboczo cywilna, bez walki
+  (K-005), do potwierdzenia przez właściciela. Nazwa „imperium gwiezdne” robocza (O-002).
+
 ## 2026-10-28 — Magazyn i Kopalnia metalu: wyraźna różnica wyglądu (decyzja właściciela)
 
 - Właściciel (zrzut z iPada): magazyn i kopalnia metalu wyglądają bardzo podobnie (te same złote dachy, stal, ciemne płyty).
