@@ -10,6 +10,8 @@ import {
   advance,
   antimatterAmount,
   buildSeconds,
+  isExploited,
+  minedShare,
   depositsLeft,
   depositTotal,
   fitsInStorage,
@@ -257,6 +259,8 @@ export interface DepositInfo {
   perMinute: number;
   /** Sekundy do wyczerpania przy obecnym wydobyciu; null — nie ubywa (kopalnia stoi, pełny magazyn, złoże puste). */
   secondsLeft: number | null;
+  /** Resztki złoża (≥ 80% wydobyte, v0.54) — kopalnia wydobywa wolniej (`remnantOutput`). */
+  remnant: boolean;
 }
 
 export interface FieldsInfo {
@@ -323,6 +327,9 @@ export interface PlanetOverview extends PlanetSummary {
   fields: { used: number; buildable: number };
   /** Złoża planety: ile zostało i ile było (od v0.32 — do kart „Imperium”). */
   deposits: { left: Resources; total: Resources };
+  /** Planeta wyeksploatowana (≥ 80% obu złóż, v0.54) i wydobyta część każdego złoża 0..1. */
+  exploited: boolean;
+  mined: Resources;
   /** Antymateria z Kolektora tej planety (na godzinę, bez przyrostu pasywnego). */
   collectorPerHour: number;
   /** Laboratorium planety i czy coś teraz bada (do alertów „Imperium”, od v0.32.1). */
@@ -413,6 +420,8 @@ export class GameController {
   private comets: CometHaul[] = [];
   /** Znaleziska megakompleksów (v0.43.1) — wspólne dla imperium. */
   private finds: FindsState = { items: {}, next: {} };
+  /** Wyeksploatowane planety (adresy, w kolejności) — postęp pętli MVP (v0.54). */
+  private exploited: string[] = [];
   private findCache: { items: Record<string, number>; effects: ResearchEffect[]; key: string } | null = null;
   private readonly shipmentListeners = new Set<(text: string) => void>();
   /** Dostawy rozliczone podczas nieobecności (do jednorazowego komunikatu). */
@@ -453,6 +462,7 @@ export class GameController {
       this.shipments = saved.shipments ?? [];
       this.comets = saved.comets ?? [];
       this.finds = saved.finds ?? { items: {}, next: {} };
+      this.exploited = saved.exploited ?? [];
       this.journal = saved.journal ?? [];
       this.aiLevels = saved.ai ?? { ...DEFAULT_AI_LEVELS };
       this.active = Math.min(saved.active, slots.length - 1);
@@ -794,10 +804,15 @@ export class GameController {
     const left = depositsLeft(this.economy, this.planet, this.balance);
     const rates = this.rates;
     const cap = storageCapacity(this.economy, this.balance);
+    const { threshold, remnantOutput } = this.balance.exploitation;
     const info = (id: ResourceId): DepositInfo => {
       const perMinute = rates.fromDeposits[id];
       const flowing = left[id] > 0 && perMinute > 0 && this.economy.stock[id] < cap;
-      return { total: total[id], left: left[id], perMinute, secondsLeft: flowing ? (left[id] / perMinute) * 60 : null };
+      // Przed progiem: do progu w obecnym tempie, resztki — wolniej.
+      const keep = total[id] * (1 - threshold);
+      const remnant = left[id] <= keep + 1;
+      const seconds = remnant ? (left[id] / perMinute) * 60 : ((left[id] - keep) / perMinute) * 60 + (keep / (perMinute * remnantOutput)) * 60;
+      return { total: total[id], left: left[id], perMinute, secondsLeft: flowing ? seconds : null, remnant };
     };
     return { metal: info('metal'), crystal: info('crystal') };
   }
@@ -830,7 +845,8 @@ export class GameController {
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
     const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
-    if (done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
+    const exploited = this.markExploited(now);
+    if (exploited || done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
     for (const text of delivered) for (const listener of this.shipmentListeners) listener(text);
     for (const report of returned) for (const listener of this.expeditionListeners) listener(report);
     if (aiDone) for (const listener of this.aiListeners) listener(aiDone);
@@ -838,6 +854,37 @@ export class GameController {
     for (const id of researched) for (const listener of this.researchListeners) listener(id);
     for (const name of arrived) for (const listener of this.colonyListeners) listener(name);
     this.emit();
+  }
+
+  /**
+   * Postęp pętli (v0.54): planety, na których wydobyto ≥ 80% obu złóż, trafiają na listę raz (wpis w dzienniku).
+   * Nieaktywne liczone z ostatniego naliczenia (nadrabiają przy przejściu albo w „Imperium”). Zwraca, czy coś doszło.
+   */
+  private markExploited(now: number): boolean {
+    let added = false;
+    this.slots.forEach((slot, i) => {
+      if (this.exploited.includes(slot.address)) return;
+      const economy = i === this.active ? this.economy : slot.economy;
+      if (!isExploited(economy, slot.planet, this.balanceFor(slot))) return;
+      this.exploited.push(slot.address);
+      added = true;
+      const needed = this.balance.exploitation.loopPlanets;
+      const count = this.exploited.length;
+      this.log(
+        'empire',
+        `${slot.planet.displayName}: złoża w większości wydobyte — planeta wyeksploatowana (${count} z ${needed}). Resztki wydobywa się wolniej.${count === needed ? ' Pętla gotowa do zamknięcia — kolejny krok: stacja macierzysta (wkrótce).' : ''}`,
+        now,
+      );
+    });
+    return added;
+  }
+
+  /** Postęp pętli MVP: wyeksploatowane planety (z nazwami) i ile potrzeba. */
+  loopProgress(): { exploited: { address: string; name: string }[]; needed: number } {
+    return {
+      exploited: this.exploited.map((address) => ({ address, name: this.slots.find((s) => s.address === address)?.planet.displayName ?? address })),
+      needed: this.balance.exploitation.loopPlanets,
+    };
   }
 
   /**
@@ -1041,6 +1088,8 @@ export class GameController {
           : null,
         fields: fieldsOf(slot, summary.active, this.buildRules),
         deposits: { left: depositsLeft(economy, slot.planet, balance), total: depositTotal(slot.planet, balance) },
+        exploited: this.exploited.includes(slot.address) || isExploited(economy, slot.planet, balance),
+        mined: minedShare(economy, slot.planet, balance),
         collectorPerHour: productionRates(economy, slot.planet, balance).antimatterPerHour - balance.antimatter.passivePerHour,
         labLevel: economy.levels.laboratory ?? 0,
         researching: (summary.active ? this.research : slot.research).current !== null,
@@ -2159,6 +2208,7 @@ export class GameController {
       shipments: this.shipments,
       comets: this.comets,
       finds: this.finds,
+      ...(this.exploited.length > 0 ? { exploited: this.exploited } : {}),
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,

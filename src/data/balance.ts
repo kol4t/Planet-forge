@@ -24,6 +24,8 @@ export const BALANCE: Balance = {
   colonyShip: { cost: { metal: 2500, crystal: 1800 }, baseSeconds: 120, secondsPerUnit: 6 },
   // Paliwo lotów (antymateria, wariant „umiarkowany” — decyzja właściciela 2026-10-28; robocze).
   // Najbliższy inny układ ~10 jedn., typowy ~77, najdalszy ~143.
+  // Wyeksploatowanie planety (decyzja właściciela: 80% złóż; resztki trudniej wydobyć — robocze 50%; pętla — 3 planety).
+  exploitation: { threshold: 0.8, remnantOutput: 0.5, loopPlanets: 3 },
   fuel: {
     transport: { inSystem: 1, base: 2, unitsPerOne: 20 },
     colonyShip: { inSystem: 3, base: 3, unitsPerOne: 15 },

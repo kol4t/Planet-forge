@@ -325,6 +325,12 @@ export interface Balance {
    * `inSystem` (ten sam układ) albo `base` + ⌈odległość / `unitsPerOne`⌉ (między układami).
    */
   fuel: Record<FuelKind, FuelRule>;
+  /**
+   * Wyeksploatowanie (v0.54, decyzja właściciela): po wydobyciu `threshold` złoża danego surowca kopalnia wydobywa
+   * resztki z wydajnością `remnantOutput` (energia bez zmian); planeta z oboma złożami ≥ `threshold` = „wyeksploatowana”,
+   * a `loopPlanets` takich planet zamyka pętlę MVP.
+   */
+  exploitation: { threshold: number; remnantOutput: number; loopPlanets: number };
   buildings: readonly BuildingDef[];
 }
 
