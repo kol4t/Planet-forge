@@ -2,7 +2,7 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
-## 2026-10-28 — v0.49 (w przygotowaniu): wielka odkrywka z wiszącym ekstraktorem (prompt właściciela)
+## 2026-10-28 — v0.49: wielka odkrywka z wiszącym ekstraktorem (prompt właściciela)
 
 - Właściciel: na etapach „Odkrywka” (poz. 12–19) i „Megaodkrywka” (poz. 20+) cały obszar zajętych pól ma być jedną tarasową
   dziurą (nic płaskiego i brązowego), krawędź dokładnie na obrysie pól, gładka; ekstraktor wisi nad szybem na 4 / 5 linach-rurach

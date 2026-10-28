@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.48.0 — opublikowana: grafika 3D i odwiert planetarny)
+## Stan obecny (v0.49.0 — opublikowana: grafika 3D, odwiert i wielka odkrywka)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -31,7 +31,7 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   w `FAMILIES`), wyrobisko kryształów jako dziura głębsza z poziomem (do 0,14 promienia, ocean nad nią wycięty) — v0.47.4.
 - **v0.48 — odwiert planetarny** (opublikowany v0.48.0): krater kryształów przechodzi w studnię w głąb planety,
   8 etapów z poziomu (`src/data/drill.ts`), warstwy wg typu planety, na etapie 8 jądro (`planet-renderer/drill.ts`).
-- **v0.49 (gałąź, czeka na akceptację) — wielka odkrywka**: na etapach Odkrywka / Megaodkrywka cały obszar ekstraktora to
+- **v0.49 — wielka odkrywka** (opublikowana v0.49.0): na etapach Odkrywka / Megaodkrywka cały obszar ekstraktora to
   tarasowa dziura wykopana w terenie (krawędź na obrysie pól), ekstraktor wisi nad szybem na 4 / 5 linach-rurach
   (`src/data/openPit.ts`, `planet-renderer/openPit.ts`, `openPitMeshes.ts`); `SURFACE_VERSION` = 5 (decyzja właściciela).
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,

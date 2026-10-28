@@ -2,6 +2,14 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.49.0 — wielka odkrywka z wiszącym ekstraktorem — 2026-10-28
+
+- Ekstraktor kryształów na etapach Odkrywka (poz. 12–19) i Megaodkrywka (poz. 20+): cały obszar zajętych pól to jedna tarasowa dziura wykopana w terenie planety — krawędź dokładnie na obrysie pól, warstwy (półka + pochyłe zbocze) wzdłuż obrysu, w głębi coraz bardziej okrągłe; 5 / 7 warstw (robocze, `src/data/openPit.ts`); szyb odwiertu w środku dna; jeziorka w obszarze są częścią dziury, tafla oceanu wycięta wzdłuż krawędzi.
+- Ekstraktor wisi nad szybem na 4 / 5 linach-rurach z kotwami na krawędzi; po rurach płynie turkusowy błysk (tylko materiał). +1 rysowanie.
+- Linie siatki pól nad wyrobiskiem niewidoczne; „pokaż budynek” obraca do ekstraktora.
+- 2D: koncentryczne warstwy, czarny szyb, ekstraktor w środku dziury. Szyb wiertniczy (poz. 1–11) bez zmian.
+- `SURFACE_VERSION` = 5 (decyzja właściciela). Mechanika, koszty, pola i zapisy bez zmian.
+
 ## v0.48.0 — odwiert planetarny i odsłonięte jądro — 2026-10-28
 
 - Ekstraktor kryształów w 3D: równa niecka (szkic właściciela) przechodzi w prawdziwą studnię w głąb planety — 8 etapów z poziomu (1 / 3 / 6 / 9 / 12 / 16 / 22 / 30, robocze), ściany z warstwami geologicznymi (skorupa, głębsza skorupa, płaszcz, strefa gorąca), świecące pęknięcia i rozgrzane dno, na etapie 8 jaskinia płaszcza i jądro w środku planety.
