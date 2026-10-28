@@ -59,6 +59,10 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
 - Planeta ma skończone złoża metalu i kryształów (z bogactwa i liczby pól). Kopalnie je wyczerpują; przyrost podstawowy
   nie. Kopalnia na pustym złożu stoi i nie bierze energii. Bez odnawiania (decyzja właściciela) — dalej burzenie,
   transport, asteroidy, komety.
+- **Wyeksploatowanie** (v0.54, decyzja właściciela): po wydobyciu **80%** złoża danego surowca kopalnia wydobywa
+  resztki **wolniej (50%)**, przy tej samej energii. Planeta z oboma złożami ≥ 80% jest **wyeksploatowana**: plakietka na
+  karcie Imperium, wpis w dzienniku, licznik pętli „wyeksploatowane X/3” w nagłówku Imperium (każda planeta raz).
+  3 wyeksploatowane planety + stacja macierzysta (etap 8 planu) zamkną pętlę MVP. Liczby robocze (`BALANCE.exploitation`).
 
 ## Kompleksy, megakompleksy, znaleziska (przemysł)
 

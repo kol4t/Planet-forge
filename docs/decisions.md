@@ -2,6 +2,16 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Etap 3: wyeksploatowanie i licznik pętli (v0.54)
+
+- Próg 80% złoża osobno dla metalu i kryształów: resztki wydobywane z wydajnością 50% (energia bez zmian); naliczenie
+  dzieli odcinek czasu dokładnie na progu (jak przy wyczerpaniu), więc wynik nie zależy od częstotliwości odświeżania.
+- Planeta „wyeksploatowana” = oba złoża ≥ 80%; lista adresów w zapisie (`exploited`, opcjonalne) — każda planeta liczy się
+  raz, także po późniejszym usunięciu nie znika z licznika. Wpis w dzienniku, plakietka, „wyeksploatowane X/3” w Imperium.
+- Wartości w `BALANCE.exploitation` (`threshold`, `remnantOutput`, `loopPlanets`) — robocze.
+- Symulator: czas zamknięcia pętli prawie bez zmian (pętla liczy się do progu 80%, a zwolnienie działa dopiero po nim) —
+  tempo do progu to zadanie etapu 6 (ekonomia).
+
 ## 2026-10-28 — Etap 2: antymateria jako paliwo lotów (v0.53, decyzja właściciela)
 
 - Wariant „umiarkowany”: w układzie transport 1, statek kolonizacyjny 3, ekspedycja 1, holownik 1; między układami

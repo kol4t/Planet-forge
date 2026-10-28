@@ -25,7 +25,7 @@ const START = Date.UTC(2026, 0, 1, 8, 0, 0);
 const HOUR = 3600_000;
 const DAY = 24 * HOUR;
 /** Próg „planeta wyeksploatowana” (decyzja właściciela: 80% złóż metalu i kryształów). */
-const EXPLOITED = 0.8;
+const EXPLOITED = BALANCE.exploitation.threshold;
 const MINES: BuildingId[] = ['metalMine', 'crystalMine'];
 
 /** Kiedy gracz zagląda do gry: co ile minut i w jakich godzinach doby. */
@@ -292,8 +292,9 @@ class Sim {
     });
   }
 
+  /** Licznik pętli z gry (v0.54: `loopProgress`). */
   exploitedCount(): number {
-    return this.exploitedAt.filter((t) => t !== null && t !== undefined).length;
+    return this.game.loopProgress().exploited.length;
   }
 }
 
