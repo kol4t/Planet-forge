@@ -236,7 +236,9 @@ function growCell(grid: FieldGrid, id: BuildingId, own: number[], taken: Set<num
 function districtTarget(grid: FieldGrid, index: number, total: number, taken: Set<number>): Vec3 {
   const center = grid.cells[grid.colonyCenter]!;
   if (!taken.has(grid.colonyCenter) && index === 0) return center.center;
-  const ring = center.neighbors.length > 0 ? center.neighbors : [grid.colonyCenter];
+  // Dzielnice tylko w stronę pól lądu i lodu (pola morza, v0.57, nie zmieniają rozmieszczenia budynków).
+  const land = center.neighbors.filter((n) => n < grid.seaCellStart);
+  const ring = land.length > 0 ? land : [grid.colonyCenter];
   const toward = grid.cells[ring[Math.floor((index * ring.length) / Math.max(1, total)) % ring.length]!]!.center;
   return [2 * toward[0] - center.center[0], 2 * toward[1] - center.center[1], 2 * toward[2] - center.center[2]];
 }

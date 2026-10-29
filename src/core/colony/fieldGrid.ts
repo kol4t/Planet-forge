@@ -1,6 +1,7 @@
 // Siatka pól planety (od v0.26.4 — pomysł właściciela): NAJPIERW mapa powierzchni (gęsta chmura punktów:
 // ląd, woda, lód, lawa), DOPIERO NA NIEJ pola. Pola lądu dzielą wyłącznie ląd, pola lodu — lód; granice pól
-// biegną wzdłuż brzegów, więc żadne pole nie obejmuje wody. Liczba pól lądu jest narzucona seedem
+// biegną wzdłuż brzegów, więc żadne pole lądu nie obejmuje wody. Od v0.57 woda i lawa mają własne pola (pola
+// morza, na końcu listy — tylko dla megakonstruktów); pola lądu i lodu są dokładnie takie jak wcześniej. Liczba pól lądu jest narzucona seedem
 // (`gameplay.fields`, 30–200 — decyzja właściciela). Lód dostaje pola tej samej wielkości (kryształy).
 // Ukształtowanie (dolina, równina, wzgórze, góra) i brzeg (ląd przy wodzie, lodzie, lawie) liczone są
 // z punktów pola już przy budowie siatki.
@@ -21,7 +22,7 @@ export interface FieldCell {
   radius: number;
   /** Sąsiednie pola (indeksy). */
   neighbors: number[];
-  /** Ląd albo lód (woda i lawa nie mają pól). */
+  /** Ląd albo lód; od v0.57 także woda i lawa (pola morza — tylko dla megakonstruktów, na końcu listy). */
   kind: FieldKind;
   /** Udział suchego lądu w polu (ląd 1, lód 0) — pola nie obejmują wody. */
   landShare: number;
@@ -53,8 +54,18 @@ export interface FieldGrid {
   kinds: FieldKind[];
   /** Pole, do którego należy punkt (−1 — woda, lawa albo wysepka za mała na pole). */
   owner: Int32Array;
-  /** Granice pól (do rysowania siatki) — wygładzone, wzdłuż brzegów. */
+  /**
+   * Granice pól (do rysowania siatki) — wygładzone, wzdłuż brzegów. Od `seaBorderStart` — granice pól morza, dopisywane
+   * dopiero, gdy są potrzebne (`ensureSeaBorders` — zajęte pole morza; liczenie siatki przy zmianie planety bez nich).
+   */
   borders: FieldBorder[];
+  /**
+   * Pola morza (v0.57, woda i lawa — decyzja właściciela: lądowanie megakonstruktów) są dopisane na końcu: pola
+   * `0..seaCellStart−1` i granice `0..seaBorderStart−1` są dokładnie takie jak przed v0.57 (zapisane obszary budynków
+   * wskazują te same pola). Granice pól morza rysuje się tylko wokół zajętych pól.
+   */
+  seaCellStart: number;
+  seaBorderStart: number;
 }
 
 /** Na czym wolno budować (ląd; lód — kryształy od razu, reszta po badaniu; woda — przyszłe badanie). */
@@ -88,6 +99,10 @@ const MAX_SAMPLES = 160_000;
 const MIN_POINTS_PER_FIELD = 40;
 /** Najwięcej pól lodu (planety lodowe z małą ilością lądu). */
 const MAX_ICE_FIELDS = 200;
+/** Najwięcej pól wody i osobno lawy (oceany są duże — pola tej samej wielkości co pola lądu, do limitu). */
+const MAX_SEA_FIELDS = 300;
+/** Iteracje wyrównywania pól morza. */
+const SEA_RELAX = 2;
 /** Jaka część pól lądu to brzeg (najbardziej przybrzeżne). */
 const COAST_SHARE = 0.35;
 /** Iteracje wyrównywania pól (Lloyd). */
@@ -148,9 +163,41 @@ export function buildFieldGrid(planet: Planet): FieldGrid {
   const ice = components(kinds, links, 'ice');
   const iceTotal = ice.reduce((n, c) => n + c.length, 0);
   partition(ice, Math.min(MAX_ICE_FIELDS, Math.round(iceTotal / Math.max(1, perField))), 'ice', samples, links, owner, cells);
+  // Pola morza (v0.57) na końcu — pola lądu i lodu wyżej nie zmieniają się (te same punkty, środki, granice).
+  const seaCellStart = cells.length;
+  for (const kind of ['water', 'lava'] as const) {
+    const sea = components(kinds, links, kind);
+    const seaTotal = sea.reduce((n, c) => n + c.length, 0);
+    // Mniej wyrównywania niż na lądzie (kształt pól morza mniej ważny, liczenie siatki szybsze).
+    partition(sea, Math.min(MAX_SEA_FIELDS, Math.round(seaTotal / Math.max(1, perField))), kind, samples, links, owner, cells, SEA_RELAX);
+  }
   describeCells(cells, samples, kinds, heights, links, owner, field.seaLevel);
-  return { cells, colonyCenter: pickColonyCenter(cells), samples, kinds, owner, borders: traceBorders(samples, links, owner) };
+  // Granice lądu i lodu liczone bez pól morza (jak przed v0.57); granice pól morza — na żądanie (`ensureSeaBorders`).
+  const hasSea = cells.length > seaCellStart;
+  const borders = traceBorders(samples, links, hasSea ? owner.map((o) => (o >= seaCellStart ? -1 : o)) : owner);
+  return { cells, colonyCenter: pickColonyCenter(cells, seaCellStart), samples, kinds, owner, borders, seaCellStart, seaBorderStart: borders.length };
 }
+
+const seaTraced = new WeakSet<FieldGrid>();
+
+/**
+ * Dopisuje granice pól morza (raz na siatkę) — wołane, gdy zajęte albo zaznaczone jest pole morza. Indeksy granic
+ * lądu i lodu się nie zmieniają (dopisane na końcu). Sąsiedztwo punktów liczone ponownie (bez trzymania go w pamięci).
+ */
+export function ensureSeaBorders(grid: FieldGrid): void {
+  if (seaTraced.has(grid) || grid.cells.length <= grid.seaCellStart) return;
+  seaTraced.add(grid);
+  grid.borders.push(...traceBorders(grid.samples, fibonacciLinks(grid.samples), grid.owner, grid.seaCellStart));
+}
+
+/** Czy wśród pól jest pole morza (wtedy potrzebne są jego granice). */
+export function touchesSea(grid: FieldGrid, cells: Iterable<number>): boolean {
+  for (const c of cells) if (c >= grid.seaCellStart) return true;
+  return false;
+}
+
+/** Pole morza (woda albo lawa) — tylko dla megakonstruktów. */
+export const isSeaCell = (grid: FieldGrid, index: number) => index >= grid.seaCellStart;
 
 interface SurfaceMap {
   samples: Vec3[];
@@ -285,7 +332,7 @@ function components(kinds: FieldKind[], links: Links, kind: FieldKind): number[]
  * suma dokładnie `count`; wysepka mniejsza niż pół pola zostaje bez pola), potem pola się wyrównują (Lloyd):
  * punkt należy do najbliższego środka PO SWOIM TERENIE (granica nie przeskakuje przez wodę).
  */
-function partition(comps: number[][], count: number, kind: FieldKind, samples: Vec3[], links: Links, owner: Int32Array, cells: FieldCell[]): void {
+function partition(comps: number[][], count: number, kind: FieldKind, samples: Vec3[], links: Links, owner: Int32Array, cells: FieldCell[], relax = RELAX): void {
   if (count <= 0 || comps.length === 0) return;
   const total = comps.reduce((n, c) => n + c.length, 0);
   const quota = comps.map((c, i) => ({ i, exact: (count * c.length) / total }));
@@ -304,7 +351,7 @@ function partition(comps: number[][], count: number, kind: FieldKind, samples: V
   const allowed = new Uint8Array(samples.length);
   for (const comp of comps) for (const p of comp) allowed[p] = 1;
   let assign = grow(seeds, links, samples, allowed);
-  for (let it = 0; it < RELAX; it++) {
+  for (let it = 0; it < relax; it++) {
     const sums = seeds.map((): Vec3 => [0, 0, 0]);
     allowed.forEach((ok, p) => {
       const o = assign[p]!;
@@ -497,7 +544,7 @@ function describeCells(cells: FieldCell[], samples: Vec3[], kinds: FieldKind[], 
  * Granice pól: dla każdej pary sąsiednich punktów z różnych pól — odcinek łączący środki dwóch trójkątów
  * nad tą parą (dualna siatka mapy), potem wygładzenie (bez ruszania węzłów, gdzie spotykają się 3 pola).
  */
-function traceBorders(samples: Vec3[], links: Links, owner: Int32Array): FieldBorder[] {
+function traceBorders(samples: Vec3[], links: Links, owner: Int32Array, minA = 0): FieldBorder[] {
   // Klucz rogu: trzy numery punktów rosnąco w jednej liczbie (n³ < 2⁵³ dla n ≤ 160 000) — bez napisów (audyt v0.46).
   const n = samples.length;
   const vertex = new Map<number, { pos: Vec3; next: Set<number> }>();
@@ -516,7 +563,7 @@ function traceBorders(samples: Vec3[], links: Links, owner: Int32Array): FieldBo
     for (const q of around(links, p)) {
       if (q <= p || owner[p] === owner[q]) continue;
       const a = Math.max(owner[p]!, owner[q]!);
-      if (a < 0) continue;
+      if (a < 0 || a < minA) continue;
       const b = Math.min(owner[p]!, owner[q]!);
       // Dwaj wspólni sąsiedzi pary — po obu stronach odcinka p–q (najbliżsi jego środka).
       const P = samples[p]!;
@@ -594,14 +641,18 @@ function sampleKind(field: SurfaceField, planet: Planet, [x, y, z]: Vec3): Field
   return 'land';
 }
 
-/** Środek kolonii: pole lądu z największą liczbą lądowych pól w promieniu dwóch sąsiedztw, nie przy biegunach. */
-function pickColonyCenter(cells: FieldCell[]): number {
+/**
+ * Środek kolonii: pole lądu z największą liczbą lądowych pól w promieniu dwóch sąsiedztw, nie przy biegunach.
+ * Sąsiedztwo tylko po polach lądu i lodu (bez pól morza — wynik jak przed v0.57).
+ */
+function pickColonyCenter(cells: FieldCell[], seaStart: number): number {
   let best = 0;
   let bestScore = -Infinity;
+  const near = (c: FieldCell) => c.neighbors.filter((n) => n < seaStart);
   cells.forEach((cell, i) => {
     if (cell.kind !== 'land') return;
-    const ring = new Set<number>(cell.neighbors);
-    for (const n of cell.neighbors) for (const m of cells[n]!.neighbors) ring.add(m);
+    const ring = new Set<number>(near(cell));
+    for (const n of near(cell)) for (const m of near(cells[n]!)) ring.add(m);
     ring.delete(i);
     let land = 0;
     for (const j of ring) if (cells[j]!.kind === 'land') land++;

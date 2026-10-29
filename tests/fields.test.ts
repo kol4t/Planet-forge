@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildableCount, buildFieldGrid, fieldGrid, isBuildable } from '../src/core/colony/fieldGrid.ts';
+import { buildableCount, ensureSeaBorders, buildFieldGrid, fieldGrid, isBuildable } from '../src/core/colony/fieldGrid.ts';
 import { choiceCells, fieldCapacity, hasRoomFor, OFF_SITE_FACTOR, reconcilePlots, siteFactors, usedLandFields } from '../src/core/colony/plots.ts';
 import { fieldsFor, stageName, stageOf } from '../src/core/economy/footprint.ts';
 import { buildingSettings, createEconomy, productionRates, setBuildingSettings, upgradeBuilding } from '../src/core/economy/economy.ts';
@@ -41,13 +41,15 @@ test('liczba pól nie zmienia innych cech planety (osobny strumień losowania)',
   assert.equal(starter.visual.seaLevel, 0.456);
 });
 
-test('siatka pól na mapie powierzchni: dokładnie tyle pól lądu, ile mówi seed; pola obejmują sam ląd albo sam lód', () => {
+test('siatka pól na mapie powierzchni: dokładnie tyle pól lądu, ile mówi seed; pola obejmują jeden rodzaj terenu, pola morza na końcu', () => {
   for (const def of PLANET_DEFINITIONS) {
     const planet = generatePlanet(def, 'PF-GRID');
     const grid = buildFieldGrid(planet);
     assert.equal(buildableCount(grid), planet.gameplay.fields, `${def.id}: pola lądu = liczba z seeda`);
     grid.cells.forEach((cell, i) => {
-      assert.ok(cell.kind === 'land' || cell.kind === 'ice', `${def.id}: bez pól wody i lawy`);
+      // Ląd i lód najpierw, pola morza (woda, lawa — v0.57) na końcu listy.
+      if (i < grid.seaCellStart) assert.ok(cell.kind === 'land' || cell.kind === 'ice', `${def.id}: ląd i lód przed polami morza`);
+      else assert.ok(cell.kind === 'water' || cell.kind === 'lava', `${def.id}: pola morza na końcu`);
       assert.ok(Math.abs(Math.hypot(...cell.center) - 1) < 1e-9);
       assert.ok(cell.members.length > 0);
       // Każdy punkt pola ma rodzaj pola (granica nie obejmuje wody) i należy do niego.
@@ -62,6 +64,16 @@ test('siatka pól na mapie powierzchni: dokładnie tyle pól lądu, ile mówi se
     const sizes = grid.cells.filter((c) => c.kind === 'land').map((c) => c.members.length).sort((a, b) => a - b);
     assert.ok(sizes[sizes.length - 1]! < sizes[sizes.length >> 1]! * 4, `${def.id}: rozmiary ${sizes[0]}…${sizes[sizes.length - 1]}`);
     assert.ok(grid.borders.length > 0 && grid.borders.every((b) => b.a >= 0 && b.a !== b.b));
+    // Granice lądu i lodu nie wskazują pól morza; granice pól morza (dopisane na żądanie) mają pole morza po stronie `a`.
+    const land = grid.borders.length;
+    assert.equal(land, grid.seaBorderStart, 'bez pól morza w użyciu — same granice lądu i lodu');
+    ensureSeaBorders(grid);
+    ensureSeaBorders(grid);
+    if (grid.cells.length > grid.seaCellStart) assert.ok(grid.borders.length > land, `${def.id}: granice pól morza dopisane`);
+    grid.borders.forEach((b, i) => {
+      if (i < grid.seaBorderStart) assert.ok(b.a < grid.seaCellStart && b.b < grid.seaCellStart);
+      else assert.ok(b.a >= grid.seaCellStart);
+    });
     assert.equal(grid.cells[grid.colonyCenter]!.kind, 'land');
     assert.deepEqual(buildFieldGrid(planet).cells.map((c) => c.members.length), grid.cells.map((c) => c.members.length), 'deterministyczna');
   }

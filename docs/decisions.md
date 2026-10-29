@@ -2,6 +2,18 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-28 — Krok 5b: pola na oceanie i lawie (v0.57, decyzja właściciela)
+
+- Woda i lawa dostają **pola morza** tej samej wielkości co pola lądu (do 300 na wodę i 300 na lawę), dopisane **na końcu**
+  siatki (`seaCellStart`). Pola lądu i lodu, ich granice, środek kolonii i rozmieszczenie budynków są **identyczne** jak
+  przed zmianą (sprawdzone na 18 planetach — odcisk siatki i przydziału pól), więc `FIELD_GRID_VERSION` bez zmian i zapisy
+  nie tracą rozmieszczenia budynków. Dzielnice i środek kolonii liczone tylko po polach lądu i lodu.
+- Na polach morza staje tylko megakonstrukt po transferze (`BuildRules.anywhere`); zwykłe budynki — nie. POLA planety
+  bez zmian (pola morza liczą się dopiero, gdy konstrukt je zajmie). Konstrukt rośnie najpierw po pasującym terenie,
+  pola morza zajmuje, gdy lądu brakuje; na morzu pracuje jak na niepasującym terenie (75%), budowle stoją na tafli.
+- Granice pól morza liczone **na żądanie** (`ensureSeaBorders` — gdy pole morza jest zajęte albo zaznaczone) i rysowane
+  tylko wokół zajętych pól morza (osobne małe linie w 3D). Liczenie siatki przy zmianie planety: ok. +6% (Node).
+
 ## 2026-10-28 — Etap 5: transfer megakonstruktu (v0.56, decyzja właściciela)
 
 - Wysłać można budynek z działającym megakompleksem (Kompleks → sekcja megakompleksu → „Wyślij konstrukt…”), na inną
