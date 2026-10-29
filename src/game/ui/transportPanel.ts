@@ -14,9 +14,10 @@ export interface TransportPanelOptions {
   seconds: number;
   /** Paliwo (antymateria) za lot. */
   fuel: number;
-  send: (cargo: Resources) => ActionMessage;
+  /** Wysyłka z liczbą okrętów eskorty (v0.58). */
+  send: (cargo: Resources, escort: number) => ActionMessage;
   /** Kilka możliwych celów (lot ze stacji): wybór z listy, każdy z własnym czasem, paliwem i wysyłką. */
-  targets?: { name: string; seconds: number; fuel: number; send: (cargo: Resources) => ActionMessage }[];
+  targets?: { name: string; seconds: number; fuel: number; send: (cargo: Resources, escort: number) => ActionMessage }[];
   /** Ile każdego surowca zmieści cel (np. wolne miejsce na stacji); brak — bez limitu. */
   room?: Resources;
   title?: string;
@@ -36,6 +37,8 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
         <input type="range" min="0" step="1" data-res="metal" /></label>
       <label class="tr-row"><span class="tr-label">Kryształy</span><span class="tr-value" data-for="crystal"></span>
         <input type="range" min="0" step="1" data-res="crystal" /></label>
+      <div class="tr-row tr-escort" hidden><span class="tr-label">Eskorta (okręty)</span><span class="tr-value tr-escort-value">0</span>
+        <div class="fb-kinds" style="grid-column: 1 / -1"><button type="button" data-escort="-1">−</button><button type="button" data-escort="1">+</button></div></div>
       <div class="fb-kinds tr-quick">
         <button type="button" data-quick="0">Zeruj</button>
         <button type="button" data-quick="0.5">Połowa</button>
@@ -72,7 +75,7 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
     const t = target();
     root.querySelector('.tr-route')!.textContent =
       `${options.fromName} → ${t.name} · lot ${formatDuration(t.seconds)} · ${fuelLabel(t.fuel)} · ` +
-      `w drodze ${transport.active} z ${transport.maxActive} transportowców`;
+        `transportowce: w drodze ${transport.active}, wolne ${transport.maxActive - transport.active}`;
   };
   select.addEventListener('change', route);
   route();
@@ -81,6 +84,19 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
     error.textContent = text;
     error.hidden = false;
   };
+
+  // Eskorta (v0.58): ile okrętów leci z transportem — ochrona działa od etapu ryzyka misji.
+  let escort = 0;
+  if (transport.escorts > 0) {
+    root.querySelector<HTMLElement>('.tr-escort')!.hidden = false;
+    for (const b of root.querySelectorAll<HTMLButtonElement>('[data-escort]')) {
+      b.addEventListener('click', () => {
+        escort = Math.max(0, Math.min(transport.escorts, escort + Number(b.dataset.escort)));
+        root.querySelector('.tr-escort-value')!.textContent = `${escort} z ${transport.escorts}`;
+      });
+    }
+    root.querySelector('.tr-escort-value')!.textContent = `0 z ${transport.escorts}`;
+  }
 
   const cargo = (): Resources => ({ metal: Number(sliders.metal.value), crystal: Number(sliders.crystal.value) });
   const update = (changed?: keyof Resources) => {
@@ -126,7 +142,7 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
     if (event.target === root) close();
   });
   sendButton.addEventListener('click', () => {
-    const result = target().send(cargo());
+    const result = target().send(cargo(), escort);
     if (!result.ok) {
       showError(result.message);
       return;
@@ -139,7 +155,11 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
     showError('Najpierw zbadaj „Transportowce” (Badania → Flota).');
     for (const s of Object.values(sliders)) s.disabled = true;
   } else if (transport.active >= transport.maxActive) {
-    showError(`W drodze jest już ${transport.active} transportowców (limit ${transport.maxActive}).`);
+    showError(
+      transport.maxActive === 0
+        ? 'Brak transportowca we flocie — zbuduj go w stoczni (Imperium → Flota).'
+        : `Wszystkie transportowce są w drodze (${transport.active}) — zbuduj kolejny (Imperium → Flota) albo poczekaj na powrót.`,
+    );
   }
   update();
   document.body.append(root);

@@ -47,12 +47,10 @@ test('paliwo (v0.53): w układzie stała kwota, między układami rośnie z odle
   assert.equal(fuelLabel(3), 'paliwo: 3 antymaterie');
 });
 
-test('paliwo: kolonizacja we własnym układzie — statek za surowce i paliwo, krótki lot, zawrócenie zwraca wszystko', () => {
+test('paliwo: kolonizacja we własnym układzie — statek z floty za paliwo, krótki lot, zawrócenie zwraca wszystko', () => {
   withMemoryStorage(() => {
     const game = new GameController(0);
     const free = game.system(game.homeSystem)!.planets.find((p) => p.body === 'rocky' && game.occupantAt(p) === 'free')!.address;
-    // Start gry: za mały magazyn na statek.
-    assert.match(game.colonize(free, 0).message, /magazyn/i);
     game.economy = { ...game.economy, levels: { ...game.economy.levels, storage: 6 }, stock: { metal: 5000, crystal: 5000 }, antimatter: 2 };
     assert.match(game.colonize(free, 0).message, /paliwa/);
     game.economy = { ...game.economy, antimatter: 10 };
@@ -60,7 +58,7 @@ test('paliwo: kolonizacja we własnym układzie — statek za surowce i paliwo, 
     assert.ok(sent.ok, sent.message);
     assert.equal(game.slotInfo.used, 1, 'kolonia dopiero po przylocie');
     assert.equal(game.economy.antimatter, 10 - BALANCE.fuel.colonyShip.inSystem);
-    assert.equal(game.economy.stock.metal, 5000 - BALANCE.colonyShip.cost.metal);
+    assert.equal(game.economy.stock.metal, 5000, 'v0.58: statek z floty — bez kosztu surowców');
     const mission = game.missionsView(0)[0]!;
     assert.equal(mission.arrivesAt, BALANCE.colonyShip.baseSeconds * 1000, 'lot ok. 2 min');
     assert.match(game.colonize(free, 0).message, /już leci/);

@@ -3,26 +3,20 @@ import type { ActionMessage, GameController } from '../src/app/GameController.ts
 
 /**
  * Kolonizacja „od ręki” do testów, które sprawdzają co innego niż sam lot (v0.53: także we własnym układzie leci
- * statek kolonizacyjny za surowce i paliwo). Dokłada aktywnej planecie dokładnie koszt i paliwo (więc zapasy
- * po wszystkim są jak przed), wysyła statek tak, żeby doleciał dokładnie w `now`, i przełącza na nową kolonię
- * (jak dawna natychmiastowa kolonizacja).
+ * statek kolonizacyjny; od v0.58 z floty). Dokłada statek do floty i paliwo (więc zapasy po wszystkim są jak przed),
+ * wysyła statek tak, żeby doleciał dokładnie w `now`, i przełącza na nową kolonię (jak dawna natychmiastowa kolonizacja).
  */
 export function colonizeNow(game: GameController, address: string, now = 0): ActionMessage {
-  const cost = game.colonyShipCost;
+  // v0.58: statek kolonizacyjny pochodzi z floty — pomocnik dokłada jeden statek i paliwo (jak dawniej koszt).
+  const fleet = (game as unknown as { fleet: { docked: Record<string, number> } }).fleet;
+  fleet.docked.colonyShip = (fleet.docked.colonyShip ?? 0) + 1;
   const fuel = game.colonyFuelTo(address);
   const before = game.economy;
-  const storage = before.levels.storage ?? 1;
-  // Magazyn na tyle duży, żeby zmieścić koszt statku (przywracany zaraz po wysłaniu).
-  game.economy = {
-    ...before,
-    levels: { ...before.levels, storage: Math.max(storage, 4) },
-    stock: { metal: before.stock.metal + cost.metal, crystal: before.stock.crystal + cost.crystal },
-    antimatter: before.antimatter + fuel,
-  };
+  game.economy = { ...before, antimatter: before.antimatter + fuel };
   const sent = game.colonize(address, now - game.flightSeconds(Number(address.split(':')[1])) * 1000);
-  game.economy = { ...game.economy, levels: { ...game.economy.levels, storage } };
   if (!sent.ok) {
     game.economy = before;
+    fleet.docked.colonyShip--;
     return sent;
   }
   game.tick(now);

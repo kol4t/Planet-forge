@@ -829,6 +829,14 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       const a = spin + (i / look.modules) * Math.PI * 2;
       dot(Math.cos(a) * rx, Math.sin(a) * ry, '#d8c9a8');
     }
+    // Stocznia (v0.58): rama doku pod pierścieniem z jasnym kadłubem.
+    if (look.shipyard && !look.building) {
+      ctx.fillStyle = '#6f7b78';
+      ctx.fillRect(x0 + 2 * p, y0 + 4 * p, 6 * p, p);
+      ctx.fillRect(x0 + 2 * p, y0 + 6 * p, 6 * p, p);
+      ctx.fillStyle = '#d8dcd6';
+      ctx.fillRect(x0 + 3 * p, y0 + 5 * p, 4 * p, p);
+    }
     // Rdzeń SI Matki.
     ctx.fillStyle = '#6f7b78';
     ctx.fillRect(x0 - p, y0 - p, 3 * p, 3 * p);

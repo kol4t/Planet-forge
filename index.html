@@ -222,6 +222,8 @@ html, body {
 #text-panel .fd-count { color: var(--text); font-variant-numeric: tabular-nums; }
 #text-panel .fd-item small { display: block; color: #8ea6a0; margin-top: 2px; }
 #text-panel .fd-item p { margin: 6px 0 0; color: var(--text); font-style: italic; line-height: 1.4; }
+/* Ukryte wiersze okien zostają ukryte, mimo własnego `display` (v0.58: pusty wybór „Dokąd” od v0.55). */
+#text-panel [hidden] { display: none !important; }
 #text-panel .tr-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 6px 0 10px; font-size: 15px; color: var(--text); }
 #text-panel .tr-value { color: var(--gold); font-variant-numeric: tabular-nums; }
 #text-panel .tr-row input { grid-column: 1 / -1; width: 100%; height: 44px; margin: 0; accent-color: var(--teal); }

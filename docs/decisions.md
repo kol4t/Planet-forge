@@ -2,6 +2,26 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-10-29 — Etap 6: wstępna flota (v0.58, decyzja właściciela)
+
+- **Statki budowane**: transportowiec, statek kolonizacyjny, holownik, okręt eskorty (`src/data/fleet.ts`, nazwy robocze).
+  Flota imperium = statki na stanie (`fleet.docked`) + w drodze (liczone z lotów). Lot zabiera statek z floty:
+  transportowiec i holownik wracają po locie, statek kolonizacyjny zostaje na nowej kolonii (zawrócony — wraca).
+  Liczba transportowców = ile lotów naraz (dawny limit 3 zastąpiony). Statek kolonizacyjny nie kosztuje już surowców
+  przy starcie (kosztuje budowa w stoczni) — lot tylko za paliwo.
+- **Flota startowa** (także dla zapisów sprzed v0.58): 3 transportowce, 1 statek kolonizacyjny, 1 holownik — tyle,
+  ile dało się dotąd wysłać naraz; obecne zapisy działają bez zmian.
+- **Stocznia = moduł stacji macierzystej** (poz. 1–10, koszt 6000 / 4000 × 1,6^(poz − 1), czas 600 s × poz.; wyższy
+  poziom buduje statki szybciej o 20% na poziom); kolejka do 5 statków, budowa po kolei, anulowanie zwraca koszt.
+  Bez stacji nie ma nowych statków — kolejne kolonie po zbadaniu „Modułu orbitalnego”. Wygląd: rama doku z kadłubem
+  przy pierścieniu (3D i 2D).
+- **Eskorta**: okręty przypisywane do lotu transportu (okno „Wyślij surowce”, także na stację i ze stacji) i transferu
+  megakonstruktu; lecą i wracają razem z nim. Ochrona przed przechwyceniem — etap 7.
+- **Widok**: nowa zakładka „Flota” w Imperium (stocznia, statki na stanie i w drodze, budowa, kolejka).
+- Symulator (`npm run simulate`) buduje stację, stocznię i statki kolonizacyjne; pętla zamyka się we wszystkich
+  profilach (aktywny / pętla 5,0 d zamiast 4,4 d — dochodzi budowa stoczni).
+- Poprawka: w oknach HTML ukryte wiersze zostają ukryte (od v0.55 w „Wyślij surowce” widać było pusty wybór „Dokąd”).
+
 ## 2026-10-28 — Krok 5b: pola na oceanie i lawie (v0.57, decyzja właściciela)
 
 - Woda i lawa dostają **pola morza** tej samej wielkości co pola lądu (do 300 na wodę i 300 na lawę), dopisane **na końcu**

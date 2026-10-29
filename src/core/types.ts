@@ -351,6 +351,21 @@ export interface Balance {
    * `costShare` × koszt ostatniego poziomu budynku.
    */
   transfer: { prepareSeconds: number; speedFactor: number; fuelFactor: number; costShare: number };
+  /**
+   * Flota (v0.58): stocznia jako moduł stacji macierzystej — koszt `shipyardCost` × `shipyardCostGrowth`^(n − 1), czas
+   * `shipyardSecondsPerLevel` × n, budowa statków szybsza o `speedPerLevel` na poziom, kolejka do `queue` statków.
+   * Statki (`ships`) — koszt i czas budowy; `starter` — flota na start (i dla zapisów sprzed v0.58).
+   */
+  fleet: {
+    shipyardCost: Resources;
+    shipyardCostGrowth: number;
+    shipyardSecondsPerLevel: number;
+    shipyardMaxLevel: number;
+    speedPerLevel: number;
+    queue: number;
+    ships: Record<ShipType, { cost: Resources; seconds: number }>;
+    starter: Record<ShipType, number>;
+  };
   buildings: readonly BuildingDef[];
 }
 
@@ -602,6 +617,8 @@ export interface ColonyMission {
   cost: Resources;
   /** Paliwo (antymateria) zapłacone za lot — zwracane przy zawróceniu (v0.53; brak w starszych zapisach = 0). */
   fuel?: number;
+  /** Lot zużył statek kolonizacyjny floty (v0.58; brak — lot sprzed floty, statek nie wraca do floty). */
+  ship?: boolean;
 }
 
 export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai' | 'expedition' | 'find';
@@ -618,6 +635,8 @@ export interface CometHaul {
   departedAt: number;
   returnsAt: number;
   cargo: Resources;
+  /** Holownik floty (v0.58) — wraca do floty po powrocie. */
+  ship?: boolean;
 }
 
 /** Transport surowców między planetami gracza (v0.36). */
@@ -630,6 +649,10 @@ export interface Shipment {
   cargo: Resources;
   /** Lot na stację macierzystą albo ze stacji (v0.55; brak = między planetami). */
   station?: 'to' | 'from';
+  /** Transportowiec floty (v0.58) — po przylocie wraca do floty; brak — lot sprzed floty. */
+  ship?: boolean;
+  /** Okręty eskorty lecące z transportem (v0.58; ochrona przed przechwyceniem — etap 7). */
+  escort?: number;
 }
 
 /**
@@ -652,6 +675,8 @@ export interface ConstructTransfer {
   fuel: number;
   /** Budynek zdjęty już z planety nadawcy (po odlocie). */
   departed?: boolean;
+  /** Okręty eskorty (v0.58) — lecą z konstruktem, wracają do floty po przylocie albo anulowaniu. */
+  escort?: number;
 }
 
 /**
@@ -662,7 +687,30 @@ export interface HomeStation {
   address: string;
   core: AsteroidStation;
   storage?: AsteroidStation;
+  /** Stocznia (v0.58) — moduł stacji, buduje statki floty. */
+  shipyard?: AsteroidStation;
   stock: Resources;
+}
+
+/** Rodzaje statków floty (v0.58, nazwy robocze). */
+export type ShipType = 'transport' | 'colonyShip' | 'tug' | 'escort';
+
+/** Statek w budowie w stoczni (kolejka: kolejne zaczynają się po poprzednim). */
+export interface ShipOrder {
+  type: ShipType;
+  startsAt: number;
+  readyAt: number;
+  /** Zapłacony koszt — zwracany przy anulowaniu. */
+  cost: Resources;
+}
+
+/**
+ * Flota imperium (v0.58, decyzja właściciela: statki budowane w stoczni). `docked` — statki gotowe do lotu (w drodze
+ * są liczone z lotów), `queue` — zamówienia stoczni.
+ */
+export interface Fleet {
+  docked: Record<ShipType, number>;
+  queue: ShipOrder[];
 }
 
 /** Wpis w dzienniku ekspedycji. */

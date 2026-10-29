@@ -38,6 +38,22 @@ export const BALANCE: Balance = {
     storageMaxLevel: 10,
   },
   transfer: { prepareSeconds: 1800, speedFactor: 2, fuelFactor: 5, costShare: 0.1 },
+  // Flota (v0.58, decyzja właściciela: statki budowane w stoczni na stacji macierzystej; liczby robocze).
+  fleet: {
+    shipyardCost: { metal: 6000, crystal: 4000 },
+    shipyardCostGrowth: 1.6,
+    shipyardSecondsPerLevel: 600,
+    shipyardMaxLevel: 10,
+    speedPerLevel: 0.2,
+    queue: 5,
+    ships: {
+      transport: { cost: { metal: 1500, crystal: 800 }, seconds: 600 },
+      colonyShip: { cost: { metal: 2500, crystal: 1800 }, seconds: 900 },
+      tug: { cost: { metal: 600, crystal: 400 }, seconds: 600 },
+      escort: { cost: { metal: 3000, crystal: 2000 }, seconds: 1200 },
+    },
+    starter: { transport: 3, colonyShip: 1, tug: 1, escort: 0 },
+  },
   fuel: {
     transport: { inSystem: 1, base: 2, unitsPerOne: 20 },
     colonyShip: { inSystem: 3, base: 3, unitsPerOne: 15 },

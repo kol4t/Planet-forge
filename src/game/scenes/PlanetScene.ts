@@ -1368,7 +1368,7 @@ export class PlanetScene extends Phaser.Scene {
     this.deps.display.setOrbital(controller.collectorView(now).level);
     // Stacja macierzysta (v0.55) — pierścień na orbicie planety, nad którą krąży.
     const station = controller.stationHere(now);
-    this.deps.display.setHomeStation(station ? { modules: stationModules(station.storageLevel), building: !station.ready } : null);
+    this.deps.display.setHomeStation(station ? { modules: stationModules(station.storageLevel), building: !station.ready, shipyard: station.shipyard } : null);
     if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
       this.relayout();
       return;
@@ -1912,7 +1912,7 @@ export class PlanetScene extends Phaser.Scene {
         this.closeAsteroid = openConstructTransferPanel({
           name: c.complexView(id)!.mega.name,
           view: () => c.transferView(id),
-          send: (to) => c.startTransfer(id, to),
+          send: (to, escort) => c.startTransfer(id, to, Date.now(), escort),
           cancel: () => c.cancelTransfer(id),
           onDone: (message) => {
             this.closeAsteroid = null;

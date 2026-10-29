@@ -9,6 +9,8 @@ export interface HomeStationLook {
   modules: number;
   /** Rdzeń jeszcze w budowie. */
   building: boolean;
+  /** Stocznia (v0.58): rama doku z kadłubem statku na pierścieniu. */
+  shipyard?: boolean;
 }
 
 /** Ile modułów rysować dla poziomu magazynu orbitalnego (poz. 1 → 2, maks. 8). */

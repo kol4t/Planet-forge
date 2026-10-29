@@ -64,6 +64,9 @@ export function parseShipments(raw: unknown): Shipment[] {
             cargo: { metal: s.cargo.metal, crystal: s.cargo.crystal },
             // Lot na stację macierzystą albo ze stacji (v0.55) — opcjonalne; inne wartości pomijane.
             ...(s.station === 'to' || s.station === 'from' ? { station: s.station } : {}),
+            // Statek floty i eskorta (v0.58) — opcjonalne.
+            ...(s.ship === true ? { ship: true } : {}),
+            ...(Number.isInteger(s.escort) && s.escort > 0 && s.escort <= 999 ? { escort: s.escort } : {}),
           },
         ]
       : [],
