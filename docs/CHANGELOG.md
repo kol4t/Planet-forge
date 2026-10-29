@@ -2,6 +2,12 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.57.0 — pola na oceanie i lawie — 2026-10-29
+
+- Ocean i lawa mają własne pola — stoi na nich tylko megakonstrukt po transferze (zwykłe budynki dalej na lądzie i lodzie). Konstrukt zajmuje je, gdy na lądzie brakuje miejsca; budowle stoją na tafli.
+- Budynki graczy zostają dokładnie tam, gdzie były; licznik POLA bez zmian. Linie pól morza widać tylko wokół zajętych pól.
+- Zapisy zgodne.
+
 ## v0.56.0 — transfer megakonstruktu — 2026-10-28
 
 - Megakompleks można wysłać na inną swoją planetę: okno Kompleks → „Wyślij konstrukt…” (wybór planety, czas lotu, paliwo, koszt, pola, ostrzeżenie o energii na celu).
