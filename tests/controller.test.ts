@@ -281,7 +281,9 @@ test('statek kolonizacyjny: wymaga badania, statku z floty i paliwa, leci, zakł
     assert.ok(Math.abs(game.economy.antimatter - (fuel + 2)) < 0.01, 'paliwo zwrócone');
     assert.equal(game.fleetView(1000).ships.find((s) => s.type === 'colonyShip')!.docked, 1, 'statek wrócił do floty');
     assert.ok(game.sendColonyShip(target, 1000).ok);
-    const arrivesAt = game.missionsView(1000)[0]!.arrivesAt;
+    // Etap 7: lot do innego układu może się spóźnić przez piratów (opóźnienie wylosowane przy starcie).
+    const flight = game.missionsView(1000)[0]!;
+    const arrivesAt = flight.arrivesAt + (flight.incident?.delaySeconds ?? 0) * 1000;
     game.save();
     // Przylot podczas nieobecności: kolonia jest, gracz zostaje na swojej planecie.
     const later = new GameController(arrivesAt + 1000);

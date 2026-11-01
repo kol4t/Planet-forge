@@ -54,6 +54,21 @@ export const BALANCE: Balance = {
     },
     starter: { transport: 3, colonyShip: 1, tug: 1, escort: 0 },
   },
+  // Ryzyko misji (etap 7, decyzja właściciela 2026-11-01: piraci-boty, tylko między układami, skutek łagodny,
+  // każdy okręt eskorty zmniejsza ryzyko; liczby robocze). Typowa trasa ~77 jedn. → ~15%, z gniazdem piratów przy trasie ~25%; mediana tras ~19%.
+  missionRisk: {
+    perUnit: 0.002,
+    perNest: 0.1,
+    nestRange: 6,
+    nestShare: 0.1,
+    cap: 0.6,
+    escortCut: 0.32,
+    lossShare: { min: 0.2, max: 0.5 },
+    delayShare: { min: 0.15, max: 0.35 },
+    escortDamage: 0.4,
+    repairSeconds: 1800,
+    status: 'robocza',
+  },
   // Kompleks kopalni metalu (decyzja właściciela 2026-11-01, etap 1 — tylko model; robocze): 4 osady po 3 kopalnie
   // (poz. 1–3 każda) i fabrykę → osada co 10 poziomów, komplet na poz. 40 = 4 × (3 × 1 + 2) = 20 pól = próg megakonstruktu.
   metalComplex: {

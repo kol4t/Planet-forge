@@ -32,13 +32,14 @@ Kopiuj zapis / Wczytaj zapis).
   "research": { "done": [], "current": null },   // pole zgodności — badania są przy planetach (od v0.15)
   "home": "1:16:3",               // miejsce startowe w galaktyce
   "missions": [ … ],              // statki kolonizacyjne w drodze (od v0.13; od v0.53 opcjonalne "fuel" — paliwo do zwrotu;
-                                  //   od v0.58 "ship": true — statek z floty, wraca po zawróceniu)
+                                  //   od v0.58 "ship": true — statek z floty, wraca po zawróceniu; od v0.62 "incident")
   "journal": [ { "at": 0, "kind": "build", "text": "…" } ],  // dziennik, maks. 80 wpisów
   "ai": { "energy": "ask", … },   // samodzielność SI dla każdej reguły (od v0.14)
   "discoveries": { "16": 4, … },  // wiedza o galaktyce: układ → poziom 1–4 (od v0.34.2)
   "expeditions": [ … ],           // ekspedycje w drodze (od v0.34.3, opcjonalne)
   "shipments": [ … ],             // transportowce (od v0.36, opcjonalne; od v0.55 "station": "to" | "from" — lot na stację / ze stacji;
-                                  //   od v0.58 "ship": true — transportowiec floty, "escort": n — okręty eskorty)
+                                  //   od v0.58 "ship": true — transportowiec floty, "escort": n — okręty eskorty;
+                                  //   od v0.62 "incident" — atak piratów, patrz niżej)
   "comets": [ … ],                // holowniki po komety (od v0.37.1, opcjonalne; od v0.58 "ship": true — holownik floty)
   "finds": { "items": {}, "next": {} },  // znaleziska megakompleksów (od v0.43.1, opcjonalne)
   "exploited": ["1:16:4"],        // wyeksploatowane planety, każda raz (od v0.54, opcjonalne; błędne adresy pomijane)
@@ -48,7 +49,8 @@ Kopiuj zapis / Wczytaj zapis).
   ],
   "fleet": {                      // flota (od v0.58, opcjonalne; brak = flota startowa 3 / 1 / 1 / 0)
     "docked": { "transport": 2, "colonyShip": 1, "tug": 1, "escort": 0 },   // statki na stanie (w drodze — z lotów)
-    "queue": [ { "type": "escort", "startsAt": 0, "readyAt": 1200000, "cost": { "metal": 3000, "crystal": 2000 } } ]
+    "queue": [ { "type": "escort", "startsAt": 0, "readyAt": 1200000, "cost": { "metal": 3000, "crystal": 2000 } } ],
+    "repairs": [ { "readyAt": 1800000, "count": 1 } ]   // od v0.62, opcjonalne: okręty eskorty w naprawie po ataku
   },
   "transfers": [                  // megakonstrukty w transferze (od v0.56, opcjonalne; błędne pomijane)
     { "from": "1:16:4", "to": "1:16:1", "building": "crystalMine", "level": 20, "family": "crystal-drill",
@@ -66,6 +68,11 @@ Kopiuj zapis / Wczytaj zapis).
   "slots": [ SlotSave, … ]
 }
 ```
+
+**Atak piratów w locie (`incident`, od v0.62, opcjonalne)** — w `shipments`, `missions`, `transfers` i `orbiting`
+(lądowanie): `{ "at": 1300000, "delaySeconds": 120, "lossShare": 0.3, "damaged": 1, "done": true }` — chwila ataku (ms),
+opóźnienie (s), część utraconego ładunku (tylko transport, 0–1), uszkodzone okręty eskorty, `done` — atak już zaszedł
+(opóźnienie doliczone do `arrivesAt` / `landsAt`, strata odjęta). Błędne pole jest pomijane (lot bez ataku).
 
 ### Miejsce (`SlotSave`)
 

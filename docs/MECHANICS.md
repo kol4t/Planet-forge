@@ -105,8 +105,14 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
   ile transportowców we flocie).
 - **Flota** (v0.58, Imperium → Flota): statki budowane w **stoczni** — module stacji macierzystej (kolejka do 5,
   wyższy poziom szybciej). Transportowiec i holownik wracają po locie, statek kolonizacyjny zostaje na nowej kolonii
-  (lot tylko za paliwo). Okręty eskorty lecą z transportem albo megakonstruktem (ochrona — etap 7). Na start:
+  (lot tylko za paliwo). Okręty eskorty lecą z transportem albo megakonstruktem i zmniejszają ryzyko ataku. Na start:
   3 transportowce, 1 statek kolonizacyjny, 1 holownik. Liczby robocze (`BALANCE.fleet`).
+- **Ryzyko misji** (etap 7, `core/economy/missionRisk.ts`, `BALANCE.missionRisk`, robocze): loty **między układami**
+  mogą zaatakować piraci (nazwa robocza; gniazda w 10% układów). Ryzyko rośnie z odległością i przy gniazdach blisko
+  trasy (maks. 60%); w jednym układzie — 0%. Każdy okręt eskorty zdejmuje 32% ryzyka (3 okręty ≈ 4%). Atak: transport
+  traci 20–50% ładunku i się spóźnia; statek kolonizacyjny i megakonstrukt tylko się spóźniają; uszkodzona eskorta
+  wraca po naprawie (30 min). Atak jest losowany przy starcie, ujawnia się w trakcie lotu (dziennik, powiadomienie).
+  Ryzyko w % widać przed wysłaniem.
 
 ## Kosmos wokół planety
 

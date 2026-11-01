@@ -190,7 +190,7 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
             const b = document.createElement('button');
             b.type = 'button';
             b.className = 'tp-primary';
-            b.textContent = `Ściągnij z orbity ${k.originName} · ${formatDuration(k.seconds)} · ${fuelLabel(k.fuel)}`;
+            b.textContent = `Ściągnij z orbity ${k.originName} · ${formatDuration(k.seconds)} · ${fuelLabel(k.fuel)} · ${k.risk}`;
             b.addEventListener('click', act(() => o.land(k.index)));
             orbitRow.append(b);
           }

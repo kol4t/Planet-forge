@@ -1,3 +1,4 @@
+import { parseIncident } from './missionRisk.ts';
 // Transfer megakonstruktu (v0.56, decyzja właściciela): gotowy megakompleks można wysłać na inną planetę gracza.
 // Rozkładanie do lotu trwa `prepareSeconds` (budynek nie pracuje; anulowanie zwraca koszty), potem lot zależny od
 // odległości; na planecie nadawcy zostają puste pola, na celu konstrukt staje z tym samym poziomem i megakompleksem —
@@ -73,6 +74,7 @@ export function parseTransfers(raw: unknown, buildings: readonly BuildingId[]): 
       fuel: Math.max(0, t.fuel),
       ...(t.departed === true ? { departed: true } : {}),
       ...(Number.isInteger(t.escort) && t.escort > 0 && t.escort <= 999 ? { escort: t.escort } : {}),
+      ...(parseIncident(t.incident) ? { incident: parseIncident(t.incident)! } : {}),
     });
   }
   return out;

@@ -629,6 +629,7 @@ export class EmpireScene extends OverlayScene {
         fuel: v.fuel,
         room,
         send: (cargo, escort) => c.sendToStation(cargo, Date.now(), escort),
+        risk: (escort) => c.riskText(c.address, c.stationAddress ?? c.address, escort),
         onSent,
       });
       return;
@@ -642,7 +643,13 @@ export class EmpireScene extends OverlayScene {
       transport: c.transportView(),
       seconds: routes[0]?.seconds ?? 0,
       fuel: routes[0]?.fuel ?? 0,
-      targets: routes.map((r) => ({ name: r.name, seconds: r.seconds, fuel: r.fuel, send: (cargo, escort) => c.sendFromStation(r.address, cargo, Date.now(), escort) })),
+      targets: routes.map((r) => ({
+        name: r.name,
+        seconds: r.seconds,
+        fuel: r.fuel,
+        send: (cargo, escort) => c.sendFromStation(r.address, cargo, Date.now(), escort),
+        risk: (escort) => c.riskText(c.stationAddress ?? r.address, r.address, escort),
+      })),
       send: () => ({ ok: false, message: '' }),
       onSent,
     });
@@ -661,6 +668,7 @@ export class EmpireScene extends OverlayScene {
       seconds: c.transportSecondsTo(address),
       fuel: c.transportFuelTo(address),
       send: (cargo, escort) => c.sendResources(address, cargo, Date.now(), escort),
+      risk: (escort) => c.riskText(c.address, address, escort),
       onSent: (message) => {
         this.closeTransport = null;
         this.showToast(message, 'info');
@@ -764,7 +772,7 @@ export class EmpireScene extends OverlayScene {
   private fleetShape(): string {
     const v = this.deps.controller.fleetView();
     const orbit = this.deps.controller.orbitingView().map((o) => o.state).join(',');
-    return `fleet|${v.stationBuilt}|${v.stationReady}|${v.shipyard.level}|${v.shipyard.upgradingTo}|${v.ships.map((x) => `${x.docked}/${x.flying}`).join(',')}|${v.queue.length}|${orbit}`;
+    return `fleet|${v.stationBuilt}|${v.stationReady}|${v.shipyard.level}|${v.shipyard.upgradingTo}|${v.ships.map((x) => `${x.docked}/${x.flying}`).join(',')}|${v.repairing}|${v.queue.length}|${orbit}`;
   }
 
   /** Stocznia (moduł stacji), statki na stanie i w drodze, budowa statków i kolejka stoczni. */
@@ -836,7 +844,7 @@ export class EmpireScene extends OverlayScene {
       items.push(
         bg,
         this.text(cx + pad, cy + pad, ship.name, 15, COLORS.text, { fontFamily: FONTS.serif, fixedWidth: this.px(tw) }, false),
-        this.text(cx + pad, cy + pad + this.s(22), `Na stanie: ${ship.docked} · w drodze: ${ship.flying}`, 12, ship.docked > 0 ? COLORS.teal : COLORS.muted, { fontStyle: '600', fixedWidth: this.px(tw) }, false),
+        this.text(cx + pad, cy + pad + this.s(22), `Na stanie: ${ship.docked} · w drodze: ${ship.flying}${ship.type === 'escort' && v.repairing > 0 ? ` · w naprawie: ${v.repairing} (${formatDuration(v.repairSecondsLeft)})` : ''}`, 12, ship.docked > 0 ? COLORS.teal : COLORS.muted, { fontStyle: '600', fixedWidth: this.px(tw) }, false),
         this.text(cx + pad, cy + pad + this.s(40), ship.description, 10.5, COLORS.muted, { wordWrap: { width: this.px(tw) }, lineSpacing: this.px(1) }, false),
         this.text(cx + pad, cy + cardH - pad - TOUCH - this.s(18), `Koszt: ${cost(ship.cost)} · budowa ${formatDuration(ship.seconds)}`, 10.5, COLORS.stone, { fixedWidth: this.px(tw) }, false),
         this.button(cx + pad, cy + cardH - pad - TOUCH, tw, 'Zbuduj', v.shipyard.level > 0 ? 'secondary' : 'disabled', () =>

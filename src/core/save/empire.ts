@@ -8,6 +8,7 @@ import { parseStation } from '../economy/asteroids.ts';
 import { parseDiscoveries, type Discoveries } from '../galaxy/discovery.ts';
 import { parseExpeditions } from '../galaxy/expeditions.ts';
 import { parseShipments } from '../economy/transport.ts';
+import { parseIncident } from '../economy/missionRisk.ts';
 import { parseComets } from '../economy/comets.ts';
 import { parseFinds, type FindsState } from '../economy/finds.ts';
 import { parseHomeStation } from '../economy/homeStation.ts';
@@ -151,6 +152,8 @@ export function parseMissions(raw: unknown): ColonyMission[] {
             ...(isNum(m.fuel) && m.fuel > 0 ? { fuel: m.fuel } : {}),
             // Statek kolonizacyjny floty (v0.58) — opcjonalne.
             ...(m.ship === true ? { ship: true } : {}),
+            // Przechwycenie przez piratów (etap 7) — opcjonalne.
+            ...(parseIncident(m.incident) ? { incident: parseIncident(m.incident)! } : {}),
           },
         ]
       : [],

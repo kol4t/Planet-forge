@@ -247,7 +247,7 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 | 5 | v0.56 | ✅ **Transfer megakonstruktu** (gałąź `claude/transfer-megakonstruktu`) | przygotowanie 30 min (budynek nie pracuje), lot zależny od odległości, koszt paliwo + surowce, konstrukt staje na celu (ląd i lód), puste pola na starej planecie | 2 |
 | 5b | v0.57 | ✅ **Pola na oceanie i lawie** (decyzja właściciela, gałąź `claude/pola-ocean-lawa`) | nowe pola na wodzie i lawie tylko dla megakonstruktów (i przyszłych platform przybrzeżnych), bez przestawiania budynków, pomiar płynności | 5 |
 | 6 | v0.58 | ✅ **Wstępna flota** (gałąź `claude/wstepna-flota`) | widok floty, budowa statków (stocznia na stacji): transportowce, kolonizacyjne, eskorta | 4 |
-| 7 | v0.59 | **Ryzyko misji i obrona** 🔒 lore K-005 | misje mogą zostać przechwycone przez boty / zdarzenia; eskorta i obrona zmniejszają ryzyko | 5, 6 |
+| 7 | v0.62 | ✅ **Ryzyko misji i obrona** (gałąź `claude/ryzyko-misji`; lore K-005 — do uzgodnienia nazwa „piraci”) | loty między układami mogą zaatakować piraci (gniazda przy trasach); skutek łagodny (strata części ładunku, opóźnienie); każdy okręt eskorty zmniejsza ryzyko, widoczne w % przed wysłaniem | 5, 6 |
 | 8 | v0.60 | **Zamknięcie pętli: imperium gwiezdne** | 3 wyeksploatowane planety + stacja → magazyn orbitalny dla imperium, loty międzyukładowe | 3, 4 |
 | 9 | v0.61 | **Mniejsze stacje** | stacje przy koloniach łączące się z macierzystą | 4 |
 | 10 | v0.62 | **Wstępna ekonomia** | strojenie całej pętli wg ponownej symulacji | wszystkie |

@@ -24,6 +24,7 @@ export function openConstructTransferPanel(options: ConstructTransferOptions): (
       <label class="tr-row ct-target"><span class="tr-label">Dokąd</span><select></select></label>
       <p class="tp-hint ct-route"></p>
       <p class="tp-hint ct-energy"></p>
+      <p class="tp-hint ct-risk"></p>
       <div class="tr-row ct-escort" hidden><span class="tr-label">Eskorta (okręty)</span><span class="tr-value ct-escort-value"></span>
         <div class="fb-kinds" style="grid-column: 1 / -1"><button type="button" data-escort="-1">−</button><button type="button" data-escort="1">+</button></div></div>
       <p class="tp-error" hidden></p>
@@ -93,10 +94,18 @@ export function openConstructTransferPanel(options: ConstructTransferOptions): (
       if (v.reason) showError(v.reason);
       else if (t.available < t.needed) showError(`Na ${t.name} brakuje miejsca — zwolnij pola (np. zburz budynek) albo wybierz inną planetę.`);
     };
-    select.addEventListener('change', route);
-    route();
-    // Eskorta (v0.58) leci z konstruktem; ochrona działa od etapu ryzyka misji.
+    // Eskorta (v0.58) leci z konstruktem; od etapu 7 zmniejsza ryzyko ataku piratów (konstrukt tylko się spóźnia).
     let escort = 0;
+    const risk = () => {
+      const text = target()?.risk[Math.min(escort, (target()?.risk.length ?? 1) - 1)] ?? '';
+      q('.ct-risk').textContent = text ? `${text[0]!.toUpperCase()}${text.slice(1)} — atak tylko opóźnia lot, konstrukt jest bezpieczny.` : '';
+    };
+    select.addEventListener('change', () => {
+      route();
+      risk();
+    });
+    route();
+    risk();
     if (v.escorts > 0) {
       q<HTMLElement>('.ct-escort').hidden = false;
       const show = () => (q('.ct-escort-value').textContent = `${escort} z ${v.escorts}`);
@@ -104,6 +113,7 @@ export function openConstructTransferPanel(options: ConstructTransferOptions): (
         b.addEventListener('click', () => {
           escort = Math.max(0, Math.min(v.escorts, escort + Number(b.dataset.escort)));
           show();
+          risk();
         });
       }
       show();

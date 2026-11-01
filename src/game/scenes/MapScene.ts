@@ -1059,7 +1059,8 @@ export class MapScene extends OverlayScene {
       } else if (own || controller.colonyShipUnlocked) {
         line(
           // v0.58: statek z floty (stocznia na stacji macierzystej), lot kosztuje paliwo.
-          `Statek kolonizacyjny z floty (na stanie: ${ships}) · ${fuelLabel(controller.colonyFuelTo(p.address))} · lot ${formatDuration(controller.flightSeconds(this.systemIndex))}`,
+          `Statek kolonizacyjny z floty (na stanie: ${ships}) · ${fuelLabel(controller.colonyFuelTo(p.address))} · lot ${formatDuration(controller.flightSeconds(this.systemIndex))}` +
+            (own ? '' : ` · ${controller.riskText(controller.address, p.address)} (atak tylko opóźnia lot)`),
           11,
           ships > 0 ? COLORS.text : COLORS.danger,
         );

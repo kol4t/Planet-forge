@@ -1,3 +1,4 @@
+import { parseIncident } from './missionRisk.ts';
 // Transportowce (v0.36): przesyłanie metalu i kryształów między planetami gracza.
 // Czysta logika — kontroler pobiera ładunek z planety nadawcy i dodaje go odbiorcy w chwili przylotu.
 import type { Balance, Resources, Shipment } from '../types.ts';
@@ -67,6 +68,8 @@ export function parseShipments(raw: unknown): Shipment[] {
             // Statek floty i eskorta (v0.58) — opcjonalne.
             ...(s.ship === true ? { ship: true } : {}),
             ...(Number.isInteger(s.escort) && s.escort > 0 && s.escort <= 999 ? { escort: s.escort } : {}),
+            // Przechwycenie przez piratów (etap 7) — opcjonalne.
+            ...(parseIncident(s.incident) ? { incident: parseIncident(s.incident)! } : {}),
           },
         ]
       : [],

@@ -2,6 +2,28 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-01 — Etap 7: ryzyko misji i eskorta (v0.62, decyzje właściciela)
+
+- **Źródło ryzyka: głównie boty — piraci** (nazwa robocza). W galaktyce jest 10% układów z „gniazdem piratów” (stałe
+  dla galaktyki, osobny strumień losowania `galaxy|id|pirates`, bez układu startowego gracza; nic innego w galaktyce
+  się nie zmienia).
+- **Zagrożone tylko loty między układami** — lot w jednym układzie jest bezpieczny. Ryzyko = odległość × 0,002 + 10%
+  za każde gniazdo piratów w promieniu 6 jedn. od trasy, maks. 60% (`BALANCE.missionRisk`, robocze). W obecnej galaktyce:
+  najbliższe układy ~2%, mediana ~19%, najgorsze trasy ~49%. Dotyczy transportowców (planeta ↔ planeta, ↔ stacja),
+  statków kolonizacyjnych, megakompleksów w transferze i megakonstruktu ściąganego z orbity.
+- **Skutek łagodny:** transport traci 20–50% ładunku i spóźnia się o 15–35% czasu lotu; statek kolonizacyjny
+  i megakonstrukt **nigdy nie przepadają** — tylko się spóźniają. Każdy okręt eskorty w ataku jest uszkodzony z szansą
+  40% i wraca do floty po naprawie (30 min, poza kolejką stoczni).
+- **Eskorta:** każdy okręt zdejmuje 32% ryzyka bazowego (1 → 68%, 2 → 36%, 3 → 4%, 4 → 0). Gracz widzi ryzyko w %
+  przed wysłaniem (okno transportu — odświeżane przy zmianie eskorty, mapa przy statku kolonizacyjnym, okno wysyłki
+  konstruktu, przycisk „Ściągnij z orbity”).
+- **Losowanie przy starcie** (deterministycznie z trasy i chwili startu), zapisane w locie (`incident`); gracz dowiaduje
+  się o ataku dopiero w jego chwili (w trakcie lotu, także pod nieobecność) — wpis w dzienniku i powiadomienie.
+- **Lore — napięcie z K-005** (konflikt zbrojny rzadki i kosztowny, „opór kosmosu” jako tło): właściciel wybrał
+  piratów-botów świadomie. Ataki są łagodne (bez zniszczeń, bez walki prowadzonej przez gracza), nazwy robocze.
+  **Do uzgodnienia w Projekcie lore (O-205 / O-206):** czy „piraci” zostają, czy np. zamieniają się w zjawisko
+  „oporu kosmosu” — mechanika (ryzyko trasy, eskorta) nie zależy od nazwy.
+
 ## 2026-11-01 — Krok 3b: megakonstrukt na orbicie (v0.61, decyzje właściciela)
 
 - Megakonstrukt przenosi się tylko przez orbitę, **w dwóch krokach**: „Wyrzuć na orbitę” (okno Kompleks na planecie
