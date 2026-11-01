@@ -247,7 +247,7 @@ test('mapa: stary zapis kilku planet dostaje adresy w układzie startowym (wygl�
   });
 });
 
-test('statek kolonizacyjny: wymaga badania, kosztuje, leci, zakłada kolonię (także podczas nieobecności); dziennik', () => {
+test('statek kolonizacyjny: wymaga badania, statku z floty i paliwa, leci, zakłada kolonię (także podczas nieobecności); dziennik', () => {
   withMemoryStorage(() => {
     const game = new GameController(0);
     const other = game.galaxy.systems.map((s) => game.system(s.index)!).find((s) => s.index !== game.homeSystem && s.planets.some(isColonizable))!;
@@ -260,7 +260,6 @@ test('statek kolonizacyjny: wymaga badania, kosztuje, leci, zakłada kolonię (t
       game.markDiscovered(other.index, 4);
     }
     assert.ok(game.colonyShipUnlocked);
-    assert.match(game.sendColonyShip(target, 0).message, /magazyn|brakuje/i);
     game.economy = { ...game.economy, levels: { ...game.economy.levels, storage: 6 }, stock: { metal: 9000, crystal: 9000 }, antimatter: 0 };
     // Paliwo (v0.53): bez antymaterii statek nie startuje; koszt rośnie z odległością, zawrócenie go zwraca.
     const fuel = game.colonyFuelTo(target);
@@ -269,8 +268,10 @@ test('statek kolonizacyjny: wymaga badania, kosztuje, leci, zakłada kolonię (t
     game.economy = { ...game.economy, antimatter: fuel + 2 };
     const sent = game.sendColonyShip(target, 0);
     assert.ok(sent.ok, sent.message);
-    assert.equal(game.economy.stock.metal, 9000 - game.colonyShipCost.metal);
+    // v0.58: statek z floty (startowy), bez kosztu surowców przy starcie.
+    assert.equal(game.economy.stock.metal, 9000);
     assert.equal(game.economy.antimatter, 2);
+    assert.equal(game.fleetView(0).ships.find((s) => s.type === 'colonyShip')!.docked, 0);
     assert.match(game.sendColonyShip(target, 0).message, /już leci/);
     const [mission] = game.missionsView(0);
     assert.ok(mission && mission.secondsLeft > 60, 'lot trwa');
@@ -278,6 +279,7 @@ test('statek kolonizacyjny: wymaga badania, kosztuje, leci, zakłada kolonię (t
     assert.ok(game.cancelMission(target, 1000).ok);
     assert.equal(game.missionsView(1000).length, 0);
     assert.ok(Math.abs(game.economy.antimatter - (fuel + 2)) < 0.01, 'paliwo zwrócone');
+    assert.equal(game.fleetView(1000).ships.find((s) => s.type === 'colonyShip')!.docked, 1, 'statek wrócił do floty');
     assert.ok(game.sendColonyShip(target, 1000).ok);
     const arrivesAt = game.missionsView(1000)[0]!.arrivesAt;
     game.save();

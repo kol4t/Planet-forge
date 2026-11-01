@@ -8,7 +8,7 @@ import { formatDuration, formatInt } from './theme.ts';
 export interface ConstructTransferOptions {
   name: string;
   view: () => TransferView;
-  send: (to: string) => ActionMessage;
+  send: (to: string, escort: number) => ActionMessage;
   cancel: () => ActionMessage;
   onDone: (message: string) => void;
 }
@@ -24,6 +24,8 @@ export function openConstructTransferPanel(options: ConstructTransferOptions): (
       <label class="tr-row ct-target"><span class="tr-label">Dokąd</span><select></select></label>
       <p class="tp-hint ct-route"></p>
       <p class="tp-hint ct-energy"></p>
+      <div class="tr-row ct-escort" hidden><span class="tr-label">Eskorta (okręty)</span><span class="tr-value ct-escort-value"></span>
+        <div class="fb-kinds" style="grid-column: 1 / -1"><button type="button" data-escort="-1">−</button><button type="button" data-escort="1">+</button></div></div>
       <p class="tp-error" hidden></p>
       <div class="tp-actions">
         <button type="button" class="tp-secondary ct-close">Zamknij</button>
@@ -93,10 +95,23 @@ export function openConstructTransferPanel(options: ConstructTransferOptions): (
     };
     select.addEventListener('change', route);
     route();
+    // Eskorta (v0.58) leci z konstruktem; ochrona działa od etapu ryzyka misji.
+    let escort = 0;
+    if (v.escorts > 0) {
+      q<HTMLElement>('.ct-escort').hidden = false;
+      const show = () => (q('.ct-escort-value').textContent = `${escort} z ${v.escorts}`);
+      for (const b of root.querySelectorAll<HTMLButtonElement>('[data-escort]')) {
+        b.addEventListener('click', () => {
+          escort = Math.max(0, Math.min(v.escorts, escort + Number(b.dataset.escort)));
+          show();
+        });
+      }
+      show();
+    }
     send.addEventListener('click', () => {
       const t = target();
       if (!t) return;
-      const result = options.send(t.address);
+      const result = options.send(t.address, escort);
       if (!result.ok) return showError(result.message);
       close();
       options.onDone(result.message);

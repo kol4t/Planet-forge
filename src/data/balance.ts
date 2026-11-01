@@ -38,6 +38,22 @@ export const BALANCE: Balance = {
     storageMaxLevel: 10,
   },
   transfer: { prepareSeconds: 1800, speedFactor: 2, fuelFactor: 5, costShare: 0.1 },
+  // Flota (v0.58, decyzja właściciela: statki budowane w stoczni na stacji macierzystej; liczby robocze).
+  fleet: {
+    shipyardCost: { metal: 6000, crystal: 4000 },
+    shipyardCostGrowth: 1.6,
+    shipyardSecondsPerLevel: 600,
+    shipyardMaxLevel: 10,
+    speedPerLevel: 0.2,
+    queue: 5,
+    ships: {
+      transport: { cost: { metal: 1500, crystal: 800 }, seconds: 600 },
+      colonyShip: { cost: { metal: 2500, crystal: 1800 }, seconds: 900 },
+      tug: { cost: { metal: 600, crystal: 400 }, seconds: 600 },
+      escort: { cost: { metal: 3000, crystal: 2000 }, seconds: 1200 },
+    },
+    starter: { transport: 3, colonyShip: 1, tug: 1, escort: 0 },
+  },
   // Kompleks kopalni metalu (decyzja właściciela 2026-11-01, etap 1 — tylko model; robocze): 4 osady po 3 kopalnie
   // (poz. 1–3 każda) i fabrykę → osada co 10 poziomów, komplet na poz. 40 = 4 × (3 × 1 + 2) = 20 pól = próg megakonstruktu.
   metalComplex: {

@@ -74,6 +74,13 @@ export function parseHomeStation(raw: any): HomeStation | null {
   const core = parseLevel(raw.core);
   if (!core) return null;
   const storage = parseLevel(raw.storage);
+  const shipyard = parseLevel(raw.shipyard);
   const amount = (v: unknown) => (isNum(v) && v > 0 ? v : 0);
-  return { address: raw.address, core, ...(storage ? { storage } : {}), stock: { metal: amount(raw.stock?.metal), crystal: amount(raw.stock?.crystal) } };
+  return {
+    address: raw.address,
+    core,
+    ...(storage ? { storage } : {}),
+    ...(shipyard ? { shipyard } : {}),
+    stock: { metal: amount(raw.stock?.metal), crystal: amount(raw.stock?.crystal) },
+  };
 }

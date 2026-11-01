@@ -1052,15 +1052,16 @@ export class MapScene extends OverlayScene {
       // Statek kolonizacyjny (od v0.53 także we własnym układzie — krótki lot); inne układy po badaniu „Napęd międzygwiezdny”.
       const own = this.systemIndex === controller.homeSystem;
       const mission = controller.missionTo(p.address);
-      const cost = controller.colonyShipCost;
+      const ships = controller.fleetView().ships.find((x) => x.type === 'colonyShip')!.docked;
       if (mission) {
         this.countdown = { text: line('', 11.5, COLORS.gold, { fontStyle: '600' }), target: p.address };
         action = ['Zawróć statek', 'secondary', () => this.afterShip(controller.cancelMission(p.address))];
       } else if (own || controller.colonyShipUnlocked) {
         line(
-          `Statek kolonizacyjny: ${formatInt(cost.metal)} metalu · ${formatInt(cost.crystal)} kryształów (z ${controller.planet.displayName}) · ${fuelLabel(controller.colonyFuelTo(p.address))} · lot ${formatDuration(controller.flightSeconds(this.systemIndex))}`,
+          // v0.58: statek z floty (stocznia na stacji macierzystej), lot kosztuje paliwo.
+          `Statek kolonizacyjny z floty (na stanie: ${ships}) · ${fuelLabel(controller.colonyFuelTo(p.address))} · lot ${formatDuration(controller.flightSeconds(this.systemIndex))}`,
           11,
-          COLORS.text,
+          ships > 0 ? COLORS.text : COLORS.danger,
         );
         action = ['Wyślij statek', 'primary', () => this.afterShip(own ? controller.colonize(p.address) : controller.sendColonyShip(p.address))];
       } else {

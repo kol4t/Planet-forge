@@ -47,7 +47,7 @@ Czerwona linia w nagłówku Produkcji przy niedoborze energii (v0.46).
 - **Badania** — galaktyka badań: filtry ramion (w kilku wierszach na wąskim ekranie — v0.46), panel-karta ze
   szczegółami, legenda, „Wyśrodkuj”.
 - **Mapa** — galaktyka → układ → planeta; filtry, wyszukiwarka (HTML), „Mój układ”, ekspedycje, kolonizacja, pas asteroid.
-- **Imperium** — suma, „Sytuacja imperium”, karty planet (sortowanie), Dziennik, SI, transportowce.
+- **Imperium** — zakładki: Planety (suma, „Sytuacja imperium”, karty planet z sortowaniem, karta stacji macierzystej), Flota (v0.58: stocznia, statki, kolejka), Dziennik, SI; transportowce z eskortą.
 
 ## Dotyk i sterowanie
 

@@ -91,7 +91,12 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
   „Sytuacja imperium” (alerty), karty planet, dziennik, SI.
 - **Specjalizacja kolonii** (Górnicza, Energetyczna, Naukowa, Przemysłowa): premia zależna od gwiazdy i strefy orbity;
   zmiana po badaniu, trwa 1 h.
-- **Transportowce** przewożą metal i kryształy między planetami (ładowność, czas lotu z odległości, maks. 3 naraz).
+- **Transportowce** przewożą metal i kryształy między planetami (ładowność, czas lotu z odległości; lotów naraz tyle,
+  ile transportowców we flocie).
+- **Flota** (v0.58, Imperium → Flota): statki budowane w **stoczni** — module stacji macierzystej (kolejka do 5,
+  wyższy poziom szybciej). Transportowiec i holownik wracają po locie, statek kolonizacyjny zostaje na nowej kolonii
+  (lot tylko za paliwo). Okręty eskorty lecą z transportem albo megakonstruktem (ochrona — etap 7). Na start:
+  3 transportowce, 1 statek kolonizacyjny, 1 holownik. Liczby robocze (`BALANCE.fleet`).
 
 ## Kosmos wokół planety
 

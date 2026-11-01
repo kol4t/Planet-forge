@@ -146,6 +146,7 @@ class Sim {
       this.idle[i] = !game.economy.construction && (left.metal.left > 0 || left.crystal.left > 0);
     }
     this.transport(now);
+    this.fleet(now);
     this.colonize(now);
     this.track(now);
   }
@@ -160,7 +161,8 @@ class Sim {
       if (!cost || cost.antimatter > 0) continue;
       const stock = game.economy.stock;
       if (cost.metal > stock.metal || cost.crystal > stock.crystal) continue;
-      const price = cost.metal + cost.crystal;
+      // v0.58: „Moduł orbitalny” najpierw, gdy dostępny — bez stacji i stoczni nie ma nowych statków kolonizacyjnych.
+      const price = node.id === 'station-orbit' ? 0 : cost.metal + cost.crystal;
       if (!best || price < best.price) best = { id: node.id, price };
     }
     if (best && game.startResearch(best.id, now).ok) {
@@ -254,6 +256,27 @@ class Sim {
         this.once(`tf:${result.message.slice(0, 20)}`, now, `Transport niemożliwy: ${result.message}`);
       }
     });
+  }
+
+  /**
+   * Flota (v0.58): statek kolonizacyjny pochodzi ze stoczni na stacji macierzystej — gracz buduje stację (po badaniu),
+   * stocznię i zamawia kolejny statek, gdy żadnego nie ma, a jest miejsce na planetę.
+   */
+  private fleet(now: number): void {
+    const game = this.game;
+    const richest = game
+      .overview(now)
+      .map((p, i) => ({ i, have: Math.min(p.stock.metal, p.stock.crystal) }))
+      .sort((x, y) => y.have - x.have)[0]!;
+    game.switchPlanet(richest.i, now);
+    const f = game.fleetView(now);
+    if (!f.stationBuilt && game.stationView(now).unlocked && game.buildStation(now).ok) this.log(now, 'Budowa stacji macierzystej (pod stocznię)');
+    if (f.stationReady && f.shipyard.level === 0 && f.shipyard.upgradingTo === null && game.upgradeShipyard(now).ok) this.log(now, 'Budowa stoczni');
+    const ships = f.ships.find((x) => x.type === 'colonyShip')!;
+    const room = game.planets().length + game.missionsView(now).length < game.slotInfo.unlocked;
+    if (f.shipyard.level > 0 && room && ships.docked === 0 && !f.queue.some((o) => o.type === 'colonyShip') && game.orderShip('colonyShip', now).ok) {
+      this.log(now, 'Stocznia: zamówiono statek kolonizacyjny');
+    }
   }
 
   /**

@@ -72,6 +72,7 @@ export function parseTransfers(raw: unknown, buildings: readonly BuildingId[]): 
       cost: { metal: Math.max(0, t.cost.metal), crystal: Math.max(0, t.cost.crystal) },
       fuel: Math.max(0, t.fuel),
       ...(t.departed === true ? { departed: true } : {}),
+      ...(Number.isInteger(t.escort) && t.escort > 0 && t.escort <= 999 ? { escort: t.escort } : {}),
     });
   }
   return out;
