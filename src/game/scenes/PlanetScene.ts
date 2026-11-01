@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { openStellarBoard } from '../ui/stellarBoard.ts';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import { openConstructTransferPanel } from '../ui/constructTransferPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
@@ -291,6 +292,18 @@ export class PlanetScene extends Phaser.Scene {
       this.refreshValues();
       display.showBuilding(done.building);
     });
+
+    // Imperium gwiezdne (etap 8): plansza SI Matki raz po zamknięciu pętli (także gdy zamknęła się pod nieobecność).
+    const stellarBoard = () => {
+      const v = controller.stellarView();
+      if (!v.showBoard || document.getElementById('text-panel')) return;
+      openStellarBoard({ planets: controller.loopProgress().exploited.map((p) => p.name), slots: v.slots, onClose: () => controller.markStellarSeen() });
+    };
+    controller.onStellarEmpire(() => {
+      this.refreshValues();
+      stellarBoard();
+    });
+    this.time.delayedCall(1500, stellarBoard);
 
     if (controller.brokenSaveFound) {
       controller.brokenSaveFound = false;

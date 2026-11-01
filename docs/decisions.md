@@ -2,6 +2,17 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-01 — Etap 8: zamknięcie pętli — imperium gwiezdne (v0.63, decyzje właściciela)
+
+- **Warunek jak w planie z 2026-10-28:** 3 wyeksploatowane planety (≥ 80% obu złóż) + gotowa stacja macierzysta.
+  Sprawdzane przy każdym naliczeniu, także pod nieobecność; zamyka się **raz** (zapis `stellar`).
+- **Nagroda: miejsca na planety 6–10** — limit planet rośnie do `planetSlots.max` (10). Inne propozycje (moduły stacji
+  słońce / antymateria, szlak zaopatrzenia, tańsze dalekie loty) — nie teraz.
+- **Moment:** jednorazowa plansza SI Matki „Imperium gwiezdne — rozdział zamknięty” (także po powrocie do gry, gdy pętla
+  zamknęła się pod nieobecność), wpis w dzienniku, w Imperium „imperium gwiezdne · wyeksploatowane N”.
+- **Po zamknięciu licznik liczy dalej** (statystyka); kolejne rozdziały — endgame później.
+- Nazwa „imperium gwiezdne” i tekst planszy robocze (lore O-002 — „imperium”).
+
 ## 2026-11-01 — Etap 7: ryzyko misji i eskorta (v0.62, decyzje właściciela)
 
 - **Źródło ryzyka: głównie boty — piraci** (nazwa robocza). W galaktyce jest 10% układów z „gniazdem piratów” (stałe

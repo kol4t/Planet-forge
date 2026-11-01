@@ -774,6 +774,12 @@ export interface OrbitalConstruct {
   incident?: MissionIncident;
 }
 
+/** Imperium gwiezdne (etap 8): chwila zamknięcia pętli; `seen` — gracz widział planszę SI Matki. */
+export interface StellarEmpire {
+  at: number;
+  seen?: boolean;
+}
+
 /** Rodzaje statków floty (v0.58, nazwy robocze). */
 export type ShipType = 'transport' | 'colonyShip' | 'tug' | 'escort';
 

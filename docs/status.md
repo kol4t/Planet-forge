@@ -248,7 +248,7 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 | 5b | v0.57 | ✅ **Pola na oceanie i lawie** (decyzja właściciela, gałąź `claude/pola-ocean-lawa`) | nowe pola na wodzie i lawie tylko dla megakonstruktów (i przyszłych platform przybrzeżnych), bez przestawiania budynków, pomiar płynności | 5 |
 | 6 | v0.58 | ✅ **Wstępna flota** (gałąź `claude/wstepna-flota`) | widok floty, budowa statków (stocznia na stacji): transportowce, kolonizacyjne, eskorta | 4 |
 | 7 | v0.62 | ✅ **Ryzyko misji i obrona** (gałąź `claude/ryzyko-misji`; lore K-005 — do uzgodnienia nazwa „piraci”) | loty między układami mogą zaatakować piraci (gniazda przy trasach); skutek łagodny (strata części ładunku, opóźnienie); każdy okręt eskorty zmniejsza ryzyko, widoczne w % przed wysłaniem | 5, 6 |
-| 8 | v0.60 | **Zamknięcie pętli: imperium gwiezdne** | 3 wyeksploatowane planety + stacja → magazyn orbitalny dla imperium, loty międzyukładowe | 3, 4 |
+| 8 | v0.63 | ✅ **Zamknięcie pętli: imperium gwiezdne** (gałąź `claude/imperium-gwiezdne`) | 3 wyeksploatowane planety + gotowa stacja → miejsca na planety do 10, plansza SI Matki, dziennik; licznik liczy dalej | 3, 4 |
 | 9 | v0.61 | **Mniejsze stacje** | stacje przy koloniach łączące się z macierzystą | 4 |
 | 10 | v0.62 | **Wstępna ekonomia** | strojenie całej pętli wg ponownej symulacji | wszystkie |
 | 11 | v0.63 | **Pierwsze kroki** | SI Matka prowadzi nowego gracza przez pętlę | 10 |

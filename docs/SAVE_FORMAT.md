@@ -47,6 +47,8 @@ Kopiuj zapis / Wczytaj zapis).
     { "origin": "1:16:4", "readyAt": 1800000, "fuel": 10, "lifted": true,   // start z planety, koniec przygotowania, paliwo
       "target": "1:16:1", "landsAt": 2040000 }                              // opcjonalnie: ściągany na planetę
   ],
+  "stellar": { "at": 1793571502739, "seen": true },   // imperium gwiezdne — zamknięcie pętli (od v0.63, opcjonalne;
+                                  //   "seen" — plansza SI Matki widziana; błędne pole = pętla otwarta)
   "fleet": {                      // flota (od v0.58, opcjonalne; brak = flota startowa 3 / 1 / 1 / 0)
     "docked": { "transport": 2, "colonyShip": 1, "tug": 1, "escort": 0 },   // statki na stanie (w drodze — z lotów)
     "queue": [ { "type": "escort", "startsAt": 0, "readyAt": 1200000, "cost": { "metal": 3000, "crystal": 2000 } } ],
