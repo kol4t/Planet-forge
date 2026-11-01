@@ -5,6 +5,7 @@
 import { complexLayout, type MetalComplexLayout, type MetalComplexObject, type MetalComplexPhase } from '../core/colony/complexLayout.ts';
 import type { FieldGrid } from '../core/colony/fieldGrid.ts';
 import { hash01, type Vec3 } from './colony.ts';
+import type { PickTarget } from './pick.ts';
 
 /** Wielkość modeli w jednostkach układu (średni promień pola × skala) — robocze, do oceny na zrzutach. */
 export const METAL_LOOK = {
@@ -21,7 +22,18 @@ export const METAL_LOOK = {
   roadSteps: 6,
   /** Wysokość drogi nad terenem (ułamek promienia planety). */
   roadLift: 0.0015,
+  /** Najmniejszy odstęp między płytami obiektów (w jednostkach układu). */
+  gap: 0.05,
+  /** Przybliżenie, od którego kopalnie zaczynają się pojawiać i przy którym są już całe (LOD — z daleka fabryki, plac i drogi). */
+  mineZoom: [1.35, 1.8] as const,
 } as const;
+
+/** Widoczność kopalń 0..1 przy danym przybliżeniu (płynnie, bez skoku). */
+export function mineDetail(zoom: number): number {
+  const [from, to] = METAL_LOOK.mineZoom;
+  const t = Math.min(1, Math.max(0, (zoom - from) / (to - from)));
+  return t * t * (3 - 2 * t);
+}
 
 export type MetalPieceKind = 'mine' | 'factory' | 'plaza' | 'mega';
 
@@ -70,8 +82,34 @@ export function metalPieces(layout: MetalComplexLayout, mega: boolean): MetalPie
       level: o.poziom,
     });
   }
+  // Bez nachodzenia: gdy układ był zwężony, a miejsce dosunięte do lądu, dwa obiekty potrafią stanąć za blisko —
+  // mniejszy (kopalnia) maleje tak, żeby płyty się nie stykały (najwyżej do połowy; plac i megakompleks bez zmian).
+  for (const a of out) {
+    if (a.kind !== 'mine' && a.kind !== 'factory') continue;
+    for (const b of out) {
+      if (b === a || b.kind === 'plaza' || b.kind === 'mega') continue;
+      if (a.kind === 'factory' && b.kind === 'mine') continue;
+      const d = angle(a.dir, b.dir);
+      const gap = d - PLATE[b.kind] * b.size - METAL_LOOK.gap * layout.unit;
+      const room = gap / PLATE[a.kind];
+      if (room >= a.size) continue;
+      if (room >= a.size * 0.5) {
+        a.size = room;
+        continue;
+      }
+      // Za blisko nawet dla połowy wielkości — odsunięcie od sąsiada (wzdłuż łuku od niego) na styk płyt.
+      a.size *= 0.7;
+      const want = PLATE[b.kind] * b.size + METAL_LOOK.gap * layout.unit + PLATE[a.kind] * a.size;
+      const k = d > 1e-6 ? want / d : 1;
+      a.dir = normalize([b.dir[0] + (a.dir[0] - b.dir[0]) * k, b.dir[1] + (a.dir[1] - b.dir[1]) * k, b.dir[2] + (a.dir[2] - b.dir[2]) * k]);
+    }
+  }
   return out;
 }
+
+/** Promień płyty modelu względem wielkości (kopalnia ≈ 0,46, fabryka ≈ 0,5). */
+const PLATE: Record<MetalPieceKind, number> = { mine: 0.46, factory: 0.5, plaza: 1, mega: 0.56 };
+const angle = (a: Vec3, b: Vec3) => Math.acos(Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
 
 const normalize = (v: Vec3): Vec3 => {
   const l = Math.hypot(v[0], v[1], v[2]) || 1;
@@ -86,12 +124,15 @@ export function slerp(a: Vec3, b: Vec3, t: number): Vec3 {
  * Drogi kopalnia → fabryka podzielone na krótkie odcinki po powierzchni kuli (każdy odcinek kładzie się na terenie
  * w swoim środku — droga nie przenika gruntu). Zaczynają się na skraju płyty kopalni, kończą na skraju fabryki.
  */
-export function roadSegments(layout: MetalComplexLayout): RoadSegment[] {
+export function roadSegments(layout: MetalComplexLayout, pieces: readonly MetalPiece[] = metalPieces(layout, false)): RoadSegment[] {
   const out: RoadSegment[] = [];
-  const size = new Map(layout.obiekty.map((o) => [o.slotId, metalObjectSize(o, layout.unit)]));
+  // Końce dróg z obiektów do narysowania (po ewentualnym odsunięciu i zmniejszeniu — `metalPieces`).
+  const byId = new Map(pieces.map((p) => [p.slotId, p]));
+  const size = new Map(pieces.map((p) => [p.slotId, p.size]));
   const steps = METAL_LOOK.roadSteps;
   for (const road of layout.drogi) {
-    const [a, b] = road.points;
+    const a = byId.get(road.from)?.dir ?? road.points[0];
+    const b = byId.get(road.to)?.dir ?? road.points[1];
     const length = Math.acos(Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
     if (length <= 1e-6) continue;
     // Od skraju płyty kopalni (płyta ≈ 0,46 wielkości) do skraju płyty fabryki (≈ 0,5).
@@ -115,4 +156,18 @@ export function nextMetalObject(grid: FieldGrid, seed: string, center: Vec3, pha
   const next = complexLayout(grid, seed, level + 1, phase, { center });
   const before = new Map(now.obiekty.map((o) => [o.slotId, o.poziom]));
   return next.obiekty.find((o) => before.get(o.slotId) !== o.poziom) ?? null;
+}
+
+/**
+ * Cele dotyku kompleksu (etap 2): każdy obiekt (kopalnia, fabryka, plac, megakompleks) i środek każdego odcinka drogi
+ * otwiera panel kopalni metalu. Zasięg = promień płyty obiektu (na ekranie co najmniej 44 pt — `pickComplex`).
+ */
+export function metalPickTargets(layout: MetalComplexLayout, mega: boolean, ground: (dir: Vec3) => number = () => 1): PickTarget[] {
+  const pieces = metalPieces(layout, mega);
+  const out: PickTarget[] = pieces.map((p) => ({ id: 'metalMine', dir: p.dir, surface: ground(p.dir), reach: PLATE[p.kind] * p.size }));
+  for (const seg of roadSegments(layout, pieces)) {
+    const mid = slerp(seg.from, seg.to, 0.5);
+    out.push({ id: 'metalMine', dir: mid, surface: ground(mid), reach: angle(seg.from, seg.to) / 2 });
+  }
+  return out;
 }

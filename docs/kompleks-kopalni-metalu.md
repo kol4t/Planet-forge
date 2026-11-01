@@ -90,8 +90,36 @@ wyglądu 1/6/12/20, powyżej poz. 40 — 4 pełne osady; (3) megakompleks metalu
 - **Megakompleks metalu** — dziś rysowany jako główna konstrukcja „Megakompleks” (wieża centralna z czterema piecami)
   w środku obszaru pól i moduły na polach. W prototypie, gdy działa, stoi tymczasowo na placu (bez kolizji z osadami).
 - **Budowa w toku**: rusztowanie w miejscu następnego obiektu (nowa albo rosnąca kopalnia, fabryka).
-- 2D (fallback) — jeszcze po staremu (część B: symbole); kolizje obiektów tylko przy zwężeniu do 70% z dosuwaniem
-  miejsc do lądu (3 przypadki na 4080 par w 30 planetach) — do poprawy w części B.
+- Właściciel zaakceptował zrzuty części A bez poprawek (2026-11-01).
+
+## Etap 2, część B — dopracowanie (2026-11-01)
+
+- **Bez nachodzenia** (`metalPieces`): przy zwężonym układzie miejsce dosunięte do lądu bywało w fabryce — kopalnia
+  maleje (do połowy), a gdy to nie wystarcza, odsuwa się na styk płyt; drogi biegną do nowych miejsc. 30 planet: 3 → 0
+  kolizji.
+- **LOD**: z daleka fabryki, plac i drogi; kopalnie wyrastają płynnie między przybliżeniem 1,35× a 1,8× (`mineDetail`,
+  wygładzone), przy 0 ich rodzaj nie jest rysowany (mniej rysowań). Także w 2D (kółka kopalń).
+- **Dotyk**: każdy obiekt (kopalnia, fabryka, plac, megakompleks) i środek każdego odcinka drogi to cel dotyku
+  (`metalPickTargets`, `pickComplex` — co najmniej 44 pt) → karta Kopalni metalu jak przy innych budowlach.
+- **2D**: kopalnia — kółko (rdza), fabryka — trójkąt, plac — zarys kwadratu, megakompleks — romb, drogi — ciemne linie;
+  pola kopalni bez gruntu kompleksu; rusztowanie w miejscu następnego obiektu.
+- **Diagnostyka** (Playwright, SwiftShader, poz. 40, przed = v0.58.0 → po):
+
+| Planeta, kamera | Rysowania | Trójkąty |
+|---|---:|---:|
+| umiarkowana, z daleka | 40 → 37 | 111 444 → 101 086 (−9%) |
+| umiarkowana, z bliska | 39 → 40 | 106 452 → 100 246 (−6%) |
+| pustynna, z daleka | 38 → 36 | 132 050 → 103 660 (−21%) |
+| pustynna, z bliska | 37 → 39 | 127 058 → 102 820 (−19%) |
+
+  Z daleka mniej rysowań (kopalnie schowane), z bliska +2 (plac i drogi). Wierzchołki ≈ 3 × trójkąty.
+- **Testy**: `tests/metalComplexSettlements.test.ts` — pola z modelu i rezerwacja dzielnicy (inne budynki poza nią,
+  także plac), migracja zapisu z kopalnią poz. 25 i 50 polami (pola wracają do puli, poziom zostaje, jest miejsce na
+  kolejny), nowy wybór środka daje większą skalę niż dawny, wygląd (bez nachodzenia, drogi, cele dotyku, LOD, następny obiekt).
+
+**Decyzja przed etapem 3 (właściciel, 2026-11-01):** megakonstrukt kopalni metalu **nie da się przemieszczać** —
+jedyny wyjątek: można go „wyrzucić” na orbitę i ściągnąć na inną planetę (do zaprojektowania w etapie 3 razem z budową
+megakonstruktu; obecny transfer megakompleksu v0.56 działa do tego czasu bez zmian).
 
 ## Plan etapów
 

@@ -2,6 +2,21 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-01 — Kompleks kopalni metalu, etap 2: osady na planecie (decyzje właściciela)
+
+- **Pola** kopalni metalu z modelu osad (kopalnia 1, fabryka 2, maks. 20 przed megakonstruktem; `fieldsFor` →
+  `metalComplexFields`), obszar = pola pod obiektami (`metalComplexCells`), dzielnica (plac, miejsca rozpoczętych osad,
+  pola pod drogami) zarezerwowana — inne budynki tam nie staną (`reconcilePlots` z `fixed`), licznik POLA bez rezerwy.
+  Pola zwolnione w starych zapisach wracają do puli; poziom budynku bez zmian. Progi kompleksu (12) i megakompleksu (20) bez zmian.
+- **Wygląd**: osada co 10 poziomów zastępuje dawne progi 1/6/12/20 (powyżej 40 — 4 pełne osady); kopalnia (3 wielkości),
+  fabryka (~2×), plac (zarys fundamentu), drogi po terenie; pola kopalni bez płyty gruntu kompleksu; megakompleks
+  (gdy działa) tymczasowo na placu. LOD: kopalnie pojawiają się przy przybliżeniu. 2D — symbole. Dotyk — każdy obiekt i droga.
+- **Środek dzielnicy** wybierany z pełnym dopasowaniem układu (24 kandydatów, zwężenie najwyżej do 70%), z dala od pól
+  innych budynków; raz na planetę (zapisany środek bez zmian).
+- **Megakonstrukt** (decyzja przed etapem 3): nie da się go przemieszczać, poza „wyrzuceniem” na orbitę i ściągnięciem
+  na inną planetę — do zaprojektowania w etapie 3.
+- Szczegóły, pomiary i testy: `docs/kompleks-kopalni-metalu.md`.
+
 ## 2026-11-01 — Kompleks kopalni metalu, etap 1: model w core (decyzja właściciela)
 
 - Kopalnia metalu ma być **jednym zwartym kompleksem** zamiast osobnych budowli w przypadkowych miejscach: osady

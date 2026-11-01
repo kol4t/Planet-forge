@@ -19,6 +19,14 @@ export interface PickView {
 /** Promień „trafienia” w budowlę (pt) — palec ma ok. 44 pt. */
 export const PICK_RADIUS = 26;
 
+/** Cel dotyku poza polami obszaru (obiekt kompleksu kopalni metalu): kierunek, promień powierzchni, zasięg (rad). */
+export interface PickTarget {
+  id: BuildingId;
+  dir: Vec3;
+  surface: number;
+  reach: number;
+}
+
 /** Punkt planety → ekran; `visible` = po stronie zwróconej do widza (z małym zapasem od krawędzi). */
 export function projectPoint(p: Vec3, view: PickView): { x: number; y: number; visible: boolean } {
   const [px, py, pz] = p;
@@ -57,10 +65,31 @@ export interface StructureHit {
  * wielkości pola na ekranie (nie mniej niż `PICK_RADIUS`). Działa przy każdym przybliżeniu: cały obszar jest celem.
  * `useSurface` — zabudowa stoi na powierzchni 3D (tarasy); 2D na sferze = 1.
  */
-export function pickComplex(colony: ColonyLayout, grid: FieldGrid, view: PickView, x: number, y: number, useSurface = false): StructureHit | null {
+export function pickComplex(
+  colony: ColonyLayout,
+  grid: FieldGrid,
+  view: PickView,
+  x: number,
+  y: number,
+  useSurface = false,
+  /** Dodatkowe cele (kompleks kopalni metalu, etap 2: kopalnie, fabryki, plac, drogi) — kierunek, promień (rad), budynek. */
+  targets: readonly PickTarget[] = [],
+): StructureHit | null {
   const scale = view.projection.kind === 'ortho' ? view.projection.r : view.projection.f / Math.max(0.2, view.projection.d - 1);
   let best: StructureHit | null = null;
   let bestScore = Infinity;
+  for (const t of targets) {
+    const s = useSurface ? t.surface : 1;
+    const p = projectPoint([t.dir[0] * s, t.dir[1] * s, t.dir[2] * s], view);
+    if (!p.visible) continue;
+    // Cel dotykowy co najmniej 44 pt średnicy (PICK_RADIUS ≥ 22), większy obiekt — jego wielkość na ekranie.
+    const reach = Math.max(PICK_RADIUS, t.reach * scale);
+    const distance = Math.hypot(p.x - x, p.y - y);
+    if (distance <= reach && distance / reach < bestScore) {
+      bestScore = distance / reach;
+      best = { id: t.id, index: 0 };
+    }
+  }
   for (const c of colony.complexes) {
     for (const spot of c.spots) {
       const s = useSurface ? spot.surface : 1;

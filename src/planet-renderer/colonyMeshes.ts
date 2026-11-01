@@ -1446,6 +1446,8 @@ interface Item {
   size: number;
   /** Promień kątowy fundamentu — teren pod nim wyrównany do `surface` (v0.47). */
   pad: number;
+  /** Szczegół widoczny dopiero przy przybliżeniu (kopalnie kompleksu kopalni metalu — LOD, etap 2). */
+  lod?: boolean;
 }
 
 /** Fundament budowli: teren w promieniu `reach` (rad) od `dir` wyrównany do `surface` (PlanetView). */
@@ -1512,6 +1514,9 @@ export class ColonyMeshes {
   private roadItems: { from: Vec3; to: Vec3; surface: number; width: number }[] = [];
   /** Promień terenu w punkcie (bez obniżenia odkrywki) — podaje PlanetView; obiekty kompleksu i drogi stoją na nim. */
   private ground: (dir: Vec3) => number = () => 1;
+  /** Widoczność szczegółów LOD 0..1 (kopalnie kompleksu przy przybliżeniu) i czy zmieniła się od ostatniego ułożenia. */
+  private detail = 1;
+  private detailDirty = false;
 
   constructor(still = false) {
     this.still = still;
@@ -1579,6 +1584,17 @@ export class ColonyMeshes {
   /** Obniżenie terenu (odkrywka) w punkcie — konstrukcje odkrywki stoją niżej. */
   setSink(sink: (dir: Vec3) => number): void {
     this.sink = sink;
+  }
+
+  /**
+   * LOD (etap 2): z daleka widać fabryki, plac i drogi, kopalnie kompleksu wyrastają płynnie przy przybliżaniu
+   * (`mineDetail`). Przy 0 rodzaj złożony z samych szczegółów nie jest rysowany (mniej rysowań).
+   */
+  setDetail(detail: number): void {
+    const d = Math.round(Math.min(1, Math.max(0, detail)) * 200) / 200;
+    if (d === this.detail) return;
+    this.detail = d;
+    this.detailDirty = true;
   }
 
   /** Teren pod obiektami kompleksu kopalni metalu i drogami. */
@@ -1706,14 +1722,15 @@ export class ColonyMeshes {
    */
   private addMetalComplex(layout: MetalComplexLayout, mega: boolean): void {
     const KIND: Record<MetalPiece['kind'], KindId> = { mine: 'mineHead', factory: 'metalPlant', plaza: 'metalPlaza', mega: 'metalMega' };
-    for (const piece of metalPieces(layout, mega)) {
+    const pieces = metalPieces(layout, mega);
+    for (const piece of pieces) {
       const kind = this.kinds.get(KIND[piece.kind])!;
       if (kind.items.length >= MAX_ITEMS) continue;
       // Plac wyrównuje teren pod sobą (fundament); megakompleks stoi na nim.
       const pad = piece.kind === 'plaza' ? piece.size * 0.95 : piece.kind === 'mega' ? 0 : piece.size * SPOT_EXTENT;
-      kind.items.push({ building: 'metalMine', dir: piece.dir, surface: this.ground(piece.dir), spin: piece.spin, size: piece.size, pad });
+      kind.items.push({ building: 'metalMine', dir: piece.dir, surface: this.ground(piece.dir), spin: piece.spin, size: piece.size, pad, lod: piece.kind === 'mine' });
     }
-    for (const seg of roadSegments(layout)) {
+    for (const seg of roadSegments(layout, pieces)) {
       if (this.roadItems.length >= MAX_ROADS) break;
       const mid = slerp(seg.from, seg.to, 0.5);
       this.roadItems.push({ from: seg.from, to: seg.to, surface: this.ground(mid) + METAL_LOOK.roadLift, width: seg.width });
@@ -1741,15 +1758,22 @@ export class ColonyMeshes {
     const { m, q, spin, p, s, n, up } = this.tmp;
     if (this.belts.length > 0) this.placeBelts(all);
     if (this.roadItems.length > 0) this.placeRoads(all);
+    const detailDirty = this.detailDirty;
+    this.detailDirty = false;
     for (const kind of this.kinds.values()) {
       if (kind.items.length === 0) continue;
       const moving = !this.still && kind.speed > 0;
       let dirty = all;
+      // Rodzaj złożony tylko ze szczegółów LOD: niewidoczny (bez rysowania), gdy szczegóły schowane.
+      if (detailDirty || all) {
+        const hidden = this.detail <= 0 && kind.items.every((it) => it.lod);
+        for (const mesh of [kind.body, kind.pit, kind.rotor, kind.glow]) mesh.visible = !hidden && mesh.count > 0 && mesh.geometry.getAttribute('position').count > 0;
+      }
       kind.items.forEach((item, i) => {
         if (i >= MAX_ITEMS) return;
         const born = this.grownAt.get(item.building);
         const g = born === undefined ? 1 : Math.min(1, (this.time - born) / GROW_SECONDS);
-        if (!all && !moving && g >= 1) return;
+        if (!all && !moving && g >= 1 && !(detailDirty && item.lod)) return;
         dirty = true;
         // Lekkie „przeskoczenie” przy wyrastaniu.
         const pop = g < 1 ? g * (1 + Math.sin(g * Math.PI) * 0.15) : 1;
@@ -1758,7 +1782,7 @@ export class ColonyMeshes {
         spin.setFromAxisAngle(up, kind.fixedSpin ? 0 : item.spin);
         q.multiply(spin);
         p.copy(n).multiplyScalar(item.surface - item.size * 0.06);
-        s.setScalar(Math.max(item.size * pop, 1e-5));
+        s.setScalar(Math.max(item.size * pop * (item.lod ? this.detail : 1), 1e-5));
         m.compose(p, q, s);
         kind.body.setMatrixAt(i, m);
         kind.pit.setMatrixAt(i, m);

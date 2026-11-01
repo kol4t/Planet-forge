@@ -65,6 +65,16 @@ Krótka kontrola całości po każdej publikacji (ok. 10 minut). Dawne listy kol
 14. Obróć iPada pionowo ↔ poziomo: układ przebudowuje się, nic nie wychodzi poza ekran, pasek zasobów nie nachodzi na siebie.
 15. Płynność: instrukcja pomiaru w `docs/PERFORMANCE.md` (Ustawienia → Zgłoś / diagnostyka → „Pokaż diagnostykę”).
 
+**Kompleks kopalni metalu (etap 2 — osady)**
+16. Kopalnia metalu nie jest już rozlana na dziesiątki pól: na planecie osady (fabryka + do 3 kopalń) połączone ciemnymi
+    drogami i pusty plac w środku; licznik POLA zajętych przez kopalnię: poz. 10 → 5, poz. 40 → 20.
+17. Oddal planetę (dwa palce do siebie): widać fabryki, plac i drogi; przybliż — kopalnie wyrastają płynnie, bez skoku.
+18. Przybliż i dotknij kopalni, fabryki, placu albo drogi: otwiera się karta Kopalni metalu (jak dotknięcie budowli).
+19. Ulepsz Kopalnię metalu: złote rusztowanie stoi w miejscu następnej kopalni albo fabryki.
+20. Ustawienia → grafika 2D: kopalnie jako kółka, fabryki jako trójkąty, plac jako kwadrat, drogi jako linie.
+21. Inne budynki nie stają w dzielnicy kopalni (także na placu); stary zapis z wysoką kopalnią metalu wczytuje się,
+    poziom zostaje, zwolnione pola są wolne.
+
 ## Licencja i treści
 
 Nazwy, opisy i liczby w grze są robocze (lore powstaje osobno — `docs/lore/`, `docs/LORE_TOUCHPOINTS.md`).
