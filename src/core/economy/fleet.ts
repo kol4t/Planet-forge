@@ -72,7 +72,7 @@ export function completeOrders(fleet: Fleet, now: number): { fleet: Fleet; done:
   if (done.length === 0) return { fleet, done };
   const docked = { ...fleet.docked };
   for (const o of done) docked[o.type]++;
-  return { fleet: { docked, queue: fleet.queue.filter((o) => o.readyAt > now) }, done };
+  return { fleet: { ...fleet, docked, queue: fleet.queue.filter((o) => o.readyAt > now) }, done };
 }
 
 /** Anulowanie zamówienia (zwrot kosztu); następne zamówienia przesuwają się wcześniej o jego czas. */
@@ -98,5 +98,27 @@ export function parseFleet(raw: any): Fleet | null {
   const queue: ShipOrder[] = (Array.isArray(raw.queue) ? raw.queue : [])
     .filter((o: any) => o && TYPES.includes(o.type) && isNum(o.startsAt) && isNum(o.readyAt) && o.readyAt >= o.startsAt && isNum(o.cost?.metal) && isNum(o.cost?.crystal))
     .map((o: any) => ({ type: o.type, startsAt: o.startsAt, readyAt: o.readyAt, cost: { metal: Math.max(0, o.cost.metal), crystal: Math.max(0, o.cost.crystal) } }));
-  return { docked, queue };
+  // Naprawy eskorty (etap 7) — opcjonalne.
+  const repairs = (Array.isArray(raw.repairs) ? raw.repairs : [])
+    .filter((r: any) => r && isNum(r.readyAt) && Number.isInteger(r.count) && r.count > 0 && r.count <= 999)
+    .map((r: any) => ({ readyAt: r.readyAt, count: r.count }));
+  return { docked, queue, ...(repairs.length > 0 ? { repairs } : {}) };
+}
+
+/** Okręty eskorty do naprawy: wracają do floty po `repairSeconds` (naprawa poza kolejką stoczni). */
+export function addRepair(fleet: Fleet, count: number, now: number, balance: Balance): Fleet {
+  if (count <= 0) return fleet;
+  return { ...fleet, repairs: [...(fleet.repairs ?? []), { readyAt: now + balance.missionRisk.repairSeconds * 1000, count }] };
+}
+
+/** Naprawy ukończone do `now` — okręty wracają do floty. */
+export function completeRepairs(fleet: Fleet, now: number): { fleet: Fleet; repaired: { readyAt: number; count: number }[] } {
+  const repaired = (fleet.repairs ?? []).filter((r) => r.readyAt <= now);
+  if (repaired.length === 0) return { fleet, repaired };
+  const rest = (fleet.repairs ?? []).filter((r) => r.readyAt > now);
+  const { repairs: _old, ...base } = fleet;
+  return {
+    fleet: { ...base, docked: { ...fleet.docked, escort: fleet.docked.escort + repaired.reduce((n, r) => n + r.count, 0) }, ...(rest.length > 0 ? { repairs: rest } : {}) },
+    repaired,
+  };
 }

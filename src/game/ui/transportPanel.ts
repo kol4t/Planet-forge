@@ -16,8 +16,10 @@ export interface TransportPanelOptions {
   fuel: number;
   /** Wysyłka z liczbą okrętów eskorty (v0.58). */
   send: (cargo: Resources, escort: number) => ActionMessage;
+  /** Opis ryzyka piratów na trasie z daną eskortą (etap 7), np. „ryzyko piratów 15%”. */
+  risk?: (escort: number) => string;
   /** Kilka możliwych celów (lot ze stacji): wybór z listy, każdy z własnym czasem, paliwem i wysyłką. */
-  targets?: { name: string; seconds: number; fuel: number; send: (cargo: Resources, escort: number) => ActionMessage }[];
+  targets?: { name: string; seconds: number; fuel: number; send: (cargo: Resources, escort: number) => ActionMessage; risk?: (escort: number) => string }[];
   /** Ile każdego surowca zmieści cel (np. wolne miejsce na stacji); brak — bez limitu. */
   room?: Resources;
   title?: string;
@@ -33,6 +35,7 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
       <h2 id="tr-title"></h2>
       <label class="tr-row tr-target" hidden><span class="tr-label">Dokąd</span><select></select></label>
       <p class="tp-hint tr-route"></p>
+      <p class="tp-hint tr-risk" hidden></p>
       <label class="tr-row"><span class="tr-label">Metal</span><span class="tr-value" data-for="metal"></span>
         <input type="range" min="0" step="1" data-res="metal" /></label>
       <label class="tr-row"><span class="tr-label">Kryształy</span><span class="tr-value" data-for="crystal"></span>
@@ -63,7 +66,7 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
     crystal: root.querySelector<HTMLElement>('[data-for="crystal"]')!,
   };
   root.querySelector('#tr-title')!.textContent = options.title ?? 'Wyślij surowce';
-  const targets = options.targets ?? [{ name: options.toName, seconds: options.seconds, fuel: options.fuel, send: options.send }];
+  const targets = options.targets ?? [{ name: options.toName, seconds: options.seconds, fuel: options.fuel, send: options.send, risk: options.risk }];
   const select = root.querySelector<HTMLSelectElement>('.tr-target select')!;
   if (options.targets) {
     root.querySelector<HTMLElement>('.tr-target')!.hidden = false;
@@ -77,22 +80,38 @@ export function openTransportPanel(options: TransportPanelOptions): () => void {
       `${options.fromName} → ${t.name} · lot ${formatDuration(t.seconds)} · ${fuelLabel(t.fuel)} · ` +
         `transportowce: w drodze ${transport.active}, wolne ${transport.maxActive - transport.active}`;
   };
-  select.addEventListener('change', route);
+  // Ryzyko piratów (etap 7): odświeżane przy zmianie celu i eskorty.
+  let escort = 0;
+  const riskLine = root.querySelector<HTMLElement>('.tr-risk')!;
+  const risk = () => {
+    const text = target().risk?.(escort);
+    riskLine.hidden = !text;
+    if (!text) return;
+    const safe = /bez ryzyka/.test(text);
+    riskLine.textContent =
+      text[0]!.toUpperCase() + text.slice(1) +
+      (safe ? '.' : transport.escorts > 0 ? ' — każdy okręt eskorty zmniejsza ryzyko.' : ' — eskorta zmniejsza ryzyko (okręty buduje stocznia: Imperium → Flota).');
+  };
+  select.addEventListener('change', () => {
+    route();
+    risk();
+  });
   route();
+  risk();
 
   const showError = (text: string) => {
     error.textContent = text;
     error.hidden = false;
   };
 
-  // Eskorta (v0.58): ile okrętów leci z transportem — ochrona działa od etapu ryzyka misji.
-  let escort = 0;
+  // Eskorta (v0.58): ile okrętów leci z transportem — od etapu 7 zmniejsza ryzyko przechwycenia.
   if (transport.escorts > 0) {
     root.querySelector<HTMLElement>('.tr-escort')!.hidden = false;
     for (const b of root.querySelectorAll<HTMLButtonElement>('[data-escort]')) {
       b.addEventListener('click', () => {
         escort = Math.max(0, Math.min(transport.escorts, escort + Number(b.dataset.escort)));
         root.querySelector('.tr-escort-value')!.textContent = `${escort} z ${transport.escorts}`;
+        risk();
       });
     }
     root.querySelector('.tr-escort-value')!.textContent = `0 z ${transport.escorts}`;

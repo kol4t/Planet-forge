@@ -1,3 +1,4 @@
+import { parseIncident } from './missionRisk.ts';
 // Megakonstrukt kopalni metalu na orbicie (krok 3b, decyzje właściciela 2026-11-01): konstrukt nie da się przenieść
 // inaczej niż „wyrzucając” go na orbitę i ściągając na inną planetę. Wyrzucenie: przygotowanie 30 min (konstrukt nie daje
 // premii; anulowanie zwraca paliwo), start za antymaterię — na planecie zostają 4 osady z pustym placem. Ściągnięcie: tylko
@@ -53,6 +54,7 @@ export function parseOrbiting(raw: unknown): OrbitalConstruct[] {
       fuel: Math.max(0, o.fuel),
       ...(flying ? { target: o.target, landsAt: o.landsAt } : {}),
       ...(o.lifted === true ? { lifted: true } : {}),
+      ...(flying && parseIncident(o.incident) ? { incident: parseIncident(o.incident)! } : {}),
     });
   }
   return out;

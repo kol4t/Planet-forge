@@ -6,8 +6,9 @@ import { COMPLEX_STAGE, complexCandidate, MEGA_STAGE, megaCandidate, validComple
 import { COMPLEX_FAMILIES, complexMode, findFamily, MEGA_RULES, type ComplexFamily } from '../data/complexes.ts';
 import { INDUSTRY_STAGES } from '../data/industry.ts';
 import { fuelCost, fuelLabel, fuelShortage } from '../core/economy/fuel.ts';
-import { cancelOrder, completeOrders, orderShip, shipSeconds, shipyardCost, shipyardLevel, starterFleet, upgradeShipyard } from '../core/economy/fleet.ts';
+import { addRepair, cancelOrder, completeOrders, completeRepairs, orderShip, shipSeconds, shipyardCost, shipyardLevel, starterFleet, upgradeShipyard } from '../core/economy/fleet.ts';
 import { findShip, SHIP_TYPES } from '../data/fleet.ts';
+import { cargoAfter, pirateNests, riskLabel, rollIncident, routeRisk, type IncidentKind, type MapPoint, type RouteRisk } from '../core/economy/missionRisk.ts';
 import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAnywhere } from '../core/economy/constructTransfer.ts';
 import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeStationStorage } from '../core/economy/homeStation.ts';
 import {
@@ -388,7 +389,7 @@ export interface OrbitView {
   incoming: { originName: string; secondsLeft: number } | null;
   /** Dlaczego konstrukt nie może tu wylądować (null — może). */
   landingReason: string | null;
-  inOrbit: { index: number; originName: string; seconds: number; fuel: number }[];
+  inOrbit: { index: number; originName: string; seconds: number; fuel: number; risk: string }[];
 }
 
 /** Megakonstrukt kopalni metalu (etap 3 kompleksu). */
@@ -414,6 +415,9 @@ export interface FleetView {
   ships: { type: ShipType; name: string; description: string; docked: number; flying: number; cost: Resources; seconds: number }[];
   queue: { type: ShipType; name: string; secondsLeft: number; progress: number }[];
   queueMax: number;
+  /** Okręty eskorty w naprawie po ataku piratów (etap 7) i czas do najbliższego powrotu. */
+  repairing: number;
+  repairSecondsLeft: number;
 }
 
 /** Wysyłka megakonstruktu z aktywnej planety (v0.56). */
@@ -429,7 +433,18 @@ export interface TransferView {
   /** Okręty eskorty na stanie (v0.58). */
   escorts: number;
   /** Dla każdej innej planety: lot, paliwo, pola (potrzebne / wolne obok siebie), zastępowany poziom, energia po lądowaniu (produkcja / zużycie). */
-  targets: { address: string; name: string; seconds: number; fuel: number; needed: number; available: number; replaces: number; energy: number }[];
+  targets: {
+    address: string;
+    name: string;
+    seconds: number;
+    fuel: number;
+    needed: number;
+    available: number;
+    replaces: number;
+    energy: number;
+    /** Opis ryzyka piratów dla 0, 1, 2… okrętów eskorty (etap 7). */
+    risk: string[];
+  }[];
 }
 
 /** Stacja macierzysta do karty w Imperium (v0.55). */
@@ -1481,7 +1496,8 @@ export class GameController {
     if (short) return { ok: false, message: short };
     this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
     this.takeShips('colonyShip', 1);
-    this.missions.push({ target: address, from: this.address, departedAt: now, arrivesAt: now + seconds * 1000, cost: { metal: 0, crystal: 0 }, fuel, ship: true });
+    const incident = this.incidentFor(this.address, address, 'delay', now, seconds, 0);
+    this.missions.push({ target: address, from: this.address, departedAt: now, arrivesAt: now + seconds * 1000, cost: { metal: 0, crystal: 0 }, fuel, ship: true, ...(incident ? { incident } : {}) });
     this.log('ship', `Statek kolonizacyjny wyruszył z ${this.planet.displayName} do ${name} (${fuelLabel(fuel)}).`, now);
     this.save();
     this.emit();
@@ -1524,7 +1540,16 @@ export class GameController {
   /** Przyloty statków do `now`: każdy zakłada kolonię (nieaktywną — gracz przechodzi na nią sam). */
   private processMissions(now: number): string[] {
     const arrived: string[] = [];
-    for (const mission of [...this.missions].sort((a, b) => a.arrivesAt - b.arrivesAt)) {
+    for (const original of [...this.missions].sort((a, b) => a.arrivesAt - b.arrivesAt)) {
+      let mission = original;
+      const inc = mission.incident;
+      if (inc && !inc.done && inc.at <= now) {
+        mission = { ...mission, arrivesAt: mission.arrivesAt + inc.delaySeconds * 1000, incident: { ...inc, done: true } };
+        this.missions = this.missions.map((m) => (m === original ? mission : m));
+        const where = parseAddress(mission.target);
+        const name = (where && planetAt(this.galaxy, where)?.name) || mission.target;
+        this.log('ship', `Piraci zaatakowali statek kolonizacyjny lecący do ${name} — statek ucieka okrężną drogą, opóźnienie ${formatFlight(inc.delaySeconds)}.`, inc.at);
+      }
       if (mission.arrivesAt > now) continue;
       this.missions = this.missions.filter((m) => m !== mission);
       const where = parseAddress(mission.target);
@@ -1567,6 +1592,61 @@ export class GameController {
     const from = this.galaxy.systems[(parseAddress(a)?.system ?? 1) - 1];
     const to = this.galaxy.systems[(parseAddress(b)?.system ?? 1) - 1];
     return from && to ? Math.hypot(to.x - from.x, to.y - from.y) : 0;
+  }
+
+  // ——— ryzyko misji (etap 7) ———
+
+  private nestsCache: { home: number; nests: MapPoint[] } | null = null;
+
+  /** Adres planety, nad którą krąży stacja macierzysta (null — brak stacji). */
+  get stationAddress(): string | null {
+    return this.station?.address ?? null;
+  }
+
+  /** Gniazda piratów (stałe dla galaktyki; bez układu startowego gracza). */
+  pirateNests(): MapPoint[] {
+    const home = this.homeSystem;
+    if (this.nestsCache?.home !== home) this.nestsCache = { home, nests: pirateNests(this.galaxy, this.balance, [home]) };
+    return this.nestsCache.nests;
+  }
+
+  private systemPoint(address: string): MapPoint | null {
+    const s = this.galaxy.systems[(parseAddress(address)?.system ?? 0) - 1];
+    return s ? { index: s.index, x: s.x, y: s.y } : null;
+  }
+
+  /** Ryzyko przechwycenia na trasie między planetami (adresy) z `escort` okrętami eskorty. */
+  routeRisk(from: string, to: string, escort = 0): RouteRisk {
+    const a = this.systemPoint(from);
+    const b = this.systemPoint(to);
+    if (!a || !b) return { base: 0, risk: 0, nests: 0, safe: true };
+    return routeRisk(a, b, this.pirateNests(), escort, this.balance);
+  }
+
+  /** Krótki opis ryzyka do okien: „ryzyko 15%”, „bezpiecznie (ten sam układ)”. */
+  riskText(from: string, to: string, escort = 0): string {
+    const r = this.routeRisk(from, to, escort);
+    if (r.safe) return 'bez ryzyka (ten sam układ)';
+    return `ryzyko piratów ${riskLabel(r.risk)}${r.nests > 0 ? ` (gniazda piratów przy trasie: ${r.nests})` : ''}`;
+  }
+
+  /** Zdarzenie lotu wylosowane przy starcie (undefined — lot spokojny albo w jednym układzie). */
+  private incidentFor(from: string, to: string, kind: IncidentKind, departedAt: number, seconds: number, escort: number) {
+    const r = this.routeRisk(from, to, escort);
+    return rollIncident(`${from}>${to}@${departedAt}`, r.risk, kind, { departedAt, seconds }, escort, this.balance) ?? undefined;
+  }
+
+  /** Uszkodzona eskorta trafia do naprawy (wpis w dzienniku robi wywołujący). */
+  private repairEscort(count: number, at: number): void {
+    if (count > 0) this.fleet = addRepair(this.fleet, count, at, this.balance);
+  }
+
+  /** Zdanie o eskorcie do dziennika po przechwyceniu. */
+  private escortNote(escort: number, damaged: number): string {
+    if (escort <= 0) return '';
+    return damaged > 0
+      ? ` Eskorta: ${damaged} z ${escort} okrętów uszkodzonych — wracają do floty po naprawie (${formatFlight(this.balance.missionRisk.repairSeconds)}).`
+      : ' Eskorta odparła resztę ataku bez strat.';
   }
 
   // ——— stacja macierzysta (v0.55) ———
@@ -1669,7 +1749,8 @@ export class GameController {
       antimatter: this.economy.antimatter - fuel,
     };
     this.launchTransport(escort);
-    this.shipments.push({ from: this.address, to: s.address, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'to', ship: true, ...(escort > 0 ? { escort } : {}) });
+    const incident = this.incidentFor(this.address, s.address, 'cargo', now, seconds, escort);
+    this.shipments.push({ from: this.address, to: s.address, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'to', ship: true, ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
     this.log('ship', `Transportowiec wyruszył z ${this.planet.displayName} na stację macierzystą: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
     this.save();
     this.emit();
@@ -1696,7 +1777,8 @@ export class GameController {
     this.station = { ...s, stock: { metal: s.stock.metal - load.metal, crystal: s.stock.crystal - load.crystal } };
     this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
     this.launchTransport(escort);
-    this.shipments.push({ from: s.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'from', ship: true, ...(escort > 0 ? { escort } : {}) });
+    const incident = this.incidentFor(s.address, to, 'cargo', now, seconds, escort);
+    this.shipments.push({ from: s.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'from', ship: true, ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
     const toName = this.slotName(to);
     this.log('ship', `Transportowiec wyruszył ze stacji macierzystej do ${toName}: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
     this.save();
@@ -1765,7 +1847,8 @@ export class GameController {
       antimatter: this.economy.antimatter - fuel,
     };
     this.launchTransport(escort);
-    this.shipments.push({ from: this.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, ship: true, ...(escort > 0 ? { escort } : {}) });
+    const incident = this.incidentFor(this.address, to, 'cargo', now, seconds, escort);
+    this.shipments.push({ from: this.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, ship: true, ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
     const toName = this.slotName(to);
     this.log('ship', `Transportowiec wyruszył z ${this.planet.displayName} do ${toName}: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
     this.save();
@@ -1798,7 +1881,8 @@ export class GameController {
    */
   private processShipments(now: number): string[] {
     const texts: string[] = [];
-    for (const shipment of [...this.shipments].sort((a, b) => a.arrivesAt - b.arrivesAt)) {
+    for (const original of [...this.shipments].sort((a, b) => a.arrivesAt - b.arrivesAt)) {
+      const shipment = this.interceptShipment(original, now, texts);
       if (shipment.arrivesAt > now) continue;
       this.shipments = this.shipments.filter((s) => s !== shipment);
       // Transportowiec i eskorta wracają do floty (v0.58).
@@ -1830,6 +1914,28 @@ export class GameController {
       texts.push(text);
     }
     return texts;
+  }
+
+  /**
+   * Przechwycenie transportowca przez piratów (etap 7), gdy nadeszła jego chwila: część ładunku przepada, lot się
+   * spóźnia, uszkodzona eskorta idzie do naprawy. Zwraca lot po zmianie (podmieniony w liście) albo ten sam.
+   */
+  private interceptShipment(shipment: Shipment, now: number, texts: string[]): Shipment {
+    const inc = shipment.incident;
+    if (!inc || inc.done || inc.at > now) return shipment;
+    const { kept, lost } = cargoAfter(shipment.cargo, inc.lossShare ?? 0);
+    const damaged = Math.min(inc.damaged ?? 0, shipment.escort ?? 0);
+    const escort = (shipment.escort ?? 0) - damaged;
+    const { escort: _e, ...rest } = shipment;
+    const next: Shipment = { ...rest, ...(escort > 0 ? { escort } : {}), cargo: kept, arrivesAt: shipment.arrivesAt + inc.delaySeconds * 1000, incident: { ...inc, done: true } };
+    this.shipments = this.shipments.map((x) => (x === shipment ? next : x));
+    this.repairEscort(damaged, inc.at);
+    const from = shipment.station === 'from' ? 'stacji macierzystej' : this.slotName(shipment.from);
+    const to = shipment.station === 'to' ? 'stację macierzystą' : this.slotName(shipment.to);
+    const text = `Piraci przechwycili transportowiec z ${from} na ${to}: stracono ${lost.metal} metalu i ${lost.crystal} kryształów, opóźnienie ${formatFlight(inc.delaySeconds)}.${this.escortNote(shipment.escort ?? 0, damaged)}`;
+    this.log('ship', text, inc.at);
+    texts.push(text);
+    return next;
   }
 
   /** Ładunek do magazynu planety: nieaktywna najpierw nadrabia czas do chwili przylotu. */
@@ -1969,7 +2075,7 @@ export class GameController {
         .filter(({ o }) => orbitalState(o, now) === 'na_orbicie')
         .map(({ o, index }) => {
           const distance = this.distanceBetween(o.origin, this.address);
-          return { index, originName: this.slotName(o.origin), seconds: landingSeconds(distance, this.balance), fuel: landingFuel(distance, this.balance) };
+          return { index, originName: this.slotName(o.origin), seconds: landingSeconds(distance, this.balance), fuel: landingFuel(distance, this.balance), risk: this.riskText(o.origin, this.address) };
         }),
     };
   }
@@ -2041,7 +2147,8 @@ export class GameController {
     if (short) return { ok: false, message: short };
     const seconds = landingSeconds(distance, this.balance);
     this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
-    this.orbiting = this.orbiting.map((x) => (x === o ? { ...x, target: this.address, landsAt: now + seconds * 1000 } : x));
+    const incident = this.incidentFor(o.origin, this.address, 'delay', now, seconds, 0);
+    this.orbiting = this.orbiting.map((x) => (x === o ? { ...x, target: this.address, landsAt: now + seconds * 1000, ...(incident ? { incident } : {}) } : x));
     this.log('ship', `Megakonstrukt z orbity ${this.slotName(o.origin)} leci na ${this.planet.displayName} (${fuelLabel(fuel)}).`, now);
     this.save();
     this.emit();
@@ -2067,7 +2174,16 @@ export class GameController {
         this.log('ship', text, o.readyAt);
         texts.push(text);
       }
-      if (!o.target || o.landsAt === undefined || o.landsAt > now) continue;
+      if (!o.target || o.landsAt === undefined) continue;
+      const inc = o.incident;
+      if (inc && !inc.done && inc.at <= now) {
+        o.landsAt += inc.delaySeconds * 1000;
+        o.incident = { ...inc, done: true };
+        const text = `Piraci zaatakowali megakonstrukt lecący na ${this.slotName(o.target)} — konstrukt jest cały, lądowanie opóźnione o ${formatFlight(inc.delaySeconds)}.`;
+        this.log('ship', text, inc.at);
+        texts.push(text);
+      }
+      if (o.landsAt > now) continue;
       const index = this.slotAt(o.target);
       const slot = this.slots[index];
       const reason = slot ? landingCheck(slot.metalComplex, slot.economy.levels.metalMine ?? 0, false) : 'Planety celu już nie ma.';
@@ -2122,14 +2238,24 @@ export class GameController {
 
   /** Statki ukończone w stoczni do `now` trafiają do floty (wpis w dzienniku). */
   private processShipyard(now: number): string[] {
-    const { fleet, done } = completeOrders(this.fleet, now);
-    if (done.length === 0) return [];
-    this.fleet = fleet;
-    return done.map((o) => {
-      const text = `Stocznia: gotowy — ${findShip(o.type).name}.`;
-      this.log('ship', text, o.readyAt);
+    const repairs = completeRepairs(this.fleet, now);
+    this.fleet = repairs.fleet;
+    const fixed = repairs.repaired.map((r) => {
+      const text = `Stocznia: naprawiono okręty eskorty (${r.count}) — wróciły do floty.`;
+      this.log('ship', text, r.readyAt);
       return text;
     });
+    const { fleet, done } = completeOrders(this.fleet, now);
+    if (done.length === 0) return fixed;
+    this.fleet = fleet;
+    return [
+      ...fixed,
+      ...done.map((o) => {
+        const text = `Stocznia: gotowy — ${findShip(o.type).name}.`;
+        this.log('ship', text, o.readyAt);
+        return text;
+      }),
+    ];
   }
 
   /** Zakładka „Flota” w Imperium: stocznia, statki na stanie i w drodze, kolejka budowy. */
@@ -2163,6 +2289,8 @@ export class GameController {
         cost: f.ships[type].cost,
         seconds: shipSeconds(type, Math.max(1, level), this.balance),
       })),
+      repairing: (this.fleet.repairs ?? []).reduce((n, r) => n + r.count, 0),
+      repairSecondsLeft: this.fleet.repairs?.length ? Math.max(0, (Math.min(...this.fleet.repairs.map((r) => r.readyAt)) - now) / 1000) : 0,
       queue: this.fleet.queue.map((o) => ({
         type: o.type,
         name: findShip(o.type).name,
@@ -2271,7 +2399,8 @@ export class GameController {
             this.balanceFor(x, now),
           );
           const energy = after.energyUsed > 0 ? Math.min(9.99, after.energyProduced / after.energyUsed) : 1;
-          return { address: x.address, name: x.planet.displayName, seconds: transferFlightSeconds(distance, this.balance), fuel: transferFuel(distance, this.balance), ...room, replaces, energy };
+          const risk = Array.from({ length: this.fleet.docked.escort + 1 }, (_, n) => this.riskText(this.address, x.address, n));
+          return { address: x.address, name: x.planet.displayName, seconds: transferFlightSeconds(distance, this.balance), fuel: transferFuel(distance, this.balance), ...room, replaces, energy, risk };
         }),
     };
   }
@@ -2315,6 +2444,8 @@ export class GameController {
       fuel: target.fuel,
       ...(escort > 0 ? { escort } : {}),
     });
+    const incident = this.incidentFor(this.address, to, 'delay', departsAt, target.seconds, escort);
+    if (incident) this.transfers[this.transfers.length - 1]!.incident = incident;
     if (escort > 0) this.takeShips('escort', escort);
     slot.packing = id;
     syncPlots(slot, this.buildRules);
@@ -2386,6 +2517,20 @@ export class GameController {
         }
         const text = `${name} odleciał z ${this.slotName(t.from)} na ${this.slotName(t.to)} — zostały puste pola.`;
         this.log('ship', text, t.departsAt);
+        texts.push(text);
+      }
+      const inc = t.incident;
+      if (t.departed && inc && !inc.done && inc.at <= now) {
+        const damaged = Math.min(inc.damaged ?? 0, t.escort ?? 0);
+        const escort = (t.escort ?? 0) - damaged;
+        if (escort > 0) t.escort = escort;
+        else delete t.escort;
+        t.arrivesAt += inc.delaySeconds * 1000;
+        t.incident = { ...inc, done: true };
+        this.repairEscort(damaged, inc.at);
+        changed = true;
+        const text = `Piraci zaatakowali ${name.toLowerCase()} w drodze na ${this.slotName(t.to)} — konstrukt jest cały, opóźnienie ${formatFlight(inc.delaySeconds)}.${this.escortNote(escort + damaged, damaged)}`;
+        this.log('ship', text, inc.at);
         texts.push(text);
       }
       if (t.arrivesAt > now) continue;

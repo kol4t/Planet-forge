@@ -15,6 +15,7 @@ Przy zmianie nazwy zmieniamy tylko teksty dla gracza. **Identyfikatory i klucze 
 |---|---|---|
 | **Imperium** (ekran, przycisk, „Sytuacja imperium”, zapis `empire`) | `src/game/scenes/EmpireScene.ts`, `PlanetScene.ts`, `src/app/GameController.ts`, `src/core/save/empire.ts` (klucz techniczny) | ROBOCZE; **O-002** — możliwa kolizja z K-001 pkt 3 (ludzkość jako niedobitek) |
 | **Formy obce** (planety zajęte przez obcych, fioletowy pierścień) | `src/core/galaxy/galaxy.ts` (`alien`), `src/data/galaxy.ts`, `src/game/scenes/MapScene.ts`, `GameController.ts` | ROBOCZE; obcy nie występują w kanonie; **O-301**; do sprawdzenia filtrem K-011 |
+| **Piraci, gniazda piratów** (ryzyko lotów między układami, etap 7) | `src/core/economy/missionRisk.ts`, `GameController.ts` (dziennik, `riskText`), okna transportu / mapy / Kompleksu | ROBOCZE; napięcie z **K-005**, do uzgodnienia **O-205 / O-206** |
 | **Boty / „inny gracz”** (miejsca startowe innych graczy) | `src/core/galaxy/galaxy.ts` (`bot`), `MapScene.ts`, `GameController.ts` | ROBOCZE; **O-001** (gra wieloosobowa poza MVP), **O-301** |
 | **Galaktyka 1, 100 układów, adresy `1:układ:orbita`**, katalogi nazw (Kepler, TOI, HD, Gliese…) | `src/data/galaxy.ts` (`GALAXY_NAMES`, `SYSTEM_CATALOGS`), `src/core/galaxy/galaxy.ts` | ROBOCZE; **O-301** (skala obszaru graczy) |
 | **Rodzaje gwiazd**: czerwony karzeł, żółta gwiazda, niebieski olbrzym, gwiazda podwójna, pulsar, czarna dziura | `src/data/galaxy.ts` (`STAR_KINDS`) | ROBOCZE; K-006 (space opera) |

@@ -367,6 +367,25 @@ export interface Balance {
     starter: Record<ShipType, number>;
   };
   /**
+   * Ryzyko misji (etap 7, robocze): tylko loty między układami. Ryzyko = odległość × `perUnit` + `perNest` za każde
+   * gniazdo piratów w promieniu `nestRange` od trasy (maks. `cap`); gniazd jest `nestShare` układów. Każdy okręt
+   * eskorty zdejmuje `escortCut` ryzyka. Przechwycenie: opóźnienie `delayShare` czasu lotu, strata `lossShare`
+   * ładunku (tylko transport), każdy okręt eskorty uszkodzony z szansą `escortDamage` (naprawa `repairSeconds`).
+   */
+  missionRisk: {
+    perUnit: number;
+    perNest: number;
+    nestRange: number;
+    nestShare: number;
+    cap: number;
+    escortCut: number;
+    lossShare: { min: number; max: number };
+    delayShare: { min: number; max: number };
+    escortDamage: number;
+    repairSeconds: number;
+    status: 'robocza';
+  };
+  /**
    * Kompleks kopalni metalu (etap 1 — tylko model w core, bez wpływu na ekonomię i wygląd; `docs/kompleks-kopalni-metalu.md`).
    * Poziom budynku rozkłada się na osady: w każdej `minesPerSettlement` kopalni rośnie po kolei do `mineMaxLevel`,
    * potem jeden poziom na fabrykę (osada = `minesPerSettlement × mineMaxLevel + 1` poziomów).
@@ -633,6 +652,19 @@ export interface FuelRule {
   unitsPerOne: number;
 }
 
+/**
+ * Przechwycenie lotu przez piratów (etap 7, robocze): wylosowane przy starcie, jawne od chwili `at` — wtedy lot
+ * spóźnia się o `delaySeconds`, transport traci `lossShare` ładunku, `damaged` okrętów eskorty wraca do naprawy.
+ */
+export interface MissionIncident {
+  at: number;
+  delaySeconds: number;
+  lossShare?: number;
+  damaged?: number;
+  /** Zdarzenie już zaszło (opóźnienie doliczone, strata odjęta). */
+  done?: boolean;
+}
+
 export interface ColonyMission {
   /** Adres planety docelowej. */
   target: string;
@@ -645,6 +677,8 @@ export interface ColonyMission {
   fuel?: number;
   /** Lot zużył statek kolonizacyjny floty (v0.58; brak — lot sprzed floty, statek nie wraca do floty). */
   ship?: boolean;
+  /** Przechwycenie przez piratów (etap 7) — tylko opóźnienie. */
+  incident?: MissionIncident;
 }
 
 export type JournalKind = 'build' | 'research' | 'colony' | 'ship' | 'away' | 'empire' | 'ai' | 'expedition' | 'find';
@@ -679,6 +713,8 @@ export interface Shipment {
   ship?: boolean;
   /** Okręty eskorty lecące z transportem (v0.58; ochrona przed przechwyceniem — etap 7). */
   escort?: number;
+  /** Przechwycenie przez piratów (etap 7). */
+  incident?: MissionIncident;
 }
 
 /**
@@ -703,6 +739,8 @@ export interface ConstructTransfer {
   departed?: boolean;
   /** Okręty eskorty (v0.58) — lecą z konstruktem, wracają do floty po przylocie albo anulowaniu. */
   escort?: number;
+  /** Przechwycenie przez piratów (etap 7) — tylko opóźnienie. */
+  incident?: MissionIncident;
 }
 
 /**
@@ -732,6 +770,8 @@ export interface OrbitalConstruct {
   landsAt?: number;
   /** Start się odbył — na planecie `origin` zostały osady (żeby nowy konstrukt tam nie został zdjęty drugi raz). */
   lifted?: boolean;
+  /** Przechwycenie przez piratów w czasie lądowania (etap 7) — tylko opóźnienie. */
+  incident?: MissionIncident;
 }
 
 /** Rodzaje statków floty (v0.58, nazwy robocze). */
@@ -753,6 +793,8 @@ export interface ShipOrder {
 export interface Fleet {
   docked: Record<ShipType, number>;
   queue: ShipOrder[];
+  /** Okręty eskorty w naprawie po przechwyceniu (etap 7) — wracają do floty o `readyAt`, bez kolejki stoczni. */
+  repairs?: { readyAt: number; count: number }[];
 }
 
 /** Wpis w dzienniku ekspedycji. */
