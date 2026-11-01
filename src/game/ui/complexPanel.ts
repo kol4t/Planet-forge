@@ -1,7 +1,7 @@
 // Okno „Kompleks” (v0.38, od v0.45 ulepszenie całego budynku): budynek sam rośnie w jeden kompleks (etapy z poziomu),
 // a tu gracz uruchamia premię kompleksu i megakompleks — zysk, koszt, odwracalność. Wygląd: #text-panel w index.html.
-import type { ActionMessage, ComplexView } from '../../app/GameController.ts';
-import { formatInt, formatRate } from './theme.ts';
+import type { ActionMessage, ComplexView, MetalConstructView } from '../../app/GameController.ts';
+import { formatDuration, formatInt, formatRate } from './theme.ts';
 
 export interface ComplexPanelOptions {
   view: () => ComplexView;
@@ -16,6 +16,8 @@ export interface ComplexPanelOptions {
   /** Wysyłka megakonstruktu na inną kolonię (v0.56): stan w jednym wierszu (null — nic się nie dzieje) i okno. */
   transferNote: () => string | null;
   openTransfer: () => void;
+  /** Kopalnia metalu (etap 3 kompleksu): megakonstrukt zamiast megakompleksu. */
+  construct?: { view: () => MetalConstructView; start: () => ActionMessage; cancel: () => ActionMessage };
   onDone: (message: string) => void;
 }
 
@@ -34,6 +36,11 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
       <div class="tp-actions">
         <button type="button" class="tp-primary cp-merge">Uruchom kompleks</button>
         <button type="button" class="tp-secondary cp-split">Wyłącz</button>
+      </div>
+      <div class="cp-construct-box" hidden>
+        <h3 class="ap-head">Megakonstrukt</h3>
+        <p class="tp-hint cp-construct"></p>
+        <div class="tp-actions"><button type="button" class="tp-primary cp-construct-go"></button></div>
       </div>
       <div class="cp-mega-box" hidden>
         <h3 class="ap-head cp-mega-head"></h3>
@@ -120,6 +127,44 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
     close();
     options.openTransfer();
   });
+  // Megakonstrukt kopalni metalu (etap 3): budowa na placu, kopalnia pracuje; zastępuje megakompleks.
+  if (options.construct) {
+    megaBox.hidden = true;
+    const box = q<HTMLElement>('.cp-construct-box');
+    box.hidden = false;
+    const cv = options.construct.view();
+    const go = q<HTMLButtonElement>('.cp-construct-go');
+    const costText = `${formatInt(cv.cost.metal)} metalu · ${formatInt(cv.cost.crystal)} kryształów`;
+    q('.cp-construct').textContent = cv.built
+      ? `Działa: kompleks w układzie promienistym — 4 fabryki na ramionach, pasy do konstruktu. Premia +${cv.bonus}% całego budynku i znaleziska. Nie da się go przenieść (wyrzucenie na orbitę — wkrótce).`
+      : cv.building
+        ? `W budowie na placu — gotowy za ${formatDuration(cv.building.secondsLeft)} (${Math.round(cv.building.progress * 100)}%). Kopalnia pracuje; po ukończeniu osady przejdą w układ promienisty.`
+        : `Po komplecie 4 osad (poz. 40) na placu w środku powstaje megakonstrukt: +${cv.bonus}% całego budynku i znaleziska; osady przechodzą w układ promienisty.\n` +
+          `Koszt: ${costText} · budowa ${formatDuration(cv.seconds)} (kopalnia pracuje).` +
+          (cv.legacyMega ? `\nDawny megakompleks działa do czasu zbudowania konstruktu.` : '') +
+          (cv.displaced > 0 ? `\nUwaga: ${cv.displaced} pól innych budynków leży na miejscu układu promienistego — po ukończeniu te budynki przeniosą się obok (poziom bez zmian).` : '') +
+          (cv.reason ? `\n${cv.reason}` : '');
+    if (cv.built) go.hidden = true;
+    else if (cv.building) {
+      go.textContent = 'Anuluj budowę';
+      go.className = 'tp-secondary cp-construct-go';
+      let armed = false;
+      go.addEventListener('click', () => {
+        if (!armed) {
+          armed = true;
+          go.textContent = 'Na pewno?';
+          return;
+        }
+        act(options.construct!.cancel)();
+      });
+    } else {
+      go.textContent = 'Zbuduj megakonstrukt';
+      go.disabled = !!cv.reason;
+      go.addEventListener('click', act(options.construct.start));
+    }
+    // Wysyłka megakompleksu metalu tylko dla dawnego megakompleksu (konstrukt — wyrzucenie na orbitę, krok 3b).
+    q<HTMLElement>('.cp-transfer-row').hidden = !cv.legacyMega;
+  }
   let megaArmed = false;
   megaSplit.addEventListener('click', () => {
     if (!megaArmed) {

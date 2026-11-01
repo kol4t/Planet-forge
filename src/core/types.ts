@@ -381,8 +381,10 @@ export interface Balance {
     durability: { mine: number; factory: number; construct: number };
     /** Równoległe pasy produkcyjne fabryka → megakonstrukt. */
     beltsPerFactory: number;
-    /** Czas budowy megakonstruktu (s) — przedział, do etapu 3. */
+    /** Czas budowy megakonstruktu (s) — przedział; dokładny czas stały dla planety (z seeda). */
     constructSeconds: { min: number; max: number };
+    /** Koszt budowy megakonstruktu (etap 3). */
+    constructCost: { metal: number; crystal: number };
     status: 'robocza';
   };
   buildings: readonly BuildingDef[];

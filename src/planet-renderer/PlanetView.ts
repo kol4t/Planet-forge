@@ -443,6 +443,9 @@ export class PlanetView implements PlanetDisplay {
       }
     }
     this.colony.setConstruction(site);
+    // Budowa megakonstruktu (etap 3): rusztowanie na placu rośnie z postępem.
+    const build = metal?.build;
+    this.colony.setMetalBuild(build ? Math.min(1, Math.max(0, (Date.now() - build.startedAt) / Math.max(1, build.readyAt - build.startedAt))) : null);
   }
 
   /** Nowy układ kolonii: grunt i odkrywki w ścianach lądu, obrys kompleksów, zabudowa (wszystko raz, nie co klatkę). */
@@ -475,7 +478,7 @@ export class PlanetView implements PlanetDisplay {
    */
   private setMetalComplex(levels: BuildingLevels, complexes: readonly Complex[], metal: MetalComplexSave | null): void {
     const level = levels.metalMine ?? 0;
-    this.metalModel = !!metal && !!this.grid && level > 0 && metal.phase === 'osady';
+    this.metalModel = !!metal && !!this.grid && level > 0;
     this.metalTargets = [];
     if (!this.metalModel || !metal || !this.grid) {
       this.colony.setMetalComplex(null);

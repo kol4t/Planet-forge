@@ -74,6 +74,10 @@ Krótka kontrola całości po każdej publikacji (ok. 10 minut). Dawne listy kol
 20. Ustawienia → grafika 2D: kopalnie jako kółka, fabryki jako trójkąty, plac jako kwadrat, drogi jako linie.
 21. Inne budynki nie stają w dzielnicy kopalni (także na placu); stary zapis z wysoką kopalnią metalu wczytuje się,
     poziom zostaje, zwolnione pola są wolne.
+22. Kopalnia metalu poz. 40 → dotknij jej → Kompleks: sekcja „Megakonstrukt” (koszt, czas 1–2 h); „Zbuduj megakonstrukt”
+    → na placu rośnie złote rusztowanie, wydobycie metalu bez zmian; „Anuluj budowę” → „Na pewno?” → koszt wraca.
+23. Po ukończeniu: konstrukt w środku, 4 fabryki na ramionach, pasy do konstruktu, kopalnie na końcach; w Produkcji
+    wydobycie metalu wyraźnie wyższe; wpis w dzienniku.
 
 ## Licencja i treści
 

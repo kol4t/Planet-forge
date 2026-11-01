@@ -121,6 +121,21 @@ wyglądu 1/6/12/20, powyżej poz. 40 — 4 pełne osady; (3) megakompleks metalu
 jedyny wyjątek: można go „wyrzucić” na orbitę i ściągnąć na inną planetę (do zaprojektowania w etapie 3 razem z budową
 megakonstruktu; obecny transfer megakompleksu v0.56 działa do tego czasu bez zmian).
 
+## Etap 3 — megakonstrukt (2026-11-01)
+
+Decyzje właściciela: megakonstrukt **zastępuje** megakompleks metalu; daje +60% i znaleziska, kosztuje surowce, budowa
+1–2 h; kopalnia **pracuje** w czasie budowy, przebudowa na końcu; wyrzucenie na orbitę — osobny krok **3b**.
+
+- Logika: `core/economy/metalConstruct.ts` (`checkConstruct`, `constructSeconds`, `constructProgress`), zapis
+  `metalComplex.build`, kontroler `metalConstructView` / `startMetalConstruct` / `cancelMetalConstruct` /
+  `processMetalConstructs`; pola w obu fazach z `metalComplexCells(…, phase)` (konstrukt 4 pola → 24).
+- Okno Kompleks kopalni metalu: sekcja „Megakonstrukt” zamiast megakompleksu (warunki, koszt, czas, odliczanie,
+  „Anuluj budowę” z potwierdzeniem); wysyłka tylko dla dawnego megakompleksu.
+- Wygląd: 3D — megakonstrukt (model dawnego megakompleksu, 2,4 j.) w środku, pasy z taśmociągów (3 na fabrykę, po 4
+  odcinki), rusztowanie konstruktu na placu rośnie z postępem; 2D — sześciokąt z żarem, pasy jako linie, migające
+  rusztowanie wypełniające się z postępem. Zrzuty: `docs/zrzuty/etap3/`.
+- Testy: `tests/metalConstruct.test.ts`.
+
 ## Plan etapów
 
 1. **Model w core** (ten etap): `complexLayout.ts`, dane, zapis i migracja, testy. Bez zmian na ekranie.

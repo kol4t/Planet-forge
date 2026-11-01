@@ -66,6 +66,13 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
 
 ## Kompleksy, megakompleksy, znaleziska (przemysł)
 
+- **Kopalnia metalu = osady i megakonstrukt** (v0.59–v0.60): osada (fabryka + 3 kopalnie) co 10 poziomów, pola 1 / 2
+  na kopalnię / fabrykę (maks. 20). Po komplecie 4 osad (poz. 40), badaniu „Megastruktury” i z działającą wielką fabryką
+  na placu w środku powstaje **megakonstrukt** (koszt 60 000 / 40 000, budowa 1–2 h — kopalnia pracuje; anulowanie zwraca
+  koszt). Po ukończeniu układ promienisty (konstrukt w środku, 4 fabryki na ramionach, po 3 pasy do konstruktu, 24 pola),
+  premia +60% i znaleziska — zamiast dawnego megakompleksu metalu (od poz. 20; włączony wcześniej działa do czasu
+  konstruktu). Megakonstruktu nie da się wyłączyć ani wysłać (wyrzucenie na orbitę — krok 3b). Liczby robocze.
+
 - **Transfer megakonstruktu** (v0.56): megakompleks można wysłać na inną planetę gracza (okno Kompleks → „Wyślij
   konstrukt…”). 30 min rozkładania (budynek nie pracuje; anulowanie zwraca koszt i paliwo), potem lot (2× wolniej niż
   transportowiec). Koszt: 5× paliwo transportowca na trasie + 10% kosztu ostatniego poziomu. Na starej planecie zostają

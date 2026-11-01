@@ -93,7 +93,8 @@ Kopiuj zapis / Wczytaj zapis).
   "metalComplex": {                              // kompleks kopalni metalu (etap 1 kompleksu, opcjonalne)
     "center": [0.6, -0.185, 0.778],              // środek dzielnicy (sfera jednostkowa), wybrany raz
     "phase": "osady",                            // „osady” albo „konstrukt”
-    "states": { "osada1.fabryka": { "stan": "zniszczony", "wytrzymalosc": 0 } }  // tylko odstępstwa (na razie nigdy)
+    "states": { "osada1.fabryka": { "stan": "zniszczony", "wytrzymalosc": 0 } },  // tylko odstępstwa (na razie nigdy)
+    "build": { "startedAt": 0, "readyAt": 5400000, "cost": { "metal": 60000, "crystal": 40000 } }  // budowa megakonstruktu (od v0.60, opcjonalne)
   }
 }
 ```
@@ -103,6 +104,8 @@ Kopiuj zapis / Wczytaj zapis).
 `konstrukt`). Brak pola albo błędny środek = **migracja**: przy pierwszym przeliczeniu pól planety (`syncPlots`) środek
 wybierany automatycznie i deterministycznie (`ensureMetalComplex` — pole najbliżej środka obszaru kopalni metalu, a bez
 obszaru pole lądu z największą ilością lądu wokół), faza „osady”. Tak samo przy imporcie `PF2:`. `EMPIRE_VERSION` bez zmian.
+`build` (od v0.60): budowa megakonstruktu w toku — tylko w fazie „osady”, `readyAt ≥ startedAt`, koszt do zwrotu przy
+anulowaniu; błędne pomijane. Po `readyAt` faza zmienia się na „konstrukt”, a kompleks kopalni metalu staje się megakompleksem.
 
 ## Walidacja
 

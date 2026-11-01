@@ -2,6 +2,20 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-01 — Kompleks kopalni metalu, etap 3: megakonstrukt (v0.60, decyzje właściciela)
+
+- **Zastępuje megakompleks kopalni metalu**: przycisk megakompleksu (od poz. 20) dla metalu znika; megakonstrukt od
+  poz. 40 (komplet 4 osad, 20 pól), wymaga badania „Megastruktury” i działającej wielkiej fabryki. Daje to, co dawny
+  megakompleks: +60% i znaleziska (`Complex.mega` po ukończeniu). Włączony wcześniej megakompleks działa do czasu konstruktu.
+- **Koszt i czas**: 60 000 metalu i 40 000 kryształów, budowa 1–2 h (stała dla planety, z seeda) — `BALANCE.metalComplex`
+  (robocze). Kopalnia **pracuje** w czasie budowy; rusztowanie konstruktu na placu rośnie z postępem; anulowanie zwraca
+  koszt. Ukończenie także podczas nieobecności i na nieaktywnej planecie (`processMetalConstructs`).
+- **Układ promienisty** (faza „konstrukt” w zapisie): konstrukt w środku (4 pola), 4 fabryki na ramionach, po 3 pasy
+  do konstruktu (taśmociągi), kopalnie na końcach ramion — razem 24 pola. Rezerwa w fazie osad obejmuje już przyszły układ
+  promienisty rozpoczętych osad; w starszych zapisach budynki na jego miejscu przenoszą obszar obok (poziom bez zmian),
+  okno o tym uprzedza.
+- Megakonstruktu nie da się wyłączyć ani wysłać jak megakompleksu; **wyrzucenie na orbitę i ściągnięcie** — krok 3b.
+
 ## 2026-11-01 — Kompleks kopalni metalu, etap 2: osady na planecie (decyzje właściciela)
 
 - **Pola** kopalni metalu z modelu osad (kopalnia 1, fabryka 2, maks. 20 przed megakonstruktem; `fieldsFor` →

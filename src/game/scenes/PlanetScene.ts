@@ -1900,6 +1900,9 @@ export class PlanetScene extends Phaser.Scene {
       merge: () => c.mergeComplex(id),
       split: () => c.splitComplex(id),
       mergeMega: () => c.mergeMega(id),
+      ...(id === 'metalMine'
+        ? { construct: { view: () => c.metalConstructView(), start: () => c.startMetalConstruct(), cancel: () => c.cancelMetalConstruct() } }
+        : {}),
       splitMega: () => c.splitMega(id),
       finds: () => c.findsView().total,
       openFinds: () => {
