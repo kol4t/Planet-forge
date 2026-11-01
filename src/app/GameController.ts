@@ -8,6 +8,7 @@ import { INDUSTRY_STAGES } from '../data/industry.ts';
 import { fuelCost, fuelLabel, fuelShortage } from '../core/economy/fuel.ts';
 import { addRepair, cancelOrder, completeOrders, completeRepairs, orderShip, shipSeconds, shipyardCost, shipyardLevel, starterFleet, upgradeShipyard } from '../core/economy/fleet.ts';
 import { findShip, SHIP_TYPES } from '../data/fleet.ts';
+import { buildColonyStation, colonyStationReady, relayFuel, relaySeconds } from '../core/economy/colonyStation.ts';
 import { cargoAfter, pirateNests, riskLabel, rollIncident, routeRisk, type IncidentKind, type MapPoint, type RouteRisk } from '../core/economy/missionRisk.ts';
 import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAnywhere } from '../core/economy/constructTransfer.ts';
 import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeStationStorage } from '../core/economy/homeStation.ts';
@@ -98,7 +99,7 @@ import { exportSave, importSave } from '../core/save/transfer.ts';
 import { landingCheck, landingFuel, landingSeconds, launchCheck, orbitalState } from '../core/economy/orbitalConstruct.ts';
 import { checkConstruct, constructProgress, constructSeconds, type ConstructCheck } from '../core/economy/metalConstruct.ts';
 import { ensureMetalComplex, metalComplexFields, metalComplexCells, type MetalComplexCells, type MetalComplexSave } from '../core/colony/complexLayout.ts';
-import type { AsteroidStation, Balance, StellarEmpire, ConstructTransfer, Fleet, OrbitalConstruct, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { AsteroidStation, Balance, StellarEmpire, ColonyStation, ConstructTransfer, Fleet, OrbitalConstruct, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -420,6 +421,27 @@ export interface FleetView {
   repairSecondsLeft: number;
 }
 
+/** Stacja kolonii nad aktywną planetą (etap 9). */
+export interface ColonyStationView {
+  planetName: string;
+  /** Nad tą planetą krąży stacja macierzysta. */
+  isHome: boolean;
+  built: boolean;
+  ready: boolean;
+  secondsLeft: number;
+  progress: number;
+  /** Czemu nie można zbudować (null — można albo już jest). */
+  reason: string | null;
+  cost: Resources;
+  seconds: number;
+  /** Paliwo i czas lotu do stacji macierzystej: bez przekaźnika i z nim. */
+  fuel: { now: number; relay: number };
+  flight: { now: number; relay: number };
+  /** Ile kolonii ma stację / ile kolonii może ją mieć. */
+  count: number;
+  colonies: number;
+}
+
 /** Wysyłka megakonstruktu z aktywnej planety (v0.56). */
 export interface TransferView {
   level: number;
@@ -451,6 +473,8 @@ export interface TransferView {
 export interface HomeStationView {
   /** Badanie „Moduł orbitalny” zbadane. */
   unlocked: boolean;
+  /** Aktywna planeta ma gotową stację kolonii (loty na stację przez przekaźnik — etap 9). */
+  relay: boolean;
   built: boolean;
   /** Rdzeń gotowy (budowa skończona). */
   ready: boolean;
@@ -533,6 +557,8 @@ export class GameController {
   private exploited: string[] = [];
   /** Imperium gwiezdne (etap 8): pętla zamknięta — null, dopóki otwarta. */
   private stellar: StellarEmpire | null = null;
+  /** Stacje kolonii (etap 9): przekaźniki transportu na orbitach kolonii. */
+  private colonyStations: ColonyStation[] = [];
   private readonly stellarListeners = new Set<() => void>();
   /** Stacja macierzysta (v0.55) — jedna na imperium; null = nie zbudowana. */
   private station: HomeStation | null = null;
@@ -587,6 +613,7 @@ export class GameController {
       this.fleet = saved.fleet ?? starterFleet(BALANCE);
       this.orbiting = saved.orbiting ?? [];
       this.stellar = saved.stellar ?? null;
+      this.colonyStations = saved.colonyStations ?? [];
       this.transfers = saved.transfers ?? [];
       this.markPacking();
       this.journal = saved.journal ?? [];
@@ -1724,8 +1751,9 @@ export class GameController {
       capacity,
       stock: s?.stock ?? { metal: 0, crystal: 0 },
       incoming,
-      fuel: s ? this.transportFuelTo(s.address) : 0,
-      seconds: s ? this.transportSecondsTo(s.address) : 0,
+      fuel: s ? this.stationFuel(this.address, now) : 0,
+      seconds: s ? this.stationSeconds(this.address, now) : 0,
+      relay: s ? colonyStationReady(this.colonyStations, this.address, now) : false,
       transportUnlocked: this.unlocked('transport'),
     };
   }
@@ -1785,7 +1813,7 @@ export class GameController {
     const fuel = view.fuel;
     const short = fuelShortage(fuel, this.economy.antimatter);
     if (short) return { ok: false, message: short };
-    const seconds = transportSeconds(this.distanceBetween(this.address, s.address), balance);
+    const seconds = this.stationSeconds(this.address, now);
     this.economy = {
       ...this.economy,
       stock: { metal: this.economy.stock.metal - load.metal, crystal: this.economy.stock.crystal - load.crystal },
@@ -1813,10 +1841,10 @@ export class GameController {
     const ships = this.shipsMissing(escort);
     if (ships) return { ok: false, message: ships };
     const load = check.cargo;
-    const fuel = fuelCost('transport', this.distanceBetween(s.address, to), this.balance);
+    const fuel = this.stationFuel(to, now);
     const short = fuelShortage(fuel, this.economy.antimatter);
     if (short) return { ok: false, message: short };
-    const seconds = transportSeconds(this.distanceBetween(s.address, to), balance);
+    const seconds = this.stationSeconds(to, now);
     this.station = { ...s, stock: { metal: s.stock.metal - load.metal, crystal: s.stock.crystal - load.crystal } };
     this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
     this.launchTransport(escort);
@@ -1827,6 +1855,68 @@ export class GameController {
     this.save();
     this.emit();
     return { ok: true, message: `Transportowiec leci ze stacji do ${toName} — dotrze za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
+  }
+
+  /** Paliwo lotu między planetą `address` a stacją macierzystą (przez stację kolonii — taniej; etap 9). */
+  private stationFuel(address: string, now = Date.now()): number {
+    const s = this.station;
+    if (!s) return 0;
+    const fuel = fuelCost('transport', this.distanceBetween(address, s.address), this.balance);
+    return colonyStationReady(this.colonyStations, address, now) ? relayFuel(fuel, this.balance) : fuel;
+  }
+
+  /** Czas lotu (s) między planetą `address` a stacją macierzystą (przez stację kolonii — szybciej; etap 9). */
+  private stationSeconds(address: string, now = Date.now()): number {
+    const s = this.station;
+    if (!s) return 0;
+    const seconds = transportSeconds(this.distanceBetween(address, s.address), this.transportBalance());
+    return colonyStationReady(this.colonyStations, address, now) ? relaySeconds(seconds, this.balance) : seconds;
+  }
+
+  // ——— stacje kolonii (etap 9) ———
+
+  /** Stacja kolonii nad aktywną planetą: stan, koszt, korzyść, ile kolonii ma stacje. */
+  colonyStationView(now = Date.now()): ColonyStationView {
+    const s = this.station;
+    const here = this.colonyStations.find((x) => x.address === this.address) ?? null;
+    const check = buildColonyStation(this.colonyStations, { address: this.address, home: s, stock: { metal: 1e12, crystal: 1e12 }, now }, this.balance);
+    const plain = s ? fuelCost('transport', this.distanceBetween(this.address, s.address), this.balance) : 0;
+    const plainSeconds = s ? transportSeconds(this.distanceBetween(this.address, s.address), this.transportBalance()) : 0;
+    const colonies = this.slots.filter((x) => x.address !== s?.address).length;
+    return {
+      planetName: this.planet.displayName,
+      isHome: !!s && s.address === this.address,
+      built: !!here,
+      ready: !!here && now >= here.readyAt,
+      secondsLeft: here ? Math.max(0, (here.readyAt - now) / 1000) : 0,
+      progress: here ? Math.min(1, Math.max(0, 1 - (here.readyAt - now) / (this.balance.colonyStation.seconds * 1000))) : 0,
+      reason: here ? null : check.ok ? null : check.message,
+      cost: this.balance.colonyStation.cost,
+      seconds: this.balance.colonyStation.seconds,
+      fuel: { now: plain, relay: plain > 0 ? relayFuel(plain, this.balance) : 0 },
+      flight: { now: plainSeconds, relay: plainSeconds > 0 ? relaySeconds(plainSeconds, this.balance) : 0 },
+      count: this.colonyStations.filter((x) => this.slotAt(x.address) >= 0).length,
+      colonies,
+    };
+  }
+
+  /** Budowa stacji kolonii nad aktywną planetą (płaci aktywna planeta). */
+  buildColonyStation(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const result = buildColonyStation(this.colonyStations, { address: this.address, home: this.station, stock: this.economy.stock, now }, this.balance);
+    if (!result.ok) return result;
+    this.pay(result.cost);
+    this.colonyStations = [...this.colonyStations, result.station];
+    this.log('build', `Rozpoczęto budowę stacji kolonii nad ${this.planet.displayName} — przekaźnik gotowy za ${formatFlight(result.seconds)}.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Stacja kolonii w budowie — gotowa za ${formatFlight(result.seconds)}. Potem loty do stacji macierzystej będą szybsze i tańsze.` };
+  }
+
+  /** Stacja kolonii nad aktywną planetą (wygląd orbity; null — brak). */
+  colonyStationHere(now = Date.now()): { ready: boolean } | null {
+    const here = this.colonyStations.find((x) => x.address === this.address);
+    return here ? { ready: now >= here.readyAt } : null;
   }
 
   /** Koszt płacony z magazynu aktywnej planety. */
@@ -1856,13 +1946,16 @@ export class GameController {
   }
 
   /** Trasy ze stacji macierzystej do każdej planety gracza: czas lotu i paliwo (puste bez stacji). */
-  stationRoutes(): { address: string; name: string; seconds: number; fuel: number }[] {
+  stationRoutes(): { address: string; name: string; seconds: number; fuel: number; relay: boolean }[] {
     const s = this.station;
     if (!s) return [];
-    return this.slots.map((slot) => {
-      const distance = this.distanceBetween(s.address, slot.address);
-      return { address: slot.address, name: slot.planet.displayName, seconds: transportSeconds(distance, this.transportBalance()), fuel: fuelCost('transport', distance, this.balance) };
-    });
+    return this.slots.map((slot) => ({
+      address: slot.address,
+      name: slot.planet.displayName,
+      seconds: this.stationSeconds(slot.address),
+      fuel: this.stationFuel(slot.address),
+      relay: colonyStationReady(this.colonyStations, slot.address, Date.now()),
+    }));
   }
 
   private slotName(address: string): string {
@@ -3184,6 +3277,8 @@ export class GameController {
     if (!slot) return { ok: false, message: 'Nie ma takiej planety.' };
     if (index === this.active) return { ok: false, message: 'Nie można usunąć planety, na której jesteś — najpierw przejdź na inną.' };
     this.slots.splice(index, 1);
+    // Stacja kolonii opuszczonej planety znika razem z nią (etap 9).
+    this.colonyStations = this.colonyStations.filter((s) => s.address !== slot.address);
     if (index < this.active) this.active--;
     this.log('empire', `Opuszczono planetę ${slot.planet.displayName} (${slot.address}).`, Date.now());
     this.save();
@@ -3238,6 +3333,7 @@ export class GameController {
     this.fleet = result.data.fleet ?? starterFleet(BALANCE);
     this.orbiting = result.data.orbiting ?? [];
     this.stellar = result.data.stellar ?? null;
+    this.colonyStations = result.data.colonyStations ?? [];
     this.transfers = result.data.transfers ?? [];
     this.markPacking();
     this.journal = result.data.journal ?? [];
@@ -3287,6 +3383,7 @@ export class GameController {
       fleet: this.fleet,
       ...(this.orbiting.length > 0 ? { orbiting: this.orbiting } : {}),
       ...(this.stellar ? { stellar: this.stellar } : {}),
+      ...(this.colonyStations.length > 0 ? { colonyStations: this.colonyStations } : {}),
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,

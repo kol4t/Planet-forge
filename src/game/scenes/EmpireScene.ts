@@ -80,6 +80,7 @@ export class EmpireScene extends OverlayScene {
 
   private closeTransport: (() => void) | null = null;
   /** Teksty i paski karty stacji macierzystej (odświeżane co klatkę). */
+  private colonyLive: { status: Phaser.GameObjects.Text; graphics: Phaser.GameObjects.Graphics; bar: Rect } | null = null;
   private stationLive: { status: Phaser.GameObjects.Text; stock: Phaser.GameObjects.Text; graphics: Phaser.GameObjects.Graphics; bar: Rect } | null = null;
 
   /** Statki w drodze: kolonizacyjne, ekspedycje i transportowce (wiersze nad alertami). */
@@ -104,6 +105,7 @@ export class EmpireScene extends OverlayScene {
     this.clearThumbs();
     this.cards = [];
     this.stationLive = null;
+    this.colonyLive = null;
     this.content = this.add.container(0, 0);
     const mask = this.make.graphics({}, false).fillRect(this.px(this.area.x), this.px(this.area.y), this.px(this.area.w), this.px(this.area.h));
     this.content.setMask(mask.createGeometryMask());
@@ -165,6 +167,7 @@ export class EmpireScene extends OverlayScene {
       this.alertsOpen,
       alerts.map((a) => `${a.level}${a.target.kind}${a.index}`).join(','),
       this.stationShape(),
+      this.colonyStationShape(),
       ...overview.map((p) => `${p.index}${p.active ? '*' : ''}:${planetBadges(p).map((b) => b.label).join(',')}`),
     ].join('|');
   }
@@ -235,6 +238,8 @@ export class EmpireScene extends OverlayScene {
     y += Math.ceil(count / cols) * (cardH + gap);
     // Stacja macierzysta — ostatnia karta, pod planetami (v0.55).
     y = this.buildStation(items, y) + gap;
+    // Stacja kolonii nad aktywną planetą (etap 9) — gdy jest stacja macierzysta.
+    if (c.stationView().built) y = this.buildColonyStation(items, y) + gap;
     if (free === 0) {
       items.push(this.button(area.x, y + this.s(4), Math.min(this.s(240), area.w), 'Mapa układu', 'secondary', () => this.scene.start('map', { system: c.homeSystem })));
       y += this.s(4) + TOUCH + this.s(12);
@@ -605,6 +610,79 @@ export class EmpireScene extends OverlayScene {
     if (fill === null) return;
     g.fillStyle(COLORS.divider, 1).fillRect(this.px(x), this.px(y), this.px(w), this.px(h));
     g.fillStyle(v.buildProgress !== null ? COLORS.goldHex : COLORS.tealHex, 1).fillRect(this.px(x), this.px(y), this.px(Math.max(h, w * Math.min(1, fill))), this.px(h));
+  }
+
+  // ——— stacja kolonii (etap 9) ———
+
+  private colonyStationShape(): string {
+    const v = this.deps.controller.colonyStationView();
+    return `cs${v.isHome ? 1 : 0}${v.built ? 1 : 0}${v.ready ? 1 : 0}${v.reason ?? ''}${v.count}/${v.colonies}`;
+  }
+
+  /** Karta stacji kolonii nad aktywną planetą: korzyść (czas i paliwo lotów do stacji macierzystej), budowa. */
+  private buildColonyStation(items: Phaser.GameObjects.GameObject[], top: number): number {
+    const c = this.deps.controller;
+    const v = c.colonyStationView();
+    const area = this.area;
+    const pad = this.s(12);
+    const h = this.s(v.isHome ? 92 : v.built ? 90 : 162);
+    const rect = { x: area.x, y: top, w: area.w, h };
+    const radius = this.px(this.s(12));
+    const bg = this.add.graphics();
+    bg.fillStyle(COLORS.panel, 0.92).fillRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), radius);
+    bg.lineStyle(this.px(1), v.ready ? COLORS.tealHex : COLORS.panelBorder, v.ready ? 0.7 : 1).strokeRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), radius);
+    // Znak: mały pierścień (jak stacja macierzysta, mniejszy).
+    const iconR = this.s(20);
+    const cx = rect.x + pad + iconR + this.s(4);
+    const cy = rect.y + pad + iconR + this.s(2);
+    const alpha = v.built ? 1 : 0.45;
+    bg.lineStyle(this.px(this.s(2.5)), COLORS.stoneHex, alpha).strokeCircle(this.px(cx), this.px(cy), this.px(iconR * 0.5));
+    bg.fillStyle(COLORS.tealHex, alpha).fillCircle(this.px(cx), this.px(cy), this.px(iconR * 0.17));
+    const tx = cx + iconR * 1.3 + this.s(8);
+    const tw = rect.x + rect.w - pad - tx;
+    const subtitle = v.isHome
+      ? `Nad ${v.planetName} krąży stacja macierzysta. Stację kolonii zbudujesz nad inną planetą — przejdź na nią.`
+      : `przekaźnik transportu nad ${v.planetName} · stacje kolonii: ${v.count} z ${v.colonies}`;
+    items.push(
+      bg,
+      this.text(tx, rect.y + pad, 'Stacja kolonii', 16, v.ready ? COLORS.teal : COLORS.text, { fontFamily: FONTS.serif, fixedWidth: this.px(tw) }, false),
+      this.text(tx, rect.y + pad + this.s(23), subtitle, 10.5, COLORS.faint, { wordWrap: { width: this.px(tw) } }, false),
+    );
+    if (v.isHome) return rect.y + rect.h;
+    const status = this.text(tx, rect.y + pad + this.s(42), '', 11, COLORS.gold, { wordWrap: { width: this.px(tw) }, lineSpacing: this.px(1) }, false);
+    const graphics = this.add.graphics();
+    items.push(status, graphics);
+    this.colonyLive = { status, graphics, bar: { x: tx, y: rect.y + pad + this.s(76), w: tw, h: this.s(3) } };
+    if (!v.built) {
+      const done = (result: { ok: boolean; message: string }) => {
+        this.showToast(result.message, result.ok ? 'info' : 'error');
+        this.relayout();
+      };
+      const w = Math.min(rect.w - 2 * pad, this.s(300));
+      items.push(
+        this.button(rect.x + pad, rect.y + rect.h - pad - TOUCH, w, 'Zbuduj stację kolonii', v.reason ? 'disabled' : 'primary', () =>
+          v.reason ? done({ ok: false, message: v.reason }) : done(c.buildColonyStation()),
+        ),
+      );
+    }
+    return rect.y + rect.h;
+  }
+
+  private refreshColonyStation(): void {
+    const live = this.colonyLive;
+    if (!live) return;
+    const v = this.deps.controller.colonyStationView();
+    const flight = `lot do stacji macierzystej ${formatDuration(v.flight.now)} → ${formatDuration(v.flight.relay)}, paliwo ${v.fuel.now} → ${v.fuel.relay}`;
+    let status: string;
+    if (v.ready) status = `Działa: lot do stacji macierzystej ${formatDuration(v.flight.relay)} (zamiast ${formatDuration(v.flight.now)}), paliwo ${v.fuel.relay} (zamiast ${v.fuel.now}).`;
+    else if (v.built) status = `W budowie · ${formatDuration(v.secondsLeft)} · potem ${flight}`;
+    else status = `Koszt: ${formatInt(v.cost.metal)} metalu, ${formatInt(v.cost.crystal)} kryształów · budowa ${formatDuration(v.seconds)}\nPo budowie: ${flight}`;
+    live.status.setText(status);
+    const g = live.graphics.clear();
+    if (!v.built || v.ready) return;
+    const { x, y, w, h } = live.bar;
+    g.fillStyle(COLORS.divider, 1).fillRect(this.px(x), this.px(y), this.px(w), this.px(h));
+    g.fillStyle(COLORS.goldHex, 1).fillRect(this.px(x), this.px(y), this.px(Math.max(h, w * v.progress)), this.px(h));
   }
 
   /** Okno wysyłki: z aktywnej planety na stację (`to`) albo ze stacji na wybraną planetę (`from`). */
@@ -990,6 +1068,7 @@ export class EmpireScene extends OverlayScene {
       ].join('\n'),
     );
     this.refreshStation();
+    this.refreshColonyStation();
     for (const card of this.cards) {
       const p = overview.find((o) => o.index === card.index);
       if (!p) continue;

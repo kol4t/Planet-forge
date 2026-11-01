@@ -12,6 +12,8 @@ export interface HomeStationLook {
   building: boolean;
   /** Stocznia (v0.58): rama doku z kadłubem statku na pierścieniu. */
   shipyard?: boolean;
+  /** Stacja kolonii (etap 9): mniejszy pierścień, bez stoczni i z jednym skrzydłem paneli. */
+  small?: boolean;
 }
 
 /** Ile modułów rysować dla poziomu magazynu orbitalnego (poz. 1 → 2, maks. 8). */

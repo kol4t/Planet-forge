@@ -107,6 +107,9 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
   wyższy poziom szybciej). Transportowiec i holownik wracają po locie, statek kolonizacyjny zostaje na nowej kolonii
   (lot tylko za paliwo). Okręty eskorty lecą z transportem albo megakonstruktem i zmniejszają ryzyko ataku. Na start:
   3 transportowce, 1 statek kolonizacyjny, 1 holownik. Liczby robocze (`BALANCE.fleet`).
+- **Stacje kolonii** (etap 9, `core/economy/colonyStation.ts`, `BALANCE.colonyStation`, robocze): po gotowej stacji
+  macierzystej każda kolonia (oprócz planety stacji macierzystej) może mieć jedną małą stację — przekaźnik: loty
+  kolonia ↔ stacja macierzysta 2× szybciej i za połowę paliwa. Karta w Imperium (dla aktywnej planety).
 - **Imperium gwiezdne** (etap 8, zamknięcie pętli): 3 wyeksploatowane planety + gotowa stacja macierzysta → raz,
   na stałe: miejsca na planety do 10, plansza SI Matki, wpis w dzienniku; licznik wyeksploatowanych planet liczy dalej.
 - **Ryzyko misji** (etap 7, `core/economy/missionRisk.ts`, `BALANCE.missionRisk`, robocze): loty **między układami**

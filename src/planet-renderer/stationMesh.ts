@@ -28,6 +28,8 @@ export interface StationMesh {
 export function createStationMesh(look: HomeStationLook): StationMesh {
   const L = STATION_LOOK;
   const group = new THREE.Group();
+  // Stacja kolonii (etap 9): ta sama „rodzina” — pierścień z rdzeniem — w skali ok. 55%.
+  if (look.small) group.scale.setScalar(0.55);
   // Pierścień leży w płaszczyźnie XY obracanej w `spinner`; całość lekko pochylona, by był widoczny jako elipsa.
   const tilt = new THREE.Group();
   tilt.rotation.set(1.05, 0.35, 0);
@@ -81,7 +83,7 @@ export function createStationMesh(look: HomeStationLook): StationMesh {
   const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, L.ring * 2.4, 4), steel);
   mast.rotation.x = Math.PI / 2;
   tilt.add(mast);
-  const panelCount = look.building ? 1 : 2;
+  const panelCount = look.building || look.small ? 1 : 2;
   const panels = new THREE.InstancedMesh(
     new THREE.BoxGeometry(0.095, 0.038, 0.002),
     new THREE.MeshStandardMaterial({ color: L.panel, emissive: '#3a2a08', roughness: 0.35, metalness: 0.6, side: THREE.DoubleSide }),
@@ -94,7 +96,7 @@ export function createStationMesh(look: HomeStationLook): StationMesh {
   }
   tilt.add(panels);
   // Stocznia (v0.58): ażurowa rama doku przy pierścieniu (nie obraca się) z kadłubem statku w środku.
-  if (look.shipyard && !look.building) {
+  if (look.shipyard && !look.building && !look.small) {
     const dock = new THREE.Group();
     dock.position.set(L.ring * 1.3, 0, 0);
     const frame = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.026, 0.03), new THREE.MeshBasicMaterial({ color: L.steel, wireframe: true }));

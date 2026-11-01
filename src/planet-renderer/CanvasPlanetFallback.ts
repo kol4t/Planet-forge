@@ -991,8 +991,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const p = Math.max(2, Math.round(r / 60));
     const x0 = Math.round(sx / p) * p;
     const y0 = Math.round(sy / p) * p;
-    const rx = 6;
-    const ry = 2.6;
+    // Stacja kolonii (etap 9): mniejszy pierścień, jedno skrzydło paneli, bez stoczni.
+    const small = !!look.small;
+    const rx = small ? 3.5 : 6;
+    const ry = small ? 1.6 : 2.6;
     const dot = (u: number, v: number, color: string) => {
       ctx.fillStyle = color;
       ctx.fillRect(x0 + Math.round(u) * p, y0 + Math.round(v) * p, p, p);
@@ -1000,12 +1002,18 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     ctx.globalAlpha = z < 0 ? 0.7 : 1;
     // Panele po bokach (na maszcie).
     ctx.fillStyle = '#c9a24a';
-    ctx.fillRect(x0 - 12 * p, y0 - p, 4 * p, 3 * p);
-    if (!look.building) ctx.fillRect(x0 + 9 * p, y0 - p, 4 * p, 3 * p);
-    ctx.fillStyle = '#6f7b78';
-    ctx.fillRect(x0 - 8 * p, y0, 17 * p, p);
+    if (small) {
+      ctx.fillRect(x0 - 7 * p, y0 - p, 2 * p, 2 * p);
+      ctx.fillStyle = '#6f7b78';
+      ctx.fillRect(x0 - 5 * p, y0, 6 * p, p);
+    } else {
+      ctx.fillRect(x0 - 12 * p, y0 - p, 4 * p, 3 * p);
+      if (!look.building) ctx.fillRect(x0 + 9 * p, y0 - p, 4 * p, 3 * p);
+      ctx.fillStyle = '#6f7b78';
+      ctx.fillRect(x0 - 8 * p, y0, 17 * p, p);
+    }
     // Pierścień z pikseli.
-    const steps = 30;
+    const steps = small ? 18 : 30;
     const shown = look.building ? Math.round(steps * 0.6) : steps;
     for (let i = 0; i < shown; i++) {
       const a = (i / steps) * Math.PI * 2;
@@ -1018,7 +1026,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       dot(Math.cos(a) * rx, Math.sin(a) * ry, '#d8c9a8');
     }
     // Stocznia (v0.58): rama doku pod pierścieniem z jasnym kadłubem.
-    if (look.shipyard && !look.building) {
+    if (look.shipyard && !look.building && !small) {
       ctx.fillStyle = '#6f7b78';
       ctx.fillRect(x0 + 2 * p, y0 + 4 * p, 6 * p, p);
       ctx.fillRect(x0 + 2 * p, y0 + 6 * p, 6 * p, p);
