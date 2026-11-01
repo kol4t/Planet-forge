@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.62.0 — ryzyko misji i eskorta — 2026-11-01
+
+- Loty **między układami** mogą zaatakować piraci (nazwa robocza). Ryzyko rośnie z odległością i przy gniazdach piratów blisko trasy; lot w jednym układzie jest bezpieczny.
+- Skutek łagodny: transportowiec traci 20–50% ładunku i się spóźnia; statek kolonizacyjny, wysyłany konstrukt i megakonstrukt z orbity tylko się spóźniają.
+- Każdy okręt eskorty zmniejsza ryzyko (3 okręty — prawie zero); uszkodzony wraca do floty po 30 min naprawy.
+- Ryzyko w % widać przed wysłaniem (okno transportu, mapa, wysyłka konstruktu, „Ściągnij z orbity”); o ataku informuje dziennik. Zapisy zgodne.
+
 ## v0.61.0 — megakonstrukt na orbicie — 2026-11-01
 
 - Megakonstrukt kopalni metalu można **wyrzucić na orbitę** (okno Kompleks): 30 min przygotowania bez premii, 10 antymaterii; „Anuluj start” zwraca paliwo. Na planecie zostają 4 osady z pustym placem.
