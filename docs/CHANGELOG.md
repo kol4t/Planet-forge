@@ -2,6 +2,11 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.63.0 — imperium gwiezdne (zamknięcie pętli) — 2026-11-01
+
+- Gdy masz **3 wyeksploatowane planety i gotową stację macierzystą**, pętla się zamyka (raz, także pod nieobecność).
+- Nagroda: **do 10 planet** (wcześniej 5). Jednorazowa plansza SI Matki „Imperium gwiezdne”, wpis w dzienniku; w Imperium „imperium gwiezdne · wyeksploatowane N” — licznik liczy dalej. Zapisy zgodne.
+
 ## v0.62.0 — ryzyko misji i eskorta — 2026-11-01
 
 - Loty **między układami** mogą zaatakować piraci (nazwa robocza). Ryzyko rośnie z odległością i przy gniazdach piratów blisko trasy; lot w jednym układzie jest bezpieczny.
