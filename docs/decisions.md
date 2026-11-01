@@ -2,6 +2,38 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-01 — Kompleks kopalni metalu, etap 2: osady na planecie (decyzje właściciela)
+
+- **Pola** kopalni metalu z modelu osad (kopalnia 1, fabryka 2, maks. 20 przed megakonstruktem; `fieldsFor` →
+  `metalComplexFields`), obszar = pola pod obiektami (`metalComplexCells`), dzielnica (plac, miejsca rozpoczętych osad,
+  pola pod drogami) zarezerwowana — inne budynki tam nie staną (`reconcilePlots` z `fixed`), licznik POLA bez rezerwy.
+  Pola zwolnione w starych zapisach wracają do puli; poziom budynku bez zmian. Progi kompleksu (12) i megakompleksu (20) bez zmian.
+- **Wygląd**: osada co 10 poziomów zastępuje dawne progi 1/6/12/20 (powyżej 40 — 4 pełne osady); kopalnia (3 wielkości),
+  fabryka (~2×), plac (zarys fundamentu), drogi po terenie; pola kopalni bez płyty gruntu kompleksu; megakompleks
+  (gdy działa) tymczasowo na placu. LOD: kopalnie pojawiają się przy przybliżeniu. 2D — symbole. Dotyk — każdy obiekt i droga.
+- **Środek dzielnicy** wybierany z pełnym dopasowaniem układu (24 kandydatów, zwężenie najwyżej do 70%), z dala od pól
+  innych budynków; raz na planetę (zapisany środek bez zmian).
+- **Megakonstrukt** (decyzja przed etapem 3): nie da się go przemieszczać, poza „wyrzuceniem” na orbitę i ściągnięciem
+  na inną planetę — do zaprojektowania w etapie 3.
+- Szczegóły, pomiary i testy: `docs/kompleks-kopalni-metalu.md`.
+
+## 2026-11-01 — Kompleks kopalni metalu, etap 1: model w core (decyzja właściciela)
+
+- Kopalnia metalu ma być **jednym zwartym kompleksem** zamiast osobnych budowli w przypadkowych miejscach: osady
+  (3 kopalnie poz. 1–3 + fabryka), docelowo układ promienisty z megakonstruktem w środku, 4 fabrykami na ramionach
+  i 3 pasami od każdej fabryki do konstruktu. Plan i fazy: `docs/kompleks-kopalni-metalu.md`. Tylko kopalnia metalu.
+- Etap 1 = **sam model** (`core/colony/complexLayout.ts`, dane `BALANCE.metalComplex`, status roboczy): czysta funkcja
+  (siatka pól, seed, poziom, faza) → obiekty ze stałymi `slotId`, stanem i wytrzymałością, drogi i pasy. Miejsca tylko
+  na lądzie (obrót co 30°, potem zwężenie), deterministycznie ze strumienia `visual`. **Wygląd i ekonomia bez zmian.**
+- Zapis: opcjonalne `metalComplex` (środek dzielnicy, faza, stany obiektów); stare zapisy i import `PF2:` dostają środek
+  automatycznie przy pierwszym przeliczeniu pól. `EMPIRE_VERSION`, `FIELD_GRID_VERSION`, `PLOTS_LAYOUT` bez zmian.
+- **Rozbieżności z obecną grą (do decyzji przed etapem 2–3):** dziś kopalnia metalu zajmuje `fieldsFor` = 1→50 pól
+  (etapy 1/6/12/20, 50 pól na poz. 40), a model kompleksu — 1→20 pól (+4 na konstrukt); megakompleks działa od poz. 20
+  i da się go przenieść (transfer v0.56), a kompleksu „nie da się przenieść”; wygląd etapów (kopalnia → zakład → huta →
+  megakompleks) ma progi 1/6/12/20, a model — osady co 10 poziomów i konstrukt od poz. 40. Propozycja: w etapie 2
+  pola kopalni metalu liczyć z modelu (`metalComplexFields`), obszar pól = dzielnica kompleksu, transfer metalu
+  wyłączyć, a megakompleks metalu zastąpić budową megakonstruktu (etap 3).
+
 ## 2026-10-29 — Etap 6: wstępna flota (v0.58, decyzja właściciela)
 
 - **Statki budowane**: transportowiec, statek kolonizacyjny, holownik, okręt eskorty (`src/data/fleet.ts`, nazwy robocze).
@@ -21,7 +53,6 @@ Krótki rejestr istotnych decyzji (najnowsze na górze).
 - Symulator (`npm run simulate`) buduje stację, stocznię i statki kolonizacyjne; pętla zamyka się we wszystkich
   profilach (aktywny / pętla 5,0 d zamiast 4,4 d — dochodzi budowa stoczni).
 - Poprawka: w oknach HTML ukryte wiersze zostają ukryte (od v0.55 w „Wyślij surowce” widać było pusty wybór „Dokąd”).
-
 ## 2026-10-28 — Krok 5b: pola na oceanie i lawie (v0.57, decyzja właściciela)
 
 - Woda i lawa dostają **pola morza** tej samej wielkości co pola lądu (do 300 na wodę i 300 na lawę), dopisane **na końcu**

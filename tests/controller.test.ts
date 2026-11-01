@@ -52,9 +52,9 @@ test('anulowanie przez kontroler zwraca zasoby', () => {
   withMemoryStorage(() => {
     const game = new GameController(0);
     const metal = game.economy.stock.metal;
-    game.upgrade('metalMine', 0);
+    const u = game.upgrade('metalMine', 0);
     const r = game.cancelUpgrade(0);
-    assert.ok(r.ok);
+    assert.ok(r.ok, `${u.message} / ${r.message}`);
     assert.equal(game.economy.stock.metal, metal);
   });
 });
@@ -323,15 +323,16 @@ test('przydział pól z innej wersji siatki jest odrzucany — budowle dostają 
     const game = new GameController(0);
     game.save();
     const { grid, plots } = game.colony();
-    const own = plots.metalMine![0]!;
+    // Magazyn (kopalnia metalu od etapu 2 kompleksu ma pola z modelu dzielnicy, nie z zapisu).
+    const own = plots.storage![0]!;
     const far = grid.cells.map((c, i) => (c.kind === 'land' && i !== own ? i : -1)).filter((i) => i >= 0).pop()!;
     const plant = (version: number | undefined) => {
       const data = JSON.parse(localStorage.getItem(EMPIRE_KEY)!);
-      data.slots[0].plots = { ...data.slots[0].plots, metalMine: [far] };
+      data.slots[0].plots = { ...data.slots[0].plots, storage: [far] };
       if (version === undefined) delete data.slots[0].plotsGrid;
       else data.slots[0].plotsGrid = version;
       localStorage.setItem(EMPIRE_KEY, JSON.stringify(data));
-      return new GameController(0).colony().plots.metalMine![0];
+      return new GameController(0).colony().plots.storage![0];
     };
     assert.equal(plant(FIELD_GRID_VERSION), far, 'ta sama wersja — przydział zostaje');
     assert.equal(plant(undefined), own, 'zapis sprzed v0.26.3 — przydział od nowa');

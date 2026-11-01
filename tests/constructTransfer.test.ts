@@ -188,15 +188,16 @@ test('pola morza (v0.57): woda i lawa mają pola na końcu siatki; konstrukt ro�
     assert.ok(sea.length > 10, `${id}: pola ${kind}`);
     assert.ok(sea.every(({ i }) => i >= grid.seaCellStart));
     const start = sea[0]!.i;
-    const rules = withAnywhere({}, ['metalMine']);
-    const plots = reconcilePlots(grid, { metalMine: [start] }, LEVELS, ORDER, rules);
-    const area = plots.metalMine!;
-    assert.equal(area.length, fieldsFor('metalMine', 25));
+    // Elektrownia jako konstrukt (kopalnia metalu od etapu 2 kompleksu ma do 20 pól z modelu dzielnicy).
+    const rules = withAnywhere({}, ['powerPlant']);
+    const plots = reconcilePlots(grid, { powerPlant: [start] }, { ...LEVELS, metalMine: 0, powerPlant: 25 }, ORDER, rules);
+    const area = plots.powerPlant!;
+    assert.equal(area.length, fieldsFor('powerPlant', 25));
     assert.equal(area[0], start, 'obszar zaczyna się na polu morza');
     assert.ok(area.filter((c) => c >= grid.seaCellStart).length > 1, 'rośnie po polach morza');
     area.forEach((c, k) => k === 0 || assert.ok(grid.cells[c]!.neighbors.some((n) => area.slice(0, k).includes(n)), 'spójny'));
     // Zwykły budynek nie stoi na morzu.
-    const normal = reconcilePlots(grid, { powerPlant: [start] }, { ...LEVELS, metalMine: 0, powerPlant: 10 }, ORDER, {});
-    assert.ok(normal.powerPlant!.every((c) => c < grid.seaCellStart));
+    const normal = reconcilePlots(grid, { storage: [start] }, { ...LEVELS, metalMine: 0, storage: 10 }, ORDER, {});
+    assert.ok(normal.storage!.every((c) => c < grid.seaCellStart));
   }
 });

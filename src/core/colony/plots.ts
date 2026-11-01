@@ -42,8 +42,8 @@ export const TERRAIN_NAMES: Partial<Record<BuildingId, string>> = {
  * Wolne pola dedykowanego terenu, w które gracz może poprowadzić obszar budynku (v0.38.2, od v0.45 tylko
  * pola stykające się z obszarem; budynek bez pól — dowolne): obszar zostaje spójny.
  */
-export function choiceCells(grid: FieldGrid, plots: Plots, id: BuildingId, rules: BuildRules = {}): number[] {
-  const taken = new Set<number>(Object.values(plots).flatMap((l) => l ?? []));
+export function choiceCells(grid: FieldGrid, plots: Plots, id: BuildingId, rules: BuildRules = {}, reserved: readonly number[] = []): number[] {
+  const taken = new Set<number>([...Object.values(plots).flatMap((l) => l ?? []), ...reserved]);
   const own = new Set(plots[id] ?? []);
   const out: number[] = [];
   grid.cells.forEach((cell, i) => {
@@ -72,8 +72,14 @@ export function usedLandFields(grid: FieldGrid, plots: Plots): number {
  * Pola, na których można budować: ląd (po „Budowie na lodzie” także lód) i pola spoza niego zajęte już przez
  * budynki, które na nich stoją (kryształy na lodzie, megakonstrukt na wodzie i lawie) — licznik „zajęte / wszystkie” uczciwy.
  */
-export function fieldCapacity(grid: FieldGrid, plots: Plots, rules: BuildRules = {}): number {
+export function fieldCapacity(grid: FieldGrid, plots: Plots, rules: BuildRules = {}, reserved: readonly number[] = []): number {
   let extra = 0;
+  // Pola zarezerwowane (dzielnica kompleksu kopalni metalu) poza obszarem budynku — niedostępne dla innych budynków.
+  const own = new Set(Object.values(plots).flatMap((l) => l ?? []));
+  for (const c of reserved) {
+    const field = grid.cells[c];
+    if (field && !own.has(c) && isBuildable(field.kind, rules)) extra--;
+  }
   for (const [id, list] of Object.entries(plots) as [BuildingId, number[]][]) {
     for (const cell of list ?? []) {
       const field = grid.cells[cell];
@@ -110,10 +116,21 @@ export function reconcilePlots(
   rules: BuildRules = {},
   /** Pole wybrane przez gracza dla następnego pola budynku (v0.38.2) — używane, gdy wolne i styka się z obszarem. */
   preferred: Partial<Record<BuildingId, number>> = {},
+  /**
+   * Obszary stałe (kompleks kopalni metalu, etap 2): pola z modelu dzielnicy zamiast wzrostu od pola przy środku, oraz
+   * pola zarezerwowane, na których nie stanie żaden inny budynek.
+   */
+  fixed: { plots?: Partial<Record<BuildingId, readonly number[]>>; reserved?: readonly number[] } = {},
 ): Plots {
   const result: Plots = {};
   const taken = new Set<number>();
+  for (const [id, list] of Object.entries(fixed.plots ?? {}) as [BuildingId, number[]][]) {
+    result[id] = list.filter((c) => c >= 0 && c < grid.cells.length && !taken.has(c));
+    for (const c of result[id]!) taken.add(c);
+  }
+  for (const c of fixed.reserved ?? []) taken.add(c);
   for (const id of order) {
+    if (fixed.plots?.[id]) continue;
     // Pola spoza siatki, podwójne albo niedozwolone (np. po zmianie terenu) odrzucamy.
     const valid = (plots[id] ?? []).filter((cell) => cell >= 0 && cell < grid.cells.length && !taken.has(cell) && canStand(id, grid.cells[cell]!, rules));
     const keep = contiguousPrefix(grid, valid).slice(0, fieldsFor(id, levels[id] ?? 0));
@@ -121,6 +138,7 @@ export function reconcilePlots(
     result[id] = keep;
   }
   order.forEach((id, index) => {
+    if (fixed.plots?.[id]) return;
     const list = result[id]!;
     const want = fieldsFor(id, levels[id] ?? 0);
     while (list.length < want) {
@@ -149,9 +167,10 @@ export function hasRoomFor(
   id: BuildingId,
   order: readonly BuildingId[],
   rules: BuildRules = {},
+  fixed: { plots?: Partial<Record<BuildingId, readonly number[]>>; reserved?: readonly number[] } = {},
 ): boolean {
   const next = { ...levels, [id]: (levels[id] ?? 0) + 1 };
-  const placed = reconcilePlots(grid, plots, next, order, rules);
+  const placed = reconcilePlots(grid, plots, next, order, rules, {}, fixed);
   return (placed[id]?.length ?? 0) >= fieldsFor(id, next[id]);
 }
 

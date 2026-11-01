@@ -244,7 +244,7 @@ export class PlanetScene extends Phaser.Scene {
         setTimeout(() => {
           display.setPlanet(controller.planet);
           const colony = controller.colony();
-          display.setStructures(controller.economy.levels, null, colony.plots, colony.complexes);
+          display.setStructures(controller.economy.levels, null, colony.plots, colony.complexes, colony.metalComplex);
           this.planetPending = false;
           this.relayout();
         }, 0),
@@ -1363,6 +1363,7 @@ export class PlanetScene extends Phaser.Scene {
       construction ? { building: construction.building, targetLevel: construction.targetLevel, progress } : null,
       colony.plots,
       colony.complexes,
+      colony.metalComplex,
     );
     // Kolektor energii gwiazdy na orbicie (v0.44) — tani zapis liczby; renderer przebudowuje tylko przy zmianie.
     this.deps.display.setOrbital(controller.collectorView(now).level);

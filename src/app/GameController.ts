@@ -94,6 +94,7 @@ import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownC
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, inspectStoredEmpire, JOURNAL_LIMIT, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
+import { ensureMetalComplex, metalComplexCells, type MetalComplexCells, type MetalComplexSave } from '../core/colony/complexLayout.ts';
 import type { AsteroidStation, Balance, ConstructTransfer, Fleet, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
@@ -134,6 +135,8 @@ interface Slot {
   preferred?: Partial<Record<BuildingId, number>>;
   /** Megakonstrukty po transferze — stoją na każdym polu, także na wodzie i lawie (v0.56). */
   afloat?: BuildingId[];
+  /** Kompleks kopalni metalu (etap 1 — tylko model, bez wpływu na wygląd i ekonomię). */
+  metalComplex?: MetalComplexSave;
   /** Budynek rozkładany do lotu (v0.56, z `transfers` — bez zapisu): nie pracuje, nie da się go ulepszyć ani zburzyć. */
   packing?: BuildingId;
 }
@@ -2734,6 +2737,13 @@ export class GameController {
     return exportSave(this.empireData());
   }
 
+  /** Stan kompleksu kopalni metalu aktywnej planety (etap 1 — tylko model; środek dzielnicy dopasowany do pól). */
+  metalComplexState(): MetalComplexSave | undefined {
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    return slot.metalComplex;
+  }
+
   /**
    * Wczytanie zapisu z tekstu: zastępuje wszystkie planety i postęp.
    * Czas od eksportu nalicza się jak nieobecność (maks. 8 h).
@@ -2821,6 +2831,7 @@ export class GameController {
         ...(slot.asteroid ? { asteroidStation: slot.asteroid } : {}),
         ...(slot.collector ? { starCollector: slot.collector } : {}),
         ...(slot.afloat?.length ? { afloat: slot.afloat } : {}),
+        ...(slot.metalComplex ? { metalComplex: slot.metalComplex } : {}),
       })),
     };
   }
@@ -2849,10 +2860,10 @@ export class GameController {
   }
 
   /** Siatka pól i zajęte pola aktywnej planety (z budową w toku) — do rysowania kolonii. */
-  colony(): { grid: FieldGrid; plots: Plots; complexes: Complex[] } {
+  colony(): { grid: FieldGrid; plots: Plots; complexes: Complex[]; metalComplex: MetalComplexSave | null } {
     const slot = this.slots[this.active]!;
     const plots = syncPlots(slot, this.buildRules);
-    return { grid: fieldGrid(slot.planet), plots, complexes: slot.complexes ?? [] };
+    return { grid: fieldGrid(slot.planet), plots, complexes: slot.complexes ?? [], metalComplex: slot.metalComplex ?? null };
   }
 
   // ——— wybór pola przez gracza (v0.38.2) ———
@@ -2867,7 +2878,8 @@ export class GameController {
     const level = this.economy.levels[id] ?? 0;
     const needed = !this.economy.construction && fieldsFor(id, level + 1) > fieldsFor(id, level) && level < this.balance.maxLevel;
     const plots = syncPlots(slot, this.buildRules);
-    const cells = needed ? choiceCells(fieldGrid(slot.planet), plots, id, withAnywhere(this.buildRules, slot.afloat)) : [];
+    // Kopalnia metalu (kompleks, etap 2): miejsca obiektów są stałe — bez wyboru pola.
+    const cells = needed && id !== 'metalMine' ? choiceCells(fieldGrid(slot.planet), plots, id, withAnywhere(this.buildRules, slot.afloat), metalFixed(slot, slot.economy.levels)?.reserved) : [];
     return { needed, cells, terrain: TERRAIN_NAMES[id] ?? null, level: level + 1 };
   }
 
@@ -3176,7 +3188,19 @@ export class GameController {
   /** Czy następny poziom budynku zmieści się na planecie (obszar rośnie o pola z etapu; siatka liczona raz na planetę). */
   private roomCheck(slot: Slot): (id: BuildingId, levels: BuildingLevels) => boolean {
     const rules = withAnywhere(this.buildRules, slot.afloat);
-    return (id, levels) => hasRoomFor(fieldGrid(slot.planet), slot.plots, levels, id, BUILDING_ORDER, rules);
+    return (id, levels) => {
+      const grid = fieldGrid(slot.planet);
+      if (id === 'metalMine') {
+        // Kompleks kopalni metalu: następny obiekt ma stałe miejsce w dzielnicy — wolne, gdy nie zajął go inny budynek.
+        // (Środek dzielnicy wybierany przy pierwszym przeliczeniu pól.)
+        if (!slot.metalComplex) syncPlots(slot, this.buildRules);
+        const next = metalFixed(slot, { ...levels, metalMine: (levels.metalMine ?? 0) + 1 });
+        const others = new Set(Object.entries(slot.plots).flatMap(([b, l]) => (b === 'metalMine' ? [] : (l ?? []))));
+        return !!next && next.cells.length >= fieldsFor('metalMine', (levels.metalMine ?? 0) + 1) && next.cells.every((c) => !others.has(c));
+      }
+      const metal = metalFixed(slot, levels);
+      return hasRoomFor(grid, slot.plots, levels, id, BUILDING_ORDER, rules, metal ? { plots: { metalMine: metal.cells }, reserved: metal.reserved } : {});
+    };
   }
 
   /** Gdzie wolno budować (v0.35): „Budowa na lodzie” — wszystkie budynki także na polach lodu (całe imperium). */
@@ -3215,8 +3239,15 @@ function fieldsOf(slot: Slot, active: boolean, base: BuildRules): { used: number
   if (!grid && slot.fields) return slot.fields;
   const ready = grid ?? fieldGrid(slot.planet);
   const plots = active ? syncPlots(slot, base) : slot.plots;
-  slot.fields = { used: usedLandFields(ready, plots), buildable: fieldCapacity(ready, plots, rules) };
+  slot.fields = { used: usedLandFields(ready, plots), buildable: fieldCapacity(ready, plots, rules, metalFixed(slot, slot.economy.levels, ready)?.reserved) };
   return slot.fields;
+}
+
+/** Pola kompleksu kopalni metalu planety na danym poziomie (null — bez kompleksu albo bez kopalni). */
+function metalFixed(slot: Slot, levels: Partial<BuildingLevels>, grid: FieldGrid = fieldGrid(slot.planet)): MetalComplexCells | null {
+  const level = levels.metalMine ?? 0;
+  if (!slot.metalComplex || level <= 0 || slot.metalComplex.phase !== 'osady') return null;
+  return metalComplexCells(grid, slot.planet.seed, slot.metalComplex.center, level);
 }
 
 function syncPlots(slot: Slot, base: BuildRules): Plots {
@@ -3224,7 +3255,12 @@ function syncPlots(slot: Slot, base: BuildRules): Plots {
   const c = slot.economy.construction;
   const levels = c ? { ...slot.economy.levels, [c.building]: Math.max(slot.economy.levels[c.building] ?? 0, c.targetLevel) } : slot.economy.levels;
   const grid = fieldGrid(slot.planet);
-  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, slot.preferred);
+  // Kompleks kopalni metalu: środek dzielnicy wybierany raz (nowa planeta albo starszy zapis — migracja) z dala od pól
+  // innych budynków; obszar kopalni = pola obiektów z modelu, dzielnica zarezerwowana (etap 2). Dawne pola wracają do puli.
+  const others = Object.entries(slot.plots).flatMap(([b, l]) => (b === 'metalMine' ? [] : (l ?? [])));
+  slot.metalComplex = ensureMetalComplex(slot.metalComplex, grid, slot.planet.seed, levels.metalMine ?? 0, others);
+  const metal = metalFixed(slot, levels);
+  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, slot.preferred, metal ? { plots: { metalMine: metal.cells }, reserved: metal.reserved } : {});
   // Wybrane pole użyte — wybór dotyczy tylko jednego pola.
   if (slot.preferred) {
     for (const [id, cell] of Object.entries(slot.preferred) as [BuildingId, number][]) {
@@ -3305,6 +3341,7 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       ...(slot.asteroidStation ? { asteroid: slot.asteroidStation } : {}),
       ...(slot.starCollector ? { collector: slot.starCollector } : {}),
       ...(slot.afloat?.length ? { afloat: slot.afloat } : {}),
+      ...(slot.metalComplex ? { metalComplex: slot.metalComplex } : {}),
     });
   }
   return slots;

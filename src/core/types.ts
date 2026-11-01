@@ -366,6 +366,25 @@ export interface Balance {
     ships: Record<ShipType, { cost: Resources; seconds: number }>;
     starter: Record<ShipType, number>;
   };
+  /**
+   * Kompleks kopalni metalu (etap 1 — tylko model w core, bez wpływu na ekonomię i wygląd; `docs/kompleks-kopalni-metalu.md`).
+   * Poziom budynku rozkłada się na osady: w każdej `minesPerSettlement` kopalni rośnie po kolei do `mineMaxLevel`,
+   * potem jeden poziom na fabrykę (osada = `minesPerSettlement × mineMaxLevel + 1` poziomów).
+   */
+  metalComplex: {
+    settlements: number;
+    minesPerSettlement: number;
+    mineMaxLevel: number;
+    /** Pola obiektów (komplet osad = próg megakonstruktu). */
+    fields: { mine: number; factory: number; construct: number };
+    /** Wytrzymałość obiektów (pod przyszłe ataki; konstrukt bardzo wytrzymały). */
+    durability: { mine: number; factory: number; construct: number };
+    /** Równoległe pasy produkcyjne fabryka → megakonstrukt. */
+    beltsPerFactory: number;
+    /** Czas budowy megakonstruktu (s) — przedział, do etapu 3. */
+    constructSeconds: { min: number; max: number };
+    status: 'robocza';
+  };
   buildings: readonly BuildingDef[];
 }
 

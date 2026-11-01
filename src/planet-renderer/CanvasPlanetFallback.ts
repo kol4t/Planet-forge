@@ -8,7 +8,9 @@ import { complexGround } from './complexLook.ts';
 import { buildOpenPit, type OpenPit } from './openPit.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
-import { pickCell, pickComplex, type StructureHit } from './pick.ts';
+import { pickCell, pickComplex, type PickTarget, type StructureHit } from './pick.ts';
+import { complexLayout, type MetalComplexSave } from '../core/colony/complexLayout.ts';
+import { metalObjectSize, metalPickTargets, metalPieces, mineDetail, nextMetalObject, roadSegments, type MetalPiece, type RoadSegment } from './metalComplexMeshes.ts';
 import { facingAngles, focusLift, type BuildSite, type HomeStationLook, type PlanetDisplay } from './PlanetDisplay.ts';
 import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
 import { ZoomSmoother } from './input/zoom.ts';
@@ -68,6 +70,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private readonly reducedMotion = prefersReducedMotion();
   private orbital = 0;
   private homeStation: HomeStationLook | null = null;
+  /** Kompleks kopalni metalu z modelu (etap 2): symbole obiektów, drogi, następny obiekt (rusztowanie), cele dotyku. */
+  private metal: { pieces: MetalPiece[]; roads: RoadSegment[]; next: { dir: [number, number, number]; size: number } | null; targets: PickTarget[] } | null = null;
+  private planetSeed = '';
   /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
   private size = BUFFER;
 
@@ -84,6 +89,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.look = discLook(planet);
     this.sampler = this.look.sampler;
     this.grid = fieldGrid(planet);
+    this.planetSeed = planet.seed;
+    this.metal = null;
     this.highlight = null;
     this.grownAt.clear();
     this.seeded = false;
@@ -96,10 +103,12 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.lastDrawn = { yaw: NaN, pitch: NaN };
   }
 
-  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = []): void {
+  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = [], metal: MetalComplexSave | null = null): void {
     if (plots && this.grid && this.sampler) {
-      const key = plotsKey(plots, BUILDING_IDS, levels, complexes);
+      const metalKey = metal ? `${metal.center.join(',')}|${metal.phase}|${levels.metalMine ?? 0}` : '';
+      const key = `${plotsKey(plots, BUILDING_IDS, levels, complexes)}|m${metalKey}`;
       if (key !== this.plotsKey) {
+        this.setMetal(levels, complexes, metal);
         const before = new Map((this.colony?.complexes ?? []).map((c) => [c.building, `${c.cells.length}@${c.stage}`]));
         this.plotsKey = key;
         this.colony = layoutFromPlots(this.grid, plots, this.sampler, BUILDING_IDS, levels, complexes);
@@ -124,7 +133,92 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     if (!this.colony || !this.grid) return null;
     const { yaw, pitch } = this.rotator;
     const view = { cx: this.focus.cx, cy: this.focus.cy, yaw, pitch, tilt: 0, projection: { kind: 'ortho' as const, r: this.focus.r * this.zoom } };
-    return pickComplex(this.colony, this.grid, view, x, y);
+    return pickComplex(this.colony, this.grid, view, x, y, false, this.metal?.targets ?? []);
+  }
+
+  /** Kompleks kopalni metalu z modelu (etap 2) — jak w 3D (`PlanetView.setMetalComplex`), rysowany symbolami. */
+  private setMetal(levels: BuildingLevels, complexes: readonly Complex[], metal: MetalComplexSave | null): void {
+    const level = levels.metalMine ?? 0;
+    if (!metal || !this.grid || level <= 0 || metal.phase !== 'osady') {
+      this.metal = null;
+      return;
+    }
+    const layout = complexLayout(this.grid, this.planetSeed, level, metal.phase, { center: metal.center, states: metal.states });
+    const mega = complexes.some((c) => c.building === 'metalMine' && c.mega);
+    const pieces = metalPieces(layout, mega);
+    const next = nextMetalObject(this.grid, this.planetSeed, metal.center, metal.phase, level);
+    this.metal = {
+      pieces,
+      roads: roadSegments(layout, pieces),
+      next: next ? { dir: next.pozycja, size: metalObjectSize(next, layout.unit) } : null,
+      targets: metalPickTargets(layout, mega),
+    };
+  }
+
+  /**
+   * Kompleks kopalni metalu w 2D (etap 2): drogi — ciemne linie, plac — zarys kwadratu, fabryka — trójkąt, kopalnia —
+   * kółko (pojawia się przy przybliżeniu, jak w 3D), megakompleks na placu — pełny romb. Z tyłu planety — nic.
+   */
+  private drawMetal(toScreen: (p: readonly number[]) => { x: number; y: number; depth: number }, r: number, grow: number): void {
+    const metal = this.metal;
+    if (!metal || grow <= 0) return;
+    const ctx = this.ctx;
+    const detail = mineDetail(this.zoom);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#2e2b28';
+    ctx.lineWidth = Math.max(1.5, r * 0.006);
+    ctx.globalAlpha = 0.85 * grow;
+    ctx.beginPath();
+    for (const road of metal.roads) {
+      const a = toScreen(road.from);
+      const b = toScreen(road.to);
+      if (a.depth < 0.1 || b.depth < 0.1) continue;
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    }
+    ctx.stroke();
+    for (const piece of metal.pieces) {
+      const p = toScreen(piece.dir);
+      if (p.depth < 0.1) continue;
+      ctx.globalAlpha = Math.min(1, p.depth * 2.5) * grow;
+      const half = Math.max(2, piece.size * r * 0.5);
+      if (piece.kind === 'plaza') {
+        ctx.strokeStyle = '#8a918e';
+        ctx.lineWidth = Math.max(1, r * 0.004);
+        ctx.strokeRect(p.x - half * 1.4, p.y - half * 1.4, half * 2.8, half * 2.8);
+      } else if (piece.kind === 'mega') {
+        ctx.fillStyle = '#4b4f50';
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - half);
+        ctx.lineTo(p.x + half, p.y);
+        ctx.lineTo(p.x, p.y + half);
+        ctx.lineTo(p.x - half, p.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#ff9a3c';
+        ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+      } else if (piece.kind === 'factory') {
+        ctx.fillStyle = '#4b4f50';
+        ctx.strokeStyle = '#8f4a2b';
+        ctx.lineWidth = Math.max(1, r * 0.004);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - half);
+        ctx.lineTo(p.x + half * 0.95, p.y + half * 0.7);
+        ctx.lineTo(p.x - half * 0.95, p.y + half * 0.7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (detail > 0) {
+        ctx.fillStyle = '#8f4a2b';
+        ctx.strokeStyle = '#38332f';
+        ctx.lineWidth = Math.max(1, r * 0.003);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(1.5, half * 0.8 * detail), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   showBuilding(id: BuildingId): boolean {
@@ -344,6 +438,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             const index = cell >= 0 ? colony.owner[cell]! : -1;
             if (index < 0) return null;
             const c = colony.complexes[index]!;
+            // Kompleks kopalni metalu z modelu (etap 2) — teren naturalny, obiekty na symbolach.
+            if (c.building === 'metalMine' && this.metal) return null;
             // Farma wiatrowa stoi na naturalnym terenie.
             if (c.building === 'powerPlant' && c.stage === 0) return null;
             // Nowy kompleks wyrasta: grunt pojawia się punkt po punkcie.
@@ -395,9 +491,12 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       ctx.fillRect(x0 + dx * pixel, y0 + dy * pixel, w * pixel, h * pixel);
     };
     const blink = (phase: number, period = 600) => (now === 0 ? 1 : 0.45 + 0.55 * Math.abs(Math.sin(now / period + phase)));
+    this.drawMetal(toScreen, r, this.growth('metalMine'));
     for (const c of this.colony.complexes) {
       const grow = this.growth(c.building);
       if (grow <= 0) continue;
+      // Kompleks kopalni metalu z modelu — symbole (`drawMetal`) zamiast zabudowy pól.
+      if (c.building === 'metalMine' && this.metal) continue;
       // Wielka odkrywka: ekstraktor nad środkiem dziury, nie w środku obszaru.
       const pit = c.building === 'crystalMine' ? this.openPit : null;
       const core = toScreen(pit?.center ?? c.core);
@@ -688,7 +787,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const building = site && this.colony.complexes.find((c) => c.building === site.building);
     if (site && building) {
       const spot = building.spots.reduce((a, b) => (building.cells.indexOf(b.cell) > building.cells.indexOf(a.cell) ? b : a));
-      const p = toScreen(spot.dir);
+      // Kompleks kopalni metalu: rusztowanie w miejscu następnego obiektu (etap 2).
+      const next = site.building === 'metalMine' ? this.metal?.next : null;
+      const p = toScreen(next?.dir ?? spot.dir);
       if (p.depth >= 0.08) {
         const size = pixel * 4;
         const x = snapX(p.x - size / 2);

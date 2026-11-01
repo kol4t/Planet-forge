@@ -8,6 +8,8 @@ import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import type { Pad } from './colonyMeshes.ts';
 import { createStationMesh, type StationMesh } from './stationMesh.ts';
+import { complexLayout, type MetalComplexSave } from '../core/colony/complexLayout.ts';
+import { metalObjectSize, metalPickTargets, mineDetail, nextMetalObject } from './metalComplexMeshes.ts';
 import { cellLookup, collectorOrbit, hash01, stationOrbit, layoutFromPlots, offsetOnSphere, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
 import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, rimPoint, type DrillParams } from './drill.ts';
@@ -23,7 +25,7 @@ import { ColonyMeshes } from './colonyMeshes.ts';
 import { DragRotator } from './input/dragRotator.ts';
 import { ZoomSmoother } from './input/zoom.ts';
 import { AdaptiveResolution } from './adaptiveResolution.ts';
-import { pickCell, pickComplex, type StructureHit } from './pick.ts';
+import { pickCell, pickComplex, type PickTarget, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, type BuildSite, type HomeStationLook, type PlanetDisplay } from './PlanetDisplay.ts';
 import { buildLowPolyLand, facetNormals, shapedRadius } from './lowPoly.ts';
 import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler } from './surface.ts';
@@ -84,6 +86,12 @@ export class PlanetView implements PlanetDisplay {
   private openPit: OpenPit | null = null;
   private cables: PitCables | null = null;
   private planetType = '';
+  /** Seed planety — model kompleksu kopalni metalu (etap 2). */
+  private planetSeed = '';
+  /** Kompleks kopalni metalu rysowany z modelu (etap 2) — bez płyty gruntu na polach (teren naturalny, obiekty na płytach). */
+  private metalModel = false;
+  /** Cele dotyku obiektów kompleksu kopalni metalu (etap 2). */
+  private metalTargets: PickTarget[] = [];
   private readonly sun = new THREE.DirectionalLight(0xffeedc, 2.4);
   private readonly ambient = new THREE.HemisphereLight(0x4f7383, 0x07080a, 0.12);
   private readonly fill = new THREE.DirectionalLight(0x6f9fc0, FILL_INTENSITY);
@@ -171,6 +179,12 @@ export class PlanetView implements PlanetDisplay {
 
   setPlanet(planet: Planet): void {
     this.planetType = planet.definitionId;
+    this.planetSeed = planet.seed;
+    this.metalModel = false;
+    this.metalTargets = [];
+    this.colony.setMetalComplex(null);
+    // Obiekty kompleksu kopalni metalu i drogi stoją na terenie (bez obniżenia odkrywki).
+    this.colony.setGround((dir) => this.groundAt(dir));
     this.setDrill(null, null);
     this.setCables(null);
     this.openPit = null;
@@ -414,12 +428,15 @@ export class PlanetView implements PlanetDisplay {
     this.fieldColors.setColors(colors);
   }
 
-  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = []): void {
+  setStructures(levels: BuildingLevels, site: BuildSite | null = null, plots?: Plots, complexes: readonly Complex[] = [], metal: MetalComplexSave | null = null): void {
     if (plots && this.grid && this.shaped) {
-      // Etap odwiertu zmienia się częściej niż etap kompleksu — też przebudowuje wygląd.
-      const key = `${plotsKey(plots, BUILDING_IDS, levels, complexes)}|d${drillStage(levels.crystalMine ?? 0)}`;
+      // Etap odwiertu zmienia się częściej niż etap kompleksu — też przebudowuje wygląd. Kompleks kopalni metalu (etap 2):
+      // poziom, środek i faza dzielnicy.
+      const metalKey = metal ? `${metal.center.join(',')}|${metal.phase}|${levels.metalMine ?? 0}` : '';
+      const key = `${plotsKey(plots, BUILDING_IDS, levels, complexes)}|d${drillStage(levels.crystalMine ?? 0)}|m${metalKey}`;
       if (key !== this.plotsKey) {
         this.plotsKey = key;
+        this.setMetalComplex(levels, complexes, metal);
         this.layout = layoutFromPlots(this.grid, plots, this.shaped, BUILDING_IDS, levels, complexes, true);
         this.applyColony(this.layout, false);
         this.colorFieldLines(plots);
@@ -450,6 +467,25 @@ export class PlanetView implements PlanetDisplay {
     this.cutOceanAlongPit();
     this.hideFieldLinesInPit(layout);
     this.buildOutlines(layout);
+  }
+
+  /**
+   * Kompleks kopalni metalu (etap 2): obiekty z modelu dzielnicy zamiast zabudowy „po jednej na pole”; następny obiekt
+   * — miejsce rusztowania; dotychczasowy megakompleks (gdy działa) tymczasowo na placu.
+   */
+  private setMetalComplex(levels: BuildingLevels, complexes: readonly Complex[], metal: MetalComplexSave | null): void {
+    const level = levels.metalMine ?? 0;
+    this.metalModel = !!metal && !!this.grid && level > 0 && metal.phase === 'osady';
+    this.metalTargets = [];
+    if (!this.metalModel || !metal || !this.grid) {
+      this.colony.setMetalComplex(null);
+      return;
+    }
+    const layout = complexLayout(this.grid, this.planetSeed, level, metal.phase, { center: metal.center, states: metal.states });
+    const next = nextMetalObject(this.grid, this.planetSeed, metal.center, metal.phase, level);
+    const mega = complexes.some((c) => c.building === 'metalMine' && c.mega);
+    this.colony.setMetalComplex({ layout, mega, next: next ? { dir: next.pozycja, size: metalObjectSize(next, layout.unit) } : null });
+    this.metalTargets = metalPickTargets(layout, mega, (dir) => this.groundAt(dir));
   }
 
   /** Promień pierwotnego terenu w punkcie (woda — tafla morza). */
@@ -611,7 +647,7 @@ export class PlanetView implements PlanetDisplay {
       const c = sunk > 0 ? pit : complexAt(...dir);
       // Wielka odkrywka — kolory po wykopaniu (niżej, z kształtu ścianek).
       // Farma wiatrowa stoi na naturalnym terenie (bez płyty gruntu kompleksu).
-      if (!c || (open && c === pit) || isWindFarm(c)) continue;
+      if (!c || (open && c === pit) || isWindFarm(c) || (this.metalModel && c.building === 'metalMine')) continue;
       // Ścianki lądu (~0,03 rad) są ok. 3× większe niż działki wzoru zabudowy (`complexGround`) — w 3D wzór dawał
       // szachownicę (v0.47). Grunt = spokojna płyta w kolorze budynku, lekko inna na każdym polu. Szczegół — zabudowa 3D.
       const base = GROUND_BASE[c.building];
@@ -837,7 +873,7 @@ export class PlanetView implements PlanetDisplay {
       tilt: this.axialTilt,
       projection: { kind: 'perspective' as const, f, d: this.camera.position.z },
     };
-    return pickComplex(this.layout, this.grid, view, x, y, true);
+    return pickComplex(this.layout, this.grid, view, x, y, true, this.metalTargets);
   }
 
   pickCell(x: number, y: number, cells: readonly number[]): number | null {
@@ -974,6 +1010,8 @@ export class PlanetView implements PlanetDisplay {
     this.time += dt;
     // Lawa „oddycha”: animowany tylko kolor materiału (bez przeliczania geometrii).
     if (this.lava) (this.lava.material as THREE.MeshBasicMaterial).color.setScalar(0.85 + 0.15 * Math.sin(this.time * 1.6));
+    // LOD kompleksu kopalni metalu: kopalnie pojawiają się płynnie przy przybliżaniu (etap 2).
+    this.colony.setDetail(mineDetail(this.zoomer.value));
     this.colony.update(dt);
     this.cables?.update(dt);
     if (this.orbital) {

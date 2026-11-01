@@ -89,9 +89,20 @@ Kopiuj zapis / Wczytaj zapis).
   "specialization": { "id": "mining", "readyAt": 0 },
   "asteroidStation": { "level": 2, "readyAt": 0 },
   "starCollector": { "level": 1, "readyAt": 0 },
-  "afloat": ["crystalMine"]                      // megakonstrukty po transferze — stoją na każdym polu (od v0.56, opcjonalne)
+  "afloat": ["crystalMine"],                     // megakonstrukty po transferze — stoją na każdym polu (od v0.56, opcjonalne)
+  "metalComplex": {                              // kompleks kopalni metalu (etap 1 kompleksu, opcjonalne)
+    "center": [0.6, -0.185, 0.778],              // środek dzielnicy (sfera jednostkowa), wybrany raz
+    "phase": "osady",                            // „osady” albo „konstrukt”
+    "states": { "osada1.fabryka": { "stan": "zniszczony", "wytrzymalosc": 0 } }  // tylko odstępstwa (na razie nigdy)
+  }
 }
 ```
+
+**`metalComplex`** (`core/colony/complexLayout.ts`, `docs/kompleks-kopalni-metalu.md`): środek musi mieć długość 0,9–1,1
+(jest normalizowany), błędna faza = „osady”, stany tylko dla znanych `slotId` (`osadaN.kopalniaM`, `osadaN.fabryka`,
+`konstrukt`). Brak pola albo błędny środek = **migracja**: przy pierwszym przeliczeniu pól planety (`syncPlots`) środek
+wybierany automatycznie i deterministycznie (`ensureMetalComplex` — pole najbliżej środka obszaru kopalni metalu, a bez
+obszaru pole lądu z największą ilością lądu wokół), faza „osady”. Tak samo przy imporcie `PF2:`. `EMPIRE_VERSION` bez zmian.
 
 ## Walidacja
 
