@@ -51,6 +51,8 @@ export interface MetalComplexLayout {
   /** Obrót (rad) i skala układu wybrane przy dopasowaniu do lądu. */
   rotation: number;
   scale: number;
+  /** Jednostka układu (rad): średni promień pola lądu × skala — wielkość obiektów przy rysowaniu. */
+  unit: number;
   obiekty: MetalComplexObject[];
   drogi: MetalComplexRoad[];
   pasy: MetalComplexBelt[];
@@ -171,7 +173,7 @@ interface TemplatePoint {
 }
 
 /** Odległości szablonów (w promieniach pola) — robocze, do dopracowania przy rysowaniu (etap 2). */
-const OSADY = { settlement: 2.8, mine: 1.3, mineSpread: (70 * Math.PI) / 180 };
+const OSADY = { settlement: 3.0, mine: 1.6, mineSpread: (70 * Math.PI) / 180 };
 const KONSTRUKT = { factory: 2.4, mine: 3.9, mineSpread: (17 * Math.PI) / 180, beltGap: 0.35, beltFrom: 0.6, beltTo: 0.95 };
 /** Promień (w promieniach pola) miejsca: kopalnia, fabryka, megakonstrukt, plac. */
 const REACH = { kopalnia: 0.4, fabryka: 0.6, megakonstrukt: 0.95, plac: 1.0 };
@@ -232,8 +234,9 @@ function landUnit(grid: FieldGrid): number {
 function sampleIndex(grid: FieldGrid, center: Vec3, maxAngle: number) {
   const minDot = Math.cos(Math.min(Math.PI, maxAngle));
   const size = 2 * Math.sqrt((4 * Math.PI) / Math.max(1, grid.samples.length));
-  const key = (x: number, y: number, z: number) => `${x},${y},${z}`;
-  const buckets = new Map<string, number[]>();
+  // Klucz kubełka liczbą (bez sklejania napisów przy każdym wyszukiwaniu — wybór środka sprawdza dziesiątki tysięcy punktów).
+  const key = (x: number, y: number, z: number) => ((x + 512) * 1024 + (y + 512)) * 1024 + (z + 512);
+  const buckets = new Map<number, number[]>();
   grid.samples.forEach((p, i) => {
     if (dot(p, center) < minDot) return;
     const k = key(Math.floor(p[0] / size), Math.floor(p[1] / size), Math.floor(p[2] / size));
@@ -281,11 +284,118 @@ function nearestLand(grid: FieldGrid, p: Vec3): number {
 
 /** Kąty (wokół punktu) sprawdzane przy dopasowaniu miejsca do lądu. */
 const RING = 6;
-/** Obroty (co 30°) i zwężenia układu próbowane po kolei. */
+/** Obroty (co 30°) i zwężenia układu próbowane po kolei — zwężenie tylko w ostateczności, najwyżej do 70% (etap 2). */
 const ROTATIONS = 12;
-const SCALES = [1, 0.85, 0.7, 0.55, 0.4];
+export const METAL_SCALES = [1, 0.85, 0.7] as const;
 /** Jaka część otoczenia miejsc musi być lądem, żeby układ pasował. */
 const FIT_SHARE = 0.9;
+
+interface Fit {
+  rotation: number;
+  scale: number;
+  /** Układ zmieścił się na lądzie (wszystkie środki miejsc i ≥ 90% otoczenia). */
+  fits: boolean;
+  value: number;
+  /** Udział lądu w otoczeniu miejsc (0..1) — do porównania kandydatów na środek. */
+  land: number;
+}
+
+/**
+ * Dopasowanie szablonu fazy do lądu wokół `center`: obroty co 30° w pełnej skali, potem zwężenie (`METAL_SCALES`).
+ * Układ pasuje, gdy środek każdego miejsca leży na lądzie, a z otoczenia miejsc (pierścienie wokół nich) na lądzie
+ * jest co najmniej `FIT_SHARE` — pojedyncze jeziorka nie zwężają kompleksu. `blocked` — punkt zajęty (np. pole innego
+ * budynku) liczy się jak brak lądu.
+ */
+function fitTemplate(
+  grid: FieldGrid,
+  seed: string,
+  center: Vec3,
+  phase: MetalComplexPhase,
+  blocked?: (p: Vec3) => boolean,
+  /** Wspólny indeks punktów (wybór środka sprawdza wielu kandydatów — jeden indeks całej mapy). */
+  shared?: ReturnType<typeof sampleIndex>,
+  scales: readonly number[] = METAL_SCALES,
+): Fit & { toSphere: (x: number, y: number) => Vec3; unit: number; nearest: ReturnType<typeof sampleIndex> } {
+  const unit = landUnit(grid);
+  const points = template(phase);
+  const maxDist = Math.max(...points.map((p) => Math.hypot(p.x, p.y) + p.reach));
+  const nearest = shared ?? sampleIndex(grid, center, maxDist * unit * 1.3 + 0.05);
+  const isLandAt = (p: Vec3) => {
+    const i = nearest(p, false);
+    return i >= 0 && grid.kinds[i] === 'land' && !(blocked && blocked(p));
+  };
+  const baseRotation = createRng(seed).fork('visual').fork('metalComplex').next() * 2 * Math.PI;
+  const toSphere = tangentFrame(center);
+  const ringFull = points.length * RING;
+  let best: Fit = { rotation: baseRotation, scale: scales[0]!, fits: false, value: -1, land: 0 };
+  for (const scale of scales) {
+    for (let k = 0; k < ROTATIONS; k++) {
+      const rotation = baseRotation + (k * 2 * Math.PI) / ROTATIONS;
+      const c = Math.cos(rotation);
+      const sn = Math.sin(rotation);
+      let centers = 0;
+      let ring = 0;
+      for (const p of points) {
+        const x = (p.x * c - p.y * sn) * scale * unit;
+        const y = (p.x * sn + p.y * c) * scale * unit;
+        if (isLandAt(toSphere(x, y))) centers++;
+        const r = p.reach * scale * unit;
+        for (let a = 0; a < RING; a++) {
+          const h = (a * 2 * Math.PI) / RING;
+          if (isLandAt(toSphere(x + r * Math.cos(h), y + r * Math.sin(h)))) ring++;
+        }
+      }
+      const value = centers * (RING + 1) + ring;
+      const land = value / (points.length * (RING + 1));
+      if (centers === points.length && ring >= FIT_SHARE * ringFull) return { rotation, scale, fits: true, value, land, toSphere, unit, nearest };
+      if (value > best.value) best = { rotation, scale, fits: false, value, land };
+    }
+  }
+  return { ...best, toSphere, unit, nearest };
+}
+
+/** Miejsca slotów fazy (cache: zależą tylko od siatki, seeda, środka i fazy — nie od poziomu). */
+interface Places {
+  rotation: number;
+  scale: number;
+  unit: number;
+  where: Map<string, Vec3>;
+  toSphere: (x: number, y: number) => Vec3;
+  nearest: ReturnType<typeof sampleIndex>;
+}
+
+const placesCache = new WeakMap<FieldGrid, Map<string, Places>>();
+
+function slotPlaces(grid: FieldGrid, seed: string, center: Vec3, phase: MetalComplexPhase): Places {
+  const key = `${seed}|${phase}|${center.map((v) => v.toFixed(6)).join(',')}`;
+  let byKey = placesCache.get(grid);
+  if (!byKey) placesCache.set(grid, (byKey = new Map()));
+  const cached = byKey.get(key);
+  if (cached) return cached;
+  const fit = fitTemplate(grid, seed, center, phase);
+  const { toSphere, unit, nearest } = fit;
+  const isLandAt = (p: Vec3) => {
+    const i = nearest(p, false);
+    return i >= 0 && grid.kinds[i] === 'land';
+  };
+  const c = Math.cos(fit.rotation);
+  const sn = Math.sin(fit.rotation);
+  const where = new Map<string, Vec3>();
+  for (const p of template(phase)) {
+    if (!p.slotId) continue;
+    let pos = toSphere((p.x * c - p.y * sn) * fit.scale * unit, (p.x * sn + p.y * c) * fit.scale * unit);
+    // Miejsce poza lądem (układ się nie zmieścił) — dosunięte do najbliższego lądu.
+    if (!isLandAt(pos)) {
+      const near = nearest(pos, true);
+      const any = near >= 0 ? near : nearestLand(grid, pos);
+      if (any >= 0) pos = [...grid.samples[any]!];
+    }
+    where.set(p.slotId, pos);
+  }
+  const places: Places = { rotation: fit.rotation, scale: fit.scale, unit, where, toSphere, nearest };
+  byKey.set(key, places);
+  return places;
+}
 
 /**
  * Układ kompleksu kopalni metalu. `center` — środek dzielnicy z zapisu (brak = wybór automatyczny, jak przy migracji);
@@ -299,70 +409,11 @@ export function complexLayout(
   options: { center?: Vec3; states?: Record<string, MetalObjectSave> } = {},
 ): MetalComplexLayout {
   const center = options.center ? normalize(options.center) : chooseMetalCenter(grid, seed);
-  const unit = landUnit(grid);
-  const points = template(phase);
-  const maxDist = Math.max(...points.map((p) => Math.hypot(p.x, p.y) + p.reach));
-  const nearest = sampleIndex(grid, center, maxDist * unit * 1.3 + 0.05);
-  const isLandAt = (p: Vec3) => {
-    const i = nearest(p, false);
-    return i >= 0 && grid.kinds[i] === 'land';
-  };
-  const rng = createRng(seed).fork('visual').fork('metalComplex');
-  const baseRotation = rng.next() * 2 * Math.PI;
-  const toSphere = tangentFrame(center);
-
-  // Dopasowanie: najpierw obroty (co 30°) w pełnej skali, potem zwężenie. Układ pasuje, gdy środek każdego miejsca
-  // leży na lądzie, a z otoczenia miejsc (pierścienie wokół nich) na lądzie jest co najmniej `FIT_SHARE` — pojedyncze
-  // jeziorka i zatoczki nie zwężają całego kompleksu. Gdy nic nie pasuje — najlepszy wynik, a miejsca poza lądem
-  // dosuwane do najbliższego lądu.
-  const place = (rotation: number, scale: number) => {
-    const c = Math.cos(rotation);
-    const s = Math.sin(rotation);
-    return points.map((p) => {
-      const x = (p.x * c - p.y * s) * scale * unit;
-      const y = (p.x * s + p.y * c) * scale * unit;
-      return { p, x, y };
-    });
-  };
-  const score = (placed: ReturnType<typeof place>, scale: number) => {
-    let centers = 0;
-    let ring = 0;
-    for (const { p, x, y } of placed) {
-      if (isLandAt(toSphere(x, y))) centers++;
-      const r = p.reach * scale * unit;
-      for (let a = 0; a < RING; a++) {
-        const h = (a * 2 * Math.PI) / RING;
-        if (isLandAt(toSphere(x + r * Math.cos(h), y + r * Math.sin(h)))) ring++;
-      }
-    }
-    return { centers, ring, value: centers * (RING + 1) + ring };
-  };
-  const ringFull = points.length * RING;
-  let best = { rotation: baseRotation, scale: SCALES[0]!, value: -1 };
-  search: for (const scale of SCALES) {
-    for (let k = 0; k < ROTATIONS; k++) {
-      const rotation = baseRotation + (k * 2 * Math.PI) / ROTATIONS;
-      const fit = score(place(rotation, scale), scale);
-      if (fit.centers === points.length && fit.ring >= FIT_SHARE * ringFull) {
-        best = { rotation, scale, value: fit.value };
-        break search;
-      }
-      if (fit.value > best.value) best = { rotation, scale, value: fit.value };
-    }
-  }
-
-  const placed = place(best.rotation, best.scale);
-  const where = new Map<string, Vec3>();
-  for (const { p, x, y } of placed) {
-    if (!p.slotId) continue;
-    let pos = toSphere(x, y);
-    if (!isLandAt(pos)) {
-      const near = nearest(pos, true);
-      const any = near >= 0 ? near : nearestLand(grid, pos);
-      if (any >= 0) pos = [...grid.samples[any]!];
-    }
-    where.set(p.slotId, pos);
-  }
+  const places = slotPlaces(grid, seed, center, phase);
+  const where = places.where;
+  const best = places;
+  const unit = places.unit;
+  const toSphere = places.toSphere;
 
   const states = options.states ?? {};
   const obiekty: MetalComplexObject[] = metalComplexSlots(level, phase).map((slot) => {
@@ -412,53 +463,190 @@ export function complexLayout(
     }
   }
 
-  return { phase, center, rotation: best.rotation, scale: best.scale, obiekty, drogi, pasy };
+  return { phase, center, rotation: best.rotation, scale: best.scale, unit: unit * best.scale, obiekty, drogi, pasy };
+}
+
+/** Pola kompleksu: liczone (obszar budynku, `fieldsFor`) i zarezerwowane (dzielnica — inne budynki tu nie staną). */
+export interface MetalComplexCells {
+  /** Pola zbudowanych obiektów, w kolejności budowy (kopalnia 1 pole, fabryka 2) — obszar kopalni metalu. */
+  cells: number[];
+  /** Cała dzielnica rozpoczętych osad: pola ich miejsc i dróg oraz plac w środku (zawiera `cells`). */
+  reserved: number[];
+  /** Pola następnego obiektu (rusztowanie, sprawdzenie miejsca) — puste, gdy komplet. */
+  next: number[];
+}
+
+const allocationCache = new WeakMap<FieldGrid, Map<string, { slotId: string; cells: number[] }[]>>();
+
+/**
+ * Pola wszystkich miejsc fazy „osady” w kolejności budowy: kopalnia — pole pod nią, fabryka — pole pod nią i najbliższe
+ * sąsiednie pole lądu. Gdy dwa miejsca wypadają w jednym polu, drugie bierze najbliższe wolne pole lądu obok (liczba pól
+ * zawsze jak w modelu). Stałe dla planety i środka — kolejne poziomy tylko odsłaniają kolejne miejsca.
+ */
+function slotAllocation(grid: FieldGrid, seed: string, center: Vec3): { slotId: string; cells: number[] }[] {
+  const key = `${seed}|${center.map((v) => v.toFixed(6)).join(',')}`;
+  let byKey = allocationCache.get(grid);
+  if (!byKey) allocationCache.set(grid, (byKey = new Map()));
+  const cached = byKey.get(key);
+  if (cached) return cached;
+  const places = slotPlaces(grid, seed, center, 'osady');
+  const used = new Set<number>();
+  const cellAt = (p: Vec3) => {
+    const i = places.nearest(p, false);
+    return i >= 0 ? grid.owner[i]! : -1;
+  };
+  const isLandCell = (c: number) => c >= 0 && c < grid.seaCellStart && grid.cells[c]!.kind === 'land';
+  /** `count` pól dla miejsca `p`: najpierw pole pod nim, potem najbliższe wolne pola lądu (po sąsiedztwie). */
+  const take = (p: Vec3, count: number): number[] => {
+    const out: number[] = [];
+    const start = cellAt(p);
+    const queue = isLandCell(start) ? [start] : [];
+    const seen = new Set(queue);
+    while (out.length < count && queue.length > 0) {
+      queue.sort((a, b) => dot(grid.cells[b]!.center, p) - dot(grid.cells[a]!.center, p));
+      const c = queue.shift()!;
+      if (!used.has(c)) {
+        out.push(c);
+        used.add(c);
+      }
+      for (const n of grid.cells[c]!.neighbors) {
+        if (!seen.has(n) && isLandCell(n)) {
+          seen.add(n);
+          queue.push(n);
+        }
+      }
+    }
+    return out;
+  };
+  const out: { slotId: string; cells: number[] }[] = [];
+  for (const slot of metalComplexSlots(levelsPerSettlement() * CFG.settlements, 'osady')) {
+    if (out.some((o) => o.slotId === slot.slotId)) continue;
+    out.push({ slotId: slot.slotId, cells: take(places.where.get(slot.slotId)!, fieldsOfType(slot.typ)) });
+  }
+  byKey.set(key, out);
+  return out;
 }
 
 /**
- * Środek dzielnicy kompleksu (migracja starych zapisów i nowe planety): gdy kopalnia metalu ma już obszar pól —
- * pole najbliżej jego środka ciężkości; inaczej pole lądu z największą ilością lądu w promieniu dzielnicy
- * (wzgórza i góry — teren kopalni — mają pierwszeństwo). Remisy rozstrzyga strumień `visual` seeda. Punkt zawsze na lądzie.
+ * Pola kompleksu na danym poziomie (faza „osady”): liczone — pola zbudowanych obiektów (tyle, ile w modelu: kopalnia 1,
+ * fabryka 2, najwyżej 20); zarezerwowane — plac w środku i cała dzielnica każdej rozpoczętej osady (miejsca kopalń
+ * i fabryki, pola pod drogami), żeby żaden inny budynek nie stanął w jej obrębie.
  */
-export function chooseMetalCenter(grid: FieldGrid, seed: string, metalCells: readonly number[] = []): Vec3 {
-  const land: number[] = [];
-  for (let i = 0; i < grid.seaCellStart; i++) if (grid.cells[i]?.kind === 'land') land.push(i);
-  const cells = metalCells.filter((c) => land.includes(c));
-  let pick = -1;
-  if (cells.length > 0) {
-    const sum: Vec3 = [0, 0, 0];
-    for (const c of cells) for (let k = 0; k < 3; k++) sum[k] += grid.cells[c]!.center[k]!;
-    const mid = normalize(sum);
-    pick = cells.reduce((a, b) => (dot(grid.cells[b]!.center, mid) > dot(grid.cells[a]!.center, mid) ? b : a));
-  } else if (land.length > 0) {
-    const rng = createRng(seed).fork('visual').fork('metalComplexCenter');
-    const reach = Math.cos(landUnit(grid) * 4.5);
-    let bestScore = -Infinity;
-    for (const i of land) {
-      const c = grid.cells[i]!;
-      let around = 0;
-      for (const j of land) if (dot(grid.cells[j]!.center, c.center) >= reach) around++;
-      const value = around + (c.terrain === 'hill' || c.terrain === 'mountain' ? 1.5 : 0) + rng.next() * 0.5;
-      if (value > bestScore) {
-        bestScore = value;
-        pick = i;
+export function metalComplexCells(grid: FieldGrid, seed: string, center: Vec3, level: number): MetalComplexCells {
+  const lv = Math.max(0, Math.floor(Number.isFinite(level) ? level : 0));
+  if (lv <= 0) return { cells: [], reserved: [], next: [] };
+  const allocation = slotAllocation(grid, seed, center);
+  const bySlot = new Map(allocation.map((a) => [a.slotId, a.cells]));
+  const built = metalComplexSlots(lv, 'osady');
+  const cells: number[] = [];
+  for (const slot of built) for (const c of bySlot.get(slot.slotId) ?? []) if (!cells.includes(c)) cells.push(c);
+  const nextSlot = metalComplexSlots(lv + 1, 'osady').find((s) => !built.some((b) => b.slotId === s.slotId));
+  const next = nextSlot ? (bySlot.get(nextSlot.slotId) ?? []).filter((c) => !cells.includes(c)) : [];
+  const reserved = new Set(cells);
+  const places = slotPlaces(grid, seed, center, 'osady');
+  const cellAt = (p: Vec3) => {
+    const i = places.nearest(p, false);
+    return i >= 0 ? grid.owner[i]! : -1;
+  };
+  const addLand = (c: number) => {
+    if (c >= 0 && c < grid.seaCellStart && grid.cells[c]!.kind === 'land') reserved.add(c);
+  };
+  // Plac w środku (miejsce na przyszły megakonstrukt): pole pod środkiem i pola w promieniu placu.
+  addLand(cellAt(center));
+  const plaza = REACH.plac * places.scale * places.unit;
+  for (let a = 0; a < 8; a++) addLand(cellAt(places.toSphere(plaza * Math.cos((a * Math.PI) / 4), plaza * Math.sin((a * Math.PI) / 4))));
+  // Rozpoczęte osady: wszystkie ich miejsca i pola pod drogami kopalnia → fabryka.
+  const started = Math.min(CFG.settlements, Math.ceil(lv / levelsPerSettlement()));
+  for (let s = 0; s < started; s++) {
+    const ids = [...Array.from({ length: CFG.minesPerSettlement }, (_, m) => mineSlotId(s, m)), factorySlotId(s)];
+    for (const id of ids) for (const c of bySlot.get(id) ?? []) addLand(c);
+    const f = places.where.get(factorySlotId(s))!;
+    for (let m = 0; m < CFG.minesPerSettlement; m++) {
+      const a = places.where.get(mineSlotId(s, m))!;
+      for (let k = 1; k < 4; k++) {
+        const t = k / 4;
+        addLand(cellAt(normalize([a[0] + (f[0] - a[0]) * t, a[1] + (f[1] - a[1]) * t, a[2] + (f[2] - a[2]) * t])));
       }
     }
   }
-  if (pick < 0) return [0, 0, 1];
-  // Punkt mapy pola najbliżej jego środka — zawsze ląd.
-  const field = grid.cells[pick]!;
-  let best = field.center;
-  let bestDot = -Infinity;
-  for (const m of field.members) {
-    if (grid.kinds[m] !== 'land') continue;
-    const d = dot(grid.samples[m]!, field.center);
-    if (d > bestDot) {
-      bestDot = d;
-      best = grid.samples[m]!;
+  return { cells, reserved: [...reserved], next };
+}
+
+/** Ilu najlepszych kandydatów na środek sprawdzać pełnym dopasowaniem układu. */
+const CENTER_CANDIDATES = 24;
+
+/**
+ * Środek dzielnicy kompleksu (nowe planety i migracja): miejsce, gdzie CAŁY układ (komplet osad i plac) mieści się
+ * na wolnym lądzie bez zwężania (etap 2 — dawniej układ zwężał się nawet do 40%). Kandydaci: pola lądu z największą
+ * ilością lądu wokół (wzgórza i góry — teren kopalni — mają pierwszeństwo), potem dla najlepszych pełne dopasowanie:
+ * wygrywa największa skala, przy równej — więcej lądu wokół miejsc. `occupied` — pola innych budynków (dzielnica ich
+ * nie zajmie). Remisy rozstrzyga strumień `visual` seeda. Punkt zawsze na lądzie.
+ */
+export function chooseMetalCenter(grid: FieldGrid, seed: string, occupied: readonly number[] = []): Vec3 {
+  const taken = new Set(occupied);
+  const land: number[] = [];
+  for (let i = 0; i < grid.seaCellStart; i++) if (grid.cells[i]?.kind === 'land' && !taken.has(i)) land.push(i);
+  if (land.length === 0) return [0, 0, 1];
+  const rng = createRng(seed).fork('visual').fork('metalComplexCenter');
+  const reach = Math.cos(landUnit(grid) * 4.5);
+  const rough = land.map((i) => {
+    const c = grid.cells[i]!;
+    let around = 0;
+    let hills = 0;
+    for (const j of land) {
+      if (dot(grid.cells[j]!.center, c.center) < reach) continue;
+      around++;
+      const t = grid.cells[j]!.terrain;
+      if (t === 'hill' || t === 'mountain') hills++;
     }
+    return { i, value: around + 0.5 * hills + rng.next() * 0.5, hills };
+  });
+  rough.sort((a, b) => b.value - a.value || a.i - b.i);
+  const pointOf = (cell: number): Vec3 => {
+    const field = grid.cells[cell]!;
+    let best = field.center;
+    let bestDot = -Infinity;
+    for (const m of field.members) {
+      if (grid.kinds[m] !== 'land') continue;
+      const d = dot(grid.samples[m]!, field.center);
+      if (d > bestDot) {
+        bestDot = d;
+        best = grid.samples[m]!;
+      }
+    }
+    return [...best];
+  };
+  // Punkt zajęty przez inny budynek — jak brak lądu (dzielnica go omija).
+  const blocked =
+    taken.size === 0
+      ? undefined
+      : (() => {
+          let lookup: ((p: Vec3) => number) | null = null;
+          return (p: Vec3) => {
+            lookup ??= ownerLookup(grid);
+            return taken.has(lookup(p));
+          };
+        })();
+  // Najpierw pełna skala u wszystkich kandydatów; zwężenie sprawdzane dopiero, gdy nigdzie się nie mieści (najlepsi z 1. przebiegu).
+  const shared = sampleIndex(grid, [0, 0, 1], Math.PI);
+  const first = rough.slice(0, CENTER_CANDIDATES).map((cand) => ({ cand, fit: fitTemplate(grid, seed, pointOf(cand.i), 'osady', blocked, shared, [1]) }));
+  const rank = (a: { cand: { value: number }; fit: Fit }) => (a.fit.fits ? a.fit.scale : 0) * 1000 + a.fit.land * 100 + a.cand.value * 0.01;
+  let results = first;
+  if (!first.some((r) => r.fit.fits)) {
+    const promising = [...first].sort((a, b) => b.fit.land - a.fit.land).slice(0, 8);
+    results = promising.map(({ cand }) => ({ cand, fit: fitTemplate(grid, seed, pointOf(cand.i), 'osady', blocked, shared, METAL_SCALES.slice(1)) }));
   }
-  return [...best];
+  const pick = results.reduce((a, b) => (rank(b) > rank(a) ? b : a)).cand;
+  return pointOf(pick.i);
+}
+
+/** Pole siatki pod punktem (najbliższy punkt mapy → jego pole; −1 — woda, lawa bez pola). */
+function ownerLookup(grid: FieldGrid, shared?: ReturnType<typeof sampleIndex>): (p: Vec3) => number {
+  const nearest = shared ?? sampleIndex(grid, [0, 0, 1], Math.PI);
+  return (p: Vec3) => {
+    const i = nearest(p, false);
+    return i >= 0 ? grid.owner[i]! : -1;
+  };
 }
 
 // ——— zapis ———
@@ -501,9 +689,10 @@ export function ensureMetalComplex(
   grid: FieldGrid,
   seed: string,
   level: number,
-  metalCells: readonly number[] = [],
+  /** Pola innych budynków — dzielnica ich nie zajmie (pola dawnej kopalni metalu wracają do puli). */
+  occupied: readonly number[] = [],
 ): MetalComplexSave | undefined {
   if (saved) return saved;
   if (Math.floor(level) <= 0) return undefined;
-  return { center: chooseMetalCenter(grid, seed, metalCells).map(round) as Vec3, phase: 'osady' };
+  return { center: chooseMetalCenter(grid, seed, occupied).map(round) as Vec3, phase: 'osady' };
 }

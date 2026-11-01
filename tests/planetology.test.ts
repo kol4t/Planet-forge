@@ -86,11 +86,12 @@ test('Zburzenie poziomu: −1 poziom od razu, bez zwrotu; nie w trakcie budowy a
 test('Zburzenie w kontrolerze: obszar kompleksu maleje, gdy mniejszy poziom potrzebuje mniej pól; wpis w dzienniku', () => {
   withMemoryStorage(() => {
     const game = new GameController(0);
-    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 6 } };
+    // Ekstraktor kryształów (kopalnia metalu od etapu 2 kompleksu liczy pola z modelu osad).
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, crystalMine: 6 } };
     const before = game.fields.used;
-    assert.ok(game.demolish('metalMine', 0).ok);
-    assert.equal(game.economy.levels.metalMine, 5);
-    assert.equal(game.fields.used, before - 3, 'poz. 6 (zakład) = 6 pól, poz. 5 (instalacja) = 3 pola');
+    assert.ok(game.demolish('crystalMine', 0).ok);
+    assert.equal(game.economy.levels.crystalMine, 5);
+    assert.equal(game.fields.used, before - 3, 'poz. 6 (szyb) = 6 pól, poz. 5 (wiertło) = 3 pola');
     assert.ok(game.journalEntries().some((e) => e.text.includes('zburzono')));
   });
 });

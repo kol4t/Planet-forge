@@ -152,8 +152,9 @@ test('karta budowli (v0.45): etap, wygląd, następny etap z liczbą pól, zaję
 test('blokada (v0.45): gdy obok kompleksu brakuje pól na kolejny etap — ulepszenie i kolejka odrzucone z komunikatem', () => {
   withMemoryStorage(() => {
     const game = new GameController(0);
-    // Planeta startowa ma 100 pól: huta 25 poz. (50 pól) + dwa kompleksy po 22 pola zostawiają za mało na megakonstrukt.
-    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 25, crystalMine: 19, powerPlant: 19, storage: 8 }, stock: { metal: 1e9, crystal: 1e9 } };
+    // Planeta startowa ma 100 pól: megaodkrywka 25 poz. (50 pól) + elektrownia 22 pola + magazyn zostawiają za mało
+    // na megakonstrukt elektrowni (od etapu 2 kompleksu kopalni metalu — kryształy zamiast metalu, metal ma do 20 pól).
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 1, crystalMine: 25, powerPlant: 19, storage: 8 }, stock: { metal: 1e9, crystal: 1e9 } };
     game.colony();
     const result = game.upgrade('powerPlant', 0);
     assert.equal(result.ok, false);

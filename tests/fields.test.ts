@@ -105,30 +105,32 @@ test('budować można tylko na lądzie (woda i lód — po odblokowaniu)', () =>
 });
 
 test('gospodarka: bez miejsca na polach — czytelny błąd z etapem i liczbą pól; bez limitu — jak dotąd', () => {
-  const state = { ...createEconomy(0), levels: { ...createEconomy(0).levels, metalMine: 5 }, stock: { metal: 1e6, crystal: 1e6 } };
-  assert.equal(upgradeBuilding(state, 'metalMine', 0, BALANCE, { hasRoom: () => true }).ok, true);
-  const full = upgradeBuilding(state, 'metalMine', 0, BALANCE, { hasRoom: () => false });
+  const state = { ...createEconomy(0), levels: { ...createEconomy(0).levels, crystalMine: 5 }, stock: { metal: 1e6, crystal: 1e6 } };
+  assert.equal(upgradeBuilding(state, 'crystalMine', 0, BALANCE, { hasRoom: () => true }).ok, true);
+  const full = upgradeBuilding(state, 'crystalMine', 0, BALANCE, { hasRoom: () => false });
   assert.equal(full.ok, false);
   assert.equal(full.reason, 'no-fields');
-  // Poziom 6 (Zakład przetwórczy) potrzebuje 6 pól, a kopalnia ma 3 — brakuje 3.
-  assert.match(full.message, /Kopalnia metalu poz\. 6 \(Zakład przetwórczy\) potrzebuje 6 pól/);
+  // Poziom 6 (Szyb wiertniczy) potrzebuje 6 pól, a ekstraktor ma 3 — brakuje 3.
+  assert.match(full.message, /Ekstraktor kryształów poz\. 6 \(Szyb wiertniczy\) potrzebuje 6 pól/);
   assert.match(full.message, /3 wolnych pól/);
-  assert.equal(upgradeBuilding(state, 'metalMine', 0, BALANCE).ok, true);
+  assert.equal(upgradeBuilding(state, 'crystalMine', 0, BALANCE).ok, true);
 });
 
 test('etapy (v0.45): liczba pól rośnie z poziomem w progach (mała instalacja → zakład → wielka fabryka → megakonstrukt)', () => {
-  assert.equal(fieldsFor('metalMine', 0), 0);
-  assert.deepEqual([1, 2, 5].map((l) => fieldsFor('metalMine', l)), [1, 2, 3]);
-  assert.deepEqual([6, 11].map((l) => fieldsFor('metalMine', l)), [6, 10]);
-  assert.deepEqual([12, 19].map((l) => fieldsFor('metalMine', l)), [16, 22]);
-  assert.deepEqual([20, 25, 40].map((l) => fieldsFor('metalMine', l)), [40, 50, 50]);
+  assert.equal(fieldsFor('crystalMine', 0), 0);
+  assert.deepEqual([1, 2, 5].map((l) => fieldsFor('crystalMine', l)), [1, 2, 3]);
+  assert.deepEqual([6, 11].map((l) => fieldsFor('crystalMine', l)), [6, 10]);
+  assert.deepEqual([12, 19].map((l) => fieldsFor('crystalMine', l)), [16, 22]);
+  assert.deepEqual([20, 25, 40].map((l) => fieldsFor('crystalMine', l)), [40, 50, 50]);
+  // Kopalnia metalu (kompleks, etap 2): pola z modelu osad — kopalnia 1, fabryka 2, najwyżej 20 (przed megakonstruktem).
+  assert.deepEqual([0, 1, 3, 4, 9, 10, 11, 20, 40, 45].map((l) => fieldsFor('metalMine', l)), [0, 1, 1, 2, 3, 5, 6, 10, 20, 20]);
   assert.deepEqual([0, 1, 6, 12, 20].map((l) => stageOf('crystalMine', l)), [-1, 0, 1, 2, 3]);
   assert.equal(stageName('crystalMine', 20), 'Megaodkrywka');
   for (const id of ORDER) {
     for (let l = 1; l < 40; l++) assert.ok(fieldsFor(id, l + 1) >= fieldsFor(id, l), `${id} ${l}: pola nie maleją`);
   }
   // Magazyn, Kolektor, Laboratorium — mniejsze kompleksy.
-  assert.ok(fieldsFor('storage', 25) < fieldsFor('metalMine', 25));
+  assert.ok(fieldsFor('storage', 25) < fieldsFor('crystalMine', 25));
 });
 
 /** Czy pola tworzą jeden spójny kawałek (sąsiedztwo pól siatki). */
@@ -207,9 +209,9 @@ test('kryształy stoją na lodzie i liczą się do pól; inne budynki na lodzie 
   assert.equal(fieldCapacity(grid, { crystalMine: [ice] }), buildableCount(grid) + 1);
   // Brak miejsca: megakonstrukt na małej planecie się nie mieści — następny poziom zablokowany.
   const small = fieldGrid(generatePlanet(findDefinition('arid')!, '1:4:3'));
-  const lv = levels({ metalMine: 21 });
+  const lv = levels({ powerPlant: 21 });
   const placed = reconcilePlots(small, {}, lv, ORDER);
-  assert.equal(hasRoomFor(small, placed, lv, 'metalMine', ORDER), false, `pól lądu: ${buildableCount(small)}`);
+  assert.equal(hasRoomFor(small, placed, lv, 'powerPlant', ORDER), false, `pól lądu: ${buildableCount(small)}`);
   assert.equal(hasRoomFor(grid, {}, levels({ metalMine: 1 }), 'metalMine', ORDER), true);
 });
 

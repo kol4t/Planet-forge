@@ -7,6 +7,8 @@ import { STRUCTURE_COLORS } from './PlanetDisplay.ts';
 import { pitShare, pitSink3d } from './complexLook.ts';
 import { shaftAngle } from './drill.ts';
 import { OPEN_PIT } from '../data/openPit.ts';
+import type { MetalComplexLayout } from '../core/colony/complexLayout.ts';
+import { METAL_LOOK, metalPieces, roadSegments, slerp, type MetalPiece } from './metalComplexMeshes.ts';
 
 // Zabudowa kompleksów na powierzchni planety 3D (v0.45): każdy budynek to jeden kompleks na swoim obszarze pól —
 // główna konstrukcja w środku (rośnie z etapem) i zabudowa w jego wnętrzu. Grunt kompleksu (dachy, drogi, odkrywka)
@@ -350,6 +352,29 @@ function createMetalYard(): BigShape {
     rotor: prepare([]),
     glow: prepare([]),
   };
+}
+
+/**
+ * Plac kompleksu kopalni metalu (etap 2): delikatny zarys fundamentu — niska ośmiokątna rama o promieniu 1 i cztery
+ * znaczniki narożne; środek pusty (miejsce na przyszły megakonstrukt).
+ */
+function createMetalPlaza(): BigShape {
+  const sides = 8;
+  const side = 2 * Math.sin(Math.PI / sides);
+  const frame = Array.from({ length: sides }, (_, k) => {
+    const a = ((k + 0.5) * 2 * Math.PI) / sides;
+    return paint(at(new THREE.BoxGeometry(side * 0.98, 0.05, 0.05), Math.cos(a) * Math.cos(Math.PI / sides), 0.02, Math.sin(a) * Math.cos(Math.PI / sides), -a + Math.PI / 2), SLAB);
+  });
+  const marks = [0, 1, 2, 3].map((k) => {
+    const a = (k * Math.PI) / 2;
+    return paint(at(new THREE.BoxGeometry(0.06, 0.07, 0.06), Math.cos(a) * 0.93, 0.035, Math.sin(a) * 0.93), RUSTY);
+  });
+  return { body: prepare([...frame, ...marks]), pit: prepare([]), rotor: prepare([]), glow: prepare([]) };
+}
+
+/** Droga kompleksu kopalni metalu (odcinek 1 × 1 wzdłuż z): ciemna, płaska wstęga z jaśniejszym pasem środkowym. */
+function createRoad(): THREE.BufferGeometry {
+  return prepare([paint(at(new THREE.BoxGeometry(1, 0.08, 1), 0, 0.04, 0), '#2e2b28'), paint(at(new THREE.BoxGeometry(0.08, 0.085, 1), 0, 0.045, 0), '#4f4741')]);
 }
 
 /** Taśmociąg między modułami (odcinek długości 1 wzdłuż z, na podporach) — tylko bryła. */
@@ -1208,6 +1233,8 @@ const SPOT_SIZE = 0.06;
 const MAX_ITEMS = 160;
 /** Najwięcej odcinków taśmociągów (wszystkie kompleksy metalu planety). */
 const MAX_BELTS = 120;
+/** Najwięcej odcinków dróg kompleksu kopalni metalu (12 dróg × 6 odcinków). */
+const MAX_ROADS = 96;
 
 /** Kąt między dwoma kierunkami (rad). */
 function angleOf(a: Vec3, b: Vec3): number {
@@ -1230,6 +1257,7 @@ type KindId =
   | 'metalMega'
   | 'metalBlock'
   | 'metalYard'
+  | 'metalPlaza'
   | 'teslaNode'
   | 'windFarm'
   | 'windTurbine'
@@ -1277,6 +1305,7 @@ const KIND_LOOK: Record<KindId, { shape: () => BigShape; rotor: string; glow: st
   metalMega: { shape: createMetalMega, rotor: '#7a5a46', glow: '#ff9a3c', speed: 0.12 },
   metalBlock: { shape: createMetalBlock, rotor: '#7a5a46', glow: '#ff9a3c', speed: 0 },
   metalYard: { shape: createMetalYard, rotor: '#7a5a46', glow: '#ff9a3c', speed: 0 },
+  metalPlaza: { shape: createMetalPlaza, rotor: '#7a5a46', glow: '#ff9a3c', speed: 0 },
   teslaNode: { shape: createTeslaNode, rotor: '#e6c77a', glow: '#bff6ff', speed: 0.8 },
   windFarm: { shape: createWindFarm, rotor: BLADE, glow: '#ff6b5a', speed: 1.3, hub: WIND_HUB_CORE, fixedSpin: true },
   windTurbine: { shape: createWindTurbine, rotor: BLADE, glow: '#ff6b5a', speed: 1.6, hub: WIND_HUB_SPOT, fixedSpin: true },
@@ -1477,6 +1506,12 @@ export class ColonyMeshes {
   /** Taśmociągi rodziny metalowej (v0.47): jeden InstancedMesh, odcinki między modułami. */
   private readonly conveyor: THREE.InstancedMesh;
   private belts: { building: BuildingId; from: Vec3; to: Vec3; surface: number; width: number }[] = [];
+  /** Kompleks kopalni metalu (etap 2): układ z modelu, następny obiekt (rusztowanie) i drogi. */
+  private metal: { layout: MetalComplexLayout; mega: boolean; next: { dir: Vec3; size: number } | null } | null = null;
+  private readonly roads: THREE.InstancedMesh;
+  private roadItems: { from: Vec3; to: Vec3; surface: number; width: number }[] = [];
+  /** Promień terenu w punkcie (bez obniżenia odkrywki) — podaje PlanetView; obiekty kompleksu i drogi stoją na nim. */
+  private ground: (dir: Vec3) => number = () => 1;
 
   constructor(still = false) {
     this.still = still;
@@ -1497,6 +1532,11 @@ export class ColonyMeshes {
     this.conveyor.visible = false;
     this.conveyor.frustumCulled = false;
     this.object.add(this.conveyor);
+    this.roads = new THREE.InstancedMesh(createRoad(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.05, flatShading: true }), MAX_ROADS);
+    this.roads.count = 0;
+    this.roads.visible = false;
+    this.roads.frustumCulled = false;
+    this.object.add(this.roads);
     for (const [id, look] of Object.entries(KIND_LOOK) as [KindId, (typeof KIND_LOOK)[KindId]][]) {
       const shape = look.shape();
       const kind: Kind = {
@@ -1541,6 +1581,19 @@ export class ColonyMeshes {
     this.sink = sink;
   }
 
+  /** Teren pod obiektami kompleksu kopalni metalu i drogami. */
+  setGround(ground: (dir: Vec3) => number): void {
+    this.ground = ground;
+  }
+
+  /**
+   * Kompleks kopalni metalu z modelu (etap 2; null — rysowanie jak dotąd). `mega` — działa dotychczasowy megakompleks
+   * (stoi tymczasowo na placu), `next` — miejsce i wielkość następnego obiektu (rusztowanie). Przed `updateLayout`.
+   */
+  setMetalComplex(metal: { layout: MetalComplexLayout; mega: boolean; next: { dir: Vec3; size: number } | null } | null): void {
+    this.metal = metal;
+  }
+
   /** Wiszący ekstraktor (null — brak wielkiej odkrywki). Przed `updateLayout`. */
   setHanging(hanging: Hanging | null): void {
     this.hanging = hanging;
@@ -1551,12 +1604,17 @@ export class ColonyMeshes {
     this.layout = layout;
     for (const kind of this.kinds.values()) kind.items = [];
     this.belts = [];
+    this.roadItems = [];
     for (const c of layout.complexes) {
-      const sig = `${c.cells.length}@${c.stage}${c.mega ? '+' : ''}`;
+      const metal = c.building === 'metalMine' ? this.metal : null;
+      const sig = metal ? `${metal.layout.obiekty.map((o) => o.slotId + o.poziom).join(',')}${metal.mega ? '+' : ''}` : `${c.cells.length}@${c.stage}${c.mega ? '+' : ''}`;
       if (this.seeded && this.signature.get(c.building) !== sig && !this.still) this.grownAt.set(c.building, this.time);
       this.signature.set(c.building, sig);
-      this.addFamily(c, FAMILIES[c.building]);
+      if (metal) this.addMetalComplex(metal.layout, metal.mega);
+      else this.addFamily(c, FAMILIES[c.building]);
     }
+    this.roads.count = Math.min(this.roadItems.length, MAX_ROADS);
+    this.roads.visible = this.roads.count > 0;
     this.seeded = true;
     this.conveyor.count = Math.min(this.belts.length, MAX_BELTS);
     this.conveyor.visible = this.conveyor.count > 0;
@@ -1642,6 +1700,26 @@ export class ColonyMeshes {
     });
   }
 
+  /**
+   * Kompleks kopalni metalu (etap 2): obiekty z modelu zamiast zabudowy „po jednej na pole” — kopalnie (szyb z wieżą,
+   * 3 wielkości), fabryki (hala z kominem), zarys placu w środku, megakompleks na placu (gdy działa) i drogi.
+   */
+  private addMetalComplex(layout: MetalComplexLayout, mega: boolean): void {
+    const KIND: Record<MetalPiece['kind'], KindId> = { mine: 'mineHead', factory: 'metalPlant', plaza: 'metalPlaza', mega: 'metalMega' };
+    for (const piece of metalPieces(layout, mega)) {
+      const kind = this.kinds.get(KIND[piece.kind])!;
+      if (kind.items.length >= MAX_ITEMS) continue;
+      // Plac wyrównuje teren pod sobą (fundament); megakompleks stoi na nim.
+      const pad = piece.kind === 'plaza' ? piece.size * 0.95 : piece.kind === 'mega' ? 0 : piece.size * SPOT_EXTENT;
+      kind.items.push({ building: 'metalMine', dir: piece.dir, surface: this.ground(piece.dir), spin: piece.spin, size: piece.size, pad });
+    }
+    for (const seg of roadSegments(layout)) {
+      if (this.roadItems.length >= MAX_ROADS) break;
+      const mid = slerp(seg.from, seg.to, 0.5);
+      this.roadItems.push({ from: seg.from, to: seg.to, surface: this.ground(mid) + METAL_LOOK.roadLift, width: seg.width });
+    }
+  }
+
   /** Trwająca budowa (null = brak). Wołane często — tanie. */
   setConstruction(site: BuildSite | null): void {
     this.site = site;
@@ -1662,6 +1740,7 @@ export class ColonyMeshes {
   private place(all: boolean): void {
     const { m, q, spin, p, s, n, up } = this.tmp;
     if (this.belts.length > 0) this.placeBelts(all);
+    if (this.roadItems.length > 0) this.placeRoads(all);
     for (const kind of this.kinds.values()) {
       if (kind.items.length === 0) continue;
       const moving = !this.still && kind.speed > 0;
@@ -1736,6 +1815,37 @@ export class ColonyMeshes {
     if (dirty) this.conveyor.instanceMatrix.needsUpdate = true;
   }
 
+  /** Odcinki dróg kompleksu kopalni metalu: płaska wstęga wzdłuż odcinka, na terenie w jego środku. */
+  private placeRoads(all: boolean): void {
+    const { m, q, p, s, n } = this.tmp;
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const fwd = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    const basis = new THREE.Matrix4();
+    const born = this.grownAt.get('metalMine');
+    const g = born === undefined ? 1 : Math.min(1, (this.time - born) / GROW_SECONDS);
+    if (!all && g >= 1) return;
+    this.roadItems.forEach((road, i) => {
+      if (i >= MAX_ROADS) return;
+      a.set(...road.from);
+      b.set(...road.to);
+      n.copy(a).add(b).normalize();
+      fwd.copy(b).sub(a);
+      const length = fwd.length();
+      fwd.addScaledVector(n, -fwd.dot(n)).normalize();
+      right.crossVectors(n, fwd).normalize();
+      basis.makeBasis(right, n, fwd);
+      q.setFromRotationMatrix(basis);
+      p.copy(n).multiplyScalar(road.surface);
+      // Odcinki lekko na zakładkę (bez szczelin na zakrętach kuli); wyrastają razem z kompleksem.
+      s.set(road.width, road.width, Math.max(1e-5, length * 1.08 * g));
+      m.compose(p, q, s);
+      this.roads.setMatrixAt(i, m);
+    });
+    this.roads.instanceMatrix.needsUpdate = true;
+  }
+
   private updateScaffold(): void {
     const site = this.site;
     const c = site && this.layout?.complexes.find((x) => x.building === site.building);
@@ -1743,9 +1853,24 @@ export class ColonyMeshes {
       this.scaffold.visible = false;
       return;
     }
+    const { q, spin, p, s, n, up } = this.tmp;
+    // Kompleks kopalni metalu: rusztowanie w miejscu NASTĘPNEGO obiektu (nowa kopalnia, rosnąca kopalnia albo fabryka).
+    const next = site.building === 'metalMine' ? this.metal?.next : null;
+    if (next) {
+      const size = next.size;
+      n.set(next.dir[0], next.dir[1], next.dir[2]);
+      q.setFromUnitVectors(up, n);
+      p.copy(n).multiplyScalar(this.ground(next.dir) - size * 0.06);
+      s.set(size, size * (0.2 + 0.8 * site.progress), size);
+      this.scaffold.position.copy(p);
+      this.scaffold.quaternion.copy(q);
+      this.scaffold.scale.copy(s);
+      (this.scaffold.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.3 * Math.sin(this.time * 4);
+      this.scaffold.visible = true;
+      return;
+    }
     // Rusztowanie na najnowszym polu obszaru (tam rośnie budynek).
     const newest = c.spots.find((x) => x.cell === c.cells[c.cells.length - 1]) ?? c.spots[0]!;
-    const { q, spin, p, s, n, up } = this.tmp;
     const size = SPOT_SIZE * 1.1;
     n.set(newest.dir[0], newest.dir[1], newest.dir[2]);
     q.setFromUnitVectors(up, n);
@@ -1766,6 +1891,9 @@ export class ColonyMeshes {
     this.conveyor.geometry.dispose();
     (this.conveyor.material as THREE.Material).dispose();
     this.conveyor.dispose();
+    this.roads.geometry.dispose();
+    (this.roads.material as THREE.Material).dispose();
+    this.roads.dispose();
     for (const kind of this.kinds.values()) {
       for (const mesh of [kind.body, kind.pit, kind.rotor, kind.glow]) {
         mesh.geometry.dispose();

@@ -66,6 +66,33 @@ Wytrzymałość (robocza): kopalnia 100, fabryka 300, megakonstrukt 10 000.
 Propozycja na etap 2–3: pola kopalni metalu z `metalComplexFields`, obszar pól = pola dzielnicy, transfer kopalni metalu
 wyłączony, megakompleks metalu zastąpiony budową megakonstruktu.
 
+## Etap 2, część A — prototyp osad na planecie (2026-11-01, bez publikacji)
+
+Decyzje właściciela do rozbieżności: (1) pola kopalni metalu z modelu (kopalnia 1, fabryka 2, maks. 20), pola zwolnione
+w starych zapisach wracają do puli, dzielnica zarezerwowana (także plac); (2) osada co 10 poziomów zastępuje dawne progi
+wyglądu 1/6/12/20, powyżej poz. 40 — 4 pełne osady; (3) megakompleks metalu (od poz. 20, przenośny) — logika bez zmian.
+
+- **Wybór środka** (`chooseMetalCenter`): 24 kandydatów (pola lądu z największą ilością lądu wokół, wzgórza i góry
+  wyżej) sprawdzanych pełnym dopasowaniem układu; wygrywa największa skala, potem ląd wokół miejsc. Pola innych budynków
+  dzielnica omija. Zwężenie tylko w ostateczności, najwyżej do 70% (`METAL_SCALES` = 1 / 0,85 / 0,7). Na 30 planetach
+  testowych: średnia skala 0,81 → 0,90, poniżej 0,7: 6 → 0, pełna skala na 18 z 30. Wybór raz na planetę: 60–300 ms
+  (Node). Zapisany środek (z etapu 1) zostaje bez zmian.
+- **Pola** (`metalComplexCells`): obszar kopalni = pola pod zbudowanymi obiektami (kolejność budowy; fabryka bierze pole
+  pod sobą i najbliższe sąsiednie); rezerwa = plac (pole środka i pola w promieniu placu) + wszystkie miejsca i pola pod
+  drogami rozpoczętych osad. Inne budynki nie stają na rezerwie (`reconcilePlots` z `fixed`), licznik POLA pomija rezerwę
+  spoza obszaru (`fieldCapacity`). `fieldsFor('metalMine')` = `metalComplexFields` (0 → 20). Progi etapów (kompleks od
+  poz. 12, megakompleks od 20) bez zmian.
+- **Wygląd 3D** (`planet-renderer/metalComplexMeshes.ts` + `ColonyMeshes.addMetalComplex`): kopalnia = szyb z wieżą
+  wyciągową i hałdą (model „Kopalnia”, 3 wielkości wg poziomu 1–3), fabryka = zakład z halą i kominem (ok. 2× kopalnia),
+  plac = ośmiokątna rama fundamentu, drogi = ciemne wstęgi po powierzchni (6 odcinków na drogę, każdy na terenie w swoim
+  środku). Instancje: dochodzą tylko plac i drogi (2 rysowania). Pod obiektami teren wyrównany płytą; pola kopalni nie
+  mają już płyty gruntu kompleksu (naturalny teren między osadami).
+- **Megakompleks metalu** — dziś rysowany jako główna konstrukcja „Megakompleks” (wieża centralna z czterema piecami)
+  w środku obszaru pól i moduły na polach. W prototypie, gdy działa, stoi tymczasowo na placu (bez kolizji z osadami).
+- **Budowa w toku**: rusztowanie w miejscu następnego obiektu (nowa albo rosnąca kopalnia, fabryka).
+- 2D (fallback) — jeszcze po staremu (część B: symbole); kolizje obiektów tylko przy zwężeniu do 70% z dosuwaniem
+  miejsc do lądu (3 przypadki na 4080 par w 30 planetach) — do poprawy w części B.
+
 ## Plan etapów
 
 1. **Model w core** (ten etap): `complexLayout.ts`, dane, zapis i migracja, testy. Bez zmian na ekranie.

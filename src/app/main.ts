@@ -78,7 +78,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
       display.setPlanet(planet);
       space.setScene(skyFor(controller));
     },
-    setStructures: (levels, site, plots, complexes) => display.setStructures(levels, site, plots, complexes),
+    setStructures: (levels, site, plots, complexes, metal) => display.setStructures(levels, site, plots, complexes, metal),
     pickStructure: (x, y) => display.pickStructure(x, y),
     setHighlight: (cells, mode) => display.setHighlight(cells, mode),
     pickCell: (x, y, cells) => display.pickCell(x, y, cells),
@@ -179,7 +179,7 @@ function start(boot: BootGuard): void {
   const display = withSpace(renderer, space, controller);
   boot.step(`grafika ${display.kind}`);
   display.setPlanet(controller.planet);
-  display.setStructures(controller.economy.levels, null, controller.colony().plots, controller.colony().complexes);
+  display.setStructures(controller.economy.levels, null, controller.colony().plots, controller.colony().complexes, controller.colony().metalComplex);
   document.body.dataset.renderer = display.kind;
   restoreView(display);
   boot.step('planeta gotowa');

@@ -1,6 +1,7 @@
 // Zajętość pól budynku (v0.45): liczba pól rośnie z poziomem w etapach (dane: `src/data/footprint.ts`).
 // Obszar budynku to jeden spójny kawałek sąsiednich pól (`core/colony/plots.ts`). Czysta logika.
 import { FOOTPRINT, LAST_STAGE_LEVELS, STAGE_NAMES } from '../../data/footprint.ts';
+import { metalComplexFields } from '../colony/complexLayout.ts';
 import type { BuildingId } from '../types.ts';
 
 /** Etap budynku 0..3 (−1 — budynek jeszcze nie stoi). */
@@ -17,6 +18,8 @@ export function stageOf(id: BuildingId, level: number): number {
 /** Ile pól zajmuje budynek na danym poziomie (rosnąco z poziomem; 0 — nie stoi). */
 export function fieldsFor(id: BuildingId, level: number): number {
   const lv = Math.floor(level);
+  // Kopalnia metalu (kompleks, etap 2 — decyzja właściciela): pola z modelu osad — kopalnia 1, fabryka 2, najwyżej 20.
+  if (id === 'metalMine') return metalComplexFields(lv, 'osady');
   const stage = stageOf(id, lv);
   if (stage < 0) return 0;
   const stages = FOOTPRINT[id];
