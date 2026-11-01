@@ -233,7 +233,9 @@ class Sim {
       let best = -1;
       let room = 0;
       overview.forEach((p, j) => {
-        if (j === i || shares[j]! >= EXPLOITED) return;
+        // Etap 10: cel także na planecie wyeksploatowanej (jej magazyn działa) — wcześniej symulacja utykała, gdy
+        // ostatnia kolonia miała pełny magazyn bez miejsca na rozbudowę, a pozostałe były wyeksploatowane.
+        if (j === i) return;
         const free = p.capacity - Math.max(p.stock.metal, p.stock.crystal);
         if (free > room) {
           room = free;
