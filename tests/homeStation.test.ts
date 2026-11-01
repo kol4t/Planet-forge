@@ -165,7 +165,7 @@ test('stacja macierzysta: wygląd — orbita poza planetą i inna niż kolektora
     assert.ok(n >= last && n >= 2 && n <= 8);
     last = n;
   }
-  for (const look of [{ modules: 0, building: true }, { modules: 8, building: false }]) {
+  for (const look of [{ modules: 0, building: true }, { modules: 8, building: false }, { modules: 8, building: false, shipyard: true }]) {
     const mesh = createStationMesh(look);
     let meshes = 0;
     mesh.group.traverse((node) => {
@@ -175,7 +175,7 @@ test('stacja macierzysta: wygląd — orbita poza planetą i inna niż kolektora
       const position = geometry.getAttribute('position');
       for (let i = 0; i < position.count; i++) assert.ok(Number.isFinite(position.getX(i)));
     });
-    assert.ok(meshes <= 8, `najwyżej 8 rysowań (${meshes})`);
+    assert.ok(meshes <= (look.shipyard ? 10 : 8), `najwyżej 8 rysowań, ze stocznią 10 (${meshes})`);
     mesh.update(0.5, false);
   }
 });

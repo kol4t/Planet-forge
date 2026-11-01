@@ -1,7 +1,8 @@
 // Stacja macierzysta na orbicie (v0.55, decyzja właściciela: „Pierścień”): obracający się pierścień ze stali na
 // czterech szprychach, w środku rdzeń SI Matki z turkusowym światłem, na pierścieniu moduły magazynu orbitalnego
 // (więcej z poziomem), z boku skrzydła paneli słonecznych. W budowie — tylko część pierścienia i rusztowanie.
-// Kilka rysowań: pierścień, szprychy (instancje), moduły (instancje), rdzeń, poświata, maszt, panele (instancje).
+// Kilka rysowań: pierścień, szprychy (instancje), moduły (instancje), rdzeń, poświata, maszt, panele (instancje);
+// stocznia (v0.58) — rama doku i kadłub (2 rysowania).
 import * as THREE from 'three';
 import type { HomeStationLook } from './PlanetDisplay.ts';
 
@@ -92,6 +93,16 @@ export function createStationMesh(look: HomeStationLook): StationMesh {
     panels.setMatrixAt(i, m);
   }
   tilt.add(panels);
+  // Stocznia (v0.58): ażurowa rama doku przy pierścieniu (nie obraca się) z kadłubem statku w środku.
+  if (look.shipyard && !look.building) {
+    const dock = new THREE.Group();
+    dock.position.set(L.ring * 1.3, 0, 0);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.026, 0.03), new THREE.MeshBasicMaterial({ color: L.steel, wireframe: true }));
+    const hull = new THREE.Mesh(new THREE.ConeGeometry(0.009, 0.036, 5), new THREE.MeshStandardMaterial({ color: '#d8dcd6', roughness: 0.5, metalness: 0.4, flatShading: true }));
+    hull.rotation.z = -Math.PI / 2;
+    dock.add(frame, hull);
+    tilt.add(dock);
+  }
   let time = 0;
   return {
     group,

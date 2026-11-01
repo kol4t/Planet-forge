@@ -12,7 +12,8 @@ import { parseComets } from '../economy/comets.ts';
 import { parseFinds, type FindsState } from '../economy/finds.ts';
 import { parseHomeStation } from '../economy/homeStation.ts';
 import { parseTransfers } from '../economy/constructTransfer.ts';
-import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import { parseFleet } from '../economy/fleet.ts';
+import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, Fleet, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 import { parseComplexes, type Complex } from '../colony/complexes.ts';
@@ -91,6 +92,8 @@ export interface EmpireSave {
   station?: HomeStation;
   /** Megakonstrukty w transferze (od v0.56, opcjonalne). */
   transfers?: ConstructTransfer[];
+  /** Flota: statki na stanie i kolejka stoczni (od v0.58, opcjonalne; brak = flota startowa). */
+  fleet?: Fleet;
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -137,6 +140,8 @@ export function parseMissions(raw: unknown): ColonyMission[] {
             cost: { metal: m.cost.metal, crystal: m.cost.crystal },
             // Paliwo (v0.53) — opcjonalne; błędne pomijane.
             ...(isNum(m.fuel) && m.fuel > 0 ? { fuel: m.fuel } : {}),
+            // Statek kolonizacyjny floty (v0.58) — opcjonalne.
+            ...(m.ship === true ? { ship: true } : {}),
           },
         ]
       : [],
@@ -219,6 +224,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseExploited(data.exploited).length > 0 ? { exploited: parseExploited(data.exploited) } : {}),
     ...(parseHomeStation(data.station) ? { station: parseHomeStation(data.station)! } : {}),
     ...(parseTransfers(data.transfers, BUILDING_IDS).length > 0 ? { transfers: parseTransfers(data.transfers, BUILDING_IDS) } : {}),
+    ...(parseFleet(data.fleet) ? { fleet: parseFleet(data.fleet)! } : {}),
   };
 }
 

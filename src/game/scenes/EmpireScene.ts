@@ -10,8 +10,10 @@ import { COLORS, FONTS, formatClock, formatDuration, formatInt, formatRate } fro
 import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
 export interface EmpireSceneData {
-  tab?: 'planets' | 'journal' | 'ai';
+  tab?: EmpireTab;
 }
+
+type EmpireTab = 'planets' | 'fleet' | 'journal' | 'ai';
 
 /** Kolor kropki wpisu dziennika. */
 const KIND_COLOR: Record<JournalKind, number> = {
@@ -45,7 +47,9 @@ const TONE: Record<CardTone, number> = { teal: COLORS.tealHex, gold: COLORS.gold
  * statki w drodze i dziennik ekspedycji. Lista przewija się palcem.
  */
 export class EmpireScene extends OverlayScene {
-  private tab: 'planets' | 'journal' | 'ai' = 'planets';
+  private tab: EmpireTab = 'planets';
+  /** Odliczania zakładki „Flota” (odświeżane co klatkę). */
+  private fleetLive: { yard: Phaser.GameObjects.Text | null; queue: { text: Phaser.GameObjects.Text; bar: Rect }[]; graphics: Phaser.GameObjects.Graphics | null } = { yard: null, queue: [], graphics: null };
   private content: Phaser.GameObjects.Container | undefined;
   private contentH = 0;
   private cards: CardLive[] = [];
@@ -103,7 +107,8 @@ export class EmpireScene extends OverlayScene {
     this.content = this.add.container(0, 0);
     const mask = this.make.graphics({}, false).fillRect(this.px(this.area.x), this.px(this.area.y), this.px(this.area.w), this.px(this.area.h));
     this.content.setMask(mask.createGeometryMask());
-    this.contentH = this.tab === 'planets' ? this.buildPlanets() : this.tab === 'journal' ? this.buildJournal() : this.buildAi();
+    this.contentH =
+      this.tab === 'planets' ? this.buildPlanets() : this.tab === 'fleet' ? this.buildFleet() : this.tab === 'journal' ? this.buildJournal() : this.buildAi();
     this.beginUi();
     this.buildTopBar(bar);
     this.pan = { x: 0, y: Math.min(0, this.pan.y) };
@@ -116,10 +121,10 @@ export class EmpireScene extends OverlayScene {
     const pad = 12 * this.u;
     const c = this.deps.controller;
     const gap = this.s(6);
-    const buttonW = Math.min(this.s(108), (bar.w - this.s(70)) / 4 - gap);
+    const buttonW = Math.min(this.s(108), (bar.w - this.s(40)) / 5 - gap);
     const y = bar.y + (bar.h - TOUCH) / 2;
     const right = bar.x + bar.w - pad / 2;
-    const titleW = bar.w - 4 * buttonW - 3 * gap - pad * 1.5;
+    const titleW = bar.w - 5 * buttonW - 4 * gap - pad * 1.5;
     // Na wąskim ekranie (telefon) tytuł ustępuje miejsca zakładkom.
     if (titleW >= this.s(70)) {
       this.text(bar.x + pad, bar.y + this.s(8), 'IMPERIUM', 15, COLORS.gold, { fontFamily: FONTS.serif, letterSpacing: 2, fixedWidth: this.px(titleW) });
@@ -127,8 +132,9 @@ export class EmpireScene extends OverlayScene {
       const loop = c.loopProgress();
       this.text(bar.x + pad, bar.y + this.s(30), `Planet: ${c.slotInfo.used} z ${c.slotInfo.unlocked} · pola ${formatInt(f.fieldsUsed)}/${formatInt(f.fieldsBuildable)} · wyeksploatowane ${loop.exploited.length}/${loop.needed}`, 10.5, COLORS.muted, { fixedWidth: this.px(titleW) });
     }
-    const tabs: [string, 'planets' | 'journal' | 'ai' | null][] = [
+    const tabs: [string, EmpireTab | null][] = [
       ['Planety', 'planets'],
+      ['Flota', 'fleet'],
       ['Dziennik', 'journal'],
       ['SI', 'ai'],
       ['Zamknij', null],
@@ -139,7 +145,7 @@ export class EmpireScene extends OverlayScene {
     });
   }
 
-  private switchTab(tab: 'planets' | 'journal' | 'ai'): void {
+  private switchTab(tab: EmpireTab): void {
     if (tab === this.tab) return;
     this.tab = tab;
     this.pan = { x: 0, y: 0 };
@@ -622,7 +628,7 @@ export class EmpireScene extends OverlayScene {
         seconds: v.seconds,
         fuel: v.fuel,
         room,
-        send: (cargo) => c.sendToStation(cargo),
+        send: (cargo, escort) => c.sendToStation(cargo, Date.now(), escort),
         onSent,
       });
       return;
@@ -636,7 +642,7 @@ export class EmpireScene extends OverlayScene {
       transport: c.transportView(),
       seconds: routes[0]?.seconds ?? 0,
       fuel: routes[0]?.fuel ?? 0,
-      targets: routes.map((r) => ({ name: r.name, seconds: r.seconds, fuel: r.fuel, send: (cargo) => c.sendFromStation(r.address, cargo) })),
+      targets: routes.map((r) => ({ name: r.name, seconds: r.seconds, fuel: r.fuel, send: (cargo, escort) => c.sendFromStation(r.address, cargo, Date.now(), escort) })),
       send: () => ({ ok: false, message: '' }),
       onSent,
     });
@@ -654,7 +660,7 @@ export class EmpireScene extends OverlayScene {
       transport: c.transportView(),
       seconds: c.transportSecondsTo(address),
       fuel: c.transportFuelTo(address),
-      send: (cargo) => c.sendResources(address, cargo),
+      send: (cargo, escort) => c.sendResources(address, cargo, Date.now(), escort),
       onSent: (message) => {
         this.closeTransport = null;
         this.showToast(message, 'info');
@@ -753,6 +759,129 @@ export class EmpireScene extends OverlayScene {
     return y - area.y;
   }
 
+  // ——— zakładka „Flota” (v0.58) ———
+
+  private fleetShape(): string {
+    const v = this.deps.controller.fleetView();
+    return `fleet|${v.stationBuilt}|${v.stationReady}|${v.shipyard.level}|${v.shipyard.upgradingTo}|${v.ships.map((x) => `${x.docked}/${x.flying}`).join(',')}|${v.queue.length}`;
+  }
+
+  /** Stocznia (moduł stacji), statki na stanie i w drodze, budowa statków i kolejka stoczni. */
+  private buildFleet(): number {
+    const c = this.deps.controller;
+    const v = c.fleetView();
+    this.shape = this.fleetShape();
+    this.fleetLive = { yard: null, queue: [], graphics: null };
+    const area = this.area;
+    const items: Phaser.GameObjects.GameObject[] = [];
+    const w = Math.min(area.w, this.s(720));
+    const x = area.x;
+    const pad = this.s(12);
+    const gap = this.s(10);
+    let y = area.y + this.s(4);
+    const line = (content: string, size: number, color: string, extra: Phaser.Types.GameObjects.Text.TextStyle = {}, after = 6, left = x + this.s(4), width = w - this.s(8)) => {
+      const t = this.text(left, y, content, size, color, { wordWrap: { width: this.px(width) }, lineSpacing: this.px(2), ...extra }, false);
+      items.push(t);
+      y += t.height / this.dpr + this.s(after);
+      return t;
+    };
+    const done = (result: { ok: boolean; message: string }) => {
+      this.showToast(result.message, result.ok ? 'info' : 'error', 3200);
+      this.relayout();
+    };
+    const cost = (r: { metal: number; crystal: number }) => `${formatInt(r.metal)} metalu · ${formatInt(r.crystal)} kryształów`;
+    line('Flota', 18, COLORS.gold, { fontFamily: FONTS.serif }, 4);
+    line('Statki budujesz w stoczni na stacji macierzystej (płaci aktywna planeta). Lot zabiera statek z floty — transportowiec i holownik wracają po locie, statek kolonizacyjny zostaje na nowej kolonii.', 12, COLORS.muted, {}, 12);
+
+    // Stocznia.
+    const box = (h: number, draw: (top: number) => void) => {
+      const bg = this.add.graphics();
+      bg.fillStyle(COLORS.panel, 0.92).fillRoundedRect(this.px(x), this.px(y), this.px(w), this.px(h), this.px(this.s(12)));
+      bg.lineStyle(this.px(1), COLORS.panelBorder, 1).strokeRoundedRect(this.px(x), this.px(y), this.px(w), this.px(h), this.px(this.s(12)));
+      items.push(bg);
+      const top = y;
+      draw(top);
+      y = top + h + gap;
+    };
+    box(this.s(118), (top) => {
+      y = top + pad;
+      const s = v.shipyard;
+      line(s.level > 0 ? `Stocznia — poziom ${s.level}` : 'Stocznia', 15, COLORS.text, { fontFamily: FONTS.serif }, 4, x + pad, w - 2 * pad);
+      const status = !v.stationBuilt
+        ? 'Stocznia to moduł stacji macierzystej — najpierw zbuduj stację (Planety → karta stacji na dole listy).'
+        : !v.stationReady
+          ? 'Rdzeń stacji jest jeszcze w budowie.'
+          : s.nextCost
+            ? `${s.level === 0 ? 'Budowa' : `Poziom ${s.level + 1}`}: ${cost(s.nextCost)}. Wyższy poziom buduje statki szybciej.`
+            : 'Najwyższy poziom.';
+      this.fleetLive.yard = line(status, 11.5, s.upgradingTo ? COLORS.gold : COLORS.muted, {}, 4, x + pad, w - 2 * pad);
+      const label = s.level === 0 && !s.upgradingTo ? 'Zbuduj stocznię' : 'Rozbuduj stocznię';
+      const ok = v.stationReady && !s.upgradingTo && !!s.nextCost;
+      items.push(this.button(x + pad, top + this.s(118) - pad - TOUCH, Math.min(this.s(260), w - 2 * pad), label, ok ? 'primary' : 'disabled', () => done(c.upgradeShipyard())));
+    });
+
+    // Statki: na stanie, w drodze, budowa.
+    const cols = w >= this.s(560) ? 2 : 1;
+    const cardW = (w - gap * (cols - 1)) / cols;
+    const cardH = this.s(168);
+    const top = y;
+    v.ships.forEach((ship, i) => {
+      const cx = x + (i % cols) * (cardW + gap);
+      const cy = top + Math.floor(i / cols) * (cardH + gap);
+      const bg = this.add.graphics();
+      bg.fillStyle(COLORS.panel, 0.92).fillRoundedRect(this.px(cx), this.px(cy), this.px(cardW), this.px(cardH), this.px(this.s(12)));
+      bg.lineStyle(this.px(1), ship.docked > 0 ? COLORS.tealHex : COLORS.panelBorder, ship.docked > 0 ? 0.6 : 1).strokeRoundedRect(this.px(cx), this.px(cy), this.px(cardW), this.px(cardH), this.px(this.s(12)));
+      const tw = cardW - 2 * pad;
+      items.push(
+        bg,
+        this.text(cx + pad, cy + pad, ship.name, 15, COLORS.text, { fontFamily: FONTS.serif, fixedWidth: this.px(tw) }, false),
+        this.text(cx + pad, cy + pad + this.s(22), `Na stanie: ${ship.docked} · w drodze: ${ship.flying}`, 12, ship.docked > 0 ? COLORS.teal : COLORS.muted, { fontStyle: '600', fixedWidth: this.px(tw) }, false),
+        this.text(cx + pad, cy + pad + this.s(40), ship.description, 10.5, COLORS.muted, { wordWrap: { width: this.px(tw) }, lineSpacing: this.px(1) }, false),
+        this.text(cx + pad, cy + cardH - pad - TOUCH - this.s(18), `Koszt: ${cost(ship.cost)} · budowa ${formatDuration(ship.seconds)}`, 10.5, COLORS.stone, { fixedWidth: this.px(tw) }, false),
+        this.button(cx + pad, cy + cardH - pad - TOUCH, tw, 'Zbuduj', v.shipyard.level > 0 ? 'secondary' : 'disabled', () =>
+          done(c.orderShip(ship.type)),
+        ),
+      );
+    });
+    y = top + Math.ceil(v.ships.length / cols) * (cardH + gap);
+
+    // Kolejka stoczni.
+    line(`Kolejka stoczni (${v.queue.length} z ${v.queueMax})`, 13, COLORS.gold, { fontStyle: '600' }, 6);
+    if (v.queue.length === 0) line('Pusto — dotknij „Zbuduj” przy statku.', 11.5, COLORS.faint, {}, 10);
+    const graphics = this.add.graphics();
+    items.push(graphics);
+    this.fleetLive.graphics = graphics;
+    v.queue.forEach((_, i) => {
+      const rowTop = y;
+      const text = this.text(x + this.s(4), rowTop + this.s(6), '', 12, i === 0 ? COLORS.text : COLORS.muted, { fixedWidth: this.px(w - this.s(130)) }, false);
+      items.push(
+        text,
+        this.button(x + w - this.s(110), rowTop, this.s(110), 'Anuluj', 'secondary', () => done(c.cancelShipOrder(i))),
+      );
+      this.fleetLive.queue.push({ text, bar: { x: x + this.s(4), y: rowTop + this.s(30), w: w - this.s(130), h: this.s(3) } });
+      y = rowTop + TOUCH + this.s(8);
+    });
+    this.content!.add(items);
+    this.refreshFleet();
+    return y - area.y + this.s(8);
+  }
+
+  private refreshFleet(): void {
+    const v = this.deps.controller.fleetView();
+    const s = v.shipyard;
+    if (this.fleetLive.yard && s.upgradingTo) this.fleetLive.yard.setText(`${s.upgradingTo === 1 ? 'Budowa stoczni' : `Rozbudowa do poz. ${s.upgradingTo}`} · ${formatDuration(s.secondsLeft)}`);
+    const g = this.fleetLive.graphics?.clear();
+    v.queue.forEach((o, i) => {
+      const live = this.fleetLive.queue[i];
+      if (!live) return;
+      live.text.setText(`${i + 1}. ${o.name} — ${i === 0 ? `gotowy za ${formatDuration(o.secondsLeft)}` : `czeka · gotowy za ${formatDuration(o.secondsLeft)}`}`);
+      if (!g) return;
+      const { x, y, w, h } = live.bar;
+      g.fillStyle(COLORS.divider, 1).fillRect(this.px(x), this.px(y), this.px(w), this.px(h));
+      if (o.progress > 0) g.fillStyle(COLORS.goldHex, 1).fillRect(this.px(x), this.px(y), this.px(Math.max(h, w * o.progress)), this.px(h));
+    });
+  }
+
   // ——— przewijanie i odświeżanie ———
 
   protected applyTransform(): void {
@@ -776,6 +905,11 @@ export class EmpireScene extends OverlayScene {
     const c = this.deps.controller;
     if (this.tab === 'ai') {
       if (`ai|${c.aiUnlocked}|${c.aiAutoUnlocked}|${AI_RULES.map((r) => c.aiLevel(r.id)).join(',')}` !== this.shape) this.relayout();
+      return;
+    }
+    if (this.tab === 'fleet') {
+      if (this.fleetShape() !== this.shape) this.relayout();
+      else this.refreshFleet();
       return;
     }
     if (this.tab === 'journal') {

@@ -31,15 +31,21 @@ Kopiuj zapis / Wczytaj zapis).
   "antimatter": 37.2,             // wspólny portfel antymaterii (ułamki się kumulują)
   "research": { "done": [], "current": null },   // pole zgodności — badania są przy planetach (od v0.15)
   "home": "1:16:3",               // miejsce startowe w galaktyce
-  "missions": [ … ],              // statki kolonizacyjne w drodze (od v0.13; od v0.53 opcjonalne "fuel" — paliwo do zwrotu)
+  "missions": [ … ],              // statki kolonizacyjne w drodze (od v0.13; od v0.53 opcjonalne "fuel" — paliwo do zwrotu;
+                                  //   od v0.58 "ship": true — statek z floty, wraca po zawróceniu)
   "journal": [ { "at": 0, "kind": "build", "text": "…" } ],  // dziennik, maks. 80 wpisów
   "ai": { "energy": "ask", … },   // samodzielność SI dla każdej reguły (od v0.14)
   "discoveries": { "16": 4, … },  // wiedza o galaktyce: układ → poziom 1–4 (od v0.34.2)
   "expeditions": [ … ],           // ekspedycje w drodze (od v0.34.3, opcjonalne)
-  "shipments": [ … ],             // transportowce (od v0.36, opcjonalne; od v0.55 "station": "to" | "from" — lot na stację / ze stacji)
-  "comets": [ … ],                // holowniki po komety (od v0.37.1, opcjonalne)
+  "shipments": [ … ],             // transportowce (od v0.36, opcjonalne; od v0.55 "station": "to" | "from" — lot na stację / ze stacji;
+                                  //   od v0.58 "ship": true — transportowiec floty, "escort": n — okręty eskorty)
+  "comets": [ … ],                // holowniki po komety (od v0.37.1, opcjonalne; od v0.58 "ship": true — holownik floty)
   "finds": { "items": {}, "next": {} },  // znaleziska megakompleksów (od v0.43.1, opcjonalne)
   "exploited": ["1:16:4"],        // wyeksploatowane planety, każda raz (od v0.54, opcjonalne; błędne adresy pomijane)
+  "fleet": {                      // flota (od v0.58, opcjonalne; brak = flota startowa 3 / 1 / 1 / 0)
+    "docked": { "transport": 2, "colonyShip": 1, "tug": 1, "escort": 0 },   // statki na stanie (w drodze — z lotów)
+    "queue": [ { "type": "escort", "startsAt": 0, "readyAt": 1200000, "cost": { "metal": 3000, "crystal": 2000 } } ]
+  },
   "transfers": [                  // megakonstrukty w transferze (od v0.56, opcjonalne; błędne pomijane)
     { "from": "1:16:4", "to": "1:16:1", "building": "crystalMine", "level": 20, "family": "crystal-drill",
       "startedAt": 0, "departsAt": 1800000, "arrivesAt": 2040000,   // ms: start rozkładania, odlot, przylot
@@ -50,6 +56,7 @@ Kopiuj zapis / Wczytaj zapis).
     "address": "1:16:3",          //   planeta, nad którą krąży
     "core": { "level": 1, "readyAt": 0 },       //   rdzeń SI Matki (readyAt — koniec budowy, ms)
     "storage": { "level": 2, "readyAt": 0 },    //   magazyn orbitalny (opcjonalny; błędny pomijany)
+    "shipyard": { "level": 1, "readyAt": 0 },   //   stocznia (od v0.58, opcjonalna)
     "stock": { "metal": 1200, "crystal": 0 }    //   zapasy na stacji (ujemne → 0)
   },
   "slots": [ SlotSave, … ]

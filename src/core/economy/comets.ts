@@ -52,7 +52,7 @@ export function parseComets(raw: unknown): CometHaul[] {
     isNum(c.cargo?.crystal) &&
     c.cargo.metal >= 0 &&
     c.cargo.crystal >= 0
-      ? [{ planet: c.planet, departedAt: c.departedAt, returnsAt: c.returnsAt, cargo: { metal: c.cargo.metal, crystal: c.cargo.crystal } }]
+      ? [{ planet: c.planet, departedAt: c.departedAt, returnsAt: c.returnsAt, cargo: { metal: c.cargo.metal, crystal: c.cargo.crystal }, ...(c.ship === true ? { ship: true } : {}) }]
       : [],
   );
 }
