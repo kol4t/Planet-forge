@@ -87,7 +87,7 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   migracje starych zapisów; uszkodzony zapis → kopia `planet-forge.empire.broken` + komunikat; nieudany zapis → komunikat (v0.46).
 - **PWA**: manifest, ikony, service worker (offline, pasek „Dostępna aktualizacja”). **Zgłoszenia**: Ustawienia → „Zgłoś /
   diagnostyka” (GitHub Issue, diagnostyka z płynnością i — w 3D — liczbą rysowań i tekstur).
-- **Testy**: 347 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
+- **Testy**: 354 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
 - **Wydajność** (symulacja, nie iPad): siatka pól ~190 ms na komputerze (najdroższa część zmiany planety), 3D ~43 rysowania /
   105 tys. trójkątów, brak wycieków przy zmianie planety — `docs/PERFORMANCE.md`. Ostatni pomiar na iPadzie: v0.46 (2D 54 / najsłabsza s. 24 kl./s, 3D 56 / 15 kl./s).
 

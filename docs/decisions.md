@@ -2,6 +2,23 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-01 — Kompleks kopalni metalu, etap 1: model w core (decyzja właściciela)
+
+- Kopalnia metalu ma być **jednym zwartym kompleksem** zamiast osobnych budowli w przypadkowych miejscach: osady
+  (3 kopalnie poz. 1–3 + fabryka), docelowo układ promienisty z megakonstruktem w środku, 4 fabrykami na ramionach
+  i 3 pasami od każdej fabryki do konstruktu. Plan i fazy: `docs/kompleks-kopalni-metalu.md`. Tylko kopalnia metalu.
+- Etap 1 = **sam model** (`core/colony/complexLayout.ts`, dane `BALANCE.metalComplex`, status roboczy): czysta funkcja
+  (siatka pól, seed, poziom, faza) → obiekty ze stałymi `slotId`, stanem i wytrzymałością, drogi i pasy. Miejsca tylko
+  na lądzie (obrót co 30°, potem zwężenie), deterministycznie ze strumienia `visual`. **Wygląd i ekonomia bez zmian.**
+- Zapis: opcjonalne `metalComplex` (środek dzielnicy, faza, stany obiektów); stare zapisy i import `PF2:` dostają środek
+  automatycznie przy pierwszym przeliczeniu pól. `EMPIRE_VERSION`, `FIELD_GRID_VERSION`, `PLOTS_LAYOUT` bez zmian.
+- **Rozbieżności z obecną grą (do decyzji przed etapem 2–3):** dziś kopalnia metalu zajmuje `fieldsFor` = 1→50 pól
+  (etapy 1/6/12/20, 50 pól na poz. 40), a model kompleksu — 1→20 pól (+4 na konstrukt); megakompleks działa od poz. 20
+  i da się go przenieść (transfer v0.56), a kompleksu „nie da się przenieść”; wygląd etapów (kopalnia → zakład → huta →
+  megakompleks) ma progi 1/6/12/20, a model — osady co 10 poziomów i konstrukt od poz. 40. Propozycja: w etapie 2
+  pola kopalni metalu liczyć z modelu (`metalComplexFields`), obszar pól = dzielnica kompleksu, transfer metalu
+  wyłączyć, a megakompleks metalu zastąpić budową megakonstruktu (etap 3).
+
 ## 2026-10-28 — Krok 5b: pola na oceanie i lawie (v0.57, decyzja właściciela)
 
 - Woda i lawa dostają **pola morza** tej samej wielkości co pola lądu (do 300 na wodę i 300 na lawę), dopisane **na końcu**

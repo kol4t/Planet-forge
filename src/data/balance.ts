@@ -38,6 +38,18 @@ export const BALANCE: Balance = {
     storageMaxLevel: 10,
   },
   transfer: { prepareSeconds: 1800, speedFactor: 2, fuelFactor: 5, costShare: 0.1 },
+  // Kompleks kopalni metalu (decyzja właściciela 2026-11-01, etap 1 — tylko model; robocze): 4 osady po 3 kopalnie
+  // (poz. 1–3 każda) i fabrykę → osada co 10 poziomów, komplet na poz. 40 = 4 × (3 × 1 + 2) = 20 pól = próg megakonstruktu.
+  metalComplex: {
+    settlements: 4,
+    minesPerSettlement: 3,
+    mineMaxLevel: 3,
+    fields: { mine: 1, factory: 2, construct: 4 },
+    durability: { mine: 100, factory: 300, construct: 10_000 },
+    beltsPerFactory: 3,
+    constructSeconds: { min: 3600, max: 7200 },
+    status: 'robocza',
+  },
   fuel: {
     transport: { inSystem: 1, base: 2, unitsPerOne: 20 },
     colonyShip: { inSystem: 3, base: 3, unitsPerOne: 15 },

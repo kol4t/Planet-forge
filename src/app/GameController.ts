@@ -92,6 +92,7 @@ import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownC
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, inspectStoredEmpire, JOURNAL_LIMIT, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
+import { ensureMetalComplex, type MetalComplexSave } from '../core/colony/complexLayout.ts';
 import type { AsteroidStation, Balance, ConstructTransfer, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
@@ -132,6 +133,8 @@ interface Slot {
   preferred?: Partial<Record<BuildingId, number>>;
   /** Megakonstrukty po transferze — stoją na każdym polu, także na wodzie i lawie (v0.56). */
   afloat?: BuildingId[];
+  /** Kompleks kopalni metalu (etap 1 — tylko model, bez wpływu na wygląd i ekonomię). */
+  metalComplex?: MetalComplexSave;
   /** Budynek rozkładany do lotu (v0.56, z `transfers` — bez zapisu): nie pracuje, nie da się go ulepszyć ani zburzyć. */
   packing?: BuildingId;
 }
@@ -2574,6 +2577,13 @@ export class GameController {
     return exportSave(this.empireData());
   }
 
+  /** Stan kompleksu kopalni metalu aktywnej planety (etap 1 — tylko model; środek dzielnicy dopasowany do pól). */
+  metalComplexState(): MetalComplexSave | undefined {
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    return slot.metalComplex;
+  }
+
   /**
    * Wczytanie zapisu z tekstu: zastępuje wszystkie planety i postęp.
    * Czas od eksportu nalicza się jak nieobecność (maks. 8 h).
@@ -2658,6 +2668,7 @@ export class GameController {
         ...(slot.asteroid ? { asteroidStation: slot.asteroid } : {}),
         ...(slot.collector ? { starCollector: slot.collector } : {}),
         ...(slot.afloat?.length ? { afloat: slot.afloat } : {}),
+        ...(slot.metalComplex ? { metalComplex: slot.metalComplex } : {}),
       })),
     };
   }
@@ -3062,6 +3073,8 @@ function syncPlots(slot: Slot, base: BuildRules): Plots {
   const levels = c ? { ...slot.economy.levels, [c.building]: Math.max(slot.economy.levels[c.building] ?? 0, c.targetLevel) } : slot.economy.levels;
   const grid = fieldGrid(slot.planet);
   slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, slot.preferred);
+  // Kompleks kopalni metalu: środek dzielnicy wybierany raz (nowa planeta albo zapis sprzed etapu 1 — migracja).
+  slot.metalComplex = ensureMetalComplex(slot.metalComplex, grid, slot.planet.seed, levels.metalMine ?? 0, slot.plots.metalMine);
   // Wybrane pole użyte — wybór dotyczy tylko jednego pola.
   if (slot.preferred) {
     for (const [id, cell] of Object.entries(slot.preferred) as [BuildingId, number][]) {
@@ -3142,6 +3155,7 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       ...(slot.asteroidStation ? { asteroid: slot.asteroidStation } : {}),
       ...(slot.starCollector ? { collector: slot.starCollector } : {}),
       ...(slot.afloat?.length ? { afloat: slot.afloat } : {}),
+      ...(slot.metalComplex ? { metalComplex: slot.metalComplex } : {}),
     });
   }
   return slots;

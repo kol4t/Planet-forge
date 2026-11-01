@@ -16,6 +16,7 @@ import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, HomeSta
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 import { parseComplexes, type Complex } from '../colony/complexes.ts';
+import { parseMetalComplex, type MetalComplexSave } from '../colony/complexLayout.ts';
 import { COMPLEX_FAMILIES } from '../../data/complexes.ts';
 
 export const EMPIRE_VERSION = 2;
@@ -54,6 +55,11 @@ export interface SlotSave {
   starCollector?: AsteroidStation;
   /** Megakonstrukty po transferze — stoją na każdym polu, także na wodzie i lawie (od v0.56, opcjonalne). */
   afloat?: BuildingId[];
+  /**
+   * Kompleks kopalni metalu (od etapu 1 kompleksu, v0.58 — opcjonalne): środek dzielnicy, faza, stany obiektów.
+   * Brak = zapis starszy — środek wybierany automatycznie przy pierwszym przeliczeniu pól (`ensureMetalComplex`).
+   */
+  metalComplex?: MetalComplexSave;
 }
 
 export interface EmpireSave {
@@ -196,6 +202,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(parseStation(raw.asteroidStation) ? { asteroidStation: parseStation(raw.asteroidStation) } : {}),
       ...(parseStation(raw.starCollector) ? { starCollector: parseStation(raw.starCollector) } : {}),
       ...(parseAfloat(raw.afloat).length > 0 ? { afloat: parseAfloat(raw.afloat) } : {}),
+      ...(parseMetalComplex(raw.metalComplex) ? { metalComplex: parseMetalComplex(raw.metalComplex)! } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;
