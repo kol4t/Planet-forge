@@ -33,19 +33,19 @@ Koszt poz. 1: 60 metalu, 15 kryształów; wzrost kosztu ×1.5 na poziom.
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (metal/min) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
 | 1 | 60 | 15 | 30 s | 19,8 | 11 | 1 | Kopalnia |
-| 2 | 90 | 22 | 1 min | 43,6 | 24,2 | 2 | Kopalnia |
-| 3 | 135 | 33 | 1 min 30 s | 71,9 | 39,9 | 2 | Kopalnia |
-| 5 | 303 | 75 | 2 min 30 s | 144,9 | 80,5 | 3 | Kopalnia |
-| 6 | 455 | 113 | 3 min | 191,3 | 106,3 | 6 | Zakład przetwórczy |
-| 8 | 1025 | 256 | 4 min | 308,7 | 171,5 | 8 | Zakład przetwórczy |
-| 10 | 2306 | 576 | 5 min | 466,9 | 259,4 | 10 | Zakład przetwórczy |
-| 12 | 5189 | 1297 | 6 min | 677,9 | 376,6 | 16 | Huta |
-| 15 | 17 515 | 4378 | 7 min 30 s | 1127,9 | 626,6 | 19 | Huta |
-| 19 | 88 673 | 22 168 | 9 min 30 s | 2091,6 | 1162,0 | 22 | Huta |
-| 20 | 133 010 | 33 252 | 10 min | 2421,9 | 1345,5 | 40 | Megakompleks metalowy |
-| 25 | 1 010 046 | 252 511 | 12 min 30 s | 4875,6 | 2708,7 | 50 | Megakompleks metalowy |
-| 30 | 7 670 042 | 1 917 510 | 15 min | 9422,7 | 5234,8 | 50 | Megakompleks metalowy |
-| 40 | 442 293 292 | 110 573 323 | 20 min | 32 587 | 18 104 | 50 | Megakompleks metalowy |
+| 2 | 90 | 22 | 1 min | 43,6 | 24,2 | 1 | Kopalnia |
+| 3 | 135 | 33 | 1 min 30 s | 71,9 | 39,9 | 1 | Kopalnia |
+| 5 | 303 | 75 | 2 min 30 s | 144,9 | 80,5 | 2 | Kopalnia |
+| 6 | 455 | 113 | 3 min | 191,3 | 106,3 | 2 | Zakład przetwórczy |
+| 8 | 1025 | 256 | 4 min | 308,7 | 171,5 | 3 | Zakład przetwórczy |
+| 10 | 2306 | 576 | 5 min | 466,9 | 259,4 | 5 | Zakład przetwórczy |
+| 12 | 5189 | 1297 | 6 min | 677,9 | 376,6 | 6 | Huta |
+| 15 | 17 515 | 4378 | 7 min 30 s | 1127,9 | 626,6 | 7 | Huta |
+| 19 | 88 673 | 22 168 | 9 min 30 s | 2091,6 | 1162,0 | 8 | Huta |
+| 20 | 133 010 | 33 252 | 10 min | 2421,9 | 1345,5 | 10 | Kombinat metalowy |
+| 25 | 1 010 046 | 252 511 | 12 min 30 s | 4875,6 | 2708,7 | 12 | Kombinat metalowy |
+| 30 | 7 670 042 | 1 917 510 | 15 min | 9422,7 | 5234,8 | 15 | Kombinat metalowy |
+| 40 | 442 293 292 | 110 573 323 | 20 min | 32 587 | 18 104 | 20 | Kombinat metalowy |
 
 ### Ekstraktor kryształów (`crystalMine`)
 
@@ -154,7 +154,7 @@ Koszt poz. 1: 200 metalu, 400 kryształów; wzrost kosztu ×1.6 na poziom.
 
 ## Etapy obszaru budynku (`src/data/footprint.ts`)
 
-- **Kopalnia metalu:** Kopalnia od poz. 1 — 1–3 pól; Zakład przetwórczy od poz. 6 — 6–10 pól; Huta od poz. 12 — 16–22 pól; Megakompleks metalowy od poz. 20 — 40–50 pól.
+- **Kopalnia metalu:** Kopalnia od poz. 1 — 1–3 pól; Zakład przetwórczy od poz. 6 — 6–10 pól; Huta od poz. 12 — 16–22 pól; Kombinat metalowy od poz. 20 — 40–50 pól.
 - **Ekstraktor kryształów:** Wiertło od poz. 1 — 1–3 pól; Szyb wiertniczy od poz. 6 — 6–10 pól; Odkrywka od poz. 12 — 16–22 pól; Megaodkrywka od poz. 20 — 40–50 pól.
 - **Elektrownia:** Farma wiatrowa od poz. 1 — 1–3 pól; Generator fuzyjny od poz. 6 — 6–10 pól; Elektrownia jądrowa od poz. 12 — 16–22 pól; Reaktor antymaterii od poz. 20 — 40–50 pól.
 - **Magazyn:** Skład od poz. 1 — 1–2 pól; Magazyn od poz. 6 — 3–5 pól; Terminal magazynowy od poz. 12 — 6–9 pól; Megaskład od poz. 20 — 10–14 pól.
