@@ -78,6 +78,10 @@ Krótka kontrola całości po każdej publikacji (ok. 10 minut). Dawne listy kol
     → na placu rośnie złote rusztowanie, wydobycie metalu bez zmian; „Anuluj budowę” → „Na pewno?” → koszt wraca.
 23. Po ukończeniu: konstrukt w środku, 4 fabryki na ramionach, pasy do konstruktu, kopalnie na końcach; w Produkcji
     wydobycie metalu wyraźnie wyższe; wpis w dzienniku.
+24. Kompleks na planecie z konstruktem → „Wyrzuć na orbitę” → „Na pewno?”: odliczanie 30 min („Anuluj start” zwraca
+    paliwo); po starcie na planecie 4 osady z pustym placem, a nad nią krąży konstrukt; Imperium → Flota pokazuje go.
+25. Na innej planecie z Kopalnią metalu poz. 40 → Kompleks: „Ściągnij z orbity … · czas · paliwo”; po przylocie osady
+    przechodzą w układ promienisty.
 
 ## Licencja i treści
 

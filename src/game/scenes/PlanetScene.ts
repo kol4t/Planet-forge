@@ -1368,6 +1368,8 @@ export class PlanetScene extends Phaser.Scene {
     // Kolektor energii gwiazdy na orbicie (v0.44) — tani zapis liczby; renderer przebudowuje tylko przy zmianie.
     this.deps.display.setOrbital(controller.collectorView(now).level);
     // Stacja macierzysta (v0.55) — pierścień na orbicie planety, nad którą krąży.
+    // Megakonstrukt wyrzucony z tej planety, czekający na orbicie (krok 3b).
+    this.deps.display.setOrbitalConstructs(controller.constructsInOrbitHere(now));
     const station = controller.stationHere(now);
     this.deps.display.setHomeStation(station ? { modules: stationModules(station.storageLevel), building: !station.ready, shipyard: station.shipyard } : null);
     if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
@@ -1901,7 +1903,10 @@ export class PlanetScene extends Phaser.Scene {
       split: () => c.splitComplex(id),
       mergeMega: () => c.mergeMega(id),
       ...(id === 'metalMine'
-        ? { construct: { view: () => c.metalConstructView(), start: () => c.startMetalConstruct(), cancel: () => c.cancelMetalConstruct() } }
+        ? {
+            construct: { view: () => c.metalConstructView(), start: () => c.startMetalConstruct(), cancel: () => c.cancelMetalConstruct() },
+            orbit: { view: () => c.orbitView(), launch: () => c.launchConstruct(), cancel: () => c.cancelLaunch(), land: (index: number) => c.landConstruct(index) },
+          }
         : {}),
       splitMega: () => c.splitMega(id),
       finds: () => c.findsView().total,

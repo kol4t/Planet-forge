@@ -3,7 +3,7 @@ import { BALANCE } from '../data/balance.ts';
 import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
-import { cellLookup, collectorOrbit, hash01, stationOrbit, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
+import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
 import { complexGround } from './complexLook.ts';
 import { buildOpenPit, type OpenPit } from './openPit.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
@@ -70,6 +70,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private readonly reducedMotion = prefersReducedMotion();
   private orbital = 0;
   private homeStation: HomeStationLook | null = null;
+  private orbitalConstructs = 0;
   /** Kompleks kopalni metalu z modelu (etap 2): symbole obiektów, drogi, następny obiekt (rusztowanie), cele dotyku. */
   private metal: {
     pieces: MetalPiece[];
@@ -350,6 +351,11 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   /** Kolektor energii gwiazdy na orbicie (v0.44). */
   setOrbital(level: number): void {
     this.orbital = Math.max(0, Math.floor(level));
+  }
+
+  /** Megakonstrukty na orbicie (krok 3b). */
+  setOrbitalConstructs(count: number): void {
+    this.orbitalConstructs = Math.max(0, Math.floor(count));
   }
 
   /** Stacja macierzysta (v0.55). */
@@ -943,6 +949,30 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.drawStructures();
     this.drawCollector(cx, cy, r);
     this.drawHomeStation(cx, cy, r);
+    this.drawOrbitalConstruct(cx, cy, r);
+  }
+
+  /** Megakonstrukt na orbicie (krok 3b): pikselowy ciemny sześciokąt z żarem i czterema ramionami; za tarczą niewidoczny. */
+  private drawOrbitalConstruct(cx: number, cy: number, r: number): void {
+    if (this.orbitalConstructs <= 0) return;
+    const [x, y, z] = constructOrbit(performance.now() / 1000, this.reducedMotion);
+    const sx = cx + x * r;
+    const sy = cy - y * r;
+    if (z < 0 && Math.hypot(sx - cx, sy - cy) < r * 1.02) return;
+    const ctx = this.ctx;
+    const p = Math.max(3, Math.round(r / 45));
+    const x0 = Math.round(sx / p) * p;
+    const y0 = Math.round(sy / p) * p;
+    ctx.globalAlpha = z < 0 ? 0.7 : 1;
+    ctx.fillStyle = '#4b4f50';
+    for (const [dx, dy] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) ctx.fillRect(x0 + dx! * p - p, y0 + dy! * p - p, 2 * p, 2 * p);
+    ctx.fillStyle = '#38332f';
+    ctx.fillRect(x0 - 2 * p, y0 - 2 * p, 4 * p, 4 * p);
+    ctx.fillStyle = '#8f4a2b';
+    ctx.fillRect(x0 - 2 * p, y0 - 2 * p, 4 * p, p);
+    ctx.fillStyle = '#ff9a3c';
+    ctx.fillRect(x0 - Math.floor(p / 2), y0 - Math.floor(p / 2), p, p);
+    ctx.globalAlpha = 1;
   }
 
   /**

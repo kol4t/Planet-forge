@@ -279,6 +279,20 @@ function createSmelter(): BigShape {
   };
 }
 
+/**
+ * Megakonstrukt na orbicie (krok 3b): ten sam model co na planecie (bryła i światło), jako grupa do sceny.
+ * Rozmiar 1 = model; skaluje PlanetView.
+ */
+export function createOrbitalConstruct(): THREE.Group {
+  const shape = createMetalMega();
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(shape.body, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.3, flatShading: true, side: THREE.DoubleSide })));
+  group.add(new THREE.Mesh(shape.glow, new THREE.MeshBasicMaterial({ color: '#ff9a3c', toneMapped: false })));
+  shape.pit.dispose();
+  shape.rotor.dispose();
+  return group;
+}
+
 /** Etap 4 — Megakompleks: dwupoziomowa platforma, dominująca wieża centralna, cztery piece wokół, łączniki, suwnica. */
 function createMetalMega(): BigShape {
   const blocks = [0, 1, 2, 3].flatMap((k) => {

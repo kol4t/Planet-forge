@@ -2,6 +2,20 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-01 — Krok 3b: megakonstrukt na orbicie (v0.61, decyzje właściciela)
+
+- Megakonstrukt przenosi się tylko przez orbitę, **w dwóch krokach**: „Wyrzuć na orbitę” (okno Kompleks na planecie
+  z konstruktem; przygotowanie 30 min — konstrukt bez premii, anulowanie zwraca paliwo; start 10 antymaterii), potem
+  konstrukt **czeka na orbicie** planety startu (widoczny) — a gracz w dowolnej chwili „Ściąga” go na planetę docelową.
+- **Na starej planecie zostają osady** (Kopalnia metalu poz. 40, 4 osady, pusty plac; można zbudować nowy konstrukt).
+- **Lądowanie tylko na komplecie osad** (poz. 40, faza osad, bez budowy konstruktu, nikt tam nie leci): konstrukt ląduje
+  na placu i od razu przebudowuje osady w układ promienisty (+60%, znaleziska). Gdy cel w czasie lotu przestał się nadawać
+  — konstrukt wraca na orbitę (wpis w dzienniku).
+- **Koszt = antymateria**: start 10, lądowanie 5 × paliwo transportowca na trasie; lot 2× wolniej niż transportowiec
+  (`BALANCE.metalComplex.orbit`, robocze). Zapis: `orbiting` (`core/economy/orbitalConstruct.ts`).
+- Widok: Imperium → Flota („Megakonstrukty poza planetą”) i wiersz „w drodze”; model konstruktu na własnej orbicie
+  (3D) i pikselowy znak (2D).
+
 ## 2026-11-01 — Kompleks kopalni metalu, etap 3: megakonstrukt (v0.60, decyzje właściciela)
 
 - **Zastępuje megakompleks kopalni metalu**: przycisk megakompleksu (od poz. 20) dla metalu znika; megakonstrukt od

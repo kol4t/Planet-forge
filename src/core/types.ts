@@ -385,6 +385,11 @@ export interface Balance {
     constructSeconds: { min: number; max: number };
     /** Koszt budowy megakonstruktu (etap 3). */
     constructCost: { metal: number; crystal: number };
+    /**
+     * Wyrzucenie megakonstruktu na orbitę i ściągnięcie na inną planetę (krok 3b): przygotowanie do startu (s), paliwo
+     * startu, paliwo lądowania = `landingFuelFactor` × paliwo transportowca na trasie, lot = transport × `speedFactor`.
+     */
+    orbit: { prepareSeconds: number; launchFuel: number; landingFuelFactor: number; speedFactor: number };
     status: 'robocza';
   };
   buildings: readonly BuildingDef[];
@@ -711,6 +716,22 @@ export interface HomeStation {
   /** Stocznia (v0.58) — moduł stacji, buduje statki floty. */
   shipyard?: AsteroidStation;
   stock: Resources;
+}
+
+/**
+ * Megakonstrukt kopalni metalu wyrzucony na orbitę (krok 3b): z planety `origin` (start po `readyAt` — wcześniej
+ * przygotowanie), krąży nad nią, aż gracz ściągnie go na planetę `target` (przylot `landsAt`).
+ */
+export interface OrbitalConstruct {
+  origin: string;
+  /** Koniec przygotowania (ms) — od tej chwili konstrukt jest na orbicie, a na planecie zostają osady. */
+  readyAt: number;
+  /** Paliwo startu (zwrot przy anulowaniu w czasie przygotowania). */
+  fuel: number;
+  target?: string;
+  landsAt?: number;
+  /** Start się odbył — na planecie `origin` zostały osady (żeby nowy konstrukt tam nie został zdjęty drugi raz). */
+  lifted?: boolean;
 }
 
 /** Rodzaje statków floty (v0.58, nazwy robocze). */

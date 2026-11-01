@@ -71,7 +71,10 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
   na placu w środku powstaje **megakonstrukt** (koszt 60 000 / 40 000, budowa 1–2 h — kopalnia pracuje; anulowanie zwraca
   koszt). Po ukończeniu układ promienisty (konstrukt w środku, 4 fabryki na ramionach, po 3 pasy do konstruktu, 24 pola),
   premia +60% i znaleziska — zamiast dawnego megakompleksu metalu (od poz. 20; włączony wcześniej działa do czasu
-  konstruktu). Megakonstruktu nie da się wyłączyć ani wysłać (wyrzucenie na orbitę — krok 3b). Liczby robocze.
+  konstruktu). Megakonstruktu nie da się wyłączyć ani wysłać — przenosi się tylko przez **orbitę** (v0.61): „Wyrzuć na
+  orbitę” (30 min bez premii, 10 antymaterii; na planecie zostają osady), konstrukt czeka na orbicie, a „Ściągnij z orbity”
+  w oknie Kompleks planety z kompletem osad (poz. 40) sprowadza go za antymaterię (lot zależny od odległości) — tam osady
+  przechodzą w układ promienisty. Liczby robocze.
 
 - **Transfer megakonstruktu** (v0.56): megakompleks można wysłać na inną planetę gracza (okno Kompleks → „Wyślij
   konstrukt…”). 30 min rozkładania (budynek nie pracuje; anulowanie zwraca koszt i paliwo), potem lot (2× wolniej niż

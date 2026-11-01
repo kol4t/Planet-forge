@@ -42,6 +42,10 @@ Kopiuj zapis / Wczytaj zapis).
   "comets": [ … ],                // holowniki po komety (od v0.37.1, opcjonalne; od v0.58 "ship": true — holownik floty)
   "finds": { "items": {}, "next": {} },  // znaleziska megakompleksów (od v0.43.1, opcjonalne)
   "exploited": ["1:16:4"],        // wyeksploatowane planety, każda raz (od v0.54, opcjonalne; błędne adresy pomijane)
+  "orbiting": [                   // megakonstrukty na orbicie / w locie do lądowania (od v0.61, opcjonalne)
+    { "origin": "1:16:4", "readyAt": 1800000, "fuel": 10, "lifted": true,   // start z planety, koniec przygotowania, paliwo
+      "target": "1:16:1", "landsAt": 2040000 }                              // opcjonalnie: ściągany na planetę
+  ],
   "fleet": {                      // flota (od v0.58, opcjonalne; brak = flota startowa 3 / 1 / 1 / 0)
     "docked": { "transport": 2, "colonyShip": 1, "tug": 1, "escort": 0 },   // statki na stanie (w drodze — z lotów)
     "queue": [ { "type": "escort", "startsAt": 0, "readyAt": 1200000, "cost": { "metal": 3000, "crystal": 2000 } } ]

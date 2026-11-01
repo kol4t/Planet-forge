@@ -54,6 +54,8 @@ export interface PlanetDisplay {
   setGridVisible(visible: boolean): void;
   /** Kolektor energii gwiazdy na orbicie (v0.44): poziom 0 = brak. */
   setOrbital(level: number): void;
+  /** Megakonstrukty wyrzucone z tej planety, czekające na orbicie (krok 3b): 0 — brak. */
+  setOrbitalConstructs(count: number): void;
   /** Stacja macierzysta na orbicie tej planety (v0.55): null — brak (albo krąży nad inną planetą). */
   setHomeStation(look: HomeStationLook | null): void;
   /**

@@ -10,13 +10,13 @@ import type { Pad } from './colonyMeshes.ts';
 import { createStationMesh, type StationMesh } from './stationMesh.ts';
 import { complexLayout, type MetalComplexSave } from '../core/colony/complexLayout.ts';
 import { metalObjectSize, metalPickTargets, mineDetail, nextMetalObject } from './metalComplexMeshes.ts';
-import { cellLookup, collectorOrbit, hash01, stationOrbit, layoutFromPlots, offsetOnSphere, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
+import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layoutFromPlots, offsetOnSphere, plotsKey, type ColonyComplex, type ColonyLayout, type Vec3 } from './colony.ts';
 import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, rimPoint, type DrillParams } from './drill.ts';
 import { drillLook } from '../data/drill.ts';
 import { buildOpenPit, oceanCutValue, pitRadius, snapToContours, type OpenPit } from './openPit.ts';
 import { createPitCables, type PitCables } from './openPitMeshes.ts';
-import { HANG_ATTACH, HANG_BOTTOM, type Hanging } from './colonyMeshes.ts';
+import { createOrbitalConstruct, HANG_ATTACH, HANG_BOTTOM, type Hanging } from './colonyMeshes.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -125,6 +125,8 @@ export class PlanetView implements PlanetDisplay {
   private orbital: THREE.Group | null = null;
   private orbitalLevel = 0;
   private homeStation: StationMesh | null = null;
+  /** Megakonstrukt czekający na orbicie (krok 3b). */
+  private orbitalConstruct: THREE.Group | null = null;
   private homeStationKey = '';
   /** Ląd i jego pierwotne pozycje i kolory — grunt kompleksów i odkrywki malowane od nowa przy zmianie kolonii (v0.45). */
   private land: { mesh: THREE.Mesh; positions: Float32Array; colors: Float32Array } | null = null;
@@ -251,6 +253,22 @@ export class PlanetView implements PlanetDisplay {
     group.add(new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 4), new THREE.MeshBasicMaterial({ color: '#bff6ff', toneMapped: false })));
     group.children[group.children.length - 1]!.position.y = 0.024;
     this.orbital = group;
+    this.scene.add(group);
+  }
+
+  /** Megakonstrukt na orbicie (krok 3b): jeden model niezależnie od liczby (rzadkie); tworzony tylko przy zmianie. */
+  setOrbitalConstructs(count: number): void {
+    const want = count > 0;
+    if (want === !!this.orbitalConstruct) return;
+    if (this.orbitalConstruct) {
+      this.scene.remove(this.orbitalConstruct);
+      disposeObject(this.orbitalConstruct);
+      this.orbitalConstruct = null;
+    }
+    if (!want) return;
+    const group = createOrbitalConstruct();
+    group.scale.setScalar(0.13);
+    this.orbitalConstruct = group;
     this.scene.add(group);
   }
 
@@ -1023,6 +1041,12 @@ export class PlanetView implements PlanetDisplay {
       // Lustra zwrócone ku gwieździe (światło z lewej-góry).
       this.orbital.lookAt(LIGHT_POSITION);
     }
+    if (this.orbitalConstruct) {
+      const [x, y, z] = constructOrbit(this.time, this.still);
+      this.orbitalConstruct.position.set(x, y, z);
+      // Powolny obrót wokół własnej osi (konstrukt dryfuje).
+      if (!this.still) this.orbitalConstruct.rotation.set(0.6, this.time * 0.15, 0.3);
+    }
     if (this.homeStation) {
       const [x, y, z] = stationOrbit(this.time, this.still);
       this.homeStation.group.position.set(x, y, z);
@@ -1046,6 +1070,7 @@ export class PlanetView implements PlanetDisplay {
     if (this.outlines) disposeObject(this.outlines.object);
     if (this.orbital) disposeObject(this.orbital);
     if (this.homeStation) disposeObject(this.homeStation.group);
+    if (this.orbitalConstruct) disposeObject(this.orbitalConstruct);
     if (this.drill) disposeObject(this.drill);
     if (this.cables) disposeObject(this.cables.object);
     this.colony.dispose();
