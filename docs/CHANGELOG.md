@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.60.0 — megakonstrukt kopalni metalu — 2026-11-01
+
+- Po komplecie 4 osad (Kopalnia metalu poz. 40), badaniu „Megastruktury” i z wielką fabryką na placu w środku można zbudować **megakonstrukt** (okno Kompleks → „Zbuduj megakonstrukt”): koszt 60 000 metalu i 40 000 kryształów, budowa 1–2 h — kopalnia pracuje, „Anuluj budowę” zwraca koszt.
+- Po ukończeniu kompleks przechodzi w układ promienisty: konstrukt w środku, 4 fabryki na ramionach, po 3 pasy do konstruktu, kopalnie na końcach (24 pola); +60% wydobycia i znaleziska.
+- Megakonstrukt zastępuje megakompleks kopalni metalu (włączony wcześniej działa do czasu konstruktu). Nie da się go wyłączyć ani wysłać — wyrzucenie na orbitę w następnym kroku.
+- Etap kopalni od poz. 20 nazywa się „Kombinat metalowy” (robocze). Zapisy zgodne.
+
 ## v0.59.0 — kopalnia metalu jako osady — 2026-11-01
 
 - Kopalnia metalu nie jest już rozlana na dziesiątki pól: osady (fabryka + 3 kopalnie, nowa osada co 10 poziomów) połączone drogami wokół pustego placu na przyszły megakonstrukt.
