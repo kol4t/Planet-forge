@@ -2,6 +2,12 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.64.0 — stacje kolonii — 2026-11-01
+
+- Po zbudowaniu stacji macierzystej każda kolonia może mieć **stację kolonii** (Imperium → karta „Stacja kolonii”): 4000 metalu, 2500 kryształów, 15 min.
+- Stacja kolonii to **przekaźnik**: loty między kolonią a stacją macierzystą są 2× krótsze i za połowę paliwa.
+- Mały pierścień krąży nad kolonią (3D i 2D). Zapisy zgodne.
+
 ## v0.63.0 — imperium gwiezdne (zamknięcie pętli) — 2026-11-01
 
 - Gdy masz **3 wyeksploatowane planety i gotową stację macierzystą**, pętla się zamyka (raz, także pod nieobecność).
