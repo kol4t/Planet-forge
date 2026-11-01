@@ -274,7 +274,7 @@ export class PlanetView implements PlanetDisplay {
 
   /** Stacja macierzysta (v0.55): pierścień na własnej orbicie; przebudowa tylko przy zmianie wyglądu. */
   setHomeStation(look: HomeStationLook | null): void {
-    const key = look ? `${look.modules}|${look.building}|${!!look.shipyard}` : '';
+    const key = look ? `${look.modules}|${look.building}|${!!look.shipyard}|${!!look.small}` : '';
     if (key === this.homeStationKey) return;
     this.homeStationKey = key;
     if (this.homeStation) {

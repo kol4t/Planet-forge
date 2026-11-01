@@ -54,6 +54,9 @@ export const BALANCE: Balance = {
     },
     starter: { transport: 3, colonyShip: 1, tug: 1, escort: 0 },
   },
+  // Stacje kolonii (etap 9, decyzja właściciela: jedna przy każdej kolonii, po stacji macierzystej, przekaźnik
+  // transportu; liczby robocze): loty kolonia ↔ stacja macierzysta 2× szybciej i za połowę paliwa.
+  colonyStation: { cost: { metal: 4000, crystal: 2500 }, seconds: 900, fuelFactor: 0.5, timeFactor: 0.5, status: 'robocza' },
   // Ryzyko misji (etap 7, decyzja właściciela 2026-11-01: piraci-boty, tylko między układami, skutek łagodny,
   // każdy okręt eskorty zmniejsza ryzyko; liczby robocze). Typowa trasa ~77 jedn. → ~15%, z gniazdem piratów przy trasie ~25%; mediana tras ~19%.
   missionRisk: {

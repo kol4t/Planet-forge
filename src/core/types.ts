@@ -372,6 +372,11 @@ export interface Balance {
    * eskorty zdejmuje `escortCut` ryzyka. Przechwycenie: opóźnienie `delayShare` czasu lotu, strata `lossShare`
    * ładunku (tylko transport), każdy okręt eskorty uszkodzony z szansą `escortDamage` (naprawa `repairSeconds`).
    */
+  /**
+   * Stacje kolonii (etap 9, robocze): koszt i czas budowy; loty kolonia ↔ stacja macierzysta przez przekaźnik —
+   * paliwo × `fuelFactor`, czas × `timeFactor`.
+   */
+  colonyStation: { cost: Resources; seconds: number; fuelFactor: number; timeFactor: number; status: 'robocza' };
   missionRisk: {
     perUnit: number;
     perNest: number;
@@ -772,6 +777,12 @@ export interface OrbitalConstruct {
   lifted?: boolean;
   /** Przechwycenie przez piratów w czasie lądowania (etap 7) — tylko opóźnienie. */
   incident?: MissionIncident;
+}
+
+/** Stacja kolonii (etap 9, robocza): mała stacja-przekaźnik na orbicie kolonii, działa od `readyAt`. */
+export interface ColonyStation {
+  address: string;
+  readyAt: number;
 }
 
 /** Imperium gwiezdne (etap 8): chwila zamknięcia pętli; `seen` — gracz widział planszę SI Matki. */

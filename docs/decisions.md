@@ -2,6 +2,18 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-01 — Etap 9: stacje kolonii (v0.64, decyzje właściciela)
+
+- **Jedna przy każdej kolonii** — nad każdą planetą gracza oprócz tej, nad którą krąży stacja macierzysta.
+- **Rola: przekaźnik transportu** — loty między tą kolonią a stacją macierzystą (na stację i ze stacji) są 2× szybsze
+  i za połowę paliwa (zaokrąglone w górę, min. 1). Inne propozycje (magazyn lokalny, szlak zaopatrzenia, posterunek
+  obrony) — nie teraz.
+- **Warunek:** gotowa stacja macierzysta (bez nowego badania); koszt 4000 metalu i 2500 kryształów płaci kolonia,
+  budowa 15 min (`BALANCE.colonyStation`, robocze). Opuszczenie planety usuwa jej stację.
+- **Wygląd: mały pierścień** — ta sama „rodzina” co stacja macierzysta w skali ok. 55%, jedno skrzydło paneli, bez
+  stoczni (3D i pikselowo w 2D). Karta „Stacja kolonii” w Imperium pod stacją macierzystą (dotyczy aktywnej planety).
+- Zapis: `colonyStations` (`core/economy/colonyStation.ts`). Nazwa robocza.
+
 ## 2026-11-01 — Etap 8: zamknięcie pętli — imperium gwiezdne (v0.63, decyzje właściciela)
 
 - **Warunek jak w planie z 2026-10-28:** 3 wyeksploatowane planety (≥ 80% obu złóż) + gotowa stacja macierzysta.

@@ -1384,7 +1384,11 @@ export class PlanetScene extends Phaser.Scene {
     // Megakonstrukt wyrzucony z tej planety, czekający na orbicie (krok 3b).
     this.deps.display.setOrbitalConstructs(controller.constructsInOrbitHere(now));
     const station = controller.stationHere(now);
-    this.deps.display.setHomeStation(station ? { modules: stationModules(station.storageLevel), building: !station.ready, shipyard: station.shipyard } : null);
+    // Stacja kolonii (etap 9) — mały pierścień nad kolonią (stacja macierzysta i kolonii nie krążą nad tą samą planetą).
+    const relay = station ? null : controller.colonyStationHere(now);
+    this.deps.display.setHomeStation(
+      station ? { modules: stationModules(station.storageLevel), building: !station.ready, shipyard: station.shipyard } : relay ? { modules: 2, building: !relay.ready, small: true } : null,
+    );
     if (this.layoutState?.panel?.id === 'ai' && this.aiShape() !== this.aiPanelShape) {
       this.relayout();
       return;
