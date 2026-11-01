@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.60.0 — opublikowana: pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota; kompleks kopalni metalu — osady i megakonstrukt)
+## Stan obecny (v0.61.0 — opublikowana: pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota; kompleks kopalni metalu — osady, megakonstrukt, orbita)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -73,6 +73,10 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   zwraca koszt; `core/economy/metalConstruct.ts`, zapis `metalComplex.build`); po ukończeniu faza „konstrukt” — układ
   promienisty (konstrukt, 4 fabryki, po 3 pasy, 24 pola), +60% i znaleziska; nie da się go wyłączyć ani wysłać
   (wyrzucenie na orbitę — krok 3b).
+- **v0.61 — krok 3b, megakonstrukt na orbicie** (decyzje właściciela): „Wyrzuć na orbitę” (30 min bez premii, 10
+  antymaterii; na planecie zostają osady), konstrukt czeka na orbicie (widoczny, Imperium → Flota), „Ściągnij z orbity”
+  tylko na planetę z kompletem osad (poz. 40) za antymaterię — tam układ promienisty; cel nieodpowiedni → powrót na
+  orbitę. `core/economy/orbitalConstruct.ts`, `BALANCE.metalComplex.orbit`, zapis `orbiting`.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody

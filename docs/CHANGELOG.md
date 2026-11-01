@@ -2,6 +2,12 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.61.0 — megakonstrukt na orbicie — 2026-11-01
+
+- Megakonstrukt kopalni metalu można **wyrzucić na orbitę** (okno Kompleks): 30 min przygotowania bez premii, 10 antymaterii; „Anuluj start” zwraca paliwo. Na planecie zostają 4 osady z pustym placem.
+- Konstrukt **czeka na orbicie** (widać go nad planetą; Imperium → Flota), aż ściągniesz go na planetę z kompletem osad (Kopalnia metalu poz. 40): „Ściągnij z orbity” — lot i paliwo zależne od odległości; po lądowaniu osady przechodzą w układ promienisty (+60%, znaleziska).
+- Gdy planeta celu w czasie lotu przestanie się nadawać, konstrukt wraca na orbitę. Zapisy zgodne.
+
 ## v0.60.0 — megakonstrukt kopalni metalu — 2026-11-01
 
 - Po komplecie 4 osad (Kopalnia metalu poz. 40), badaniu „Megastruktury” i z wielką fabryką na placu w środku można zbudować **megakonstrukt** (okno Kompleks → „Zbuduj megakonstrukt”): koszt 60 000 metalu i 40 000 kryształów, budowa 1–2 h — kopalnia pracuje, „Anuluj budowę” zwraca koszt.
