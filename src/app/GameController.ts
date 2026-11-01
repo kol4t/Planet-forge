@@ -98,7 +98,7 @@ import { exportSave, importSave } from '../core/save/transfer.ts';
 import { landingCheck, landingFuel, landingSeconds, launchCheck, orbitalState } from '../core/economy/orbitalConstruct.ts';
 import { checkConstruct, constructProgress, constructSeconds, type ConstructCheck } from '../core/economy/metalConstruct.ts';
 import { ensureMetalComplex, metalComplexFields, metalComplexCells, type MetalComplexCells, type MetalComplexSave } from '../core/colony/complexLayout.ts';
-import type { AsteroidStation, Balance, ConstructTransfer, Fleet, OrbitalConstruct, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { AsteroidStation, Balance, StellarEmpire, ConstructTransfer, Fleet, OrbitalConstruct, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -531,6 +531,9 @@ export class GameController {
   private finds: FindsState = { items: {}, next: {} };
   /** Wyeksploatowane planety (adresy, w kolejności) — postęp pętli MVP (v0.54). */
   private exploited: string[] = [];
+  /** Imperium gwiezdne (etap 8): pętla zamknięta — null, dopóki otwarta. */
+  private stellar: StellarEmpire | null = null;
+  private readonly stellarListeners = new Set<() => void>();
   /** Stacja macierzysta (v0.55) — jedna na imperium; null = nie zbudowana. */
   private station: HomeStation | null = null;
   /** Megakonstrukty w transferze (v0.56). */
@@ -583,6 +586,7 @@ export class GameController {
       this.station = saved.station ?? null;
       this.fleet = saved.fleet ?? starterFleet(BALANCE);
       this.orbiting = saved.orbiting ?? [];
+      this.stellar = saved.stellar ?? null;
       this.transfers = saved.transfers ?? [];
       this.markPacking();
       this.journal = saved.journal ?? [];
@@ -968,7 +972,9 @@ export class GameController {
     const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
-    if (exploited || done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
+    const closed = this.checkStellar(now);
+    if (closed) for (const listener of this.stellarListeners) listener();
+    if (exploited || closed || done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
     for (const text of delivered) for (const listener of this.shipmentListeners) listener(text);
     for (const report of returned) for (const listener of this.expeditionListeners) listener(report);
     if (aiDone) for (const listener of this.aiListeners) listener(aiDone);
@@ -994,16 +1000,51 @@ export class GameController {
       const count = this.exploited.length;
       this.log(
         'empire',
-        `${slot.planet.displayName}: złoża w większości wydobyte — planeta wyeksploatowana (${count} z ${needed}). Resztki wydobywa się wolniej.${count === needed ? ' Pętla gotowa do zamknięcia — kolejny krok: stacja macierzysta (wkrótce).' : ''}`,
+        `${slot.planet.displayName}: złoża w większości wydobyte — planeta wyeksploatowana (${count}${this.stellar ? '' : ` z ${needed}`}). Resztki wydobywa się wolniej.` +
+          (count === needed && !this.stellar && !stationReady(this.station, now) ? ' Pętla gotowa do zamknięcia — zbuduj stację macierzystą (Imperium → Planety).' : ''),
         now,
       );
     });
     return added;
   }
 
-  /** Postęp pętli MVP: wyeksploatowane planety (z nazwami) i ile potrzeba. */
-  loopProgress(): { exploited: { address: string; name: string }[]; needed: number } {
+  /**
+   * Zamknięcie pętli (etap 8, decyzja właściciela): 3 wyeksploatowane planety + gotowa stacja macierzysta →
+   * imperium gwiezdne (raz): miejsca na planety do 10, wpis w dzienniku, plansza SI Matki. Zwraca, czy zamknięto teraz.
+   */
+  private checkStellar(now: number): boolean {
+    if (this.stellar || this.exploited.length < this.balance.exploitation.loopPlanets || !stationReady(this.station, now)) return false;
+    this.stellar = { at: now };
+    this.log(
+      'empire',
+      `Pętla zamknięta — imperium gwiezdne. ${this.exploited.length} wyeksploatowane planety i stacja macierzysta łączą imperium; miejsca na planety: ${this.balance.planetSlots.max}.`,
+      now,
+    );
+    return true;
+  }
+
+  /** Imperium gwiezdne: zamknięte? czy pokazać planszę SI Matki (jeszcze niewidziana)? */
+  stellarView(): { closed: boolean; at: number | null; showBoard: boolean; slots: number } {
+    return { closed: !!this.stellar, at: this.stellar?.at ?? null, showBoard: !!this.stellar && !this.stellar.seen, slots: this.balance.planetSlots.max };
+  }
+
+  /** Gracz zamknął planszę SI Matki — więcej się nie pokaże. */
+  markStellarSeen(): void {
+    if (!this.stellar || this.stellar.seen) return;
+    this.stellar = { ...this.stellar, seen: true };
+    this.save();
+  }
+
+  onStellarEmpire(listener: () => void): () => void {
+    this.stellarListeners.add(listener);
+    return () => this.stellarListeners.delete(listener);
+  }
+
+  /** Postęp pętli MVP: wyeksploatowane planety (z nazwami) i ile potrzeba; `closed` — imperium gwiezdne. */
+  loopProgress(now = Date.now()): { exploited: { address: string; name: string }[]; needed: number; closed: boolean; stationReady: boolean } {
     return {
+      closed: !!this.stellar,
+      stationReady: stationReady(this.station, now),
       exploited: this.exploited.map((address) => ({ address, name: this.slots.find((s) => s.address === address)?.planet.displayName ?? address })),
       needed: this.balance.exploitation.loopPlanets,
     };
@@ -1179,7 +1220,9 @@ export class GameController {
 
   /** Odblokowane miejsca: z zapisu albo więcej, jeśli daje je badanie na którejkolwiek planecie. */
   private get openSlots(): number {
-    return Math.max(this.unlockedSlots, ...this.slots.map((slot) => this.balanceFor(slot).planetSlots.base));
+    // Imperium gwiezdne (etap 8, decyzja właściciela) otwiera wszystkie miejsca (do `planetSlots.max`).
+    const stellar = this.stellar ? this.balance.planetSlots.max : 0;
+    return Math.max(this.unlockedSlots, stellar, ...this.slots.map((slot) => this.balanceFor(slot).planetSlots.base));
   }
 
   get slotInfo(): { used: number; unlocked: number; max: number } {
@@ -3194,6 +3237,7 @@ export class GameController {
     this.station = result.data.station ?? null;
     this.fleet = result.data.fleet ?? starterFleet(BALANCE);
     this.orbiting = result.data.orbiting ?? [];
+    this.stellar = result.data.stellar ?? null;
     this.transfers = result.data.transfers ?? [];
     this.markPacking();
     this.journal = result.data.journal ?? [];
@@ -3242,6 +3286,7 @@ export class GameController {
       ...(this.transfers.length > 0 ? { transfers: this.transfers } : {}),
       fleet: this.fleet,
       ...(this.orbiting.length > 0 ? { orbiting: this.orbiting } : {}),
+      ...(this.stellar ? { stellar: this.stellar } : {}),
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,

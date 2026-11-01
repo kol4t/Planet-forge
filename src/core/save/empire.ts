@@ -15,7 +15,7 @@ import { parseHomeStation } from '../economy/homeStation.ts';
 import { parseTransfers } from '../economy/constructTransfer.ts';
 import { parseFleet } from '../economy/fleet.ts';
 import { parseOrbiting } from '../economy/orbitalConstruct.ts';
-import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, Fleet, OrbitalConstruct, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, Fleet, OrbitalConstruct, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState, StellarEmpire } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 import { parseComplexes, type Complex } from '../colony/complexes.ts';
@@ -104,6 +104,11 @@ export interface EmpireSave {
   fleet?: Fleet;
   /** Megakonstrukty na orbicie i w locie do lądowania (od v0.61, opcjonalne). */
   orbiting?: OrbitalConstruct[];
+  /**
+   * Imperium gwiezdne (etap 8, od v0.63 — opcjonalne): chwila zamknięcia pętli (3 wyeksploatowane planety + gotowa
+   * stacja macierzysta) i czy gracz widział już planszę SI Matki. Brak = pętla otwarta.
+   */
+  stellar?: StellarEmpire;
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -239,10 +244,17 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseTransfers(data.transfers, BUILDING_IDS).length > 0 ? { transfers: parseTransfers(data.transfers, BUILDING_IDS) } : {}),
     ...(parseFleet(data.fleet) ? { fleet: parseFleet(data.fleet)! } : {}),
     ...(parseOrbiting(data.orbiting).length > 0 ? { orbiting: parseOrbiting(data.orbiting) } : {}),
+    ...(parseStellar(data.stellar) ? { stellar: parseStellar(data.stellar)! } : {}),
   };
 }
 
 const BUILDING_IDS: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
+
+/** Imperium gwiezdne z zapisu — błędne pomijane (pętla otwarta). */
+export function parseStellar(raw: any): StellarEmpire | null {
+  if (!raw || typeof raw !== 'object' || !isNum(raw.at)) return null;
+  return { at: raw.at, ...(raw.seen === true ? { seen: true } : {}) };
+}
 
 /** Lista budynków „na każdym polu” (znane id, bez powtórzeń; błędne pomijane). */
 export function parseAfloat(raw: unknown): BuildingId[] {
