@@ -1,6 +1,7 @@
 // Okno „Kompleks” (v0.38, od v0.45 ulepszenie całego budynku): budynek sam rośnie w jeden kompleks (etapy z poziomu),
 // a tu gracz uruchamia premię kompleksu i megakompleks — zysk, koszt, odwracalność. Wygląd: #text-panel w index.html.
-import type { ActionMessage, ComplexView, MetalConstructView } from '../../app/GameController.ts';
+import type { ActionMessage, ComplexView, MetalConstructView, OrbitView } from '../../app/GameController.ts';
+import { fuelLabel } from '../../core/economy/fuel.ts';
 import { formatDuration, formatInt, formatRate } from './theme.ts';
 
 export interface ComplexPanelOptions {
@@ -18,6 +19,8 @@ export interface ComplexPanelOptions {
   openTransfer: () => void;
   /** Kopalnia metalu (etap 3 kompleksu): megakonstrukt zamiast megakompleksu. */
   construct?: { view: () => MetalConstructView; start: () => ActionMessage; cancel: () => ActionMessage };
+  /** Megakonstrukt na orbicie (krok 3b): wyrzucenie tego konstruktu i ściągnięcie konstruktów z orbity tutaj. */
+  orbit?: { view: () => OrbitView; launch: () => ActionMessage; cancel: () => ActionMessage; land: (index: number) => ActionMessage };
   onDone: (message: string) => void;
 }
 
@@ -41,6 +44,8 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
         <h3 class="ap-head">Megakonstrukt</h3>
         <p class="tp-hint cp-construct"></p>
         <div class="tp-actions"><button type="button" class="tp-primary cp-construct-go"></button></div>
+        <p class="tp-hint cp-orbit" hidden></p>
+        <div class="tp-actions cp-orbit-actions" hidden></div>
       </div>
       <div class="cp-mega-box" hidden>
         <h3 class="ap-head cp-mega-head"></h3>
@@ -136,7 +141,7 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
     const go = q<HTMLButtonElement>('.cp-construct-go');
     const costText = `${formatInt(cv.cost.metal)} metalu · ${formatInt(cv.cost.crystal)} kryształów`;
     q('.cp-construct').textContent = cv.built
-      ? `Działa: kompleks w układzie promienistym — 4 fabryki na ramionach, pasy do konstruktu. Premia +${cv.bonus}% całego budynku i znaleziska. Nie da się go przenieść (wyrzucenie na orbitę — wkrótce).`
+      ? `Działa: kompleks w układzie promienistym — 4 fabryki na ramionach, pasy do konstruktu. Premia +${cv.bonus}% całego budynku i znaleziska. Nie da się go przenieść inaczej niż przez orbitę (niżej).`
       : cv.building
         ? `W budowie na placu — gotowy za ${formatDuration(cv.building.secondsLeft)} (${Math.round(cv.building.progress * 100)}%). Kopalnia pracuje; po ukończeniu osady przejdą w układ promienisty.`
         : `Po komplecie 4 osad (poz. 40) na placu w środku powstaje megakonstrukt: +${cv.bonus}% całego budynku i znaleziska; osady przechodzą w układ promienisty.\n` +
@@ -144,6 +149,57 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
           (cv.legacyMega ? `\nDawny megakompleks działa do czasu zbudowania konstruktu.` : '') +
           (cv.displaced > 0 ? `\nUwaga: ${cv.displaced} pól innych budynków leży na miejscu układu promienistego — po ukończeniu te budynki przeniosą się obok (poziom bez zmian).` : '') +
           (cv.reason ? `\n${cv.reason}` : '');
+    // Orbita (krok 3b): wyrzucenie gotowego konstruktu, a na komplecie osad — ściągnięcie konstruktów z orbity.
+    const orbit = options.orbit?.view();
+    const orbitText = q<HTMLElement>('.cp-orbit');
+    const orbitRow = q<HTMLElement>('.cp-orbit-actions');
+    const armedButton = (label: string, style: string, run: () => ActionMessage) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = style;
+      b.textContent = label;
+      let armed = false;
+      b.addEventListener('click', () => {
+        if (!armed) {
+          armed = true;
+          b.textContent = 'Na pewno?';
+          return;
+        }
+        act(run)();
+      });
+      return b;
+    };
+    if (orbit && options.orbit) {
+      const o = options.orbit;
+      const lines: string[] = [];
+      if (cv.built && orbit.launch.preparing) {
+        lines.push(`Przygotowanie do startu na orbitę — ${formatDuration(orbit.launch.preparing.secondsLeft)}. Konstrukt nie daje teraz premii; po starcie zostaną osady.`);
+        orbitRow.append(armedButton('Anuluj start', 'tp-secondary', o.cancel));
+      } else if (cv.built) {
+        lines.push(`Wyrzuć na orbitę: przygotowanie ${formatDuration(orbit.launch.prepareSeconds)} (bez premii), ${fuelLabel(orbit.launch.fuel)}. Na planecie zostaną 4 osady z pustym placem; konstrukt ściągniesz potem na inną planetę z kompletem osad.` + (orbit.launch.reason ? `\n${orbit.launch.reason}` : ''));
+        const b = armedButton('Wyrzuć na orbitę', 'tp-secondary', o.launch);
+        b.disabled = !!orbit.launch.reason;
+        orbitRow.append(b);
+      } else if (orbit.incoming) {
+        lines.push(`Megakonstrukt z orbity ${orbit.incoming.originName} ląduje tutaj za ${formatDuration(orbit.incoming.secondsLeft)}.`);
+      } else if (orbit.inOrbit.length > 0) {
+        if (orbit.landingReason) lines.push(`Na orbicie czeka megakonstrukt (${orbit.inOrbit.length}). ${orbit.landingReason}`);
+        else {
+          lines.push('Na orbicie czeka megakonstrukt — możesz go ściągnąć tutaj zamiast budować nowy:');
+          for (const k of orbit.inOrbit.slice(0, 3)) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'tp-primary';
+            b.textContent = `Ściągnij z orbity ${k.originName} · ${formatDuration(k.seconds)} · ${fuelLabel(k.fuel)}`;
+            b.addEventListener('click', act(() => o.land(k.index)));
+            orbitRow.append(b);
+          }
+        }
+      }
+      orbitText.textContent = lines.join('\n');
+      orbitText.hidden = lines.length === 0;
+      orbitRow.hidden = orbitRow.childElementCount === 0;
+    }
     if (cv.built) go.hidden = true;
     else if (cv.building) {
       go.textContent = 'Anuluj budowę';

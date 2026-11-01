@@ -85,7 +85,7 @@ export class EmpireScene extends OverlayScene {
   /** Statki w drodze: kolonizacyjne, ekspedycje i transportowce (wiersze nad alertami). */
   private travelling(): number {
     const c = this.deps.controller;
-    return c.missionsView().length + c.expeditionsView().length + c.shipmentsView().length + c.cometsView().length + c.transfersView().length;
+    return c.missionsView().length + c.expeditionsView().length + c.shipmentsView().length + c.cometsView().length + c.transfersView().length + c.orbitingView().length;
   }
 
   create(): void {
@@ -763,7 +763,8 @@ export class EmpireScene extends OverlayScene {
 
   private fleetShape(): string {
     const v = this.deps.controller.fleetView();
-    return `fleet|${v.stationBuilt}|${v.stationReady}|${v.shipyard.level}|${v.shipyard.upgradingTo}|${v.ships.map((x) => `${x.docked}/${x.flying}`).join(',')}|${v.queue.length}`;
+    const orbit = this.deps.controller.orbitingView().map((o) => o.state).join(',');
+    return `fleet|${v.stationBuilt}|${v.stationReady}|${v.shipyard.level}|${v.shipyard.upgradingTo}|${v.ships.map((x) => `${x.docked}/${x.flying}`).join(',')}|${v.queue.length}|${orbit}`;
   }
 
   /** Stocznia (moduł stacji), statki na stanie i w drodze, budowa statków i kolejka stoczni. */
@@ -861,6 +862,25 @@ export class EmpireScene extends OverlayScene {
       this.fleetLive.queue.push({ text, bar: { x: x + this.s(4), y: rowTop + this.s(30), w: w - this.s(130), h: this.s(3) } });
       y = rowTop + TOUCH + this.s(8);
     });
+    // Megakonstrukty poza planetą (krok 3b): na orbicie czekają na ściągnięcie (okno Kompleks planety z kompletem osad).
+    const orbiting = c.orbitingView();
+    if (orbiting.length > 0) {
+      y += this.s(8);
+      line('Megakonstrukty poza planetą', 13, COLORS.gold, { fontStyle: '600' }, 6);
+      for (const o of orbiting) {
+        line(
+          o.state === 'przygotowanie'
+            ? `${o.originName}: przygotowanie do startu`
+            : o.state === 'na_orbicie'
+              ? `Na orbicie ${o.originName} — ściągniesz go w oknie Kompleks Kopalni metalu na planecie z kompletem osad (poz. 40).`
+              : `Leci z orbity ${o.originName} na ${o.targetName}.`,
+          11.5,
+          COLORS.muted,
+          {},
+          4,
+        );
+      }
+    }
     this.content!.add(items);
     this.refreshFleet();
     return y - area.y + this.s(8);
@@ -947,6 +967,13 @@ export class EmpireScene extends OverlayScene {
         ...c.expeditionsView().map((e) => `Ekspedycja: ${e.name} · powrót za ${formatDuration(e.secondsLeft)}`),
         ...c.cometsView().map((h) => `Holownik po kometę: ${h.planetName} · ${formatDuration(h.secondsLeft)}`),
         ...c.shipmentsView().map((t) => `Transportowiec: ${t.fromName} → ${t.toName} · ${formatInt(t.cargo.metal + t.cargo.crystal)} · ${formatDuration(t.secondsLeft)}`),
+        ...c.orbitingView().map((o) =>
+          o.state === 'przygotowanie'
+            ? `Megakonstrukt z ${o.originName}: start na orbitę za ${formatDuration(o.secondsLeft)}`
+            : o.state === 'na_orbicie'
+              ? `Megakonstrukt na orbicie ${o.originName} — czeka na ściągnięcie`
+              : `Megakonstrukt: orbita ${o.originName} → ${o.targetName} · ${formatDuration(o.secondsLeft)}`,
+        ),
         ...c.transfersView().map((t) =>
           t.phase === 'packing'
             ? `${t.name}: rozkładanie do lotu na ${t.fromName} → ${t.toName} · odlot za ${formatDuration(t.secondsLeft)}`

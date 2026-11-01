@@ -136,6 +136,14 @@ Decyzje właściciela: megakonstrukt **zastępuje** megakompleks metalu; daje +6
   rusztowanie wypełniające się z postępem. Zrzuty: `docs/zrzuty/etap3/`.
 - Testy: `tests/metalConstruct.test.ts`.
 
+## Krok 3b — megakonstrukt na orbicie (2026-11-01)
+
+Decyzje właściciela: na starej planecie zostają osady; dwa kroki (orbita, potem lądowanie); lądowanie tylko na komplecie
+osad; koszt — antymateria. Logika `core/economy/orbitalConstruct.ts`, kontroler `orbitView` / `launchConstruct` /
+`cancelLaunch` / `landConstruct` / `processOrbit`, zapis `orbiting`; okno Kompleks (sekcja Megakonstrukt: wyrzuć /
+anuluj start / ściągnij z orbity), Imperium → Flota; model na orbicie (`createOrbitalConstruct`, `constructOrbit`).
+Testy: `tests/orbitalConstruct.test.ts`. Zrzuty: `docs/zrzuty/etap3b/`.
+
 ## Plan etapów
 
 1. **Model w core** (ten etap): `complexLayout.ts`, dane, zapis i migracja, testy. Bez zmian na ekranie.

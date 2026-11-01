@@ -94,9 +94,10 @@ import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownC
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, inspectStoredEmpire, JOURNAL_LIMIT, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
+import { landingCheck, landingFuel, landingSeconds, launchCheck, orbitalState } from '../core/economy/orbitalConstruct.ts';
 import { checkConstruct, constructProgress, constructSeconds, type ConstructCheck } from '../core/economy/metalConstruct.ts';
 import { ensureMetalComplex, metalComplexFields, metalComplexCells, type MetalComplexCells, type MetalComplexSave } from '../core/colony/complexLayout.ts';
-import type { AsteroidStation, Balance, ConstructTransfer, Fleet, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { AsteroidStation, Balance, ConstructTransfer, Fleet, OrbitalConstruct, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -380,6 +381,16 @@ export interface ShipmentView extends Shipment {
   progress: number;
 }
 
+/** Wyrzucenie konstruktu tej planety na orbitę i ściągnięcie konstruktów z orbity tutaj (krok 3b). */
+export interface OrbitView {
+  launch: { fuel: number; prepareSeconds: number; reason: string | null; preparing: { secondsLeft: number } | null };
+  /** Konstrukt leci tutaj. */
+  incoming: { originName: string; secondsLeft: number } | null;
+  /** Dlaczego konstrukt nie może tu wylądować (null — może). */
+  landingReason: string | null;
+  inOrbit: { index: number; originName: string; seconds: number; fuel: number }[];
+}
+
 /** Megakonstrukt kopalni metalu (etap 3 kompleksu). */
 export interface MetalConstructView {
   built: boolean;
@@ -511,6 +522,8 @@ export class GameController {
   private transfers: ConstructTransfer[] = [];
   /** Flota: statki na stanie i kolejka stoczni (v0.58). */
   private fleet: Fleet = starterFleet(BALANCE);
+  /** Megakonstrukty na orbicie i w locie do lądowania (krok 3b). */
+  private orbiting: OrbitalConstruct[] = [];
   private findCache: { items: Record<string, number>; effects: ResearchEffect[]; key: string } | null = null;
   private readonly shipmentListeners = new Set<(text: string) => void>();
   /** Dostawy rozliczone podczas nieobecności (do jednorazowego komunikatu). */
@@ -554,6 +567,7 @@ export class GameController {
       this.exploited = saved.exploited ?? [];
       this.station = saved.station ?? null;
       this.fleet = saved.fleet ?? starterFleet(BALANCE);
+      this.orbiting = saved.orbiting ?? [];
       this.transfers = saved.transfers ?? [];
       this.markPacking();
       this.journal = saved.journal ?? [];
@@ -569,7 +583,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -936,7 +950,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     if (exploited || done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
@@ -1926,6 +1940,159 @@ export class GameController {
     return texts;
   }
 
+  // ——— megakonstrukt na orbicie (krok 3b) ———
+
+  /** Konstrukt startujący z planety `address` (przygotowanie albo już na orbicie / w locie, a jeszcze nie zdjęty). */
+  private launchingFrom(address: string, now: number): OrbitalConstruct | undefined {
+    return this.orbiting.find((o) => o.origin === address && !o.lifted && now < o.readyAt);
+  }
+
+  /** Okno Kompleks kopalni metalu: wyrzucenie konstruktu tej planety i ściągnięcie konstruktów z orbity tutaj. */
+  orbitView(now = Date.now()): OrbitView {
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const preparing = this.launchingFrom(this.address, now);
+    const launch = launchCheck(slot.metalComplex, !!preparing, this.economy.antimatter, this.balance);
+    const incoming = this.orbiting.find((o) => o.target === this.address);
+    const landing = landingCheck(slot.metalComplex, this.economy.levels.metalMine ?? 0, !!incoming);
+    return {
+      launch: {
+        fuel: this.balance.metalComplex.orbit.launchFuel,
+        prepareSeconds: this.balance.metalComplex.orbit.prepareSeconds,
+        reason: preparing ? null : launch.ok ? null : launch.message,
+        preparing: preparing ? { secondsLeft: Math.max(0, (preparing.readyAt - now) / 1000) } : null,
+      },
+      incoming: incoming?.landsAt ? { originName: this.slotName(incoming.origin), secondsLeft: Math.max(0, (incoming.landsAt - now) / 1000) } : null,
+      landingReason: landing,
+      inOrbit: this.orbiting
+        .map((o, index) => ({ o, index }))
+        .filter(({ o }) => orbitalState(o, now) === 'na_orbicie')
+        .map(({ o, index }) => {
+          const distance = this.distanceBetween(o.origin, this.address);
+          return { index, originName: this.slotName(o.origin), seconds: landingSeconds(distance, this.balance), fuel: landingFuel(distance, this.balance) };
+        }),
+    };
+  }
+
+  /** Wszystkie konstrukty poza planetami (Imperium → Flota). */
+  orbitingView(now = Date.now()): { originName: string; state: 'przygotowanie' | 'na_orbicie' | 'w_locie'; targetName: string | null; secondsLeft: number }[] {
+    return this.orbiting.map((o) => {
+      const state = orbitalState(o, now);
+      return {
+        originName: this.slotName(o.origin),
+        state,
+        targetName: o.target ? this.slotName(o.target) : null,
+        secondsLeft: Math.max(0, ((state === 'przygotowanie' ? o.readyAt : (o.landsAt ?? now)) - now) / 1000),
+      };
+    });
+  }
+
+  /** Ile konstruktów krąży nad aktywną planetą (wygląd orbity). */
+  constructsInOrbitHere(now = Date.now()): number {
+    return this.orbiting.filter((o) => o.origin === this.address && orbitalState(o, now) === 'na_orbicie').length;
+  }
+
+  /** Wyrzucenie megakonstruktu aktywnej planety na orbitę: paliwo od razu, 30 min przygotowania bez premii. */
+  launchConstruct(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    const check = launchCheck(slot.metalComplex, !!this.launchingFrom(this.address, now), this.economy.antimatter, this.balance);
+    if (!check.ok) return check;
+    const prepare = this.balance.metalComplex.orbit.prepareSeconds;
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter - check.fuel };
+    this.orbiting.push({ origin: this.address, readyAt: now + prepare * 1000, fuel: check.fuel });
+    // Przygotowanie: konstrukt odłączony — bez premii megakonstruktu i znalezisk.
+    slot.complexes = slot.complexes?.map((c) => (c.building === 'metalMine' ? { ...c, mega: false } : c));
+    syncPlots(slot, this.buildRules);
+    this.log('ship', `${this.planet.displayName}: megakonstrukt przygotowywany do startu na orbitę (${formatFlight(prepare)}).`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Megakonstrukt startuje na orbitę za ${formatFlight(prepare)} (${fuelLabel(check.fuel)}). Na planecie zostaną osady.` };
+  }
+
+  /** Anulowanie startu w czasie przygotowania: premia wraca, paliwo też. */
+  cancelLaunch(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const o = this.launchingFrom(this.address, now);
+    if (!o) return { ok: false, message: 'Nic nie startuje (konstrukt już na orbicie?).' };
+    this.orbiting = this.orbiting.filter((x) => x !== o);
+    const slot = this.slots[this.active]!;
+    slot.complexes = slot.complexes?.map((c) => (c.building === 'metalMine' ? { ...c, mega: true } : c));
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter + o.fuel };
+    syncPlots(slot, this.buildRules);
+    this.log('ship', `${this.planet.displayName}: start megakonstruktu anulowany.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: 'Start anulowany — megakonstrukt pracuje dalej, paliwo zwrócone.' };
+  }
+
+  /** Ściągnięcie konstruktu z orbity (`index` z `orbitView().inOrbit`) na aktywną planetę z kompletem osad. */
+  landConstruct(index: number, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const o = this.orbiting[index];
+    if (!o || orbitalState(o, now) !== 'na_orbicie') return { ok: false, message: 'Tego konstruktu nie ma na orbicie.' };
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const reason = landingCheck(slot.metalComplex, this.economy.levels.metalMine ?? 0, this.orbiting.some((x) => x.target === this.address));
+    if (reason) return { ok: false, message: reason };
+    const distance = this.distanceBetween(o.origin, this.address);
+    const fuel = landingFuel(distance, this.balance);
+    const short = fuelShortage(fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    const seconds = landingSeconds(distance, this.balance);
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
+    this.orbiting = this.orbiting.map((x) => (x === o ? { ...x, target: this.address, landsAt: now + seconds * 1000 } : x));
+    this.log('ship', `Megakonstrukt z orbity ${this.slotName(o.origin)} leci na ${this.planet.displayName} (${fuelLabel(fuel)}).`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Megakonstrukt ląduje na ${this.planet.displayName} za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
+  }
+
+  /**
+   * Starty i lądowania do `now` (także podczas nieobecności): start — na planecie zostają osady; lądowanie — na placu
+   * staje konstrukt (układ promienisty, +60%, znaleziska); gdy cel już się nie nadaje — konstrukt wraca na orbitę.
+   */
+  private processOrbit(now: number): string[] {
+    const texts: string[] = [];
+    for (const o of [...this.orbiting]) {
+      if (!o.lifted && o.readyAt <= now) {
+        o.lifted = true;
+        const slot = this.slots[this.slotAt(o.origin)];
+        if (slot?.metalComplex?.phase === 'konstrukt') {
+          slot.metalComplex = { center: slot.metalComplex.center, phase: 'osady', ...(slot.metalComplex.states ? { states: slot.metalComplex.states } : {}) };
+          slot.complexes = slot.complexes?.map((c) => (c.building === 'metalMine' ? { ...c, mega: false } : c));
+          syncPlots(slot, this.buildRules);
+        }
+        const text = `Megakonstrukt z ${this.slotName(o.origin)} jest na orbicie — na planecie zostały osady. Ściągnij go na planetę z kompletem osad (okno Kompleks).`;
+        this.log('ship', text, o.readyAt);
+        texts.push(text);
+      }
+      if (!o.target || o.landsAt === undefined || o.landsAt > now) continue;
+      const index = this.slotAt(o.target);
+      const slot = this.slots[index];
+      const reason = slot ? landingCheck(slot.metalComplex, slot.economy.levels.metalMine ?? 0, false) : 'Planety celu już nie ma.';
+      if (reason || !slot) {
+        // Cel się nie nadaje — konstrukt wraca na orbitę planety, z której wystartował.
+        this.orbiting = this.orbiting.map((x) => (x === o ? { origin: o.origin, readyAt: o.readyAt, fuel: o.fuel, lifted: true } : x));
+        this.log('ship', `Megakonstrukt nie wylądował (${reason}) — wrócił na orbitę.`, o.landsAt);
+        continue;
+      }
+      this.orbiting = this.orbiting.filter((x) => x !== o);
+      slot.metalComplex = { center: slot.metalComplex!.center, phase: 'konstrukt', ...(slot.metalComplex!.states ? { states: slot.metalComplex!.states } : {}) };
+      const list = slot.complexes ?? [];
+      slot.complexes = list.some((c) => c.building === 'metalMine')
+        ? list.map((c) => (c.building === 'metalMine' ? { ...c, mega: true } : c))
+        : [...list, { family: 'metal-factory', building: 'metalMine', mega: true }];
+      const key = `${slot.planet.seed}:metalMine`;
+      if (this.finds.next[key] === undefined) this.finds = { ...this.finds, next: { ...this.finds.next, [key]: o.landsAt + findInterval(key, o.landsAt) } };
+      syncPlots(slot, this.buildRules);
+      const text = `Megakonstrukt wylądował na ${slot.planet.displayName} — osady w układzie promienistym, +${MEGA_RULES.bonus}% i znaleziska.`;
+      this.log('ship', text, o.landsAt);
+      texts.push(text);
+    }
+    return texts;
+  }
+
   // ——— flota i stocznia (v0.58) ———
 
   private takeShips(type: ShipType, n: number): void {
@@ -2881,6 +3048,7 @@ export class GameController {
     this.exploited = result.data.exploited ?? [];
     this.station = result.data.station ?? null;
     this.fleet = result.data.fleet ?? starterFleet(BALANCE);
+    this.orbiting = result.data.orbiting ?? [];
     this.transfers = result.data.transfers ?? [];
     this.markPacking();
     this.journal = result.data.journal ?? [];
@@ -2898,6 +3066,7 @@ export class GameController {
     this.processTransfers(now);
     this.processShipyard(now);
     this.processMetalConstructs(now);
+    this.processOrbit(now);
     this.processFinds(now);
     this.offlineGain = null;
     this.completedWhileAway = null;
@@ -2927,6 +3096,7 @@ export class GameController {
       ...(this.station ? { station: this.station } : {}),
       ...(this.transfers.length > 0 ? { transfers: this.transfers } : {}),
       fleet: this.fleet,
+      ...(this.orbiting.length > 0 ? { orbiting: this.orbiting } : {}),
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,

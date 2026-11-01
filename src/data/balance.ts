@@ -65,6 +65,7 @@ export const BALANCE: Balance = {
     beltsPerFactory: 3,
     constructSeconds: { min: 3600, max: 7200 },
     constructCost: { metal: 60_000, crystal: 40_000 },
+    orbit: { prepareSeconds: 1800, launchFuel: 10, landingFuelFactor: 5, speedFactor: 2 },
     status: 'robocza',
   },
   fuel: {

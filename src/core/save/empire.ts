@@ -13,7 +13,8 @@ import { parseFinds, type FindsState } from '../economy/finds.ts';
 import { parseHomeStation } from '../economy/homeStation.ts';
 import { parseTransfers } from '../economy/constructTransfer.ts';
 import { parseFleet } from '../economy/fleet.ts';
-import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, Fleet, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
+import { parseOrbiting } from '../economy/orbitalConstruct.ts';
+import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, Fleet, OrbitalConstruct, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState } from '../types.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 import { parseComplexes, type Complex } from '../colony/complexes.ts';
@@ -100,6 +101,8 @@ export interface EmpireSave {
   transfers?: ConstructTransfer[];
   /** Flota: statki na stanie i kolejka stoczni (od v0.58, opcjonalne; brak = flota startowa). */
   fleet?: Fleet;
+  /** Megakonstrukty na orbicie i w locie do lądowania (od v0.61, opcjonalne). */
+  orbiting?: OrbitalConstruct[];
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -232,6 +235,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseHomeStation(data.station) ? { station: parseHomeStation(data.station)! } : {}),
     ...(parseTransfers(data.transfers, BUILDING_IDS).length > 0 ? { transfers: parseTransfers(data.transfers, BUILDING_IDS) } : {}),
     ...(parseFleet(data.fleet) ? { fleet: parseFleet(data.fleet)! } : {}),
+    ...(parseOrbiting(data.orbiting).length > 0 ? { orbiting: parseOrbiting(data.orbiting) } : {}),
   };
 }
 
