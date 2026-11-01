@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.59.0 — kopalnia metalu jako osady — 2026-11-01
+
+- Kopalnia metalu nie jest już rozlana na dziesiątki pól: osady (fabryka + 3 kopalnie, nowa osada co 10 poziomów) połączone drogami wokół pustego placu na przyszły megakonstrukt.
+- Pola kopalni metalu: kopalnia 1, fabryka 2, najwyżej 20 (dawniej do 50) — zwolnione pola wracają do puli; inne budynki nie stają w dzielnicy kopalni.
+- Z daleka widać fabryki, plac i drogi, kopalnie wyrastają przy przybliżeniu; dotknięcie dowolnego obiektu albo drogi otwiera kartę Kopalni metalu; w 2D — symbole.
+- Rusztowanie budowy w miejscu następnej kopalni albo fabryki. Poziomy i postęp zapisów bez zmian.
+
 ## v0.58.0 — wstępna flota — 2026-11-01
 
 - Statki budowane w **stoczni** (moduł stacji macierzystej, poziomy 1–10, kolejka do 5): transportowiec, statek kolonizacyjny, holownik, okręt eskorty.

@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.58.0 — opublikowana: pętla MVP — paliwo, wyeksploatowanie, stacja macierzysta, transfer megakonstruktu, pola morza, flota)
+## Stan obecny (v0.59.0 — opublikowana: pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota; kompleks kopalni metalu — osady)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -62,6 +62,12 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   (transportowiec, statek kolonizacyjny, holownik, okręt eskorty; `src/data/fleet.ts`, `core/economy/fleet.ts`,
   `BALANCE.fleet`); lot zabiera statek z floty (transportowiec i holownik wracają, kolonizacyjny zostaje), eskorta
   przy transporcie i transferze (ochrona — etap 7), zakładka „Flota” w Imperium, zapis `fleet`; flota startowa 3 / 1 / 1.
+- **v0.59 — kompleks kopalni metalu, etapy 1–2** (decyzje właściciela, `docs/kompleks-kopalni-metalu.md`): model osad
+  w core (`core/colony/complexLayout.ts`, `BALANCE.metalComplex`, zapis `metalComplex`); pola kopalni z modelu (kopalnia 1,
+  fabryka 2, maks. 20), dzielnica zarezerwowana (`metalComplexCells`, `reconcilePlots` z `fixed`), środek z pełnym
+  dopasowaniem układu; wygląd 3D: kopalnie, fabryki, plac, drogi (`planet-renderer/metalComplexMeshes.ts`,
+  `ColonyMeshes.addMetalComplex`), LOD kopalń przy przybliżeniu, dotyk każdego obiektu, 2D — symbole. Megakonstrukt
+  (etap 3) nieprzenośny poza „wyrzuceniem” na orbitę i ściągnięciem na inną planetę.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
