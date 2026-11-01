@@ -94,7 +94,8 @@ import { DISCOVERY, discoveryOf, ensureKnown, initialDiscoveries, isRare, knownC
 import { GENERATOR_VERSION, generatePlanet } from '../core/generation/generatePlanet.ts';
 import { hasFreeSlot, inspectStoredEmpire, JOURNAL_LIMIT, writeEmpire, type EmpireSave, type SlotSave } from '../core/save/empire.ts';
 import { exportSave, importSave } from '../core/save/transfer.ts';
-import { ensureMetalComplex, metalComplexCells, type MetalComplexCells, type MetalComplexSave } from '../core/colony/complexLayout.ts';
+import { checkConstruct, constructProgress, constructSeconds, type ConstructCheck } from '../core/economy/metalConstruct.ts';
+import { ensureMetalComplex, metalComplexFields, metalComplexCells, type MetalComplexCells, type MetalComplexSave } from '../core/colony/complexLayout.ts';
 import type { AsteroidStation, Balance, ConstructTransfer, Fleet, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
@@ -379,6 +380,21 @@ export interface ShipmentView extends Shipment {
   progress: number;
 }
 
+/** Megakonstrukt kopalni metalu (etap 3 kompleksu). */
+export interface MetalConstructView {
+  built: boolean;
+  building: { secondsLeft: number; progress: number } | null;
+  cost: Resources;
+  seconds: number;
+  bonus: number;
+  /** Działa jeszcze dawny megakompleks metalu (premia zostaje do zbudowania konstruktu). */
+  legacyMega: boolean;
+  /** Dlaczego nie można zacząć (null — można). */
+  reason: string | null;
+  /** Pola innych budynków na miejscu układu promienistego (przeniosą obszar obok przy ukończeniu). */
+  displaced: number;
+}
+
 /** Zakładka „Flota” (v0.58). */
 export interface FleetView {
   stationBuilt: boolean;
@@ -553,7 +569,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -920,7 +936,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     if (exploited || done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
@@ -1810,6 +1826,106 @@ export class GameController {
     slot.economy = { ...economy, stock: { metal: economy.stock.metal + cargo.metal, crystal: economy.stock.crystal + cargo.crystal } };
   }
 
+  // ——— megakonstrukt kopalni metalu (etap 3 kompleksu) ———
+
+  /** Okno Kompleks kopalni metalu: stan megakonstruktu, warunki, koszt i czas budowy. */
+  metalConstructView(now = Date.now()): MetalConstructView {
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const save = slot.metalComplex;
+    const check = this.constructCheck(slot);
+    const others = new Set(Object.entries(slot.plots).flatMap(([b, l]) => (b === 'metalMine' ? [] : (l ?? []))));
+    const radial = save && save.phase === 'osady' ? metalComplexCells(fieldGrid(slot.planet), slot.planet.seed, save.center, slot.economy.levels.metalMine ?? 0, 'konstrukt') : null;
+    return {
+      displaced: radial ? radial.reserved.filter((c) => others.has(c)).length : 0,
+      built: save?.phase === 'konstrukt',
+      building: save?.build ? { secondsLeft: Math.max(0, (save.build.readyAt - now) / 1000), progress: constructProgress(save, now) ?? 0 } : null,
+      cost: this.balance.metalComplex.constructCost,
+      seconds: constructSeconds(slot.planet.seed, this.balance),
+      bonus: MEGA_RULES.bonus,
+      legacyMega: save?.phase !== 'konstrukt' && !!slot.complexes?.some((c) => c.building === 'metalMine' && c.mega),
+      reason: check.ok ? null : check.message,
+    };
+  }
+
+  private constructCheck(slot: Slot): ConstructCheck {
+    const levels = slot.economy.levels;
+    const save = slot.metalComplex;
+    // Pola układu promienistego zajęte przez inne budynki (zapisy sprzed etapu 3) nie blokują budowy — megakonstrukt
+    // ma pierwszeństwo, a te budynki przenoszą obszar obok (poziom bez zmian); okno o tym uprzedza (`displaced`).
+    const blocked = 0;
+    return checkConstruct(
+      {
+        unlocked: this.unlocked(MEGA_RULES.unlock),
+        level: levels.metalMine ?? 0,
+        complexActive: !!slot.complexes?.some((c) => c.building === 'metalMine'),
+        save,
+        stock: slot.economy.stock,
+        blocked,
+      },
+      slot.planet.seed,
+      this.balance,
+    );
+  }
+
+  /** Start budowy megakonstruktu na placu (płaci aktywna planeta; kopalnia pracuje dalej). */
+  startMetalConstruct(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const check = this.constructCheck(slot);
+    if (!check.ok) return check;
+    const failed = this.payFor(check.cost, 'Megakonstrukt');
+    if (failed) return failed;
+    slot.metalComplex = { ...slot.metalComplex!, build: { startedAt: now, readyAt: now + check.seconds * 1000, cost: check.cost } };
+    this.log('build', `${this.planet.displayName}: rozpoczęto budowę megakonstruktu kopalni metalu (gotowy za ${formatFlight(check.seconds)}).`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Megakonstrukt w budowie — gotowy za ${formatFlight(check.seconds)}. Kopalnia pracuje dalej.` };
+  }
+
+  /** Anulowanie budowy megakonstruktu (zwrot kosztu aktywnej planecie). */
+  cancelMetalConstruct(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    const build = slot.metalComplex?.build;
+    if (!build) return { ok: false, message: 'Megakonstrukt nie jest w budowie.' };
+    const { build: _gone, ...rest } = slot.metalComplex!;
+    slot.metalComplex = rest;
+    const stock = this.economy.stock;
+    this.economy = { ...this.economy, stock: { metal: stock.metal + build.cost.metal, crystal: stock.crystal + build.cost.crystal } };
+    this.log('build', `${this.planet.displayName}: budowa megakonstruktu anulowana — koszt zwrócony.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: 'Budowa megakonstruktu anulowana — koszt zwrócony.' };
+  }
+
+  /**
+   * Ukończone megakonstrukty (wszystkie planety, także podczas nieobecności): faza „konstrukt” (układ promienisty),
+   * wielka fabryka staje się megakompleksem (+60%, znaleziska od teraz).
+   */
+  private processMetalConstructs(now: number): string[] {
+    const texts: string[] = [];
+    for (const slot of this.slots) {
+      const save = slot.metalComplex;
+      const build = save?.build;
+      if (!save || !build || build.readyAt > now) continue;
+      slot.metalComplex = { center: save.center, phase: 'konstrukt', ...(save.states ? { states: save.states } : {}) };
+      const list = slot.complexes ?? [];
+      const has = list.some((c) => c.building === 'metalMine');
+      slot.complexes = has
+        ? list.map((c) => (c.building === 'metalMine' ? { ...c, mega: true } : c))
+        : [...list, { family: 'metal-factory', building: 'metalMine', mega: true }];
+      const key = `${slot.planet.seed}:metalMine`;
+      if (this.finds.next[key] === undefined) this.finds = { ...this.finds, next: { ...this.finds.next, [key]: build.readyAt + findInterval(key, build.readyAt) } };
+      syncPlots(slot, this.buildRules);
+      const text = `${slot.planet.displayName}: megakonstrukt kopalni metalu gotowy — kompleks w układzie promienistym, +${MEGA_RULES.bonus}% i znaleziska.`;
+      this.log('build', text, build.readyAt);
+      texts.push(text);
+    }
+    return texts;
+  }
+
   // ——— flota i stocznia (v0.58) ———
 
   private takeShips(type: ShipType, n: number): void {
@@ -1958,7 +2074,9 @@ export class GameController {
     const level = this.economy.levels[id] ?? 0;
     const complex = slot.complexes?.find((c) => c.building === id);
     const packing = this.transfers.find((t) => t.from === this.address && t.building === id && !t.departed) ?? null;
-    const reason = !complex?.mega
+    const reason = id === 'metalMine' && (slot.metalComplex?.phase === 'konstrukt' || slot.metalComplex?.build)
+      ? 'Megakonstruktu nie da się wysłać jak megakompleksu — wyrzucenie na orbitę i ściągnięcie na inną planetę: następny krok.'
+      : !complex?.mega
       ? 'Wysłać można tylko megakompleks.'
       : this.economy.construction?.building === id || (this.economy.queue ?? []).includes(id)
         ? 'Najpierw dokończ albo anuluj budowę tego budynku (także w kolejce).'
@@ -2779,6 +2897,7 @@ export class GameController {
     this.processComets(now);
     this.processTransfers(now);
     this.processShipyard(now);
+    this.processMetalConstructs(now);
     this.processFinds(now);
     this.offlineGain = null;
     this.completedWhileAway = null;
@@ -2988,7 +3107,8 @@ export class GameController {
     const names = STAGE_NAMES[id];
     const found = complexCandidate(all, levels, family, names, FOOTPRINT[id][COMPLEX_STAGE]!.from);
     const candidate = found.ok ? { gainPerMinute: this.familyGain(family, this.ratesWith([...all, { family: family.id, building: id }])) - this.familyGain(family, this.rates) } : null;
-    const mega = megaCandidate(all, levels, family, names, FOOTPRINT[id][MEGA_STAGE]!.from);
+    // Kopalnia metalu (etap 3 kompleksu): zamiast megakompleksu — megakonstrukt (`metalConstructView`).
+    const mega = id === 'metalMine' ? { ok: false as const, reason: 'Zamiast megakompleksu — megakonstrukt od poz. 40.' } : megaCandidate(all, levels, family, names, FOOTPRINT[id][MEGA_STAGE]!.from);
     const megaGain = mega.ok ? this.familyGain(family, this.ratesWith(all.map((c) => (c.building === id ? { ...c, mega: true } : c)))) - this.familyGain(family, this.rates) : 0;
     return {
       name: family.name,
@@ -3124,6 +3244,8 @@ export class GameController {
     this.tick(now);
     const packed = this.packingMessage(id);
     if (packed) return { ok: false, message: packed };
+    const metal = this.slots[this.active]!.metalComplex;
+    if (id === 'metalMine' && (metal?.phase === 'konstrukt' || metal?.build)) return { ok: false, message: 'Wielka fabryka jest częścią megakonstruktu — nie da się jej wyłączyć.' };
     const slot = this.slots[this.active]!;
     const list = slot.complexes ?? [];
     const own = list.find((c) => c.building === id);
@@ -3145,6 +3267,8 @@ export class GameController {
     if (packed) return { ok: false, message: packed };
     const family = findFamily(id);
     if (!family) return { ok: false, message: 'Ten budynek nie tworzy kompleksów.' };
+    // Kopalnia metalu (etap 3): zamiast megakompleksu od poz. 20 — megakonstrukt po komplecie osad (poz. 40).
+    if (id === 'metalMine') return { ok: false, message: 'Kopalnia metalu: zamiast megakompleksu — megakonstrukt od poz. 40 (okno Kompleks → Megakonstrukt).' };
     if (!this.unlocked(MEGA_RULES.unlock)) return { ok: false, message: `Najpierw zbadaj ${MEGA_RULES.research}.` };
     const slot = this.slots[this.active]!;
     syncPlots(slot, this.buildRules);
@@ -3171,6 +3295,9 @@ export class GameController {
     if (packed) return { ok: false, message: packed };
     const family = findFamily(id);
     const slot = this.slots[this.active]!;
+    if (id === 'metalMine' && (slot.metalComplex?.phase === 'konstrukt' || slot.metalComplex?.build)) {
+      return { ok: false, message: 'Megakonstrukt działa na stałe — nie da się go wyłączyć.' };
+    }
     const list = slot.complexes ?? [];
     if (!family || !list.some((c) => c.building === id && c.mega)) return { ok: false, message: 'Nie ma megakompleksu do wyłączenia.' };
     slot.complexes = list.map((c) => {
@@ -3196,7 +3323,8 @@ export class GameController {
         if (!slot.metalComplex) syncPlots(slot, this.buildRules);
         const next = metalFixed(slot, { ...levels, metalMine: (levels.metalMine ?? 0) + 1 });
         const others = new Set(Object.entries(slot.plots).flatMap(([b, l]) => (b === 'metalMine' ? [] : (l ?? []))));
-        return !!next && next.cells.length >= fieldsFor('metalMine', (levels.metalMine ?? 0) + 1) && next.cells.every((c) => !others.has(c));
+        const need = metalComplexFields((levels.metalMine ?? 0) + 1, slot.metalComplex?.phase ?? 'osady');
+        return !!next && next.cells.length >= need && next.cells.every((c) => !others.has(c));
       }
       const metal = metalFixed(slot, levels);
       return hasRoomFor(grid, slot.plots, levels, id, BUILDING_ORDER, rules, metal ? { plots: { metalMine: metal.cells }, reserved: metal.reserved } : {});
@@ -3246,8 +3374,8 @@ function fieldsOf(slot: Slot, active: boolean, base: BuildRules): { used: number
 /** Pola kompleksu kopalni metalu planety na danym poziomie (null — bez kompleksu albo bez kopalni). */
 function metalFixed(slot: Slot, levels: Partial<BuildingLevels>, grid: FieldGrid = fieldGrid(slot.planet)): MetalComplexCells | null {
   const level = levels.metalMine ?? 0;
-  if (!slot.metalComplex || level <= 0 || slot.metalComplex.phase !== 'osady') return null;
-  return metalComplexCells(grid, slot.planet.seed, slot.metalComplex.center, level);
+  if (!slot.metalComplex || level <= 0) return null;
+  return metalComplexCells(grid, slot.planet.seed, slot.metalComplex.center, level, slot.metalComplex.phase);
 }
 
 function syncPlots(slot: Slot, base: BuildRules): Plots {

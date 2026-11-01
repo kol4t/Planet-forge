@@ -15,8 +15,13 @@ export const METAL_LOOK = {
   factory: 1.35,
   /** Zarys placu (promień ≈ promień placu z modelu). */
   plaza: 1.0,
-  /** Dotychczasowy megakompleks metalu, gdy działa — tymczasowo na placu (decyzja przed etapem 3). */
+  /** Dawny megakompleks metalu, gdy działa — na placu do czasu zbudowania megakonstruktu. */
   mega: 1.9,
+  /** Megakonstrukt (etap 3) w środku układu promienistego. */
+  construct: 2.4,
+  /** Pas produkcyjny fabryka → megakonstrukt: szerokość (j. układu) i odcinki na pas. */
+  belt: 0.3,
+  beltSteps: 4,
   /** Szerokość drogi i liczba odcinków na drogę. */
   road: 0.14,
   roadSteps: 6,
@@ -64,13 +69,19 @@ const slotHash = (id: string) => {
 export function metalObjectSize(o: Pick<MetalComplexObject, 'typ' | 'poziom'>, unit: number): number {
   if (o.typ === 'kopalnia') return METAL_LOOK.mine[Math.max(0, Math.min(2, o.poziom - 1))]! * unit;
   if (o.typ === 'fabryka') return METAL_LOOK.factory * unit;
-  return METAL_LOOK.mega * unit;
+  return METAL_LOOK.construct * unit;
 }
 
 /** Obiekty do narysowania: plac (zawsze), kopalnie i fabryki z modelu, megakompleks na placu, gdy działa. */
 export function metalPieces(layout: MetalComplexLayout, mega: boolean): MetalPiece[] {
-  const out: MetalPiece[] = [{ kind: 'plaza', slotId: 'plac', dir: layout.center, size: METAL_LOOK.plaza * layout.unit, spin: layout.rotation, level: 1 }];
-  if (mega) out.push({ kind: 'mega', slotId: 'megakompleks', dir: layout.center, size: METAL_LOOK.mega * layout.unit, spin: layout.rotation, level: 1 });
+  const out: MetalPiece[] = [];
+  if (layout.phase === 'konstrukt') {
+    // Układ promienisty (etap 3): megakonstrukt w środku zamiast placu.
+    out.push({ kind: 'mega', slotId: 'konstrukt', dir: layout.center, size: METAL_LOOK.construct * layout.unit, spin: layout.rotation, level: 1 });
+  } else {
+    out.push({ kind: 'plaza', slotId: 'plac', dir: layout.center, size: METAL_LOOK.plaza * layout.unit, spin: layout.rotation, level: 1 });
+    if (mega) out.push({ kind: 'mega', slotId: 'megakompleks', dir: layout.center, size: METAL_LOOK.mega * layout.unit, spin: layout.rotation, level: 1 });
+  }
   for (const o of layout.obiekty) {
     if (o.typ === 'megakonstrukt') continue;
     out.push({
@@ -168,6 +179,20 @@ export function metalPickTargets(layout: MetalComplexLayout, mega: boolean, grou
   for (const seg of roadSegments(layout, pieces)) {
     const mid = slerp(seg.from, seg.to, 0.5);
     out.push({ id: 'metalMine', dir: mid, surface: ground(mid), reach: angle(seg.from, seg.to) / 2 });
+  }
+  return out;
+}
+
+/**
+ * Pasy produkcyjne fabryka → megakonstrukt (faza „konstrukt”, po `beltsPerFactory` równoległych na fabrykę) jako krótkie
+ * odcinki po powierzchni (jak drogi) — rysuje je taśmociąg rodziny metalowej.
+ */
+export function beltSegments(layout: MetalComplexLayout): RoadSegment[] {
+  const out: RoadSegment[] = [];
+  const steps = METAL_LOOK.beltSteps;
+  for (const belt of layout.pasy) {
+    const [a, b] = belt.points;
+    for (let k = 0; k < steps; k++) out.push({ from: slerp(a, b, k / steps), to: slerp(a, b, (k + 1) / steps), width: METAL_LOOK.belt * layout.unit });
   }
   return out;
 }

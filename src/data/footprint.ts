@@ -41,7 +41,7 @@ export const LAST_STAGE_LEVELS = 6;
 
 /** Nazwy etapów kompleksu (robocze; kolejność jak w `FOOTPRINT`). */
 export const STAGE_NAMES: Record<BuildingId, readonly [string, string, string, string]> = {
-  metalMine: ['Kopalnia', 'Zakład przetwórczy', 'Huta', 'Megakompleks metalowy'],
+  metalMine: ['Kopalnia', 'Zakład przetwórczy', 'Huta', 'Kombinat metalowy'],
   crystalMine: ['Wiertło', 'Szyb wiertniczy', 'Odkrywka', 'Megaodkrywka'],
   powerPlant: ['Farma wiatrowa', 'Generator fuzyjny', 'Elektrownia jądrowa', 'Reaktor antymaterii'],
   storage: ['Skład', 'Magazyn', 'Terminal magazynowy', 'Megaskład'],

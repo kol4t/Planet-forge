@@ -71,6 +71,8 @@ export interface MetalComplexSave {
   phase: MetalComplexPhase;
   /** Stany obiektów wg `slotId` (brak = aktywny, pełna wytrzymałość). */
   states?: Record<string, MetalObjectSave>;
+  /** Budowa megakonstruktu w toku (etap 3): start, koniec (ms) i zapłacony koszt (zwrot przy anulowaniu). */
+  build?: { startedAt: number; readyAt: number; cost: { metal: number; crystal: number } };
 }
 
 export const MOBJECT_STATES: readonly MetalObjectState[] = ['aktywny', 'zniszczony', 'w_odbudowie'];
@@ -483,13 +485,13 @@ const allocationCache = new WeakMap<FieldGrid, Map<string, { slotId: string; cel
  * sąsiednie pole lądu. Gdy dwa miejsca wypadają w jednym polu, drugie bierze najbliższe wolne pole lądu obok (liczba pól
  * zawsze jak w modelu). Stałe dla planety i środka — kolejne poziomy tylko odsłaniają kolejne miejsca.
  */
-function slotAllocation(grid: FieldGrid, seed: string, center: Vec3): { slotId: string; cells: number[] }[] {
-  const key = `${seed}|${center.map((v) => v.toFixed(6)).join(',')}`;
+function slotAllocation(grid: FieldGrid, seed: string, center: Vec3, phase: MetalComplexPhase = 'osady'): { slotId: string; cells: number[] }[] {
+  const key = `${seed}|${phase}|${center.map((v) => v.toFixed(6)).join(',')}`;
   let byKey = allocationCache.get(grid);
   if (!byKey) allocationCache.set(grid, (byKey = new Map()));
   const cached = byKey.get(key);
   if (cached) return cached;
-  const places = slotPlaces(grid, seed, center, 'osady');
+  const places = slotPlaces(grid, seed, center, phase);
   const used = new Set<number>();
   const cellAt = (p: Vec3) => {
     const i = places.nearest(p, false);
@@ -519,7 +521,8 @@ function slotAllocation(grid: FieldGrid, seed: string, center: Vec3): { slotId: 
     return out;
   };
   const out: { slotId: string; cells: number[] }[] = [];
-  for (const slot of metalComplexSlots(levelsPerSettlement() * CFG.settlements, 'osady')) {
+  // Faza „konstrukt”: megakonstrukt pierwszy (4 pola w środku), potem osady na ramionach.
+  for (const slot of metalComplexSlots(levelsPerSettlement() * CFG.settlements, phase)) {
     if (out.some((o) => o.slotId === slot.slotId)) continue;
     out.push({ slotId: slot.slotId, cells: take(places.where.get(slot.slotId)!, fieldsOfType(slot.typ)) });
   }
@@ -532,18 +535,18 @@ function slotAllocation(grid: FieldGrid, seed: string, center: Vec3): { slotId: 
  * fabryka 2, najwyżej 20); zarezerwowane — plac w środku i cała dzielnica każdej rozpoczętej osady (miejsca kopalń
  * i fabryki, pola pod drogami), żeby żaden inny budynek nie stanął w jej obrębie.
  */
-export function metalComplexCells(grid: FieldGrid, seed: string, center: Vec3, level: number): MetalComplexCells {
+export function metalComplexCells(grid: FieldGrid, seed: string, center: Vec3, level: number, phase: MetalComplexPhase = 'osady'): MetalComplexCells {
   const lv = Math.max(0, Math.floor(Number.isFinite(level) ? level : 0));
   if (lv <= 0) return { cells: [], reserved: [], next: [] };
-  const allocation = slotAllocation(grid, seed, center);
+  const allocation = slotAllocation(grid, seed, center, phase);
   const bySlot = new Map(allocation.map((a) => [a.slotId, a.cells]));
-  const built = metalComplexSlots(lv, 'osady');
+  const built = metalComplexSlots(lv, phase);
   const cells: number[] = [];
   for (const slot of built) for (const c of bySlot.get(slot.slotId) ?? []) if (!cells.includes(c)) cells.push(c);
-  const nextSlot = metalComplexSlots(lv + 1, 'osady').find((s) => !built.some((b) => b.slotId === s.slotId));
+  const nextSlot = metalComplexSlots(lv + 1, phase).find((s) => !built.some((b) => b.slotId === s.slotId));
   const next = nextSlot ? (bySlot.get(nextSlot.slotId) ?? []).filter((c) => !cells.includes(c)) : [];
   const reserved = new Set(cells);
-  const places = slotPlaces(grid, seed, center, 'osady');
+  const places = slotPlaces(grid, seed, center, phase);
   const cellAt = (p: Vec3) => {
     const i = places.nearest(p, false);
     return i >= 0 ? grid.owner[i]! : -1;
@@ -551,7 +554,13 @@ export function metalComplexCells(grid: FieldGrid, seed: string, center: Vec3, l
   const addLand = (c: number) => {
     if (c >= 0 && c < grid.seaCellStart && grid.cells[c]!.kind === 'land') reserved.add(c);
   };
-  // Plac w środku (miejsce na przyszły megakonstrukt): pole pod środkiem i pola w promieniu placu.
+  const segment = (a: Vec3, b: Vec3) => {
+    for (let k = 1; k < 4; k++) {
+      const t = k / 4;
+      addLand(cellAt(normalize([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t])));
+    }
+  };
+  // Plac w środku (miejsce na megakonstrukt; w fazie „konstrukt” — sam konstrukt): pole pod środkiem i w promieniu placu.
   addLand(cellAt(center));
   const plaza = REACH.plac * places.scale * places.unit;
   for (let a = 0; a < 8; a++) addLand(cellAt(places.toSphere(plaza * Math.cos((a * Math.PI) / 4), plaza * Math.sin((a * Math.PI) / 4))));
@@ -561,13 +570,15 @@ export function metalComplexCells(grid: FieldGrid, seed: string, center: Vec3, l
     const ids = [...Array.from({ length: CFG.minesPerSettlement }, (_, m) => mineSlotId(s, m)), factorySlotId(s)];
     for (const id of ids) for (const c of bySlot.get(id) ?? []) addLand(c);
     const f = places.where.get(factorySlotId(s))!;
-    for (let m = 0; m < CFG.minesPerSettlement; m++) {
-      const a = places.where.get(mineSlotId(s, m))!;
-      for (let k = 1; k < 4; k++) {
-        const t = k / 4;
-        addLand(cellAt(normalize([a[0] + (f[0] - a[0]) * t, a[1] + (f[1] - a[1]) * t, a[2] + (f[2] - a[2]) * t])));
-      }
-    }
+    for (let m = 0; m < CFG.minesPerSettlement; m++) segment(places.where.get(mineSlotId(s, m))!, f);
+    // Faza „konstrukt”: pasy fabryka → megakonstrukt.
+    if (phase === 'konstrukt') segment(f, center);
+  }
+  // Faza „osady” (etap 3): rezerwa obejmuje też przyszły układ promienisty rozpoczętych osad i miejsce konstruktu —
+  // inne budynki nie wejdą tam, gdzie po budowie megakonstruktu staną fabryki, kopalnie i pasy.
+  if (phase === 'osady') {
+    const radial = metalComplexCells(grid, seed, center, lv, 'konstrukt');
+    for (const c of radial.reserved) addLand(c);
   }
   return { cells, reserved: [...reserved], next };
 }
@@ -676,6 +687,11 @@ export function parseMetalComplex(raw: unknown): MetalComplexSave | null {
       states[id] = { stan: s.stan, wytrzymalosc: s.wytrzymalosc };
     }
     if (Object.keys(states).length > 0) out.states = states;
+  }
+  const b = (r as { build?: any }).build;
+  const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+  if (out.phase === 'osady' && b && num(b.startedAt) && num(b.readyAt) && b.readyAt >= b.startedAt && num(b.cost?.metal) && num(b.cost?.crystal)) {
+    out.build = { startedAt: b.startedAt, readyAt: b.readyAt, cost: { metal: Math.max(0, b.cost.metal), crystal: Math.max(0, b.cost.crystal) } };
   }
   return out;
 }

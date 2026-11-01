@@ -180,9 +180,10 @@ test('znaleziska (v0.43.1): megakompleks co kilka godzin coś znajduje (też off
   assert.deepEqual(parseFinds({ items: { 'unknown-alloy': 99, bogus: 2 }, next: { 'x:metalMine': 5, bad: 1 } }), { items: { 'unknown-alloy': 5 }, next: { 'x:metalMine': 5 } });
   withMemoryStorage(() => {
     const game = new GameController(0);
-    game.research = { done: ['metal-factory', 'megastructures'], current: null };
-    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 20, powerPlant: 25, storage: 10 }, stock: { metal: 90000, crystal: 90000 } };
-    assert.ok(game.mergeComplex('metalMine', 0).ok && game.mergeMega('metalMine', 0).ok);
+    // Megaodkrywka kryształów (kopalnia metalu od etapu 3 kompleksu ma megakonstrukt zamiast megakompleksu).
+    game.research = { done: ['crystal-complex', 'megastructures'], current: null };
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, crystalMine: 20, powerPlant: 25, storage: 10 }, stock: { metal: 90000, crystal: 90000 } };
+    assert.ok(game.mergeComplex('crystalMine', 0).ok && game.mergeMega('crystalMine', 0).ok);
     assert.equal(game.findsView(0).total, 0);
     const later = new GameController(48 * 3600_000);
     const view = later.findsView(48 * 3600_000);

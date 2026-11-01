@@ -8,7 +8,7 @@ import { pitShare, pitSink3d } from './complexLook.ts';
 import { shaftAngle } from './drill.ts';
 import { OPEN_PIT } from '../data/openPit.ts';
 import type { MetalComplexLayout } from '../core/colony/complexLayout.ts';
-import { METAL_LOOK, metalPieces, roadSegments, slerp, type MetalPiece } from './metalComplexMeshes.ts';
+import { beltSegments, METAL_LOOK, metalPieces, roadSegments, slerp, type MetalPiece } from './metalComplexMeshes.ts';
 
 // Zabudowa kompleksów na powierzchni planety 3D (v0.45): każdy budynek to jeden kompleks na swoim obszarze pól —
 // główna konstrukcja w środku (rośnie z etapem) i zabudowa w jego wnętrzu. Grunt kompleksu (dachy, drogi, odkrywka)
@@ -1510,6 +1510,9 @@ export class ColonyMeshes {
   private belts: { building: BuildingId; from: Vec3; to: Vec3; surface: number; width: number }[] = [];
   /** Kompleks kopalni metalu (etap 2): układ z modelu, następny obiekt (rusztowanie) i drogi. */
   private metal: { layout: MetalComplexLayout; mega: boolean; next: { dir: Vec3; size: number } | null } | null = null;
+  /** Budowa megakonstruktu (etap 3): postęp 0..1 (null — brak) — rusztowanie na placu, osobne od rusztowania budynku. */
+  private metalBuild: number | null = null;
+  private readonly constructScaffold: THREE.Mesh;
   private readonly roads: THREE.InstancedMesh;
   private roadItems: { from: Vec3; to: Vec3; surface: number; width: number }[] = [];
   /** Promień terenu w punkcie (bez obniżenia odkrywki) — podaje PlanetView; obiekty kompleksu i drogi stoją na nim. */
@@ -1528,6 +1531,13 @@ export class ColonyMeshes {
     this.scaffold.visible = false;
     this.scaffold.frustumCulled = false;
     this.object.add(this.scaffold);
+    this.constructScaffold = new THREE.Mesh(
+      createShapes().metalMine.body,
+      new THREE.MeshBasicMaterial({ color: '#e6c77a', wireframe: true, transparent: true, depthWrite: false, toneMapped: false }),
+    );
+    this.constructScaffold.visible = false;
+    this.constructScaffold.frustumCulled = false;
+    this.object.add(this.constructScaffold);
     this.conveyor = new THREE.InstancedMesh(
       createConveyor(),
       new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.25, flatShading: true }),
@@ -1608,6 +1618,11 @@ export class ColonyMeshes {
    */
   setMetalComplex(metal: { layout: MetalComplexLayout; mega: boolean; next: { dir: Vec3; size: number } | null } | null): void {
     this.metal = metal;
+  }
+
+  /** Postęp budowy megakonstruktu (null — nic się nie buduje). Wołane co klatkę — tanie. */
+  setMetalBuild(progress: number | null): void {
+    this.metalBuild = progress;
   }
 
   /** Wiszący ekstraktor (null — brak wielkiej odkrywki). Przed `updateLayout`. */
@@ -1726,14 +1741,20 @@ export class ColonyMeshes {
     for (const piece of pieces) {
       const kind = this.kinds.get(KIND[piece.kind])!;
       if (kind.items.length >= MAX_ITEMS) continue;
-      // Plac wyrównuje teren pod sobą (fundament); megakompleks stoi na nim.
-      const pad = piece.kind === 'plaza' ? piece.size * 0.95 : piece.kind === 'mega' ? 0 : piece.size * SPOT_EXTENT;
+      // Plac wyrównuje teren pod sobą (fundament); dawny megakompleks stoi na nim; megakonstrukt — własny fundament.
+      const pad = piece.kind === 'plaza' ? piece.size * 0.95 : piece.kind === 'mega' ? (piece.slotId === 'konstrukt' ? piece.size * CORE_EXTENT : 0) : piece.size * SPOT_EXTENT;
       kind.items.push({ building: 'metalMine', dir: piece.dir, surface: this.ground(piece.dir), spin: piece.spin, size: piece.size, pad, lod: piece.kind === 'mine' });
     }
     for (const seg of roadSegments(layout, pieces)) {
       if (this.roadItems.length >= MAX_ROADS) break;
       const mid = slerp(seg.from, seg.to, 0.5);
       this.roadItems.push({ from: seg.from, to: seg.to, surface: this.ground(mid) + METAL_LOOK.roadLift, width: seg.width });
+    }
+    // Pasy produkcyjne fabryka → megakonstrukt (układ promienisty) — taśmociągi rodziny metalowej.
+    for (const seg of beltSegments(layout)) {
+      if (this.belts.length >= MAX_BELTS) break;
+      const mid = slerp(seg.from, seg.to, 0.5);
+      this.belts.push({ building: 'metalMine', from: seg.from, to: seg.to, surface: this.ground(mid), width: seg.width });
     }
   }
 
@@ -1750,6 +1771,7 @@ export class ColonyMeshes {
   update(dt: number): void {
     this.time += dt;
     this.updateScaffold();
+    this.updateConstructScaffold();
     this.place(false);
   }
 
@@ -1870,6 +1892,27 @@ export class ColonyMeshes {
     this.roads.instanceMatrix.needsUpdate = true;
   }
 
+  /** Rusztowanie megakonstruktu na placu: zarys rośnie z postępem budowy (1–2 h). */
+  private updateConstructScaffold(): void {
+    const layout = this.metal?.layout;
+    if (this.metalBuild === null || !layout || layout.phase !== 'osady') {
+      this.constructScaffold.visible = false;
+      return;
+    }
+    const { q, p, s, n, up } = this.tmp;
+    const size = METAL_LOOK.construct * layout.unit;
+    const dir = layout.center;
+    n.set(dir[0], dir[1], dir[2]);
+    q.setFromUnitVectors(up, n);
+    p.copy(n).multiplyScalar(this.ground(dir) - size * 0.06);
+    s.set(size, size * (0.15 + 0.85 * this.metalBuild), size);
+    this.constructScaffold.position.copy(p);
+    this.constructScaffold.quaternion.copy(q);
+    this.constructScaffold.scale.copy(s);
+    (this.constructScaffold.material as THREE.MeshBasicMaterial).opacity = this.still ? 0.7 : 0.5 + 0.3 * Math.sin(this.time * 3);
+    this.constructScaffold.visible = true;
+  }
+
   private updateScaffold(): void {
     const site = this.site;
     const c = site && this.layout?.complexes.find((x) => x.building === site.building);
@@ -1912,6 +1955,7 @@ export class ColonyMeshes {
 
   dispose(): void {
     (this.scaffold.material as THREE.Material).dispose();
+    (this.constructScaffold.material as THREE.Material).dispose();
     this.conveyor.geometry.dispose();
     (this.conveyor.material as THREE.Material).dispose();
     this.conveyor.dispose();

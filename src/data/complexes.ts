@@ -55,7 +55,7 @@ export const COMPLEX_FAMILIES: readonly ComplexFamily[] = [
     cost: { metal: 3000, crystal: 1500 },
     unlock: 'metal-factory',
     research: '„Metalurgia przemysłowa” (Badania → Produktywność)',
-    megaName: 'Megakompleks metalowy',
+    megaName: 'Megakonstrukt metalowy',
     modes: [
       { id: 'balanced', name: 'Zrównoważony', description: 'Zwykła praca hal i pieców.', output: 1, energy: 1 },
       { id: 'max', name: 'Maksymalna produkcja', description: 'Piece na pełnej mocy: więcej metalu, dużo więcej energii.', output: 1.25, energy: 1.6 },

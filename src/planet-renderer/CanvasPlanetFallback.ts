@@ -10,7 +10,7 @@ import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LI
 import { DragRotator } from './input/dragRotator.ts';
 import { pickCell, pickComplex, type PickTarget, type StructureHit } from './pick.ts';
 import { complexLayout, type MetalComplexSave } from '../core/colony/complexLayout.ts';
-import { metalObjectSize, metalPickTargets, metalPieces, mineDetail, nextMetalObject, roadSegments, type MetalPiece, type RoadSegment } from './metalComplexMeshes.ts';
+import { beltSegments, metalObjectSize, metalPickTargets, metalPieces, mineDetail, nextMetalObject, roadSegments, type MetalPiece, type RoadSegment } from './metalComplexMeshes.ts';
 import { facingAngles, focusLift, type BuildSite, type HomeStationLook, type PlanetDisplay } from './PlanetDisplay.ts';
 import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
 import { ZoomSmoother } from './input/zoom.ts';
@@ -71,7 +71,16 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private orbital = 0;
   private homeStation: HomeStationLook | null = null;
   /** Kompleks kopalni metalu z modelu (etap 2): symbole obiektów, drogi, następny obiekt (rusztowanie), cele dotyku. */
-  private metal: { pieces: MetalPiece[]; roads: RoadSegment[]; next: { dir: [number, number, number]; size: number } | null; targets: PickTarget[] } | null = null;
+  private metal: {
+    pieces: MetalPiece[];
+    roads: RoadSegment[];
+    belts: RoadSegment[];
+    center: [number, number, number];
+    next: { dir: [number, number, number]; size: number } | null;
+    targets: PickTarget[];
+  } | null = null;
+  /** Postęp budowy megakonstruktu (etap 3; null — nic się nie buduje). */
+  private metalBuild: number | null = null;
   private planetSeed = '';
   /** Bieżąca rozdzielczość bufora (rośnie z przybliżeniem). */
   private size = BUFFER;
@@ -127,6 +136,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     }
     this.levels = { ...levels };
     this.site = site;
+    const build = metal?.build;
+    this.metalBuild = build ? Math.min(1, Math.max(0, (Date.now() - build.startedAt) / Math.max(1, build.readyAt - build.startedAt))) : null;
   }
 
   pickStructure(x: number, y: number): StructureHit | null {
@@ -139,7 +150,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   /** Kompleks kopalni metalu z modelu (etap 2) — jak w 3D (`PlanetView.setMetalComplex`), rysowany symbolami. */
   private setMetal(levels: BuildingLevels, complexes: readonly Complex[], metal: MetalComplexSave | null): void {
     const level = levels.metalMine ?? 0;
-    if (!metal || !this.grid || level <= 0 || metal.phase !== 'osady') {
+    if (!metal || !this.grid || level <= 0) {
       this.metal = null;
       return;
     }
@@ -150,6 +161,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.metal = {
       pieces,
       roads: roadSegments(layout, pieces),
+      belts: beltSegments(layout),
+      center: layout.center,
       next: next ? { dir: next.pozycja, size: metalObjectSize(next, layout.unit) } : null,
       targets: metalPickTargets(layout, mega),
     };
@@ -177,6 +190,20 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       ctx.lineTo(b.x, b.y);
     }
     ctx.stroke();
+    // Pasy produkcyjne fabryka → megakonstrukt (układ promienisty) — jaśniejsze, cienkie linie.
+    if (metal.belts.length > 0) {
+      ctx.strokeStyle = '#8f4a2b';
+      ctx.lineWidth = Math.max(1, r * 0.004);
+      ctx.beginPath();
+      for (const belt of metal.belts) {
+        const a = toScreen(belt.from);
+        const b = toScreen(belt.to);
+        if (a.depth < 0.1 || b.depth < 0.1) continue;
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      }
+      ctx.stroke();
+    }
     for (const piece of metal.pieces) {
       const p = toScreen(piece.dir);
       if (p.depth < 0.1) continue;
@@ -186,6 +213,22 @@ export class CanvasPlanetFallback implements PlanetDisplay {
         ctx.strokeStyle = '#8a918e';
         ctx.lineWidth = Math.max(1, r * 0.004);
         ctx.strokeRect(p.x - half * 1.4, p.y - half * 1.4, half * 2.8, half * 2.8);
+      } else if (piece.kind === 'mega' && piece.slotId === 'konstrukt') {
+        // Megakonstrukt (etap 3): duży sześciokąt z żarem w środku.
+        ctx.fillStyle = '#38332f';
+        ctx.strokeStyle = '#8f4a2b';
+        ctx.lineWidth = Math.max(1, r * 0.005);
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const a = (k * Math.PI) / 3;
+          if (k === 0) ctx.moveTo(p.x + half * Math.cos(a), p.y + half * Math.sin(a));
+          else ctx.lineTo(p.x + half * Math.cos(a), p.y + half * Math.sin(a));
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#ff9a3c';
+        ctx.fillRect(p.x - half * 0.15, p.y - half * 0.15, half * 0.3, half * 0.3);
       } else if (piece.kind === 'mega') {
         ctx.fillStyle = '#4b4f50';
         ctx.beginPath();
@@ -216,6 +259,20 @@ export class CanvasPlanetFallback implements PlanetDisplay {
         ctx.arc(p.x, p.y, Math.max(1.5, half * 0.8 * detail), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+      }
+    }
+    // Budowa megakonstruktu: migające złote rusztowanie na placu, wypełnia się z postępem.
+    if (this.metalBuild !== null) {
+      const p = toScreen(metal.center);
+      if (p.depth >= 0.1) {
+        const size = Math.max(8, r * 0.06);
+        ctx.globalAlpha = this.reducedMotion ? 0.8 : 0.6 + 0.35 * Math.sin(performance.now() / 300);
+        ctx.strokeStyle = '#e6c77a';
+        ctx.lineWidth = Math.max(1, r * 0.004);
+        ctx.strokeRect(p.x - size / 2, p.y - size / 2, size, size);
+        ctx.fillStyle = '#e6c77a';
+        const filled = Math.max(0.05, this.metalBuild) * size;
+        ctx.fillRect(p.x - size / 2, p.y + size / 2 - filled, size, filled);
       }
     }
     ctx.globalAlpha = 1;

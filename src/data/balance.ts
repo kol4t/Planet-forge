@@ -64,6 +64,7 @@ export const BALANCE: Balance = {
     durability: { mine: 100, factory: 300, construct: 10_000 },
     beltsPerFactory: 3,
     constructSeconds: { min: 3600, max: 7200 },
+    constructCost: { metal: 60_000, crystal: 40_000 },
     status: 'robocza',
   },
   fuel: {
