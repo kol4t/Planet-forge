@@ -2,6 +2,15 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.58.0 — wstępna flota — 2026-11-01
+
+- Statki budowane w **stoczni** (moduł stacji macierzystej, poziomy 1–10, kolejka do 5): transportowiec, statek kolonizacyjny, holownik, okręt eskorty.
+- Lot zabiera statek z floty: transportowiec i holownik wracają po locie, statek kolonizacyjny zostaje na nowej kolonii (lot tylko za paliwo). Liczba transportowców = ile lotów naraz.
+- Na start (także w starych zapisach): 3 transportowce, 1 statek kolonizacyjny, 1 holownik.
+- **Eskorta** przy transporcie i wysyłce konstruktu (wybór − / +); ochrona w drodze — w następnym etapie.
+- Nowa zakładka **„Flota”** w Imperium; stocznia widoczna przy pierścieniu stacji (3D i 2D).
+- Poprawka: w oknie „Wyślij surowce” nie ma już pustego wyboru „Dokąd”. Zapisy zgodne.
+
 ## v0.57.0 — pola na oceanie i lawie — 2026-10-29
 
 - Ocean i lawa mają własne pola — stoi na nich tylko megakonstrukt po transferze (zwykłe budynki dalej na lądzie i lodzie). Konstrukt zajmuje je, gdy na lądzie brakuje miejsca; budowle stoją na tafli.
