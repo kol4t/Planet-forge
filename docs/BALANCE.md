@@ -18,7 +18,7 @@
 | Antymateria pasywnie | 1/h |
 | Magazyn | 1000 × 1.6^(poz − 1) (metal i kryształy osobno) |
 | Miejsca na planety | 5 na start, maks. 10 |
-| Kolejka budowy | 3 miejsce na start (więcej z badań SI) |
+| Kolejka budowy | 5 miejsce na start (więcej z badań SI) |
 | Złoża na 100 pól (× bogactwo planety) | 2 000 000 metalu, 1 200 000 kryształów |
 | Teren poza dedykowanym | 75% wydajności (`OFF_SITE_FACTOR`) |
 

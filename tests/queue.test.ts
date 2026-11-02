@@ -29,8 +29,8 @@ const building = (e: EconomyState): EconomyState => {
   return r.state;
 };
 
-test('kolejka: 3 miejsca na start (etap 10), dopisanie nic nie pobiera, czwarte się nie mieści', () => {
-  assert.equal(BALANCE.buildQueue, 3);
+test('kolejka: 5 miejsc na start (etap 10), dopisanie nic nie pobiera, ponad limit się nie mieści', () => {
+  assert.equal(BALANCE.buildQueue, 5);
   const one = { ...BALANCE, buildQueue: 1 };
   const busy = building(rich());
   const q = enqueueBuilding(busy, 'crystalMine', one);
