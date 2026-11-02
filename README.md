@@ -31,6 +31,23 @@ node scripts/screens.ts <folder> [2d|3d]   # zrzuty ekranów w 7 rozmiarach (prz
 
 Instrukcje i zasady: **`CLAUDE.md`**. Dokumentacja: **`docs/README.md`**.
 
+## Lista kontrolna — widok układu (gałąź `claude/widok-ukladu`, etapy B–C)
+
+1. Planeta stoi w miejscu; Ustawienia → „Obrót planety: wyłączony — włącz” włącza powolny obrót (zapamiętany).
+2. Ściśnij planetę dwoma palcami mocniej niż do najmniejszego przybliżenia (albo „−” na minimum) — kamera odlatuje
+   do widoku układu: gwiazda, orbity, planety w ruchu, Twoja planeta w turkusowym pierścieniu.
+3. U góry pasek „Galaktyka › nazwa układu” i „Resetuj widok” (wraca na Twoją planetę). „Galaktyka” otwiera Mapę.
+4. W układzie: przeciągnij (przesuwanie), ściśnij / rozsuń (przybliżanie), dotknij małej planety — trafia łatwo.
+5. Dotknij obcej planety — kamera do niej leci, okienko z typem, strefą i adresem; „Zamknij” wraca do całego układu.
+6. Dotknij swojej planety — kamera przybliża, pojawia się zwykły widok planety (2D albo 3D), panele działają jak dotąd.
+9. (Etap F) Gdy planeta stoi, gra powinna mniej grzać i zużywać baterii (rzadsze rysowanie). Ustawienia → Zgłoś /
+   diagnostyka: linia „widok” pokazuje poziom widoku i liczbę zapamiętanych modeli 3D.
+8. (Etap E) Mapa → zaznacz zbadany układ → „Pokaż układ”: Mapa się zamyka, kamera wlatuje do układu. Dotknij gwiazdy
+   (okienko z danymi), pasa asteroid i wolnej planety (geologia, „Wyślij statek”, gdy to możliwe). „Tabela układu”
+   otwiera dawny widok Mapy.
+7. (Etap D) Miniatura w układzie rośnie dokładnie w miejsce planety i płynnie w nią przechodzi — bez czarnej klatki.
+   Przy innej Twojej planecie najpierw krótkie „Ładowanie…”, potem lot. Drugie wejście na tę samą planetę jest szybsze.
+
 ## Lista kontrolna — test na iPadzie (aktualna, v0.46)
 
 Krótka kontrola całości po każdej publikacji (ok. 10 minut). Dawne listy kolejnych wersji: `docs/lista-kontrolna-historia.md`.

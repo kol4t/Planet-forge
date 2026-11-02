@@ -50,10 +50,18 @@ export interface PlanetDisplay {
    * i pomiarów wydajności (audyt v0.46).
    */
   gpuStats?(): { drawCalls: number; triangles: number; geometries: number; textures: number };
+  /** Kontekst WebGL renderera (3D) — żeby przy starcie nie zwolnić go razem z kontekstami testowymi. */
+  glContext?(): unknown;
+  /** Ile modeli planet trzyma pamięć 3D (diagnostyka, etap F widoku układu). */
+  modelCache?(): number;
   /** Docelowe przybliżenie (to, do którego widok dochodzi). */
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */
   setGridVisible(visible: boolean): void;
+  /** Planeta obraca się sama (Ustawienia; domyślnie nie — widok układu). Bezwładność po przeciągnięciu działa zawsze. */
+  setAutoSpin(on: boolean): void;
+  /** Wstrzymanie rysowania (planeta niewidoczna — widok układu, etap D); po wznowieniu rysuje dalej. */
+  setPaused(paused: boolean): void;
   /** Kolektor energii gwiazdy na orbicie (v0.44): poziom 0 = brak. */
   setOrbital(level: number): void;
   /** Megakonstrukty wyrzucone z tej planety, czekające na orbicie (krok 3b): 0 — brak. */

@@ -79,6 +79,14 @@ html, body {
   #space .space-meteor { display: none; }
 }
 #ui { z-index: 1; }
+/* Widok układu (etap C): płótno układu nad planetą, pod interfejsem; pasek nawigacji nad interfejsem. */
+.system-nav { position: fixed; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.system-nav[hidden] { display: none; }
+.system-nav button { min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid #2b4846;
+  background: rgba(14, 24, 25, 0.82); color: var(--teal); font: 600 14px Inter, system-ui, sans-serif; }
+.system-nav button.sn-current, .system-nav button:disabled { color: #e8dcc0; border-color: transparent; background: rgba(14, 24, 25, 0.55); }
+.system-nav .sn-reset { margin-left: 8px; border-color: var(--gold); color: var(--gold); }
+.system-nav .sn-sep { color: #8ea6a0; font-size: 16px; padding: 0 2px; }
 #ui canvas { display: block; touch-action: none; }
 
 #safe-probe {

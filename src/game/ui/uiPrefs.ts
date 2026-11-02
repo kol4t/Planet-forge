@@ -50,6 +50,25 @@ export function saveFocusZoom(zoom: FocusZoom): void {
   }
 }
 
+/** Obrót planety sam z siebie (Ustawienia → Widok; widok układu, decyzja właściciela 2026-11-02): domyślnie wyłączony. */
+const SPIN_KEY = 'planet-forge.autoSpin.v1';
+
+export function loadAutoSpin(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(SPIN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveAutoSpin(on: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(SPIN_KEY, on ? '1' : '0');
+  } catch {
+    // brak pamięci (tryb prywatny) — wybór obowiązuje do zamknięcia gry
+  }
+}
+
 /** Siatka pól na planecie (Ustawienia → Widok); domyślnie ukryta. */
 const GRID_KEY = 'planet-forge.fieldGrid.v1';
 

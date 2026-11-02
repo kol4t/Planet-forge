@@ -17,6 +17,7 @@ import { parseFleet } from '../economy/fleet.ts';
 import { parseOrbiting } from '../economy/orbitalConstruct.ts';
 import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, Fleet, OrbitalConstruct, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState, StellarEmpire, ColonyStation } from '../types.ts';
 import { parseColonyStations } from '../economy/colonyStation.ts';
+import { parseView, type ViewState } from '../view/viewState.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 import { parseComplexes, type Complex } from '../colony/complexes.ts';
@@ -112,6 +113,8 @@ export interface EmpireSave {
   stellar?: StellarEmpire;
   /** Stacje kolonii (etap 9, od v0.64 — opcjonalne): przekaźniki na orbitach kolonii. */
   colonyStations?: ColonyStation[];
+  /** Ostatni widok (plan „widok układu”, etap B; opcjonalne): brak albo błędny = start na aktywnej planecie. */
+  view?: ViewState;
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -249,6 +252,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseOrbiting(data.orbiting).length > 0 ? { orbiting: parseOrbiting(data.orbiting) } : {}),
     ...(parseStellar(data.stellar) ? { stellar: parseStellar(data.stellar)! } : {}),
     ...(parseColonyStations(data.colonyStations).length > 0 ? { colonyStations: parseColonyStations(data.colonyStations) } : {}),
+    ...(parseView(data.view) ? { view: parseView(data.view)! } : {}),
   };
 }
 

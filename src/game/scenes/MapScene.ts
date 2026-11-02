@@ -19,7 +19,7 @@ import { TOUCH, type Rect } from '../ui/layout.ts';
 import { geologyLines } from '../ui/geologyText.ts';
 import { filterCount, MAP_FILTERS, systemRows, ZONE_COLORS, type MapFilter, type SystemRowInput } from '../ui/systemTable.ts';
 import { COLORS, FONTS, formatDuration, formatInt } from '../ui/theme.ts';
-import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
+import { OPEN_SYSTEM, OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 import { prefersReducedMotion } from '../ui/motion.ts';
 import { centerOn, edgePointer } from '../ui/mapCamera.ts';
 
@@ -692,6 +692,16 @@ export class MapScene extends OverlayScene {
     this.buildDetails();
   }
 
+  /**
+   * Widok układu (etap E): wejście do układu na ekranie głównym (płynny wlot kamery, przybliżanie obiektów).
+   * Tabela układu (złoża, kolonizacja w tabeli) zostaje pod „Tabela układu”.
+   */
+  private enterSystemView(index: number): void {
+    if (this.deps.controller.discoveryLevel(index) < DISCOVERY.explored) return;
+    this.game.events.emit(OPEN_SYSTEM, index);
+    this.close();
+  }
+
   private openSystem(index: number): void {
     // Widok układu (planety, złoża) — tylko dla zbadanych.
     if (this.deps.controller.discoveryLevel(index) < DISCOVERY.explored) return;
@@ -893,7 +903,7 @@ export class MapScene extends OverlayScene {
           line(`Dane naukowe: ${science.map((b) => `${b.label.toLowerCase()} ${b.count}/${b.max} — ${b.text}`).join(' · ')}`, 11, RARE_TEXT);
         }
         y = this.buildStarLegend(items, x, y, w, buttonY - this.s(10));
-        buttons(['Szukaj układu', 'primary', () => this.openSearch()], ['Twój układ', 'secondary', () => this.openSystem(controller.homeSystem)]);
+        buttons(['Szukaj układu', 'primary', () => this.openSearch()], ['Twój układ', 'secondary', () => this.enterSystemView(controller.homeSystem)]);
       } else if (controller.discoveryLevel(s.index) < DISCOVERY.explored) {
         // Wiedza niepełna: tylko to, co gracz już wie (bez planet, złóż i — przed rozpoznaniem — gwiazdy).
         const level = controller.discoveryLevel(s.index);
@@ -954,7 +964,7 @@ export class MapScene extends OverlayScene {
         );
         const ships = controller.missionsView().filter((m) => parseAddress(m.target)?.system === s.index);
         if (ships.length) line(`Statek kolonizacyjny w drodze: ${ships.map((m) => `${m.targetName} (${formatDuration(m.secondsLeft)})`).join(', ')}`, 11, COLORS.gold);
-        buttons(['Pokaż układ', 'primary', () => this.openSystem(s.index)], ['Odznacz', 'secondary', () => this.onTap(-1e6, -1e6)]);
+        buttons(['Pokaż układ', 'primary', () => this.enterSystemView(s.index)], ['Tabela układu', 'secondary', () => this.openSystem(s.index)]);
       }
       this.details.add(items);
       return;

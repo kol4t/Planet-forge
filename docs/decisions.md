@@ -2,6 +2,74 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Widok układu, etap F: optymalizacja i pomiary po
+
+- Planeta stojąca (bez palca, bezwładności, zmiany przybliżenia) rysowana najwyżej co 50 ms (~20 kl./s) — 3D i 2D;
+  ruch zawsze w pełnej płynności. Widok układu w czasie lotu kamery — 60% gęstości pikseli.
+- Miniatura aktywnej planety w układzie obrócona jak planeta (przejście bez przeskoku lądów).
+- Diagnostyka: poziom widoku, układ, obiekt, modele 3D w pamięci, miniatury układu.
+- Tabela przed / po: `docs/pomiary/widok-ukladu-po.md` (konteksty WebGL 3 → 1, renderer stoi w układzie, bez wycieków,
+  ponowne wejście na planetę 3D ok. 0,8 s z lotem). Ograniczenia klatek nie da się zmierzyć w kontenerze (3D programowe
+  ok. 2 kl./s) — do sprawdzenia na iPadzie.
+
+## 2026-11-02 — Widok układu, etap E: galaktyka → układ i pozostałe obiekty
+
+- **Mapa = galaktyka:** „Pokaż układ” (zbadany układ) i „Twój układ” zamykają Mapę i wlatują do widoku układu na ekranie
+  głównym (zdarzenie `OPEN_SYSTEM`, kamera rośnie z daleka). Dotychczasowy widok układu Mapy zostaje jako „Tabela układu”
+  (filtry, tabela złóż) — dostępny z galaktyki i z okienek obiektów.
+- **Inne obiekty w widoku układu:** gwiazda (rodzaj, liczba planet, gazowe olbrzymy, pas) i pas asteroid (położenie,
+  gdzie zbudować stację) — dotknięcie z powiększoną strefą (`SystemView.pickExtra`); gazowe olbrzymy i planety — okienko
+  z istniejącymi danymi. Wolna planeta: geologia i porównanie z aktywną planetą oraz **istniejąca** kolonizacja statkiem
+  („Wyślij statek” / „Zawróć statek”, blokady jak na Mapie). Komety w układzie — brak danych w grze (tylko animacja
+  galaktyki), więc bez okienka.
+- **Galaktyka bez zmian rysowania:** pomiar etapu A — 10 obiektów Phaser (grafiki zbiorcze), etykiety tylko przy
+  odpowiednim przybliżeniu — już spełnia „culling / wsadowo / etykiety wg zoomu”.
+
+## 2026-11-02 — Widok układu, etap D: przejście układ ↔ planeta
+
+- **Lot na miejsce planety:** kamera układu kończy lot tak, że miniatura ma promień i położenie planety z widoku
+  z bliska (`SystemView.cameraOn(..., at)`), potem przenikanie 0,35 s — bez skoku i bez czarnej klatki. Odlot do układu
+  zaczyna się od tego samego punktu.
+- **Najpierw liczenie, potem lot:** wejście na inną własną planetę najpierw przelicza jej wygląd (komunikat
+  „Ładowanie…”), dopiero potem kamera leci — liczenie blokuje klatki, więc lepiej przed lotem niż w jego trakcie.
+  Planeta pokazuje się dopiero gotowa.
+- **Pamięć 3 ostatnich modeli 3D** (`PlanetView.planetCache`, LRU): teren, chmury, ocean i wzorcowy teren zostają;
+  powrót na planetę bez budowania terenu (pomiar: 3D — ponowne wejście ok. 0,2 s liczenia zamiast 0,24–0,3 s
+  + pierwszego razu). Starsze modele zwalniane (dispose).
+- **Renderer stoi, gdy planeta niewidoczna** (`PlanetDisplay.setPaused` — 3D i 2D): w widoku układu nie liczy i nie rysuje.
+- **Siatki pól w tle:** w widoku układu, po 2 s bez dotyku i lotu, liczy się siatka pól jednej własnej planety, której
+  nie ma jeszcze w pamięci (najdroższa część pierwszego wejścia). Dotyk odkłada liczenie.
+- Pamięć (`scripts/perf.ts --deep`): geometrie 3D start → po 10 → po 20 zmianach planety: 48 → 62 → 62 (przed etapem D 48 → 57 → 57) — więcej o pamięć 3 modeli, bez wycieku; pamięć JS bez zmian (36 → 42 MB).
+- Pomiar (przeglądarka bezgłowa): od dotknięcia do pokazania planety — 3D pierwsze wejście ok. 1,5 s, ponowne ok. 0,8 s;
+  2D ok. 0,75 s (w tym lot 0,6 s). Podział liczenia siatki na kroki / Web Worker — niepotrzebny po tych zmianach
+  (do ponownej oceny po pomiarze na iPadzie).
+
+## 2026-11-02 — Widok układu, etap C: układ 2D jako ekran główny
+
+- **Widok układu** (`planet-renderer/systemView.ts`, matematyka `systemLayout.ts`): osobne płótno Canvas 2D nad
+  planetą (bez nowego kontekstu WebGL; pętla rysowania tylko gdy widoczny), gwiazda, orbity w barwach stref, obiekty na
+  orbitach z czasu świata (decyzja: orbity ruchome), miniatury z generatora 2D raz do pamięci podręcznej, gazowe
+  olbrzymy w pasy, pas asteroid, własne planety w złotym pierścieniu, aktywna — w turkusowym.
+- **Przejście:** ściśnięcie poniżej najmniejszego przybliżenia planety (zdarzenie gestu `past-min`, też „−” i kółko)
+  → kamera odlatuje z aktywnej planety do całego układu, płótno planety gaśnie (przenikanie 0,35 s). Dotknięcie własnej
+  planety → lot na nią i zwykły widok planety (2D / 3D); obcej → lot i okienko z danymi, które gra już ma (typ, strefa,
+  orbita, adres, kto zajmuje) + „Pokaż na Mapie” (Mapa zostaje do etapu E).
+- **Nawigacja:** pasek HTML „Galaktyka › Układ › Planeta” (cele ≥ 44 pt) i „Resetuj widok” w układzie; przyciski
+  kamery w rogu działają w układzie. Pełne dopasowanie miniatury do planety bez przenikania — etap D.
+
+## 2026-11-02 — Widok układu: plan zaakceptowany, etap B (model nawigacji)
+
+- Plan etapów A–F (`docs/pomiary/widok-ukladu-przed.md`) **zaakceptowany przez właściciela**. Decyzje: **orbity ruchome**
+  (z czasu świata, jak na Mapie); **planeta domyślnie się nie obraca**, przełącznik „Obrót planety” w Ustawieniach
+  (`uiPrefs` `planet-forge.autoSpin.v1`, `PlanetDisplay.setAutoSpin`); **dotychczasowa Mapa zostaje do etapu E**.
+- **Konteksty WebGL:** testy „czy jest grafika 3D” (`hasWebGL`, test urządzenia w Phaserze) zostawiały 2 nieużywane
+  konteksty. `app/glProbe.ts` (import przed Phaserem) zwalnia je po starcie: 3D — 1 aktywny kontekst (było 3), 2D — 0 (był 1).
+- **Etap B:** `core/view/viewState.ts` — poziomy Galaktyka → Układ → Obiekt → Powierzchnia (nazwy robocze), jeden ciągły
+  zoom 0–4,5 z progami 1 / 2 / 3 i histerezą 0,08; przejścia (`zoomBy`, `focusObject`, `focusSystem`, `back`,
+  `resetView`), mapowanie na dawne przybliżenie planety 0,8×–3,5× (`planetZoom`), ścieżka nawigacji. Kontroler:
+  `view`, `zoomView`, `selectObject` (własna planeta → `switchPlanet`), `selectSystem`, `viewBack`, `resetView`;
+  zapis `view` (opcjonalne). Grafika jeszcze bez zmian — ekran główny dalej pokazuje planetę (etap C).
+
 ## 2026-11-02 — Etap 10: wstępna ekonomia (v0.65, plan zaakceptowany przez właściciela)
 
 - **Megakonstrukt = główny motyw planety.** Złoże głównego surowca = rozwój planety (`deposits.buildup`, 28 mln metalu /

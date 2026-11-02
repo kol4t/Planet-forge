@@ -1,3 +1,5 @@
+// Musi być pierwszy: zapamiętuje testowe konteksty WebGL (też z Phasera), żeby je zwolnić po starcie.
+import { releaseProbeContexts } from './glProbe.ts';
 import Phaser from 'phaser';
 import { PlanetScene, type Viewport } from '../game/scenes/PlanetScene.ts';
 import { EmpireScene } from '../game/scenes/EmpireScene.ts';
@@ -8,6 +10,8 @@ import type { PlanetDisplay } from '../planet-renderer/PlanetDisplay.ts';
 import { hasWebGL, PlanetView } from '../planet-renderer/PlanetView.ts';
 import { distantBodies } from '../planet-renderer/sky.ts';
 import { SpaceBackground, type SkyScene } from '../planet-renderer/spaceBackground.ts';
+import { SystemView } from '../planet-renderer/systemView.ts';
+import { worldNow } from '../core/time/worldClock.ts';
 import { findStar, generateSystem, parseAddress } from '../core/galaxy/galaxy.ts';
 import { PLANET_DEFINITIONS } from '../data/planets.ts';
 import { BootGuard } from './bootGuard.ts';
@@ -90,9 +94,12 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     zoomLevel: () => display.zoomLevel(),
     renderScale: display.renderScale ? () => display.renderScale!() : undefined,
     gpuStats: display.gpuStats ? () => display.gpuStats!() : undefined,
+    modelCache: display.modelCache ? () => display.modelCache!() : undefined,
     resetView: () => display.resetView(),
     holdSpin: (hold) => display.holdSpin(hold),
     setGridVisible: (visible) => display.setGridVisible(visible),
+    setAutoSpin: (on) => display.setAutoSpin(on),
+    setPaused: (paused) => display.setPaused(paused),
     setOrbital: (level) => display.setOrbital(level),
     setHomeStation: (look) => display.setHomeStation(look),
     setOrbitalConstructs: (count) => display.setOrbitalConstructs(count),
@@ -176,6 +183,8 @@ function start(boot: BootGuard): void {
   } else {
     renderer = new CanvasPlanetFallback(planetCanvas);
   }
+  // Testowe konteksty WebGL (hasWebGL, Phaser) zwolnione — zostaje jeden: renderer planety (w 2D — żaden).
+  releaseProbeContexts(renderer.glContext?.());
   const space = new SpaceBackground(document.body, () => renderer.orientation());
   const display = withSpace(renderer, space, controller);
   boot.step(`grafika ${display.kind}`);
@@ -193,9 +202,12 @@ function start(boot: BootGuard): void {
     requestAnimationFrame(countFrame);
   };
   requestAnimationFrame(countFrame);
+  // Widok układu 2D (etap C): osobne płótno Canvas 2D nad planetą, rysowane tylko gdy widoczne.
+  const system = new SystemView(document.body, () => worldNow());
   const scene = new PlanetScene({
     controller,
     display,
+    system,
     getViewport,
     appVersion: __APP_VERSION__,
     graphics: {
@@ -219,6 +231,8 @@ function start(boot: BootGuard): void {
           'grafika teraz': display.kind + (display.renderScale ? ` (rozdzielczość ${Math.round(display.renderScale() * 100)}%)` : ''),
           'płynność (ostatnia minuta)': fps.describe(),
           ...gpuLine(display),
+          // Widok układu (etap F): poziom widoku, modele planet w pamięci 3D, miniatury układu.
+          widok: `${controller.view.level} · układ ${controller.view.system}${controller.view.object ? ` · obiekt ${controller.view.object}` : ''} · modele 3D w pamięci: ${display.modelCache?.() ?? '—'} · miniatury układu: ${system.thumbCount}`,
           planety: `${controller.slotInfo.used} z ${controller.slotInfo.unlocked}`,
           planeta: `${controller.planet.displayName} (${controller.planet.definitionId}, ${controller.address || 'startowa'}, seed ${controller.planet.seed})`,
           budynki: Object.entries(controller.economy.levels)
