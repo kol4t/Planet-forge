@@ -5,23 +5,21 @@
 import type { OpenPitLook } from '../data/openPit.ts';
 import { angleBetween, type Vec3 } from './colony.ts';
 import { pitRadius, type OpenPit } from './openPit.ts';
-import { drillParams, type DrillParams } from './drill.ts';
-
-/** Wygląd krateru wg etapu (1–4): promień kątowy, liczba tarasów, głębokość (ułamek promienia planety), etap szybu. Robocze. */
-export const CRATER_STAGES: Readonly<Record<1 | 2 | 3 | 4, { radius: number; layers: number; depth: number; drill: number }>> = {
-  1: { radius: 0.1, layers: 2, depth: 0.04, drill: 2 },
-  2: { radius: 0.2, layers: 3, depth: 0.08, drill: 4 },
-  3: { radius: 0.33, layers: 4, depth: 0.12, drill: 6 },
-  4: { radius: 0.5, layers: 6, depth: 0.17, drill: 8 },
-};
+import { CORE_RADIUS } from './drill.ts';
 
 /**
- * Szyb w dnie krateru (odwiert z v0.48, `drill.ts`): etap odwiertu wg etapu krateru — na etapie 4 aż do jądra planety
- * (decyzja właściciela 2026-11-02). Otwór zajmuje prawie całe płaskie dno.
+ * Wygląd krateru wg etapu (1–4): promień kątowy, liczba tarasów, głębokość (ułamek promienia planety). Lej tarasami
+ * w dół — na etapie 4 aż do jądra planety (decyzja właściciela 2026-11-02: lej, nie szyb). Robocze.
  */
-export function craterDrill(pit: OpenPit, stage: 1 | 2 | 3 | 4): DrillParams | null {
-  return drillParams(CRATER_STAGES[stage].drill, pit.floorAngle * 1.6, pit.floorRadius);
-}
+export const CRATER_STAGES: Readonly<Record<1 | 2 | 3 | 4, { radius: number; layers: number; depth: number }>> = {
+  1: { radius: 0.1, layers: 2, depth: 0.08 },
+  2: { radius: 0.2, layers: 3, depth: 0.2 },
+  3: { radius: 0.33, layers: 5, depth: 0.4 },
+  4: { radius: 0.5, layers: 8, depth: 0.68 },
+};
+
+/** Najgłębiej, jak schodzi lej (promień od środka planety) — powierzchnia jądra (`drill.ts`, CORE_RADIUS). */
+export const CRATER_MIN_RADIUS = CORE_RADIUS + 0.02;
 
 const norm = (v: Vec3): Vec3 => {
   const l = Math.hypot(v[0], v[1], v[2]) || 1;
@@ -51,7 +49,7 @@ function onCircle(c: Vec3, p: Vec3, angle: number): Vec3 {
 export function buildCrater(center: Vec3, stage: 1 | 2 | 3 | 4, ground: (dir: Vec3) => number): OpenPit {
   const st = CRATER_STAGES[stage];
   const R = st.radius;
-  const floorAngle = R * 0.3;
+  const floorAngle = R * 0.14;
   const look: OpenPitLook = { layers: st.layers, depth: st.depth, shelf: 0.35, floor: 1.9, hang: 0.3, cables: 0, sag: 0, status: 'robocza' };
   const c = norm(center);
   const outline: Vec3[] = Array.from({ length: 129 }, (_, i) => {

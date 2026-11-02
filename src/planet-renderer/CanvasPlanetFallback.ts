@@ -4,8 +4,8 @@ import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
-import { complexGround, craterGround, type CraterShaft } from './complexLook.ts';
-import { buildCrater, craterDrill } from './crater.ts';
+import { complexGround, craterGround, type CraterColors } from './complexLook.ts';
+import { buildCrater } from './crater.ts';
 import { drillLook } from '../data/drill.ts';
 import { buildOpenPit, type OpenPit } from './openPit.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
@@ -43,7 +43,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   /** Prototyp krateru megakonstruktu kryształów (tylko wygląd) i jego etap. */
   private crater: OpenPit | null = null;
   private craterStage = 1;
-  private craterShaft: CraterShaft | null = null;
+  private craterColors: CraterColors | null = null;
   private planetType = '';
   private levels: BuildingLevels | undefined;
   private site: BuildSite | null = null;
@@ -105,7 +105,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   setPlanet(planet: Planet): void {
     this.planetType = planet.definitionId;
     this.crater = null;
-    this.craterShaft = null;
+    this.craterColors = null;
     this.look = discLook(planet);
     this.sampler = this.look.sampler;
     this.grid = fieldGrid(planet);
@@ -336,15 +336,12 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const cell = proto && this.grid ? this.grid.cells[proto.cell] : undefined;
     this.crater = proto && cell ? buildCrater(cell.center as [number, number, number], proto.stage, () => 1) : null;
     this.craterStage = proto?.stage ?? 1;
-    const drill = this.crater && proto ? craterDrill(this.crater, proto.stage) : null;
     const look = drillLook(this.planetType);
     const rgb = (h: string): [number, number, number] => {
       const n = parseInt(h.slice(1), 16);
       return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
     };
-    this.craterShaft = drill && drill.stage >= 3
-      ? { angle: drill.rimAngle, depth: Math.min(1, (drill.stage - 2) / 5), core: drill.core !== null, colors: { crust: rgb(look.crust), deepCrust: rgb(look.deepCrust), mantle: rgb(look.mantle), hot: rgb(look.hot), core: rgb(look.core), glow: rgb(look.glow) } }
-      : null;
+    this.craterColors = { layers: [rgb(look.crust), rgb(look.deepCrust), rgb(look.mantle), rgb(look.hot)], core: rgb(look.core), glow: rgb(look.glow) };
     this.lastDrawn = { yaw: NaN, pitch: NaN };
   }
 
@@ -587,7 +584,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const overlay =
       colony && lookup && (colony.complexes.length > 0 || crater)
         ? (x: number, y: number, z: number) => {
-            if (crater && crater.inside([x, y, z])) return craterGround(crater, [x, y, z], this.craterShaft);
+            if (crater && this.craterColors && crater.inside([x, y, z])) return craterGround(crater, [x, y, z], this.craterColors);
             const cell = lookup(x, y, z);
             const index = cell >= 0 ? colony.owner[cell]! : -1;
             if (index < 0) return null;
