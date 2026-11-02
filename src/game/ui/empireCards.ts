@@ -1,5 +1,6 @@
 // Treść ekranu „Imperium” (od v0.32): znaczki, paski i alerty kart planet z danych gry.
 // Czyste funkcje — testowane bez Phasera; tylko to, co gra naprawdę liczy.
+import { depositKind, DEPOSIT_KIND_LABELS } from '../../core/economy/economy.ts';
 import type { PlanetOverview } from '../../app/GameController.ts';
 import { formatAmount, formatSpan } from './theme.ts';
 
@@ -30,9 +31,9 @@ export function planetBadges(p: PlanetOverview): CardBadge[] {
   if (p.active) badges.push({ label: 'Tu jesteś', tone: 'teal' });
   if (p.specialization) badges.push({ label: p.specialization.pending ? `→ ${p.specialization.name.toLowerCase()}` : p.specialization.name.toLowerCase(), tone: 'teal' });
   if (p.asteroidLevel > 0) badges.push({ label: `pas asteroid ${p.asteroidLevel}`, tone: 'teal' });
-  const rich = p.planet.gameplay.richness;
-  if (rich.metal >= RICH_FROM) badges.push({ label: 'bogata w metal', tone: 'gold' });
-  if (rich.crystal >= RICH_FROM) badges.push({ label: 'bogata w kryształy', tone: 'gold' });
+  // Etap 10: rodzaj złóż planety (dużo metalu / dużo kryształów / po równo) — od niego zależy, jaki megakonstrukt
+  // wydobędzie tu najwięcej.
+  badges.push({ label: DEPOSIT_KIND_LABELS[depositKind(p.planet)], tone: 'gold' });
   if (p.stock.metal >= p.capacity || p.stock.crystal >= p.capacity) badges.push({ label: 'magazyn pełny', tone: 'danger' });
   if (p.deposits.left.metal <= 0 || p.deposits.left.crystal <= 0) badges.push({ label: 'złoże wyczerpane', tone: 'danger' });
   else if (p.exploited) badges.push({ label: 'wyeksploatowana', tone: 'gold' });

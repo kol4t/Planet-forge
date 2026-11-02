@@ -29,23 +29,25 @@ const building = (e: EconomyState): EconomyState => {
   return r.state;
 };
 
-test('kolejka: 1 miejsce na start, dopisanie nic nie pobiera, drugie się nie mieści', () => {
-  assert.equal(BALANCE.buildQueue, 1);
+test('kolejka: 5 miejsc na start (etap 10), dopisanie nic nie pobiera, ponad limit się nie mieści', () => {
+  assert.equal(BALANCE.buildQueue, 5);
+  const one = { ...BALANCE, buildQueue: 1 };
   const busy = building(rich());
-  const q = enqueueBuilding(busy, 'crystalMine');
+  const q = enqueueBuilding(busy, 'crystalMine', one);
   assert.ok(q.ok, q.message);
   assert.deepEqual(q.state.queue, ['crystalMine']);
   assert.deepEqual(q.state.stock, busy.stock, 'koszt dopiero przy starcie');
-  const full = enqueueBuilding(q.state, 'powerPlant');
+  const full = enqueueBuilding(q.state, 'powerPlant', one);
   assert.equal(full.ok, false);
   assert.equal(!full.ok && full.reason, 'queue-full');
   assert.match(full.message, /Kolejka pełna/);
 });
 
 test('kolejka: badania SI dodają miejsca', () => {
-  const one = applyResearch(BALANCE, ['ai-1', 'ai-queue-1']);
+  const base = { ...BALANCE, buildQueue: 1 };
+  const one = applyResearch(base, ['ai-1', 'ai-queue-1']);
   assert.equal(one.buildQueue, 2);
-  assert.equal(applyResearch(BALANCE, ['ai-1', 'ai-queue-1', 'ai-queue-2']).buildQueue, 3);
+  assert.equal(applyResearch(base, ['ai-1', 'ai-queue-1', 'ai-queue-2']).buildQueue, 3);
   assert.equal(findResearch('ai-queue-1')?.arm, 'ai');
   assert.match(describeEffects(findResearch('ai-queue-1')!), /kolejce budowy/);
   let s = enqueueBuilding(building(rich()), 'crystalMine', one).state;

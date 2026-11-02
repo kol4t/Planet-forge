@@ -19,6 +19,17 @@ const MAIN: readonly FootprintStage[] = [
   { from: 20, fields: [40, 50] },
 ];
 
+/**
+ * Elektrownia (etap 10, wstępna ekonomia): średni obszar — przy kopalni metalu na poz. 40 (megakonstrukt) potrzebna jest
+ * elektrownia ok. poz. 30, a przy dawnym obszarze (40–50 pól) nie zostawało miejsca na osady na planecie startowej.
+ */
+const POWER: readonly FootprintStage[] = [
+  { from: 1, fields: [1, 3] },
+  { from: 6, fields: [4, 6] },
+  { from: 12, fields: [8, 12] },
+  { from: 20, fields: [16, 22] },
+];
+
 /** Magazyn, Kolektor antymaterii, Laboratorium: ten sam rytm etapów, mniejsze kompleksy. */
 const SMALL: readonly FootprintStage[] = [
   { from: 1, fields: [1, 2] },
@@ -30,7 +41,7 @@ const SMALL: readonly FootprintStage[] = [
 export const FOOTPRINT: Record<BuildingId, readonly FootprintStage[]> = {
   metalMine: MAIN,
   crystalMine: MAIN,
-  powerPlant: MAIN,
+  powerPlant: POWER,
   storage: SMALL,
   antimatterCollector: SMALL,
   laboratory: SMALL,

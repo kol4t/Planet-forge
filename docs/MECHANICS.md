@@ -56,6 +56,10 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
 
 ## Złoża
 
+- **Etap 10 (wstępna ekonomia):** planeta ma **rodzaj złóż** — „dużo metalu”, „dużo kryształów” albo „po równo”
+  (z zasobności; plakietka w Imperium). Złoże głównego surowca = rozwój planety + **ok. tydzień pracy megakonstruktu**
+  na poz. 40; drugi surowiec — tyle, ile potrzeba na rozwój. Koszty poziomów rosną ×1,2–1,25, wydobycie ×1,05.
+
 - Planeta ma skończone złoża metalu i kryształów (z bogactwa i liczby pól). Kopalnie je wyczerpują; przyrost podstawowy
   nie. Kopalnia na pustym złożu stoi i nie bierze energii. Bez odnawiania (decyzja właściciela) — dalej burzenie,
   transport, asteroidy, komety.

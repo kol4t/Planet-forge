@@ -32,7 +32,8 @@ test('start: zasoby i poziomy z balansu', () => {
 
 test('koszt rośnie wykładniczo i jest całkowity', () => {
   assert.deepEqual(upgradeCost('metalMine', 0), { metal: 60, crystal: 15 });
-  assert.deepEqual(upgradeCost('metalMine', 1), { metal: 90, crystal: 22 });
+  // Etap 10: koszt rośnie ×1,2 na poziom (było ×1,5).
+  assert.deepEqual(upgradeCost('metalMine', 1), { metal: 72, crystal: 18 });
   assert.ok(upgradeCost('powerPlant', 10).metal > upgradeCost('powerPlant', 9).metal);
 });
 
@@ -121,7 +122,7 @@ test('anulowanie zwraca pełny koszt i nie zmienia poziomu', () => {
   assert.deepEqual(cancel.state.stock, e.stock);
   assert.equal(cancel.state.levels.metalMine, 1);
   assert.equal(cancel.state.construction, null);
-  assert.match(cancel.message, /anulowano, zwrócono 90 metalu i 22 kryształów/);
+  assert.match(cancel.message, /anulowano, zwrócono 72 metalu i 18 kryształów/);
   const again = cancelConstruction(cancel.state);
   assert.equal(!again.ok && again.reason, 'nothing-to-cancel');
 });
@@ -131,7 +132,7 @@ test('ulepszenie bez zasobów zwraca czytelny błąd', () => {
   const r = upgradeBuilding(e, 'metalMine', 0);
   assert.equal(r.ok, false);
   assert.equal(!r.ok && r.reason, 'not-enough-resources');
-  assert.match(r.message, /Brakuje: 90 metalu, 22 kryształów/);
+  assert.match(r.message, /Brakuje: 72 metalu, 18 kryształów/);
   assert.equal(r.state, e);
 });
 
@@ -176,8 +177,8 @@ test('ukończony magazyn podnosi limit od chwili ukończenia', () => {
 });
 
 test('koszt większy niż magazyn = czytelny błąd i „nigdy” w czasie oczekiwania', () => {
-  const e = { ...createEconomy(0), levels: { ...BALANCE.startingLevels, metalMine: 12 } };
-  const cost = upgradeCost('metalMine', 12);
+  const e = { ...createEconomy(0), levels: { ...BALANCE.startingLevels, metalMine: 30 } };
+  const cost = upgradeCost('metalMine', 30);
   assert.ok(cost.metal > 1000);
   assert.equal(fitsInStorage(e, cost), false);
   const r = upgradeBuilding(e, 'metalMine', 0);
@@ -245,7 +246,7 @@ test('antymateria: 1/h bez budynku (także offline), kolektor dodaje, brak energ
   const withCollector = { ...e, levels: { ...e.levels, antimatterCollector: 1, powerPlant: 3 } };
   const rates = productionRates(withCollector, planet);
   assert.equal(rates.efficiency, 1);
-  assert.ok(Math.abs(rates.antimatterPerHour - (1 + 0.6 * 1.1)) < 1e-9);
+  assert.ok(Math.abs(rates.antimatterPerHour - (1 + 0.6 * BALANCE.levelGrowth)) < 1e-9);
   const starved = productionRates({ ...withCollector, levels: { ...withCollector.levels, powerPlant: 1 } }, planet);
   assert.ok(starved.efficiency < 1);
   assert.ok(starved.antimatterPerHour < rates.antimatterPerHour && starved.antimatterPerHour > 1);

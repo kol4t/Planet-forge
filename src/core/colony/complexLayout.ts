@@ -564,8 +564,10 @@ export function metalComplexCells(grid: FieldGrid, seed: string, center: Vec3, l
   addLand(cellAt(center));
   const plaza = REACH.plac * places.scale * places.unit;
   for (let a = 0; a < 8; a++) addLand(cellAt(places.toSphere(plaza * Math.cos((a * Math.PI) / 4), plaza * Math.sin((a * Math.PI) / 4))));
-  // Rozpoczęte osady: wszystkie ich miejsca i pola pod drogami kopalnia → fabryka.
-  const started = Math.min(CFG.settlements, Math.ceil(lv / levelsPerSettlement()));
+  // Osady: wszystkie ich miejsca i pola pod drogami kopalnia → fabryka. Etap 10: rezerwa od początku obejmuje wszystkie
+  // 4 osady (wcześniej tylko rozpoczęte) — inaczej inny budynek zajmował pole przyszłej osady i kopalnia stawała
+  // (symulacja: „brak pól” przy wolnych polach planety).
+  const started = CFG.settlements;
   for (let s = 0; s < started; s++) {
     const ids = [...Array.from({ length: CFG.minesPerSettlement }, (_, m) => mineSlotId(s, m)), factorySlotId(s)];
     for (const id of ids) for (const c of bySlot.get(id) ?? []) addLand(c);

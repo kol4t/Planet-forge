@@ -29,8 +29,8 @@ test('Imperium: znaczki i paski kart wynikają z danych gry', () => {
     const p = game.overview(0)[0]!;
     const labels = (o: PlanetOverview) => planetBadges(o).map((b) => b.label);
     assert.ok(labels(p).includes('Tu jesteś'));
-    const rich = p.planet.gameplay.richness.metal >= 1.2;
-    assert.equal(labels(p).includes('bogata w metal'), rich);
+    // Etap 10: rodzaj złóż — planeta startowa ma „dużo metalu”.
+    assert.ok(labels(p).includes('dużo metalu'));
     // Pełny magazyn i wyczerpane złoże.
     const full: PlanetOverview = { ...p, stock: { metal: p.capacity, crystal: 0 }, deposits: { ...p.deposits, left: { metal: 0, crystal: 5 } } };
     assert.ok(labels(full).includes('magazyn pełny') && labels(full).includes('złoże wyczerpane'));

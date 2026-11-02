@@ -9,7 +9,7 @@
 |---|---|
 | Przyrost podstawowy (bez kopalń) | 6 metalu/min, 3 kryształów/min |
 | Zapas startowy | 250 metalu, 120 kryształów, 5 antymaterii |
-| Wzrost wydobycia z poziomem (`levelGrowth`) | wydobycie = baza × poziom × 1.1^poziom |
+| Wzrost wydobycia z poziomem (`levelGrowth`) | wydobycie = baza × poziom × 1.05^poziom |
 | Maksymalny poziom budynku | 40 |
 | Limit naliczania nieobecności | 8 h (badania mogą wydłużyć) |
 | Czas budowy | 30 s × docelowy poziom |
@@ -18,7 +18,7 @@
 | Antymateria pasywnie | 1/h |
 | Magazyn | 1000 × 1.6^(poz − 1) (metal i kryształy osobno) |
 | Miejsca na planety | 5 na start, maks. 10 |
-| Kolejka budowy | 1 miejsce na start (więcej z badań SI) |
+| Kolejka budowy | 5 miejsce na start (więcej z badań SI) |
 | Złoża na 100 pól (× bogactwo planety) | 2 000 000 metalu, 1 200 000 kryształów |
 | Teren poza dedykowanym | 75% wydajności (`OFF_SITE_FACTOR`) |
 
@@ -28,135 +28,135 @@ Wydobycie przy bogactwie 100% i bez kar środowiska. Pola — obszar budynku (`f
 
 ### Kopalnia metalu (`metalMine`)
 
-Koszt poz. 1: 60 metalu, 15 kryształów; wzrost kosztu ×1.5 na poziom.
+Koszt poz. 1: 60 metalu, 15 kryształów; wzrost kosztu ×1.2 na poziom.
 
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (metal/min) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
-| 1 | 60 | 15 | 30 s | 19,8 | 11 | 1 | Kopalnia |
-| 2 | 90 | 22 | 1 min | 43,6 | 24,2 | 1 | Kopalnia |
-| 3 | 135 | 33 | 1 min 30 s | 71,9 | 39,9 | 1 | Kopalnia |
-| 5 | 303 | 75 | 2 min 30 s | 144,9 | 80,5 | 2 | Kopalnia |
-| 6 | 455 | 113 | 3 min | 191,3 | 106,3 | 2 | Zakład przetwórczy |
-| 8 | 1025 | 256 | 4 min | 308,7 | 171,5 | 3 | Zakład przetwórczy |
-| 10 | 2306 | 576 | 5 min | 466,9 | 259,4 | 5 | Zakład przetwórczy |
-| 12 | 5189 | 1297 | 6 min | 677,9 | 376,6 | 6 | Huta |
-| 15 | 17 515 | 4378 | 7 min 30 s | 1127,9 | 626,6 | 7 | Huta |
-| 19 | 88 673 | 22 168 | 9 min 30 s | 2091,6 | 1162,0 | 8 | Huta |
-| 20 | 133 010 | 33 252 | 10 min | 2421,9 | 1345,5 | 10 | Kombinat metalowy |
-| 25 | 1 010 046 | 252 511 | 12 min 30 s | 4875,6 | 2708,7 | 12 | Kombinat metalowy |
-| 30 | 7 670 042 | 1 917 510 | 15 min | 9422,7 | 5234,8 | 15 | Kombinat metalowy |
-| 40 | 442 293 292 | 110 573 323 | 20 min | 32 587 | 18 104 | 20 | Kombinat metalowy |
+| 1 | 60 | 15 | 30 s | 18,9 | 10,5 | 1 | Kopalnia |
+| 2 | 72 | 18 | 1 min | 39,7 | 22,1 | 1 | Kopalnia |
+| 3 | 86 | 21 | 1 min 30 s | 62,5 | 34,7 | 1 | Kopalnia |
+| 5 | 124 | 31 | 2 min 30 s | 114,9 | 63,8 | 2 | Kopalnia |
+| 6 | 149 | 37 | 3 min | 144,7 | 80,4 | 2 | Zakład przetwórczy |
+| 8 | 214 | 53 | 4 min | 212,8 | 118,2 | 3 | Zakład przetwórczy |
+| 10 | 309 | 77 | 5 min | 293,2 | 162,9 | 5 | Zakład przetwórczy |
+| 12 | 445 | 111 | 6 min | 387,9 | 215,5 | 6 | Huta |
+| 15 | 770 | 192 | 7 min 30 s | 561,3 | 311,8 | 7 | Huta |
+| 19 | 1597 | 399 | 9 min 30 s | 864,2 | 480,1 | 8 | Huta |
+| 20 | 1916 | 479 | 10 min | 955,2 | 530,7 | 10 | Kombinat metalowy |
+| 25 | 4769 | 1192 | 12 min 30 s | 1523,9 | 846,6 | 12 | Kombinat metalowy |
+| 30 | 11 868 | 2967 | 15 min | 2333,8 | 1296,6 | 15 | Kombinat metalowy |
+| 40 | 73 488 | 18 372 | 20 min | 5068,8 | 2816,0 | 20 | Kombinat metalowy |
 
 ### Ekstraktor kryształów (`crystalMine`)
 
-Koszt poz. 1: 48 metalu, 24 kryształów; wzrost kosztu ×1.6 na poziom.
+Koszt poz. 1: 48 metalu, 24 kryształów; wzrost kosztu ×1.22 na poziom.
 
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (kryształy/min) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
-| 1 | 48 | 24 | 30 s | 11 | 11 | 1 | Wiertło |
-| 2 | 76 | 38 | 1 min | 24,2 | 24,2 | 2 | Wiertło |
-| 3 | 122 | 61 | 1 min 30 s | 39,9 | 39,9 | 2 | Wiertło |
-| 5 | 314 | 157 | 2 min 30 s | 80,5 | 80,5 | 3 | Wiertło |
-| 6 | 503 | 251 | 3 min | 106,3 | 106,3 | 6 | Szyb wiertniczy |
-| 8 | 1288 | 644 | 4 min | 171,5 | 171,5 | 8 | Szyb wiertniczy |
-| 10 | 3298 | 1649 | 5 min | 259,4 | 259,4 | 10 | Szyb wiertniczy |
-| 12 | 8444 | 4222 | 6 min | 376,6 | 376,6 | 16 | Odkrywka |
-| 15 | 34 587 | 17 293 | 7 min 30 s | 626,6 | 626,6 | 19 | Odkrywka |
-| 19 | 226 673 | 113 336 | 9 min 30 s | 1162,0 | 1162,0 | 22 | Odkrywka |
-| 20 | 362 677 | 181 338 | 10 min | 1345,5 | 1345,5 | 40 | Megaodkrywka |
-| 25 | 3 802 951 | 1 901 475 | 12 min 30 s | 2708,7 | 2708,7 | 50 | Megaodkrywka |
-| 30 | 39 876 839 | 19 938 419 | 15 min | 5234,8 | 5234,8 | 50 | Megaodkrywka |
-| 40 | 4 384 504 911 | 2 192 252 455 | 20 min | 18 104 | 18 104 | 50 | Megaodkrywka |
+| 1 | 48 | 24 | 30 s | 10,5 | 10,5 | 1 | Wiertło |
+| 2 | 58 | 29 | 1 min | 22,1 | 22,1 | 2 | Wiertło |
+| 3 | 71 | 35 | 1 min 30 s | 34,7 | 34,7 | 2 | Wiertło |
+| 5 | 106 | 53 | 2 min 30 s | 63,8 | 63,8 | 3 | Wiertło |
+| 6 | 129 | 64 | 3 min | 80,4 | 80,4 | 6 | Szyb wiertniczy |
+| 8 | 193 | 96 | 4 min | 118,2 | 118,2 | 8 | Szyb wiertniczy |
+| 10 | 287 | 143 | 5 min | 162,9 | 162,9 | 10 | Szyb wiertniczy |
+| 12 | 427 | 213 | 6 min | 215,5 | 215,5 | 16 | Odkrywka |
+| 15 | 776 | 388 | 7 min 30 s | 311,8 | 311,8 | 19 | Odkrywka |
+| 19 | 1720 | 860 | 9 min 30 s | 480,1 | 480,1 | 22 | Odkrywka |
+| 20 | 2099 | 1049 | 10 min | 530,7 | 530,7 | 40 | Megaodkrywka |
+| 25 | 5673 | 2836 | 12 min 30 s | 846,6 | 846,6 | 50 | Megaodkrywka |
+| 30 | 15 334 | 7667 | 15 min | 1296,6 | 1296,6 | 50 | Megaodkrywka |
+| 40 | 112 014 | 56 007 | 20 min | 2816,0 | 2816,0 | 50 | Megaodkrywka |
 
 ### Elektrownia (`powerPlant`)
 
-Koszt poz. 1: 75 metalu, 30 kryształów; wzrost kosztu ×1.5 na poziom.
+Koszt poz. 1: 75 metalu, 30 kryształów; wzrost kosztu ×1.2 na poziom.
 
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (energia) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
-| 1 | 75 | 30 | 30 s | 24,2 | 0 | 1 | Farma wiatrowa |
-| 2 | 112 | 45 | 1 min | 53,2 | 0 | 2 | Farma wiatrowa |
-| 3 | 168 | 67 | 1 min 30 s | 87,8 | 0 | 2 | Farma wiatrowa |
-| 5 | 379 | 151 | 2 min 30 s | 177,2 | 0 | 3 | Farma wiatrowa |
-| 6 | 569 | 227 | 3 min | 233,8 | 0 | 6 | Generator fuzyjny |
-| 8 | 1281 | 512 | 4 min | 377,3 | 0 | 8 | Generator fuzyjny |
-| 10 | 2883 | 1153 | 5 min | 570,6 | 0 | 10 | Generator fuzyjny |
-| 12 | 6487 | 2594 | 6 min | 828,5 | 0 | 16 | Elektrownia jądrowa |
-| 15 | 21 894 | 8757 | 7 min 30 s | 1378,5 | 0 | 19 | Elektrownia jądrowa |
-| 19 | 110 841 | 44 336 | 9 min 30 s | 2556,4 | 0 | 22 | Elektrownia jądrowa |
-| 20 | 166 262 | 66 505 | 10 min | 2960,1 | 0 | 40 | Reaktor antymaterii |
-| 25 | 1 262 558 | 505 023 | 12 min 30 s | 5959,1 | 0 | 50 | Reaktor antymaterii |
-| 30 | 9 587 552 | 3 835 021 | 15 min | 11 517 | 0 | 50 | Reaktor antymaterii |
-| 40 | 552 866 616 | 221 146 646 | 20 min | 39 828 | 0 | 50 | Reaktor antymaterii |
+| 1 | 75 | 30 | 30 s | 23,1 | 0 | 1 | Farma wiatrowa |
+| 2 | 90 | 36 | 1 min | 48,5 | 0 | 2 | Farma wiatrowa |
+| 3 | 108 | 43 | 1 min 30 s | 76,4 | 0 | 2 | Farma wiatrowa |
+| 5 | 155 | 62 | 2 min 30 s | 140,4 | 0 | 3 | Farma wiatrowa |
+| 6 | 186 | 74 | 3 min | 176,9 | 0 | 4 | Generator fuzyjny |
+| 8 | 268 | 107 | 4 min | 260,0 | 0 | 5 | Generator fuzyjny |
+| 10 | 386 | 154 | 5 min | 358,4 | 0 | 6 | Generator fuzyjny |
+| 12 | 557 | 222 | 6 min | 474,1 | 0 | 8 | Elektrownia jądrowa |
+| 15 | 962 | 385 | 7 min 30 s | 686,0 | 0 | 10 | Elektrownia jądrowa |
+| 19 | 1996 | 798 | 9 min 30 s | 1056,3 | 0 | 12 | Elektrownia jądrowa |
+| 20 | 2396 | 958 | 10 min | 1167,5 | 0 | 16 | Reaktor antymaterii |
+| 25 | 5962 | 2384 | 12 min 30 s | 1862,5 | 0 | 22 | Reaktor antymaterii |
+| 30 | 14 836 | 5934 | 15 min | 2852,5 | 0 | 22 | Reaktor antymaterii |
+| 40 | 91 860 | 36 744 | 20 min | 6195,2 | 0 | 22 | Reaktor antymaterii |
 
 ### Magazyn (`storage`)
 
-Koszt poz. 1: 70 metalu, 35 kryształów; wzrost kosztu ×1.55 na poziom.
+Koszt poz. 1: 70 metalu, 35 kryształów; wzrost kosztu ×1.2 na poziom.
 
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (pojemność) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
 | 1 | 70 | 35 | 30 s | 1000 | 0 | 1 | Skład |
-| 2 | 108 | 54 | 1 min | 1600 | 0 | 2 | Skład |
-| 3 | 168 | 84 | 1 min 30 s | 2560 | 0 | 2 | Skład |
-| 5 | 404 | 202 | 2 min 30 s | 6553 | 0 | 2 | Skład |
-| 6 | 626 | 313 | 3 min | 10 485 | 0 | 3 | Magazyn |
-| 8 | 1504 | 752 | 4 min | 26 843 | 0 | 4 | Magazyn |
-| 10 | 3614 | 1807 | 5 min | 68 719 | 0 | 5 | Magazyn |
-| 12 | 8684 | 4342 | 6 min | 175 921 | 0 | 6 | Terminal magazynowy |
-| 15 | 32 340 | 16 170 | 7 min 30 s | 720 575 | 0 | 8 | Terminal magazynowy |
-| 19 | 186 667 | 93 333 | 9 min 30 s | 4 722 366 | 0 | 9 | Terminal magazynowy |
-| 20 | 289 334 | 144 667 | 10 min | 7 555 786 | 0 | 10 | Megaskład |
-| 25 | 2 588 563 | 1 294 281 | 12 min 30 s | 79 228 162 | 0 | 14 | Megaskład |
-| 30 | 23 158 865 | 11 579 432 | 15 min | 830 767 497 | 0 | 14 | Megaskład |
-| 40 | 1 853 677 884 | 926 838 942 | 20 min | 91 343 852 333 | 0 | 14 | Megaskład |
+| 2 | 84 | 42 | 1 min | 1600 | 0 | 2 | Skład |
+| 3 | 100 | 50 | 1 min 30 s | 2560 | 0 | 2 | Skład |
+| 5 | 145 | 72 | 2 min 30 s | 6553 | 0 | 2 | Skład |
+| 6 | 174 | 87 | 3 min | 10 485 | 0 | 3 | Magazyn |
+| 8 | 250 | 125 | 4 min | 26 843 | 0 | 4 | Magazyn |
+| 10 | 361 | 180 | 5 min | 68 719 | 0 | 5 | Magazyn |
+| 12 | 520 | 260 | 6 min | 175 921 | 0 | 6 | Terminal magazynowy |
+| 15 | 898 | 449 | 7 min 30 s | 720 575 | 0 | 8 | Terminal magazynowy |
+| 19 | 1863 | 931 | 9 min 30 s | 4 722 366 | 0 | 9 | Terminal magazynowy |
+| 20 | 2236 | 1118 | 10 min | 7 555 786 | 0 | 10 | Megaskład |
+| 25 | 5564 | 2782 | 12 min 30 s | 79 228 162 | 0 | 14 | Megaskład |
+| 30 | 13 846 | 6923 | 15 min | 830 767 497 | 0 | 14 | Megaskład |
+| 40 | 85 736 | 42 868 | 20 min | 91 343 852 333 | 0 | 14 | Megaskład |
 
 ### Kolektor antymaterii (`antimatterCollector`)
 
-Koszt poz. 1: 400 metalu, 260 kryształów; wzrost kosztu ×1.7 na poziom.
+Koszt poz. 1: 400 metalu, 260 kryształów; wzrost kosztu ×1.25 na poziom.
 
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (antymateria/h) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
-| 1 | 400 | 260 | 30 s | 0,7 | 19,8 | 1 | Pułapka |
-| 2 | 680 | 442 | 1 min | 1,5 | 43,6 | 2 | Pułapka |
-| 3 | 1155 | 751 | 1 min 30 s | 2,4 | 71,9 | 2 | Pułapka |
-| 5 | 3340 | 2171 | 2 min 30 s | 4,8 | 144,9 | 2 | Pułapka |
-| 6 | 5679 | 3691 | 3 min | 6,4 | 191,3 | 3 | Kolektor |
-| 8 | 16 413 | 10 668 | 4 min | 10,3 | 308,7 | 4 | Kolektor |
-| 10 | 47 435 | 30 832 | 5 min | 15,6 | 466,9 | 5 | Kolektor |
-| 12 | 137 087 | 89 106 | 6 min | 22,6 | 677,9 | 6 | Pole pułapek |
-| 15 | 673 511 | 437 782 | 7 min 30 s | 37,6 | 1127,9 | 8 | Pole pułapek |
-| 19 | 5 625 233 | 3 656 401 | 9 min 30 s | 69,7 | 2091,6 | 9 | Pole pułapek |
-| 20 | 9 562 897 | 6 215 883 | 10 min | 80,7 | 2421,9 | 10 | Megakolektor |
-| 25 | 135 779 468 | 88 256 654 | 12 min 30 s | 162,5 | 4875,6 | 14 | Megakolektor |
-| 30 | 1 927 874 288 | 1 253 118 287 | 15 min | 314,1 | 9422,7 | 14 | Megakolektor |
-| 40 | 388 658 280 630 | 252 627 882 409 | 20 min | 1086,2 | 32 587 | 14 | Megakolektor |
+| 1 | 400 | 260 | 30 s | 0,6 | 18,9 | 1 | Pułapka |
+| 2 | 500 | 325 | 1 min | 1,3 | 39,7 | 2 | Pułapka |
+| 3 | 625 | 406 | 1 min 30 s | 2,1 | 62,5 | 2 | Pułapka |
+| 5 | 976 | 634 | 2 min 30 s | 3,8 | 114,9 | 2 | Pułapka |
+| 6 | 1220 | 793 | 3 min | 4,8 | 144,7 | 3 | Kolektor |
+| 8 | 1907 | 1239 | 4 min | 7,1 | 212,8 | 4 | Kolektor |
+| 10 | 2980 | 1937 | 5 min | 9,8 | 293,2 | 5 | Kolektor |
+| 12 | 4656 | 3026 | 6 min | 12,9 | 387,9 | 6 | Pole pułapek |
+| 15 | 9094 | 5911 | 7 min 30 s | 18,7 | 561,3 | 8 | Pole pułapek |
+| 19 | 22 204 | 14 432 | 9 min 30 s | 28,8 | 864,2 | 9 | Pole pułapek |
+| 20 | 27 755 | 18 041 | 10 min | 31,8 | 955,2 | 10 | Megakolektor |
+| 25 | 84 703 | 55 057 | 12 min 30 s | 50,8 | 1523,9 | 14 | Megakolektor |
+| 30 | 258 493 | 168 021 | 15 min | 77,8 | 2333,8 | 14 | Megakolektor |
+| 40 | 2 407 412 | 1 564 818 | 20 min | 169,0 | 5068,8 | 14 | Megakolektor |
 
 ### Laboratorium (`laboratory`)
 
-Koszt poz. 1: 200 metalu, 400 kryształów; wzrost kosztu ×1.6 na poziom.
+Koszt poz. 1: 200 metalu, 400 kryształów; wzrost kosztu ×1.22 na poziom.
 
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (—) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
-| 1 | 200 | 400 | 30 s | — | 6,6 | 1 | Pracownia |
-| 2 | 320 | 640 | 1 min | — | 14,5 | 2 | Pracownia |
-| 3 | 512 | 1024 | 1 min 30 s | — | 24,0 | 2 | Pracownia |
-| 5 | 1310 | 2621 | 2 min 30 s | — | 48,3 | 2 | Pracownia |
-| 6 | 2097 | 4194 | 3 min | — | 63,8 | 3 | Laboratorium |
-| 8 | 5368 | 10 737 | 4 min | — | 102,9 | 4 | Laboratorium |
-| 10 | 13 743 | 27 487 | 5 min | — | 155,6 | 5 | Laboratorium |
-| 12 | 35 184 | 70 368 | 6 min | — | 226,0 | 6 | Instytut |
-| 15 | 144 115 | 288 230 | 7 min 30 s | — | 376,0 | 8 | Instytut |
-| 19 | 944 473 | 1 888 946 | 9 min 30 s | — | 697,2 | 9 | Instytut |
-| 20 | 1 511 157 | 3 022 314 | 10 min | — | 807,3 | 10 | Kampus badawczy |
-| 25 | 15 845 632 | 31 691 265 | 12 min 30 s | — | 1625,2 | 14 | Kampus badawczy |
-| 30 | 166 153 499 | 332 306 998 | 15 min | — | 3140,9 | 14 | Kampus badawczy |
-| 40 | 18 268 770 466 | 36 537 540 933 | 20 min | — | 10 862 | 14 | Kampus badawczy |
+| 1 | 200 | 400 | 30 s | — | 6,3 | 1 | Pracownia |
+| 2 | 244 | 488 | 1 min | — | 13,2 | 2 | Pracownia |
+| 3 | 297 | 595 | 1 min 30 s | — | 20,8 | 2 | Pracownia |
+| 5 | 443 | 886 | 2 min 30 s | — | 38,3 | 2 | Pracownia |
+| 6 | 540 | 1081 | 3 min | — | 48,2 | 3 | Laboratorium |
+| 8 | 804 | 1609 | 4 min | — | 70,9 | 4 | Laboratorium |
+| 10 | 1197 | 2394 | 5 min | — | 97,7 | 5 | Laboratorium |
+| 12 | 1782 | 3564 | 6 min | — | 129,3 | 6 | Instytut |
+| 15 | 3236 | 6472 | 7 min 30 s | — | 187,1 | 8 | Instytut |
+| 19 | 7169 | 14 339 | 9 min 30 s | — | 288,1 | 9 | Instytut |
+| 20 | 8747 | 17 494 | 10 min | — | 318,4 | 10 | Kampus badawczy |
+| 25 | 23 641 | 47 282 | 12 min 30 s | — | 508,0 | 14 | Kampus badawczy |
+| 30 | 63 894 | 127 789 | 15 min | — | 777,9 | 14 | Kampus badawczy |
+| 40 | 466 727 | 933 455 | 20 min | — | 1689,6 | 14 | Kampus badawczy |
 
 ## Etapy obszaru budynku (`src/data/footprint.ts`)
 
 - **Kopalnia metalu:** Kopalnia od poz. 1 — 1–3 pól; Zakład przetwórczy od poz. 6 — 6–10 pól; Huta od poz. 12 — 16–22 pól; Kombinat metalowy od poz. 20 — 40–50 pól.
 - **Ekstraktor kryształów:** Wiertło od poz. 1 — 1–3 pól; Szyb wiertniczy od poz. 6 — 6–10 pól; Odkrywka od poz. 12 — 16–22 pól; Megaodkrywka od poz. 20 — 40–50 pól.
-- **Elektrownia:** Farma wiatrowa od poz. 1 — 1–3 pól; Generator fuzyjny od poz. 6 — 6–10 pól; Elektrownia jądrowa od poz. 12 — 16–22 pól; Reaktor antymaterii od poz. 20 — 40–50 pól.
+- **Elektrownia:** Farma wiatrowa od poz. 1 — 1–3 pól; Generator fuzyjny od poz. 6 — 4–6 pól; Elektrownia jądrowa od poz. 12 — 8–12 pól; Reaktor antymaterii od poz. 20 — 16–22 pól.
 - **Magazyn:** Skład od poz. 1 — 1–2 pól; Magazyn od poz. 6 — 3–5 pól; Terminal magazynowy od poz. 12 — 6–9 pól; Megaskład od poz. 20 — 10–14 pól.
 - **Kolektor antymaterii:** Pułapka od poz. 1 — 1–2 pól; Kolektor od poz. 6 — 3–5 pól; Pole pułapek od poz. 12 — 6–9 pól; Megakolektor od poz. 20 — 10–14 pól.
 - **Laboratorium:** Pracownia od poz. 1 — 1–2 pól; Laboratorium od poz. 6 — 3–5 pól; Instytut od poz. 12 — 6–9 pól; Kampus badawczy od poz. 20 — 10–14 pól.

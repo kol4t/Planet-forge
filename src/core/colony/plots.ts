@@ -151,12 +151,57 @@ export function reconcilePlots(
         canStand(id, grid.cells[wish]!, rules) &&
         (list.length === 0 || grid.cells[wish]!.neighbors.some((n) => list.includes(n)));
       const cell = ok ? wish : list.length === 0 ? anchorCell(grid, id, taken, index, order.length, rules) : growCell(grid, id, list, taken, index, rules);
-      if (cell < 0) break;
+      if (cell < 0) {
+        // Etap 10: budynek otoczony innymi nie urośnie w miejscu — cały obszar przenosi się tam, gdzie zmieści się
+        // w jednym kawałku (wcześniej: „brak pól” mimo wielu wolnych pól planety — martwy punkt z symulacji).
+        const moved = list.length > 0 ? relocate(grid, id, list, want, taken, index, order.length, rules) : null;
+        if (moved) {
+          for (const c of list) taken.delete(c);
+          list.length = 0;
+          for (const c of moved) {
+            list.push(c);
+            taken.add(c);
+          }
+        }
+        break;
+      }
       list.push(cell);
       taken.add(cell);
     }
   });
   return result;
+}
+
+/** Nowe miejsce dla całego obszaru budynku (`want` pól w jednym kawałku) albo null — kilka prób od różnych punktów. */
+function relocate(
+  grid: FieldGrid,
+  id: BuildingId,
+  current: readonly number[],
+  want: number,
+  taken: Set<number>,
+  index: number,
+  count: number,
+  rules: BuildRules,
+): number[] | null {
+  const free = new Set(taken);
+  for (const c of current) free.delete(c);
+  const tried = new Set<number>();
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const blocked = new Set([...free, ...tried]);
+    const anchor = anchorCell(grid, id, blocked, index, count, rules);
+    if (anchor < 0) return null;
+    tried.add(anchor);
+    const cells = [anchor];
+    const used = new Set([...free, anchor]);
+    while (cells.length < want) {
+      const next = growCell(grid, id, cells, used, index, rules);
+      if (next < 0) break;
+      cells.push(next);
+      used.add(next);
+    }
+    if (cells.length >= want) return cells;
+  }
+  return null;
 }
 
 /** Czy następny poziom budynku zmieści się na planecie (tyle wolnych pól obok obszaru, ile wymaga etap). */
