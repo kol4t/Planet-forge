@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.67.0 — pierwsze kroki: przewodnik SI Matki — 2026-11-02
+
+- **Panel „SI Matka · krok X z 19”**: jedno bieżące zadanie, pasek postępu i podpowiedź, co dotknąć (zwijany; na telefonie domyślnie zwinięty).
+- Kroki prowadzą przez całą pętlę: od pierwszych budynków przez widok układu, wielką fabrykę, stację macierzystą, kolonię i megakonstrukt aż do imperium gwiezdnego.
+- Za każdy krok mała nagroda i wpis w Dzienniku. Istniejące gry zaczynają od pierwszego niewykonanego kroku (bez nagród za przeszłość).
+- Ustawienia → „Przewodnik SI: włączony — wyłącz”. Zapisy zgodne.
+
 ## v0.66.0 — widok układu — 2026-11-02
 
 - **Nowy widok układu:** ściśnij planetę dwoma palcami (albo „−” na minimum) — kamera odlatuje do układu: gwiazda, orbity, planety w ruchu, Twoja planeta w turkusowym pierścieniu.
