@@ -55,7 +55,6 @@ for (const mode of ['2d', '3d']) {
     const m = game.scene.getScene('map');
     const galaxy = { objects: m.children.list.length, ms: Math.round(performance.now() - t - 1500) };
     const sys = (window as any).__planetForge.controller.homeSystem;
-    const t2 = performance.now();
     game.scene.start('map', { system: sys });
     await new Promise((r) => setTimeout(r, 1500));
     const m2 = game.scene.getScene('map');
