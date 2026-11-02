@@ -18,6 +18,8 @@ import { parseOrbiting } from '../economy/orbitalConstruct.ts';
 import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, Fleet, OrbitalConstruct, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState, StellarEmpire, ColonyStation } from '../types.ts';
 import { parseColonyStations } from '../economy/colonyStation.ts';
 import { parseView, type ViewState } from '../view/viewState.ts';
+import { parseGuide, type GuideState } from '../guide/guide.ts';
+import { GUIDE_STEPS } from '../../data/guide.ts';
 import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } from './save.ts';
 import type { Plots } from '../colony/plots.ts';
 import { parseComplexes, type Complex } from '../colony/complexes.ts';
@@ -115,6 +117,8 @@ export interface EmpireSave {
   colonyStations?: ColonyStation[];
   /** Ostatni widok (plan „widok układu”, etap B; opcjonalne): brak albo błędny = start na aktywnej planecie. */
   view?: ViewState;
+  /** Przewodnik SI Matki (etap 11, od v0.67 — opcjonalne): bieżący krok, wyłącznik; brak = start od niewykonanego kroku. */
+  guide?: GuideState;
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -253,6 +257,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseStellar(data.stellar) ? { stellar: parseStellar(data.stellar)! } : {}),
     ...(parseColonyStations(data.colonyStations).length > 0 ? { colonyStations: parseColonyStations(data.colonyStations) } : {}),
     ...(parseView(data.view) ? { view: parseView(data.view)! } : {}),
+    ...(parseGuide(data.guide, GUIDE_STEPS.length) ? { guide: parseGuide(data.guide, GUIDE_STEPS.length)! } : {}),
   };
 }
 

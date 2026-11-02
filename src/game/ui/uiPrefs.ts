@@ -50,6 +50,27 @@ export function saveFocusZoom(zoom: FocusZoom): void {
   }
 }
 
+/** Panel przewodnika SI zwinięty (etap 11) — zapamiętany na urządzeniu. */
+const GUIDE_KEY = 'planet-forge.guideCollapsed.v1';
+
+/** `fallback` — gdy gracz jeszcze nie wybierał (małe ekrany: zwinięty, żeby nie zasłaniał planety). */
+export function loadGuideCollapsed(fallback = false): boolean {
+  try {
+    const raw = globalThis.localStorage?.getItem(GUIDE_KEY);
+    return raw === null || raw === undefined ? fallback : raw === '1';
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveGuideCollapsed(collapsed: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(GUIDE_KEY, collapsed ? '1' : '0');
+  } catch {
+    // brak pamięci — wybór obowiązuje do zamknięcia gry
+  }
+}
+
 /** Obrót planety sam z siebie (Ustawienia → Widok; widok układu, decyzja właściciela 2026-11-02): domyślnie wyłączony. */
 const SPIN_KEY = 'planet-forge.autoSpin.v1';
 

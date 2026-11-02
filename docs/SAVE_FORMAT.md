@@ -47,6 +47,8 @@ Kopiuj zapis / Wczytaj zapis).
     { "origin": "1:16:4", "readyAt": 1800000, "fuel": 10, "lifted": true,   // start z planety, koniec przygotowania, paliwo
       "target": "1:16:1", "landsAt": 2040000 }                              // opcjonalnie: ściągany na planetę
   ],
+  "guide": { "step": 4, "seen": ["system"], "transport": true },  // przewodnik SI Matki (od v0.67, opcjonalne;
+                                  //   "off": true — wyłączony; brak = start od pierwszego niewykonanego kroku)
   "view": { "level": "obiekt", "system": 16, "object": "1:16:4", "zoom": 2.5 },  // ostatni widok (od widoku układu,
                                   //   etap B; opcjonalne; poziom galaktyka|uklad|obiekt|powierzchnia; błędny = start na aktywnej planecie)
   "colonyStations": [ { "address": "1:16:1", "readyAt": 900000 } ],  // stacje kolonii (od v0.64, opcjonalne;

@@ -2,6 +2,20 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Etap 11 pętli: pierwsze kroki — przewodnik SI Matki (v0.67, decyzje właściciela)
+
+- **Lista zadań SI Matki** — panel „Kolejny krok” (HTML, zwijany; na małych ekranach domyślnie zwinięty): jedno
+  bieżące zadanie, pasek postępu, podpowiedź „jak to zrobić”. Wykonanie → komunikat i wpis w dzienniku z nagrodą.
+- **Zakres: cała pętla** — 19 kroków (`data/guide.ts`, robocze): kopalnie, energia, magazyn, widok układu,
+  laboratorium i badanie, kopalnia 10, wielka fabryka, stacja macierzysta, druga kolonia, kopalnia 20, Megastruktury,
+  komplet osad (40), megakonstrukt, transport, pierwsza wyeksploatowana planeta, imperium gwiezdne.
+- **Mała nagroda** za każdy krok (surowce do magazynu aktywnej planety, czasem antymateria; liczby robocze).
+- **Nowe gry + wyłącznik:** nowa gra zaczyna od kroku 1; istniejący zapis — od pierwszego niewykonanego kroku, bez
+  nagród za przeszłość. Ustawienia → „Przewodnik SI: włączony — wyłącz”. Zapis `guide` (opcjonalne).
+- Logika: `core/guide/guide.ts` (migawka stanu, postęp, przewinięcie, walidacja zapisu), kontroler `processGuide`
+  w każdym naliczeniu, `markSeen('system')` przy wejściu do układu, `markTransport` przy wysłaniu transportu.
+- Lore: SI Matka i teksty kroków robocze (bez nowych treści fabularnych).
+
 ## 2026-11-02 — Widok układu, etap F: optymalizacja i pomiary po
 
 - Planeta stojąca (bez palca, bezwładności, zmiany przybliżenia) rysowana najwyżej co 50 ms (~20 kl./s) — 3D i 2D;

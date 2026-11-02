@@ -9,6 +9,8 @@ import { fuelCost, fuelLabel, fuelShortage } from '../core/economy/fuel.ts';
 import { addRepair, cancelOrder, completeOrders, completeRepairs, orderShip, shipSeconds, shipyardCost, shipyardLevel, starterFleet, upgradeShipyard } from '../core/economy/fleet.ts';
 import { findShip, SHIP_TYPES } from '../data/fleet.ts';
 import { buildColonyStation, colonyStationReady, relayFuel, relaySeconds } from '../core/economy/colonyStation.ts';
+import { GUIDE_STEPS } from '../data/guide.ts';
+import { firstOpenStep, goalProgress, type GuideSnapshot, type GuideState } from '../core/guide/guide.ts';
 import { back as viewBack, focusObject, focusSystem, resetView, startView, zoomBy, type ViewState } from '../core/view/viewState.ts';
 import { cargoAfter, pirateNests, riskLabel, rollIncident, routeRisk, type IncidentKind, type MapPoint, type RouteRisk } from '../core/economy/missionRisk.ts';
 import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAnywhere } from '../core/economy/constructTransfer.ts';
@@ -562,6 +564,9 @@ export class GameController {
   private colonyStations: ColonyStation[] = [];
   /** Widok (plan „widok układu”, etap B): poziom, układ, obiekt, przybliżenie; null — start na aktywnej planecie. */
   private viewSaved: ViewState | null = null;
+  /** Przewodnik SI Matki (etap 11): bieżący krok, wyłącznik; null — ustalany przy pierwszym naliczeniu. */
+  private guide: GuideState | null = null;
+  private readonly guideListeners = new Set<(text: string) => void>();
   private readonly stellarListeners = new Set<() => void>();
   /** Stacja macierzysta (v0.55) — jedna na imperium; null = nie zbudowana. */
   private station: HomeStation | null = null;
@@ -618,6 +623,7 @@ export class GameController {
       this.stellar = saved.stellar ?? null;
       this.colonyStations = saved.colonyStations ?? [];
       this.viewSaved = saved.view ?? null;
+      this.guide = saved.guide ?? null;
       this.transfers = saved.transfers ?? [];
       this.markPacking();
       this.journal = saved.journal ?? [];
@@ -1003,6 +1009,8 @@ export class GameController {
     const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
+    const guided = this.processGuide(now);
+    for (const text of guided) for (const listener of this.guideListeners) listener(text);
     const closed = this.checkStellar(now);
     if (closed) for (const listener of this.stellarListeners) listener();
     if (exploited || closed || done || researched.length > 0 || arrived.length > 0 || returned.length > 0 || delivered.length > 0 || aiDone) this.save();
@@ -1827,6 +1835,7 @@ export class GameController {
     const incident = this.incidentFor(this.address, s.address, 'cargo', now, seconds, escort);
     this.shipments.push({ from: this.address, to: s.address, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'to', ship: true, ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
     this.log('ship', `Transportowiec wyruszył z ${this.planet.displayName} na stację macierzystą: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
+    this.markTransport();
     this.save();
     this.emit();
     return { ok: true, message: `Transportowiec leci na stację — dotrze za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
@@ -1856,6 +1865,7 @@ export class GameController {
     this.shipments.push({ from: s.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'from', ship: true, ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
     const toName = this.slotName(to);
     this.log('ship', `Transportowiec wyruszył ze stacji macierzystej do ${toName}: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
+    this.markTransport();
     this.save();
     this.emit();
     return { ok: true, message: `Transportowiec leci ze stacji do ${toName} — dotrze za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
@@ -1991,6 +2001,7 @@ export class GameController {
     this.shipments.push({ from: this.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, ship: true, ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
     const toName = this.slotName(to);
     this.log('ship', `Transportowiec wyruszył z ${this.planet.displayName} do ${toName}: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
+    this.markTransport();
     this.save();
     this.emit();
     return { ok: true, message: `Transportowiec leci do ${toName} — dotrze za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
@@ -2905,6 +2916,96 @@ export class GameController {
     return { ok: true, message: `Przeniesiono na: ${target.planet.displayName}.` };
   }
 
+  // ——— przewodnik SI Matki „Pierwsze kroki” (etap 11) ———
+
+  /** Migawka stanu gry do sprawdzania kroków przewodnika. */
+  private guideSnapshot(): GuideSnapshot {
+    const levels: Partial<BuildingLevels> = {};
+    this.slots.forEach((slot, i) => {
+      const own = i === this.active ? this.economy.levels : slot.economy.levels;
+      for (const [id, level] of Object.entries(own) as [BuildingId, number][]) levels[id] = Math.max(levels[id] ?? 0, level ?? 0);
+    });
+    return {
+      levels,
+      researched: new Set(this.slots.flatMap((s) => s.research.done)).size,
+      unlocked: (feature) => this.unlocked(feature as UnlockFeature),
+      seen: this.guide?.seen ?? [],
+      complexes: this.slots.flatMap((s) => (s.complexes ?? []).map((c) => c.family)),
+      stationReady: stationReady(this.station, Date.now()),
+      planets: this.slots.length,
+      konstrukt: this.slots.some((s) => s.metalComplex?.phase === 'konstrukt'),
+      transport: !!this.guide?.transport,
+      exploited: this.exploited.length,
+      stellar: !!this.stellar,
+    };
+  }
+
+  /**
+   * Kroki wykonane do `now`: nagroda (magazyn aktywnej planety, antymateria do portfela), wpis w dzienniku, następny
+   * krok. Bez zapisanego przewodnika (nowa gra albo zapis sprzed etapu 11) — start od pierwszego niewykonanego kroku,
+   * bez nagród za to, co gracz już osiągnął (decyzja właściciela).
+   */
+  private processGuide(now: number): string[] {
+    if (!this.guide) {
+      this.guide = { step: firstOpenStep(GUIDE_STEPS, this.guideSnapshot()) };
+      return [];
+    }
+    if (this.guide.off) return [];
+    const texts: string[] = [];
+    const snapshot = this.guideSnapshot();
+    while (this.guide.step < GUIDE_STEPS.length) {
+      const step = GUIDE_STEPS[this.guide.step]!;
+      if (!goalProgress(step.goal, snapshot).done) break;
+      const r = step.reward;
+      this.economy = {
+        ...this.economy,
+        stock: { metal: this.economy.stock.metal + r.metal, crystal: this.economy.stock.crystal + r.crystal },
+        antimatter: this.economy.antimatter + (r.antimatter ?? 0),
+      };
+      this.guide = { ...this.guide, step: this.guide.step + 1 };
+      const reward = [r.metal ? `${r.metal} metalu` : '', r.crystal ? `${r.crystal} kryształów` : '', r.antimatter ? antimatterAmount(r.antimatter) : ''].filter(Boolean).join(', ');
+      const text = `SI Matka: wykonane — ${step.title}.${reward ? ` Nagroda: ${reward}.` : ''}`;
+      this.log('ai', text, now);
+      texts.push(text);
+    }
+    return texts;
+  }
+
+  /** Coś „zobaczone” w grze (np. widok układu) — do kroków przewodnika. */
+  private markSeen(what: string): void {
+    if (!this.guide || this.guide.seen?.includes(what)) return;
+    this.guide = { ...this.guide, seen: [...(this.guide.seen ?? []), what] };
+  }
+
+  /** Transport wysłany (krok przewodnika — zdarzenie). */
+  private markTransport(): void {
+    if (this.guide && !this.guide.transport) this.guide = { ...this.guide, transport: true };
+  }
+
+  /** Panel „Kolejny krok”: bieżące zadanie, podpowiedź, postęp; null — przewodnik wyłączony albo jeszcze nieustalony. */
+  guideView(): { enabled: boolean; index: number; total: number; title: string; hint: string; progress: number; label: string; finished: boolean } | null {
+    const g = this.guide;
+    if (!g) return null;
+    const total = GUIDE_STEPS.length;
+    const step = GUIDE_STEPS[g.step];
+    if (!step) return { enabled: !g.off, index: total, total, title: 'Wszystkie kroki wykonane', hint: 'Imperium gwiezdne — dalej grasz po swojemu.', progress: 1, label: '', finished: true };
+    const p = goalProgress(step.goal, this.guideSnapshot());
+    return { enabled: !g.off, index: g.step, total, title: step.title, hint: step.hint, progress: p.value, label: p.label, finished: false };
+  }
+
+  /** Ustawienia → „Przewodnik SI”: włączenie / wyłączenie (krok zostaje). */
+  setGuideEnabled(on: boolean): void {
+    this.guide = { ...(this.guide ?? { step: firstOpenStep(GUIDE_STEPS, this.guideSnapshot()) }), ...(on ? {} : { off: true }) };
+    if (on) delete this.guide.off;
+    this.save();
+    this.emit();
+  }
+
+  onGuideStep(listener: (text: string) => void): () => void {
+    this.guideListeners.add(listener);
+    return () => this.guideListeners.delete(listener);
+  }
+
   // ——— widok: galaktyka → układ → obiekt → powierzchnia (etap B) ———
 
   /** Bieżący widok (bez zapisu — start na aktywnej planecie). */
@@ -2934,6 +3035,7 @@ export class GameController {
 
   /** Wejście do układu (z galaktyki albo ścieżki nawigacji). */
   selectSystem(index: number): ViewState {
+    this.markSeen('system');
     this.viewSaved = focusSystem(this.view, index);
     return this.viewSaved;
   }
@@ -3388,6 +3490,7 @@ export class GameController {
     this.stellar = result.data.stellar ?? null;
     this.colonyStations = result.data.colonyStations ?? [];
     this.viewSaved = result.data.view ?? null;
+    this.guide = result.data.guide ?? null;
     this.transfers = result.data.transfers ?? [];
     this.markPacking();
     this.journal = result.data.journal ?? [];
@@ -3439,6 +3542,7 @@ export class GameController {
       ...(this.stellar ? { stellar: this.stellar } : {}),
       ...(this.colonyStations.length > 0 ? { colonyStations: this.colonyStations } : {}),
       ...(this.viewSaved ? { view: this.viewSaved } : {}),
+      ...(this.guide ? { guide: this.guide } : {}),
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,
