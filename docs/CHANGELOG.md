@@ -2,6 +2,12 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.68.0 — kandydat MVP — 2026-11-02
+
+- Przewodnik SI Matki: krok „Załóż drugą kolonię” teraz po megakonstrukcie (pierwsza planeta → konstrukt → kolonia).
+- Testy: zapisy z 7 starych wersji (od v0.46) wczytują się poprawnie; cała pętla od zera przechodzi z przewodnikiem.
+- Raport kandydata MVP i lista kontrolna płynności na iPada (`docs/kandydat-mvp.md`).
+
 ## v0.67.0 — pierwsze kroki: przewodnik SI Matki — 2026-11-02
 
 - **Panel „SI Matka · krok X z 19”**: jedno bieżące zadanie, pasek postępu i podpowiedź, co dotknąć (zwijany; na telefonie domyślnie zwinięty).
