@@ -250,7 +250,7 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 | 7 | v0.62 | ✅ **Ryzyko misji i obrona** (gałąź `claude/ryzyko-misji`; lore K-005 — do uzgodnienia nazwa „piraci”) | loty między układami mogą zaatakować piraci (gniazda przy trasach); skutek łagodny (strata części ładunku, opóźnienie); każdy okręt eskorty zmniejsza ryzyko, widoczne w % przed wysłaniem | 5, 6 |
 | 8 | v0.63 | ✅ **Zamknięcie pętli: imperium gwiezdne** (gałąź `claude/imperium-gwiezdne`) | 3 wyeksploatowane planety + gotowa stacja → miejsca na planety do 10, plansza SI Matki, dziennik; licznik liczy dalej | 3, 4 |
 | 9 | v0.64 | ✅ **Mniejsze stacje** (gałąź `claude/stacje-kolonii`) | stacja kolonii przy każdej kolonii (po stacji macierzystej) — przekaźnik: loty do stacji macierzystej 2× szybciej i za pół paliwa; mały pierścień na orbicie | 4 |
-| 10 | v0.62 | **Wstępna ekonomia** | strojenie całej pętli wg ponownej symulacji | wszystkie |
+| 10 | v0.65 | ✅ **Wstępna ekonomia** (gałąź `claude/wstepna-ekonomia`, plan `docs/plan-ekonomii.md`) | złoża = rozwój + tydzień megakonstruktu, 3 rodzaje złóż, łagodniejsze krzywe, kolejka 3, poprawione martwe punkty pól | wszystkie |
 | 11 | v0.63 | **Pierwsze kroki** | SI Matka prowadzi nowego gracza przez pętlę | 10 |
 | 12 | v0.64 | **Płynność, zapis, kandydat MVP** | pomiar iPada, testy zapisów, audyt pętli od zera | wszystkie |
 

@@ -20,7 +20,7 @@ export const BALANCE: Balance = {
   // Złoża (etap 10): rozwój planety + tydzień pracy megakonstruktu głównego surowca (robocze, strojone symulacją).
   deposits: {
     perHundredFields: { metal: 2_000_000, crystal: 1_200_000 },
-    buildup: { metal: 6_000_000, crystal: 4_000_000 },
+    buildup: { metal: 40_000_000, crystal: 6_000_000 },
     konstruktDays: 7,
     kindRatio: 1.2,
     balancedShare: 0.6,

@@ -209,9 +209,10 @@ test('kryształy stoją na lodzie i liczą się do pól; inne budynki na lodzie 
   assert.equal(fieldCapacity(grid, { crystalMine: [ice] }), buildableCount(grid) + 1);
   // Brak miejsca: megakonstrukt na małej planecie się nie mieści — następny poziom zablokowany.
   const small = fieldGrid(generatePlanet(findDefinition('arid')!, '1:4:3'));
-  const lv = levels({ powerPlant: 21 });
+  // (Etap 10: elektrownia ma mniejszy obszar — sprawdzamy na Ekstraktorze kryształów, etap „mega” 40–50 pól.)
+  const lv = levels({ crystalMine: 25 });
   const placed = reconcilePlots(small, {}, lv, ORDER);
-  assert.equal(hasRoomFor(small, placed, lv, 'powerPlant', ORDER), false, `pól lądu: ${buildableCount(small)}`);
+  assert.equal(hasRoomFor(small, placed, lv, 'crystalMine', ORDER), false, `pól lądu: ${buildableCount(small)}`);
   assert.equal(hasRoomFor(grid, {}, levels({ metalMine: 1 }), 'metalMine', ORDER), true);
 });
 

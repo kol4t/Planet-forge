@@ -1,4 +1,4 @@
-# Plan wstępnej ekonomii (etap 10) — do akceptacji właściciela
+# Plan wstępnej ekonomii (etap 10) — zaakceptowany 2026-11-02, wdrożony (wyniki — `docs/decisions.md`)
 
 Stan: 2026-11-01, wersja gry v0.64.0. Liczby poniżej są **propozycją**. Zmienię je w grze dopiero po akceptacji,
 a po zmianie sprawdzę je symulacją (`npm run simulate`).

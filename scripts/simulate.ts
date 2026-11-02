@@ -17,6 +17,7 @@ const { GameController } = await import('../src/app/GameController.ts');
 const { RESEARCH_NODES } = await import('../src/data/research.ts');
 const { BALANCE } = await import('../src/data/balance.ts');
 const { stageName } = await import('../src/core/economy/footprint.ts');
+const { depositKind } = await import('../src/core/economy/economy.ts');
 const { generateSystem } = await import('../src/core/galaxy/galaxy.ts');
 
 const MAX_DAYS = Number(process.argv[2] ?? 120);
@@ -27,6 +28,9 @@ const DAY = 24 * HOUR;
 /** Próg „planeta wyeksploatowana” (decyzja właściciela: 80% złóż metalu i kryształów). */
 const EXPLOITED = BALANCE.exploitation.threshold;
 const MINES: BuildingId[] = ['metalMine', 'crystalMine'];
+const mln = (n: number) => `${(n / 1e6).toFixed(1).replace('.', ',')} mln`;
+/** Etap 10: badania drogi do megakonstruktu i stacji — przed resztą (w tej kolejności). */
+const PRIORITY = ['station-orbit', 'mining-1', 'metal-factory', 'planet-1', 'planet-4', 'mining-3', 'megastructures', 'fleet-1'];
 
 /** Kiedy gracz zagląda do gry: co ile minut i w jakich godzinach doby. */
 interface Profile {
@@ -141,6 +145,7 @@ class Sim {
       game.tick(now);
       this.research(now);
       this.build(now);
+      this.industry(now);
       const left = game.deposits;
       // Bezczynna = nic się nie buduje, a są jeszcze złoża (wyeksploatowana planeta bez budowy to nie przestój gracza).
       this.idle[i] = !game.economy.construction && (left.metal.left > 0 || left.crystal.left > 0);
@@ -158,16 +163,38 @@ class Sim {
     for (const node of RESEARCH_NODES) {
       if (game.researchStatus(node.id) !== 'available') continue;
       const cost = game.researchCost(node.id);
-      if (!cost || cost.antimatter > 0) continue;
+      // Etap 10: badania drogi do megakonstruktu kosztują też antymaterię — gracz na nie wydaje (inne bez antymaterii).
+      if (!cost || (cost.antimatter > 0 && !PRIORITY.includes(node.id)) || cost.antimatter > game.economy.antimatter) continue;
       const stock = game.economy.stock;
       if (cost.metal > stock.metal || cost.crystal > stock.crystal) continue;
       // v0.58: „Moduł orbitalny” najpierw, gdy dostępny — bez stacji i stoczni nie ma nowych statków kolonizacyjnych.
-      const price = node.id === 'station-orbit' ? 0 : cost.metal + cost.crystal;
+      // Etap 10: droga do megakonstruktu (wielka fabryka, megastruktury) przed resztą.
+      const first = PRIORITY.indexOf(node.id);
+      const price = first >= 0 ? first - PRIORITY.length : cost.metal + cost.crystal;
       if (!best || price < best.price) best = { id: node.id, price };
     }
     if (best && game.startResearch(best.id, now).ok) {
       const name = RESEARCH_NODES.find((n) => n.id === best!.id)?.name ?? best.id;
       this.once(`r:${game.planet.seed}:${best.id}`, now, `${game.planet.displayName}: rozpoczęto badanie „${name}”`);
+    }
+  }
+
+  /**
+   * Etap 10: megakonstrukt to główny motyw planety — gracz uruchamia wielką fabrykę (kompleks kopalni metalu), a przy
+   * poz. 40 buduje megakonstrukt (gdy stać go na koszt).
+   */
+  private industry(now: number): void {
+    const game = this.game;
+    const level = game.economy.levels.metalMine ?? 0;
+    if (level >= 6 && game.mergeComplex('metalMine', now).ok) this.log(now, `${game.planet.displayName}: uruchomiono wielką fabrykę`);
+    if (level >= BALANCE.maxLevel) {
+      const v = game.metalConstructView(now);
+      if (!v.built && !v.building && game.startMetalConstruct(now).ok) {
+        const d = game.deposits;
+        this.log(now, `${game.planet.displayName}: budowa megakonstruktu (wydobyte dotąd: ${mln(d.metal.total - d.metal.left)} metalu, ${mln(d.crystal.total - d.crystal.left)} kryształów)`);
+      }
+      if (!v.built && !v.building) this.once(`kr:${game.planet.seed}:${v.reason?.slice(0, 20)}`, now, `${game.planet.displayName}: megakonstrukt — ${v.reason ?? 'brak przeszkód'}`);
+      if (v.built) this.once(`k:${game.planet.seed}`, now, `${game.planet.displayName}: megakonstrukt działa`);
     }
   }
 
@@ -182,23 +209,46 @@ class Sim {
     const stock = game.economy.stock;
     const nextMine = MINES.map((id) => game.costOf(id)).reduce((a, c) => Math.max(a, c.metal, c.crystal), 0);
     if (nextMine > capacity * 0.9 || Math.max(stock.metal, stock.crystal) > capacity * 0.9) out.push('storage');
+    // Etap 10: najpierw kopalnia głównego surowca (rodzaj złóż — tam stanie megakonstrukt), druga do poz. 19 (przed etapem
+    // „mega”, który zajmuje 40–50 pól)
+    // (pola zostają dla osad); przy złożach „po równo” — tańsza najpierw, obie do 40.
+    const kind = depositKind(game.planet);
+    const main: BuildingId | null = kind === 'metal' ? 'metalMine' : kind === 'crystal' ? 'crystalMine' : null;
     const mines = [...MINES].sort((a, b) => {
+      if (main) return a === main ? -1 : b === main ? 1 : 0;
       const ca = game.costOf(a);
       const cb = game.costOf(b);
       return ca.metal + ca.crystal - (cb.metal + cb.crystal);
     });
     const left = game.deposits;
-    for (const id of mines) if (left[id === 'metalMine' ? 'metal' : 'crystal'].left > 0) out.push(id);
-    const lab = levels.laboratory ?? 0;
-    if (lab < Math.floor(Math.min(levels.metalMine ?? 0, levels.crystalMine ?? 0) / 2)) out.push('laboratory');
-    out.push('powerPlant', 'storage');
+    // Poziom z budową i kolejką (żeby kolejka nie przeskoczyła limitu, np. etapu „mega” drugiej kopalni).
+    const planned = (id: BuildingId) =>
+      Math.max(levels[id] ?? 0, game.economy.construction?.building === id ? game.economy.construction.targetLevel : 0, ...game.queue.filter((q) => q.building === id).map((q) => q.level));
+    // Laboratorium (badania drogi do megakonstruktu) — do poz. 10, równo z rozwojem kopalń.
+    if (planned('laboratory') < Math.min(10, 2 + Math.floor(Math.max(levels.metalMine ?? 0, levels.crystalMine ?? 0) / 2))) out.unshift('laboratory');
+    // Druga kopalnia nadąża za główną do połowy jej poziomu (kryształy na koszty i megakonstrukt).
+    if (main) {
+      const other: BuildingId = main === 'metalMine' ? 'crystalMine' : 'metalMine';
+      if (planned(other) < Math.min(19, Math.ceil((levels[main] ?? 0) / 2))) out.push(other);
+    }
+    for (const id of mines) {
+      if (left[id === 'metalMine' ? 'metal' : 'crystal'].left <= 0) continue;
+      if (main && id !== main && planned(id) >= 19) continue;
+      out.push(id);
+    }
     return [...new Set(out)];
   }
 
+  /** Etap 10: kolejka ma kilka miejsc — gracz przy wizycie zapełnia ją (najważniejsze potrzeby po kolei). */
   private build(now: number): void {
+    for (let i = 0; i <= this.game.queueCapacity; i++) if (!this.buildOne(now)) return;
+  }
+
+  /** Jedno zlecenie (budowa albo dopisanie do kolejki); false — nic się nie dało albo kolejka pełna. */
+  private buildOne(now: number): boolean {
     const game = this.game;
     const busy = !!game.economy.construction;
-    if (busy && game.queue.length >= game.queueCapacity) return;
+    if (busy && game.queue.length >= game.queueCapacity) return false;
     for (const id of this.wanted()) {
       const result = busy ? game.enqueue(id, now) : game.upgrade(id, now);
       if (result.ok) {
@@ -208,13 +258,14 @@ class Sim {
         for (const stage of [6, 12, 20]) {
           if (level >= stage) this.once(`b:${game.planet.seed}:${id}:${stage}`, now, `${game.planet.displayName}: ${nameOf(id)} — etap „${stageName(id, stage)}” (poz. ${stage}) zlecony`);
         }
-        return;
+        return true;
       }
       const reason = 'reason' in result ? String(result.reason) : 'inne';
       this.blocked.set(reason, (this.blocked.get(reason) ?? 0) + 1);
       // Brak surowców na najważniejszą potrzebę — gracz czeka (nie buduje czegoś mniej ważnego zamiast tego).
-      if (reason === 'not-enough-resources') return;
+      if (reason === 'not-enough-resources') return false;
     }
+    return false;
   }
 
   /**

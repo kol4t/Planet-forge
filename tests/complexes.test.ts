@@ -159,7 +159,8 @@ test('blokada (v0.45): gdy obok kompleksu brakuje pól na kolejny etap — uleps
     const result = game.upgrade('powerPlant', 0);
     assert.equal(result.ok, false);
     assert.equal(result.reason, 'no-fields');
-    assert.match(result.message, /Elektrownia poz\. 20 \(Reaktor antymaterii\) potrzebuje 40 pól/);
+    // Etap 10: elektrownia ma mniejszy obszar (od poz. 20 — 16–22 pola).
+    assert.match(result.message, /Elektrownia poz\. 20 \(Reaktor antymaterii\) potrzebuje 16 pól/);
     assert.ok(game.fields.used <= game.fields.buildable);
   });
 });

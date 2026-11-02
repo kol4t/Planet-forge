@@ -2,6 +2,24 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Etap 10: wstępna ekonomia (v0.65, plan zaakceptowany przez właściciela)
+
+- **Megakonstrukt = główny motyw planety.** Złoże głównego surowca = rozwój planety (`deposits.buildup`) + 7 dni pracy
+  megakonstruktu na poz. 40 (`konstruktDays`); 3 rodzaje złóż z zasobności (bez zmiany generatora): „dużo metalu”,
+  „dużo kryształów”, „po równo” (plakietka w Imperium zamiast „bogata w …”).
+- **Krzywe:** `levelGrowth` 1,1 → 1,05, koszt poziomu ×1,2–1,25 (było ×1,5–1,7) — poz. 40 osiągalny w kilka dni.
+  Megakonstrukt kosztuje 3 mln metalu i 2 mln kryształów. **Kolejka budowy: 3 miejsca.** Antymateria bez zmian.
+- **Elektrownia ma mniejszy obszar** (od poz. 20: 16–22 pola zamiast 40–50) — kopalnia na poz. 40 potrzebuje elektrowni
+  ok. poz. 30, a przy dawnym obszarze na planecie startowej nie było miejsca na osady.
+- **Naprawione martwe punkty (z symulacji):**
+  - rezerwa dzielnicy kopalni metalu obejmuje od początku wszystkie 4 osady (wcześniej inny budynek zajmował pole
+    przyszłej osady i kopalnia stawała);
+  - budynek otoczony innymi przenosi cały obszar w miejsce, gdzie się zmieści (wcześniej „brak pól” przy wielu wolnych).
+- **Wynik symulacji** (`docs/balans-symulacja.md`): konstrukt pracuje 6–8 dni na planecie. Pętla dla gracza okazjonalnego:
+  22 dni (kolonizuje równolegle) – 49 dni (czeka z kolonią do połowy złóż), aktywnego 13–34 dni. Rozwój kolejnej planety
+  do poz. 40 trwa u okazjonalnego ok. 11 dni (ogranicza go kolejka i odstęp wizyt) — do decyzji: dłuższa kolejka albo
+  krótszy rozwój, jeśli pętla ma być bliżej miesiąca także przy grze „po kolei”.
+
 ## 2026-11-01 — Etap 9: stacje kolonii (v0.64, decyzje właściciela)
 
 - **Jedna przy każdej kolonii** — nad każdą planetą gracza oprócz tej, nad którą krąży stacja macierzysta.
