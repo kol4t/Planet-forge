@@ -2,6 +2,15 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.65.0 — wstępna ekonomia — 2026-11-02
+
+- **Megakonstrukt to główny cel planety:** złoża wystarczają na rozwój i ok. tydzień pracy jednego megakonstruktu.
+- Planety mają **rodzaj złóż** (dużo metalu / dużo kryształów / po równo) — plakietka w Imperium.
+- Poziomy budynków są dużo tańsze (koszt ×1,2 na poziom), wydobycie rośnie łagodniej; megakonstrukt kosztuje 4 mln metalu i 1 mln kryształów.
+- **Kolejka budowy: 5 miejsc.** Elektrownia zajmuje mniej pól.
+- Naprawione: kopalnia metalu nie staje przez budynek na polu przyszłej osady; budynek otoczony innymi przenosi się tam, gdzie się zmieści.
+- Zmiana działa też w istniejących grach (większe złoża, tańsze poziomy).
+
 ## v0.64.0 — stacje kolonii — 2026-11-01
 
 - Po zbudowaniu stacji macierzystej każda kolonia może mieć **stację kolonii** (Imperium → karta „Stacja kolonii”): 4000 metalu, 2500 kryształów, 15 min.

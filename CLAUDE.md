@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.64.0 — opublikowana: pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii; kompleks kopalni metalu — osady, megakonstrukt, orbita)
+## Stan obecny (v0.65.0 — opublikowana: pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -89,12 +89,16 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   macierzystej), po gotowej stacji macierzystej; przekaźnik — loty kolonia ↔ stacja macierzysta 2× szybciej i za pół
   paliwa; karta w Imperium, mały pierścień na orbicie (3D/2D). `core/economy/colonyStation.ts`, `BALANCE.colonyStation`,
   zapis `colonyStations`.
+- **v0.65 — etap 10 pętli, wstępna ekonomia** (plan `docs/plan-ekonomii.md`, akceptacja właściciela): megakonstrukt =
+  główny motyw planety — złoże = rozwój + ok. tydzień konstruktu, 3 rodzaje złóż (plakietka), krzywe ×1,2 koszt /
+  ×1,05 wydobycie, konstrukt 4 mln / 1 mln, kolejka 5, elektrownia mniejsza (16–22 pola od poz. 20); martwe punkty pól
+  naprawione (rezerwa 4 osad, przenoszenie otoczonego budynku). Symulacja: pętla 16–37 dni (okazjonalny), 11,5–28 (aktywny).
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
   terenu, woda i lawa. Obrót palcem z bezwładnością (przez bieguny), przybliżenie 0,8×–3,5×, stuknięcie wybiera budynek.
 - **Gospodarka** (`core/economy`): metal, kryształy, energia (niedobór obniża wydajność, pierwszeństwo w „Zarządzaniu”),
-  antymateria (wspólna). 6 budynków do poz. 40, budowa w czasie (jedna naraz), kolejka (1 miejsce + badania SI), „Ukończ teraz”,
+  antymateria (wspólna). 6 budynków do poz. 40, budowa w czasie (jedna naraz), kolejka (5 miejsc + badania SI), „Ukończ teraz”,
   anulowanie, burzenie, magazyn, skończone złoża. Nieobecność: maks. 8 h produkcji (limit raz na naliczenie — v0.46).
 - **Pola i obszar budynku** (v0.45): każdy budynek = jeden spójny kawałek pól rosnący w etapach (`src/data/footprint.ts`,
   `core/economy/footprint.ts`, `core/colony/plots.ts`); dedykowany teren (kryształy — lód, metal — wzgórza/góry, elektrownia —
