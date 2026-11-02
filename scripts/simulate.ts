@@ -18,6 +18,7 @@ const { RESEARCH_NODES } = await import('../src/data/research.ts');
 const { BALANCE } = await import('../src/data/balance.ts');
 const { stageName } = await import('../src/core/economy/footprint.ts');
 const { depositKind } = await import('../src/core/economy/economy.ts');
+const { GUIDE_STEPS } = await import('../src/data/guide.ts');
 const { generateSystem } = await import('../src/core/galaxy/galaxy.ts');
 
 const MAX_DAYS = Number(process.argv[2] ?? 120);
@@ -69,6 +70,8 @@ interface Event {
 }
 
 class Sim {
+  /** Ostatni wykonany krok przewodnika (etap 12). */
+  guideStep = 0;
   readonly game: InstanceType<typeof GameController>;
   readonly events: Event[] = [];
   /** Powody, dla których ulepszenie się nie udało (licznik). */
@@ -154,6 +157,18 @@ class Sim {
     this.fleet(now);
     this.colonize(now);
     this.track(now);
+    // Etap 12: przewodnik SI Matki — kiedy który krok wykonany (nagrody wpływają na tempo).
+    let guide = game.guideView();
+    // Gracz słucha przewodnika: „Obejrzyj swój układ” — zagląda do widoku układu.
+    if (guide && GUIDE_STEPS[guide.index]?.goal.kind === 'seen') {
+      game.selectSystem(game.homeSystem);
+      game.tick(now);
+      guide = game.guideView();
+    }
+    if (guide && guide.index > this.guideStep) {
+      for (let i = this.guideStep; i < guide.index; i++) this.log(now, `Przewodnik: wykonany krok ${i + 1} — ${GUIDE_STEPS[i]?.title ?? ''}`);
+      this.guideStep = guide.index;
+    }
   }
 
   private research(now: number): void {

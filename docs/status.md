@@ -252,7 +252,7 @@ Laboratorium planet (etap 8 generatora); backend / konta / multiplayer.
 | 9 | v0.64 | ✅ **Mniejsze stacje** (gałąź `claude/stacje-kolonii`) | stacja kolonii przy każdej kolonii (po stacji macierzystej) — przekaźnik: loty do stacji macierzystej 2× szybciej i za pół paliwa; mały pierścień na orbicie | 4 |
 | 10 | v0.65 | ✅ **Wstępna ekonomia** (gałąź `claude/wstepna-ekonomia`, plan `docs/plan-ekonomii.md`) | złoża = rozwój + tydzień megakonstruktu, 3 rodzaje złóż, łagodniejsze krzywe, kolejka 5, poprawione martwe punkty pól | wszystkie |
 | 11 | v0.67 | ✅ **Pierwsze kroki** (gałąź `claude/pierwsze-kroki`) | przewodnik SI Matki: 19 kroków przez całą pętlę, panel „Kolejny krok”, małe nagrody, wyłącznik w Ustawieniach | 10 |
-| 12 | v0.64 | **Płynność, zapis, kandydat MVP** | pomiar iPada, testy zapisów, audyt pętli od zera | wszystkie |
+| 12 | v0.68 | 🟡 **Płynność, zapis, kandydat MVP** (gałąź `claude/kandydat-mvp`, raport `docs/kandydat-mvp.md`) | ✅ zapisy z 7 starych wersji, ✅ pętla od zera z przewodnikiem (36 / 17 dni), ⏳ pomiar iPada (właściciel) | wszystkie |
 
 **Każdy etap zaczyna się od planu i szkicu do akceptacji, dopiero potem kod.** Wszystkie nowe pola zapisu są opcjonalne.
 

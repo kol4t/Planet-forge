@@ -60,3 +60,9 @@ Testy nie potrzebują przeglądarki: `localStorage` zastępuje prosta pamięć (
 - Scen Phaser (panele, przyciski) — testowany jest czysty układ (`layout.ts`), nie wygląd.
 - Service workera w działaniu (offline, aktualizacja) — testowana jest tylko zawartość buildu.
 - Okien HTML (`*Panel.ts`, karta budowli) — poza logiką, z której biorą dane.
+
+## Zapisy ze starych wersji (etap 12)
+
+`tests/oldSaves.test.ts` wczytuje zapisy utworzone prawdziwymi starymi wersjami gry (`tests/fixtures/saves/`, v0.46–v0.66).
+Nowy zapis: `scripts/make-old-save.ts` w worktree starej wersji (opis w nagłówku skryptu). Przy każdej wersji
+zmieniającej zapis warto dopisać jej zapis do zestawu.
