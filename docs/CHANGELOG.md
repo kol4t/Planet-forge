@@ -2,6 +2,14 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.66.0 — widok układu — 2026-11-02
+
+- **Nowy widok układu:** ściśnij planetę dwoma palcami (albo „−” na minimum) — kamera odlatuje do układu: gwiazda, orbity, planety w ruchu, Twoja planeta w turkusowym pierścieniu.
+- Dotknij swojej planety — płynny lot i zwykły widok planety (2D / 3D). Obca planeta, gwiazda, pas asteroid — okienko z danymi; wolna planeta — „Wyślij statek”.
+- Pasek „Galaktyka › Układ › Planeta” i „Resetuj widok”. Mapa → „Pokaż układ” wlatuje do układu; dawny widok — „Tabela układu”.
+- Planeta domyślnie się nie obraca (Ustawienia → „Obrót planety”).
+- Lżej dla iPada: jeden kontekst grafiki 3D (było 3), planeta nie rysuje się, gdy widać układ, rzadziej, gdy stoi; szybsze powroty na planety. Zapisy zgodne.
+
 ## v0.65.0 — wstępna ekonomia — 2026-11-02
 
 - **Megakonstrukt to główny cel planety:** złoża wystarczają na rozwój i ok. tydzień pracy jednego megakonstruktu.

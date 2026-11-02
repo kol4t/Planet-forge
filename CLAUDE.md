@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.65.0 — opublikowana: pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
+## Stan obecny (v0.66.0 — opublikowana: widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -93,6 +93,14 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   główny motyw planety — złoże = rozwój + ok. tydzień konstruktu, 3 rodzaje złóż (plakietka), krzywe ×1,2 koszt /
   ×1,05 wydobycie, konstrukt 4 mln / 1 mln, kolejka 5, elektrownia mniejsza (16–22 pola od poz. 20); martwe punkty pól
   naprawione (rezerwa 4 osad, przenoszenie otoczonego budynku). Symulacja: pętla 16–37 dni (okazjonalny), 11,5–28 (aktywny).
+- **v0.66 — widok układu** (prompt właściciela, etapy A–F, pomiary `docs/pomiary/widok-ukladu-przed.md` / `-po.md`):
+  ściśnięcie planety → widok układu 2D (`planet-renderer/systemView.ts`, matematyka `systemLayout.ts`, Canvas 2D bez
+  nowego WebGL; orbity z czasu świata, miniatury, gwiazda, pas, gazowe olbrzymy); dotknięcie własnej planety → lot
+  i widok planety (miniatura przechodzi w planetę), obcej / gwiazdy / pasa → okienko z istniejącymi danymi
+  (kolonizacja statkiem); pasek „Galaktyka › Układ › Planeta”, „Resetuj widok”; Mapa → „Pokaż układ” (wlot), dawny
+  widok jako „Tabela układu”. Model nawigacji `core/view/viewState.ts` (poziomy, zoom z histerezą, zapis `view`).
+  Planeta domyślnie się nie obraca (Ustawienia → „Obrót planety”). Konteksty WebGL 3 → 1 (`app/glProbe.ts`), pamięć
+  3 modeli 3D, renderer stoi w widoku układu, rzadsze rysowanie w bezruchu (~20 kl./s), siatki pól liczone w tle.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
@@ -122,7 +130,7 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   migracje starych zapisów; uszkodzony zapis → kopia `planet-forge.empire.broken` + komunikat; nieudany zapis → komunikat (v0.46).
 - **PWA**: manifest, ikony, service worker (offline, pasek „Dostępna aktualizacja”). **Zgłoszenia**: Ustawienia → „Zgłoś /
   diagnostyka” (GitHub Issue, diagnostyka z płynnością i — w 3D — liczbą rysowań i tekstur).
-- **Testy**: 381 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
+- **Testy**: 389 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
 - **Wydajność** (symulacja, nie iPad): siatka pól ~190 ms na komputerze (najdroższa część zmiany planety), 3D ~43 rysowania /
   105 tys. trójkątów, brak wycieków przy zmianie planety — `docs/PERFORMANCE.md`. Ostatni pomiar na iPadzie: v0.46 (2D 54 / najsłabsza s. 24 kl./s, 3D 56 / 15 kl./s).
 
