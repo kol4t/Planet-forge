@@ -31,6 +31,14 @@ node scripts/screens.ts <folder> [2d|3d]   # zrzuty ekranów w 7 rozmiarach (prz
 
 Instrukcje i zasady: **`CLAUDE.md`**. Dokumentacja: **`docs/README.md`**.
 
+## Lista kontrolna — przewodnik SI Matki (etap 11)
+
+1. Nowa gra (albo obecna): pod paskiem „Galaktyka › …” panel „SI Matka · krok X z 19” z zadaniem i paskiem postępu.
+2. Wykonaj zadanie (np. ulepsz Kopalnię metalu) — komunikat „SI Matka: wykonane… Nagroda: …”, surowce przybywają,
+   panel pokazuje następny krok; wpis w Imperium → Dziennik.
+3. Dotknij nagłówka panelu — zwija / rozwija podpowiedź (zapamiętane).
+4. Ustawienia → „Przewodnik SI: włączony — wyłącz” chowa panel; ponowne włączenie wraca do tego samego kroku.
+
 ## Lista kontrolna — widok układu (gałąź `claude/widok-ukladu`, etapy B–C)
 
 1. Planeta stoi w miejscu; Ustawienia → „Obrót planety: wyłączony — włącz” włącza powolny obrót (zapamiętany).

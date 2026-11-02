@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { GuidePanel } from '../ui/guidePanel.ts';
 import { cachedFieldGrid, fieldGrid } from '../../core/colony/fieldGrid.ts';
 import type { SystemView, SystemScene } from '../../planet-renderer/systemView.ts';
 import { SystemNav, openObjectInfo, type NavCrumb } from '../ui/systemNav.ts';
@@ -44,7 +45,7 @@ import {
   type PanelState,
   type Rect,
 } from '../ui/layout.ts';
-import { loadPanels, savePanels, FOCUS_ZOOMS, loadAutoSpin, loadFocusZoom, loadGridVisible, saveAutoSpin, saveFocusZoom, saveGridVisible } from '../ui/uiPrefs.ts';
+import { loadGuideCollapsed, saveGuideCollapsed, loadPanels, savePanels, FOCUS_ZOOMS, loadAutoSpin, loadFocusZoom, loadGridVisible, saveAutoSpin, saveFocusZoom, saveGridVisible } from '../ui/uiPrefs.ts';
 import { approach, BUILD_FLASH_MS, PANEL_IN_MS, PANEL_IN_OFFSET, prefersReducedMotion } from '../ui/motion.ts';
 import { COLORS, FONTS, formatAmount, formatDuration, formatInt, formatRate, formatSpan } from '../ui/theme.ts';
 import { OPEN_SYSTEM, OVERLAY_CLOSED } from './OverlayScene.ts';
@@ -214,6 +215,8 @@ export class PlanetScene extends Phaser.Scene {
   private systemMode = false;
   private readonly systemGestures = new GestureTracker(0.7, 6);
   private systemNav: SystemNav | null = null;
+  private guidePanel: GuidePanel | null = null;
+  private guideAt = 0;
   private closeInfo: (() => void) | null = null;
   private readonly systemPlanets = new Map<string, Planet>();
 
@@ -292,6 +295,11 @@ export class PlanetScene extends Phaser.Scene {
       if (message) this.showToast(message, 'ok', 3000);
     });
 
+    // Przewodnik SI Matki (etap 11): wykonany krok — komunikat z nagrodą.
+    controller.onGuideStep((text) => {
+      this.showToast(text, 'ok', 4500);
+      this.refreshValues();
+    });
     controller.onAiAction((text) => {
       if (!this.screenOpen) this.showToast(text, 'info', 3500);
       this.refreshValues();
@@ -635,8 +643,10 @@ export class PlanetScene extends Phaser.Scene {
     this.systemNav ??= new SystemNav(document.body);
     if (this.overlay || this.screenOpen || this.closeInfo || this.placing) {
       this.systemNav.hide();
+      this.guidePanel?.hide();
       return;
     }
+    this.updateGuide(layout);
     const c = this.deps.controller;
     const key = `${this.systemMode}|${this.viewSystem}|${c.address}|${layout.stage.x}|${layout.stage.y}|${layout.stage.w}`;
     if (key === this.navKey) return;
@@ -652,6 +662,20 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   private navKey = '';
+
+  /** Panel przewodnika SI Matki (etap 11) pod paskiem nawigacji — gdy przewodnik włączony. */
+  private updateGuide(layout: Layout): void {
+    // Najwyżej 4 razy na sekundę (migawka stanu dla przewodnika).
+    if (this.time.now < this.guideAt) return;
+    this.guideAt = this.time.now + 250;
+    const v = this.deps.controller.guideView();
+    if (!v || !v.enabled) {
+      this.guidePanel?.hide();
+      return;
+    }
+    this.guidePanel ??= new GuidePanel(document.body, loadGuideCollapsed(layout.stage.h < 420), saveGuideCollapsed);
+    this.guidePanel.show(v, layout.stage.x + 8, layout.stage.y + 60, layout.stage.w - 16);
+  }
 
   /** Ekran „Mapa”: cała galaktyka albo od razu wskazany układ. */
   openMap(system?: number): void {
@@ -2571,13 +2595,20 @@ export class PlanetScene extends Phaser.Scene {
       this.closeOverlay();
       this.openSettings();
     }, this.s(15)).setStyle(spinOn ? 'primary' : 'secondary');
+    y += buttonH + gap;
+    const guideOn = this.deps.controller.guideView()?.enabled ?? true;
+    const guideButton = new Button(this, pad, y, w - 2 * pad, buttonH, guideOn ? 'Przewodnik SI: włączony — wyłącz' : 'Przewodnik SI: wyłączony — włącz', this.dpr, () => {
+      this.deps.controller.setGuideEnabled(!guideOn);
+      this.closeOverlay();
+      this.openSettings();
+    }, this.s(15)).setStyle(guideOn ? 'primary' : 'secondary');
     y += buttonH + gap * 1.5;
     const version = this.add.text(pad, y + (buttonH - this.px(this.s(16))) / 2, `Planet Forge ${this.deps.appVersion}`, font(12, COLORS.faint, { fontFamily: FONTS.mono }));
     const closeBtn = new Button(this, w - pad - halfW, y, halfW, buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle(
       'primary',
     );
     y += buttonH + pad;
-    items.push(title, saveLabel, saveHint, copy, load, gfxLabel, gfxHint, toggle, diag, viewLabel, viewHint, ...zoomButtons, gridButton, spinButton, version, closeBtn);
+    items.push(title, saveLabel, saveHint, copy, load, gfxLabel, gfxHint, toggle, diag, viewLabel, viewHint, ...zoomButtons, gridButton, spinButton, guideButton, version, closeBtn);
 
     const h = y;
     const x = (W - w) / 2;
