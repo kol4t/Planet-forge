@@ -287,6 +287,13 @@ export class PlanetView implements PlanetDisplay {
     this.scene.add(this.homeStation.group);
   }
 
+  /** Obrót sam z siebie (domyślnie wyłączony — decyzja właściciela, widok układu). */
+  private autoSpin = false;
+
+  setAutoSpin(on: boolean): void {
+    this.autoSpin = on;
+  }
+
   setGridVisible(visible: boolean): void {
     this.gridVisible = visible;
     if (this.fieldLines) this.fieldLines.visible = visible;
@@ -1017,7 +1024,7 @@ export class PlanetView implements PlanetDisplay {
     if (this.resolution.sample(frameMs)) this.applyPixelRatio();
     // Przy przybliżeniu od 2× planeta przestaje sama się obracać (od 1× do 2× autoobrót słabnie);
     // pokazany budynek wstrzymuje autoobrót całkiem.
-    this.rotator.spinFactor = this.spinHeld ? 0 : Math.min(1, Math.max(0, 2 - this.zoom));
+    this.rotator.spinFactor = this.spinHeld || !this.autoSpin ? 0 : Math.min(1, Math.max(0, 2 - this.zoom));
     this.rotator.update(dt, time);
     if (this.zoomer.update(dt)) this.updateCamera();
     this.spinGroup.rotation.y = this.rotator.yaw;

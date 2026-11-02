@@ -36,7 +36,7 @@ import {
   type PanelState,
   type Rect,
 } from '../ui/layout.ts';
-import { loadPanels, savePanels, FOCUS_ZOOMS, loadFocusZoom, loadGridVisible, saveFocusZoom, saveGridVisible } from '../ui/uiPrefs.ts';
+import { loadPanels, savePanels, FOCUS_ZOOMS, loadAutoSpin, loadFocusZoom, loadGridVisible, saveAutoSpin, saveFocusZoom, saveGridVisible } from '../ui/uiPrefs.ts';
 import { approach, BUILD_FLASH_MS, PANEL_IN_MS, PANEL_IN_OFFSET, prefersReducedMotion } from '../ui/motion.ts';
 import { COLORS, FONTS, formatAmount, formatDuration, formatInt, formatRate, formatSpan } from '../ui/theme.ts';
 import { OVERLAY_CLOSED } from './OverlayScene.ts';
@@ -211,6 +211,7 @@ export class PlanetScene extends Phaser.Scene {
     // jeden palec obraca planetę, dwa palce ją przybliżają.
     const apply = (events: GestureEvent[]) => this.applyGestures(events);
     display.setGridVisible(loadGridVisible());
+    display.setAutoSpin(loadAutoSpin());
     // Przybliżenie przywrócone po przełączeniu grafiki — szczypanie i przyciski liczą od niego.
     this.gestures.setZoom(display.zoomLevel());
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
@@ -2246,13 +2247,21 @@ export class PlanetScene extends Phaser.Scene {
       this.closeOverlay();
       this.openSettings();
     }, this.s(15)).setStyle(gridOn ? 'primary' : 'secondary');
+    y += buttonH + gap;
+    const spinOn = loadAutoSpin();
+    const spinButton = new Button(this, pad, y, w - 2 * pad, buttonH, spinOn ? 'Obrót planety: włączony — wyłącz' : 'Obrót planety: wyłączony — włącz', this.dpr, () => {
+      saveAutoSpin(!spinOn);
+      this.deps.display.setAutoSpin(!spinOn);
+      this.closeOverlay();
+      this.openSettings();
+    }, this.s(15)).setStyle(spinOn ? 'primary' : 'secondary');
     y += buttonH + gap * 1.5;
     const version = this.add.text(pad, y + (buttonH - this.px(this.s(16))) / 2, `Planet Forge ${this.deps.appVersion}`, font(12, COLORS.faint, { fontFamily: FONTS.mono }));
     const closeBtn = new Button(this, w - pad - halfW, y, halfW, buttonH, 'Zamknij', this.dpr, () => this.closeOverlay(), this.s(15)).setStyle(
       'primary',
     );
     y += buttonH + pad;
-    items.push(title, saveLabel, saveHint, copy, load, gfxLabel, gfxHint, toggle, diag, viewLabel, viewHint, ...zoomButtons, gridButton, version, closeBtn);
+    items.push(title, saveLabel, saveHint, copy, load, gfxLabel, gfxHint, toggle, diag, viewLabel, viewHint, ...zoomButtons, gridButton, spinButton, version, closeBtn);
 
     const h = y;
     const x = (W - w) / 2;

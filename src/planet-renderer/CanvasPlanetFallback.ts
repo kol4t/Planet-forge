@@ -363,6 +363,13 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.homeStation = look;
   }
 
+  /** Obrót sam z siebie (domyślnie wyłączony — decyzja właściciela, widok układu). */
+  private autoSpin = false;
+
+  setAutoSpin(on: boolean): void {
+    this.autoSpin = on;
+  }
+
   setGridVisible(visible: boolean): void {
     this.gridVisible = visible;
   }
@@ -908,7 +915,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.last = time;
     // Przy przybliżeniu od 2× planeta przestaje sama się obracać (od 1× do 2× autoobrót słabnie);
     // pokazany budynek wstrzymuje autoobrót całkiem.
-    this.rotator.spinFactor = this.spinHeld ? 0 : Math.min(1, Math.max(0, 2 - this.zoom));
+    this.rotator.spinFactor = this.spinHeld || !this.autoSpin ? 0 : Math.min(1, Math.max(0, 2 - this.zoom));
     this.rotator.update(dt, time);
     if (this.zoomer.update(dt)) this.resizeBuffer();
     const growing = [...this.grownAt.values()].some((t) => performance.now() - t < GROW_MS + 100);

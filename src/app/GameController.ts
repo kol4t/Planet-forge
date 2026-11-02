@@ -9,6 +9,7 @@ import { fuelCost, fuelLabel, fuelShortage } from '../core/economy/fuel.ts';
 import { addRepair, cancelOrder, completeOrders, completeRepairs, orderShip, shipSeconds, shipyardCost, shipyardLevel, starterFleet, upgradeShipyard } from '../core/economy/fleet.ts';
 import { findShip, SHIP_TYPES } from '../data/fleet.ts';
 import { buildColonyStation, colonyStationReady, relayFuel, relaySeconds } from '../core/economy/colonyStation.ts';
+import { back as viewBack, focusObject, focusSystem, resetView, startView, zoomBy, type ViewState } from '../core/view/viewState.ts';
 import { cargoAfter, pirateNests, riskLabel, rollIncident, routeRisk, type IncidentKind, type MapPoint, type RouteRisk } from '../core/economy/missionRisk.ts';
 import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAnywhere } from '../core/economy/constructTransfer.ts';
 import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeStationStorage } from '../core/economy/homeStation.ts';
@@ -559,6 +560,8 @@ export class GameController {
   private stellar: StellarEmpire | null = null;
   /** Stacje kolonii (etap 9): przekaźniki transportu na orbitach kolonii. */
   private colonyStations: ColonyStation[] = [];
+  /** Widok (plan „widok układu”, etap B): poziom, układ, obiekt, przybliżenie; null — start na aktywnej planecie. */
+  private viewSaved: ViewState | null = null;
   private readonly stellarListeners = new Set<() => void>();
   /** Stacja macierzysta (v0.55) — jedna na imperium; null = nie zbudowana. */
   private station: HomeStation | null = null;
@@ -614,6 +617,7 @@ export class GameController {
       this.orbiting = saved.orbiting ?? [];
       this.stellar = saved.stellar ?? null;
       this.colonyStations = saved.colonyStations ?? [];
+      this.viewSaved = saved.view ?? null;
       this.transfers = saved.transfers ?? [];
       this.markPacking();
       this.journal = saved.journal ?? [];
@@ -2893,10 +2897,57 @@ export class GameController {
     this.economy = { ...caughtUp, antimatter: wallet + caughtUp.antimatter };
     this.reportAway(before, now);
     if (this.completedWhileAway) this.logBuild(this.completedWhileAway, before.construction?.finishesAt ?? now);
+    // Widok podąża za aktywną planetą (kamera na nią), chyba że gracz patrzy właśnie na nią z bliska.
+    if (this.viewSaved?.object !== target.address) this.viewSaved = startView(target.address);
     this.save();
     for (const listener of this.planetListeners) listener();
     this.emit();
     return { ok: true, message: `Przeniesiono na: ${target.planet.displayName}.` };
+  }
+
+  // ——— widok: galaktyka → układ → obiekt → powierzchnia (etap B) ———
+
+  /** Bieżący widok (bez zapisu — start na aktywnej planecie). */
+  get view(): ViewState {
+    return this.viewSaved ?? startView(this.address);
+  }
+
+  /** Zmiana przybliżenia (szczypanie przez wszystkie poziomy). */
+  zoomView(delta: number): ViewState {
+    this.viewSaved = zoomBy(this.view, delta);
+    return this.viewSaved;
+  }
+
+  /**
+   * Dotknięcie obiektu w układzie: kamera leci na niego. Własna planeta staje się aktywną (zasoby i panele dotyczą jej) —
+   * przez zwykłe `switchPlanet`. Obce i wolne obiekty — tylko widok (panel informacji pokaże scena).
+   */
+  selectObject(address: string, now = Date.now()): ActionMessage {
+    const index = this.slotAt(address);
+    if (index >= 0 && index !== this.active) {
+      const switched = this.switchPlanet(index, now);
+      if (!switched.ok) return switched;
+    }
+    this.viewSaved = focusObject(this.view, address);
+    return { ok: true, message: index >= 0 ? `Twoja planeta: ${this.slots[index]!.planet.displayName}.` : 'Obiekt w układzie.' };
+  }
+
+  /** Wejście do układu (z galaktyki albo ścieżki nawigacji). */
+  selectSystem(index: number): ViewState {
+    this.viewSaved = focusSystem(this.view, index);
+    return this.viewSaved;
+  }
+
+  /** „Wstecz” o jeden poziom. */
+  viewBack(): ViewState {
+    this.viewSaved = viewBack(this.view);
+    return this.viewSaved;
+  }
+
+  /** „Resetuj widok”: kamera na aktywnej planecie. */
+  resetView(): ViewState {
+    this.viewSaved = resetView(this.address);
+    return this.viewSaved;
   }
 
   // ——— mapa galaktyki ———
@@ -3279,6 +3330,8 @@ export class GameController {
     this.slots.splice(index, 1);
     // Stacja kolonii opuszczonej planety znika razem z nią (etap 9).
     this.colonyStations = this.colonyStations.filter((s) => s.address !== slot.address);
+    // Widok na opuszczonej planecie — z powrotem na aktywną.
+    if (this.viewSaved?.object === slot.address) this.viewSaved = null;
     if (index < this.active) this.active--;
     this.log('empire', `Opuszczono planetę ${slot.planet.displayName} (${slot.address}).`, Date.now());
     this.save();
@@ -3334,6 +3387,7 @@ export class GameController {
     this.orbiting = result.data.orbiting ?? [];
     this.stellar = result.data.stellar ?? null;
     this.colonyStations = result.data.colonyStations ?? [];
+    this.viewSaved = result.data.view ?? null;
     this.transfers = result.data.transfers ?? [];
     this.markPacking();
     this.journal = result.data.journal ?? [];
@@ -3384,6 +3438,7 @@ export class GameController {
       ...(this.orbiting.length > 0 ? { orbiting: this.orbiting } : {}),
       ...(this.stellar ? { stellar: this.stellar } : {}),
       ...(this.colonyStations.length > 0 ? { colonyStations: this.colonyStations } : {}),
+      ...(this.viewSaved ? { view: this.viewSaved } : {}),
       journal: this.journal,
       ai: this.aiLevels,
       antimatter: this.economy.antimatter,

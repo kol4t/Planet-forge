@@ -2,6 +2,19 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Widok układu: plan zaakceptowany, etap B (model nawigacji)
+
+- Plan etapów A–F (`docs/pomiary/widok-ukladu-przed.md`) **zaakceptowany przez właściciela**. Decyzje: **orbity ruchome**
+  (z czasu świata, jak na Mapie); **planeta domyślnie się nie obraca**, przełącznik „Obrót planety” w Ustawieniach
+  (`uiPrefs` `planet-forge.autoSpin.v1`, `PlanetDisplay.setAutoSpin`); **dotychczasowa Mapa zostaje do etapu E**.
+- **Konteksty WebGL:** testy „czy jest grafika 3D” (`hasWebGL`, test urządzenia w Phaserze) zostawiały 2 nieużywane
+  konteksty. `app/glProbe.ts` (import przed Phaserem) zwalnia je po starcie: 3D — 1 aktywny kontekst (było 3), 2D — 0 (był 1).
+- **Etap B:** `core/view/viewState.ts` — poziomy Galaktyka → Układ → Obiekt → Powierzchnia (nazwy robocze), jeden ciągły
+  zoom 0–4,5 z progami 1 / 2 / 3 i histerezą 0,08; przejścia (`zoomBy`, `focusObject`, `focusSystem`, `back`,
+  `resetView`), mapowanie na dawne przybliżenie planety 0,8×–3,5× (`planetZoom`), ścieżka nawigacji. Kontroler:
+  `view`, `zoomView`, `selectObject` (własna planeta → `switchPlanet`), `selectSystem`, `viewBack`, `resetView`;
+  zapis `view` (opcjonalne). Grafika jeszcze bez zmian — ekran główny dalej pokazuje planetę (etap C).
+
 ## 2026-11-02 — Etap 10: wstępna ekonomia (v0.65, plan zaakceptowany przez właściciela)
 
 - **Megakonstrukt = główny motyw planety.** Złoże głównego surowca = rozwój planety (`deposits.buildup`, 28 mln metalu /
