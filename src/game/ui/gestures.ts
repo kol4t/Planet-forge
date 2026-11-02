@@ -7,6 +7,8 @@ export type GestureEvent =
   | { type: 'drag'; dx: number; dy: number }
   | { type: 'drag-end' }
   | { type: 'zoom'; zoom: number }
+  /** Oddalanie dalej niż najmniejsze przybliżenie (widok układu, etap C: z planety do układu). */
+  | { type: 'past-min' }
   | { type: 'tap'; x: number; y: number };
 
 /** Lekkie oddalenie (0,8×) pokazuje planetę z kawałkiem nieba; maks. 3,5× jak dotąd. */
@@ -21,7 +23,9 @@ export class GestureTracker {
   private readonly max: number;
   private readonly points = new Map<number, { x: number; y: number }>();
   private dragId: number | null = null;
-  private pinch: { startDistance: number; startZoom: number } | null = null;
+  private pinch: { startDistance: number; startZoom: number; past?: boolean } | null = null;
+  /** Kółko myszy „za” najmniejszym przybliżeniem (suma) — próg przejścia do układu. */
+  private wheelPast = 0;
   /** Pierwszy palec: start (do rozpoznania „tap”), null = to już nie tap. */
   private tap: { id: number; x: number; y: number; at: number } | null = null;
   /** …i przesunięty najwyżej o tyle (w jednostkach zdarzeń — scena ustawia wg gęstości pikseli). */
@@ -58,7 +62,13 @@ export class GestureTracker {
     point.y = y;
     if (this.tap?.id === id && Math.hypot(x - this.tap.x, y - this.tap.y) > this.tapSlop) this.tap = null;
     if (this.pinch && this.points.size >= 2) {
-      const zoom = Math.min(this.max, Math.max(this.min, (this.pinch.startZoom * this.distance()) / this.pinch.startDistance));
+      const raw = (this.pinch.startZoom * this.distance()) / this.pinch.startDistance;
+      // Szczypanie wyraźnie poniżej najmniejszego przybliżenia — raz na gest.
+      if (raw < this.min * 0.8 && !this.pinch.past) {
+        this.pinch.past = true;
+        return [{ type: 'past-min' }];
+      }
+      const zoom = Math.min(this.max, Math.max(this.min, raw));
       if (zoom === this.zoom) return [];
       this.zoom = zoom;
       return [{ type: 'zoom', zoom }];
@@ -83,6 +93,13 @@ export class GestureTracker {
 
   /** Kółko myszy / gest na gładziku (komputer): w górę przybliża, w dół oddala. */
   wheel(deltaY: number): GestureEvent[] {
+    if (this.zoom <= this.min && deltaY > 0) {
+      this.wheelPast += deltaY;
+      if (this.wheelPast < 300) return [];
+      this.wheelPast = 0;
+      return [{ type: 'past-min' }];
+    }
+    this.wheelPast = 0;
     const zoom = Math.min(this.max, Math.max(this.min, this.zoom * Math.exp(-deltaY * 0.0015)));
     if (zoom === this.zoom) return [];
     this.zoom = zoom;

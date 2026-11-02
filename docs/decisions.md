@@ -2,6 +2,19 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Widok układu, etap C: układ 2D jako ekran główny
+
+- **Widok układu** (`planet-renderer/systemView.ts`, matematyka `systemLayout.ts`): osobne płótno Canvas 2D nad
+  planetą (bez nowego kontekstu WebGL; pętla rysowania tylko gdy widoczny), gwiazda, orbity w barwach stref, obiekty na
+  orbitach z czasu świata (decyzja: orbity ruchome), miniatury z generatora 2D raz do pamięci podręcznej, gazowe
+  olbrzymy w pasy, pas asteroid, własne planety w złotym pierścieniu, aktywna — w turkusowym.
+- **Przejście:** ściśnięcie poniżej najmniejszego przybliżenia planety (zdarzenie gestu `past-min`, też „−” i kółko)
+  → kamera odlatuje z aktywnej planety do całego układu, płótno planety gaśnie (przenikanie 0,35 s). Dotknięcie własnej
+  planety → lot na nią i zwykły widok planety (2D / 3D); obcej → lot i okienko z danymi, które gra już ma (typ, strefa,
+  orbita, adres, kto zajmuje) + „Pokaż na Mapie” (Mapa zostaje do etapu E).
+- **Nawigacja:** pasek HTML „Galaktyka › Układ › Planeta” (cele ≥ 44 pt) i „Resetuj widok” w układzie; przyciski
+  kamery w rogu działają w układzie. Pełne dopasowanie miniatury do planety bez przenikania — etap D.
+
 ## 2026-11-02 — Widok układu: plan zaakceptowany, etap B (model nawigacji)
 
 - Plan etapów A–F (`docs/pomiary/widok-ukladu-przed.md`) **zaakceptowany przez właściciela**. Decyzje: **orbity ruchome**

@@ -21,8 +21,11 @@ test('dwa palce: obrót się kończy, rozsunięcie przybliża, ściśnięcie odd
   assert.deepEqual(g.down(2, 200, 100), [{ type: 'drag-end' }]);
   assert.deepEqual(g.move(2, 300, 100), [{ type: 'zoom', zoom: 2 }]);
   assert.deepEqual(g.move(2, 900, 100), [{ type: 'zoom', zoom: 3.5 }], 'maksimum');
-  assert.deepEqual(g.move(2, 110, 100), [{ type: 'zoom', zoom: 1 }], 'minimum');
+  assert.deepEqual(g.move(2, 190, 100), [{ type: 'zoom', zoom: 1 }], 'minimum');
   assert.deepEqual(g.move(1, 101, 100), [], 'bez zmiany = bez zdarzenia');
+  // Widok układu (etap C): ściśnięcie wyraźnie poniżej minimum — raz „past-min” (przejście do układu).
+  assert.deepEqual(g.move(2, 120, 100), [{ type: 'past-min' }]);
+  assert.deepEqual(g.move(2, 110, 100), [], 'tylko raz na gest');
 });
 
 test('palec pozostały po szczypaniu nie obraca planety; nowy dotyk znów obraca', () => {
@@ -43,7 +46,9 @@ test('kółko myszy (komputer): przybliża i oddala w granicach', () => {
   assert.ok(zoomIn?.type === 'zoom' && zoomIn.zoom > 1);
   assert.deepEqual(g.wheel(-100000), [{ type: 'zoom', zoom: 3.5 }]);
   assert.deepEqual(g.wheel(100000), [{ type: 'zoom', zoom: 1 }]);
-  assert.deepEqual(g.wheel(500), [], 'już na minimum');
+  // Na minimum kółko „w dół” zbiera się do progu i daje „past-min” (przejście do układu, etap C).
+  assert.deepEqual(g.wheel(200), [], 'już na minimum');
+  assert.deepEqual(g.wheel(200), [{ type: 'past-min' }]);
 });
 
 test('trzeci palec jest ignorowany, anulowanie kończy obrót', () => {

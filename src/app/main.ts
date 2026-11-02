@@ -10,6 +10,8 @@ import type { PlanetDisplay } from '../planet-renderer/PlanetDisplay.ts';
 import { hasWebGL, PlanetView } from '../planet-renderer/PlanetView.ts';
 import { distantBodies } from '../planet-renderer/sky.ts';
 import { SpaceBackground, type SkyScene } from '../planet-renderer/spaceBackground.ts';
+import { SystemView } from '../planet-renderer/systemView.ts';
+import { worldNow } from '../core/time/worldClock.ts';
 import { findStar, generateSystem, parseAddress } from '../core/galaxy/galaxy.ts';
 import { PLANET_DEFINITIONS } from '../data/planets.ts';
 import { BootGuard } from './bootGuard.ts';
@@ -198,9 +200,12 @@ function start(boot: BootGuard): void {
     requestAnimationFrame(countFrame);
   };
   requestAnimationFrame(countFrame);
+  // Widok układu 2D (etap C): osobne płótno Canvas 2D nad planetą, rysowane tylko gdy widoczne.
+  const system = new SystemView(document.body, () => worldNow());
   const scene = new PlanetScene({
     controller,
     display,
+    system,
     getViewport,
     appVersion: __APP_VERSION__,
     graphics: {

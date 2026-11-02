@@ -1,4 +1,11 @@
 import Phaser from 'phaser';
+import type { SystemView, SystemScene } from '../../planet-renderer/systemView.ts';
+import { SystemNav, openObjectInfo, type NavCrumb } from '../ui/systemNav.ts';
+import { findStar, parseAddress } from '../../core/galaxy/galaxy.ts';
+import { generatePlanet } from '../../core/generation/generatePlanet.ts';
+import { findDefinition, STARTER } from '../../data/planets.ts';
+import { ZONE_LABELS } from '../../data/galaxy.ts';
+import type { Planet } from '../../core/types.ts';
 import { openStellarBoard } from '../ui/stellarBoard.ts';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import { openConstructTransferPanel } from '../ui/constructTransferPanel.ts';
@@ -18,7 +25,7 @@ import { findResearch } from '../../data/research.ts';
 import { stationModules, type PlanetDisplay } from '../../planet-renderer/PlanetDisplay.ts';
 import { PlanetThumbnail, THUMBNAIL_SIZE } from '../../planet-renderer/PlanetThumbnail.ts';
 import { Button, type ButtonStyle } from '../ui/Button.ts';
-import { GestureTracker, type GestureEvent } from '../ui/gestures.ts';
+import { GestureTracker, MIN_ZOOM, type GestureEvent } from '../ui/gestures.ts';
 import { openTextPanel } from '../ui/textPanel.ts';
 import { openFeedbackPanel } from '../ui/feedbackPanel.ts';
 import {
@@ -51,6 +58,8 @@ export interface Viewport {
 export interface SceneDeps {
   controller: GameController;
   display: PlanetDisplay;
+  /** Widok układu 2D (plan „widok układu”, etap C); brak — tylko planeta (testy, zrzuty). */
+  system?: SystemView;
   getViewport: () => Viewport;
   /** Wersja gry pokazywana w ustawieniach. */
   appVersion: string;
@@ -197,6 +206,12 @@ export class PlanetScene extends Phaser.Scene {
   private updateApply: (() => void) | null = null;
   /** Otwarty ekran pełnoekranowy — Badania albo Mapa (HUD planety nie reaguje wtedy na dotyk). */
   private screenOpen = false;
+  /** Widok układu (etap C): ekran pokazuje układ zamiast planety; gesty sterują kamerą układu. */
+  private systemMode = false;
+  private readonly systemGestures = new GestureTracker(0.7, 6);
+  private systemNav: SystemNav | null = null;
+  private closeInfo: (() => void) | null = null;
+  private readonly systemPlanets = new Map<string, Planet>();
 
   constructor(deps: SceneDeps) {
     super({ key: 'planet' });
@@ -216,16 +231,23 @@ export class PlanetScene extends Phaser.Scene {
     this.gestures.setZoom(display.zoomLevel());
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (over.length > 0 || this.overlay || this.screenOpen) return;
-      apply(this.gestures.down(pointer.id, pointer.x, pointer.y));
+      if (this.systemMode) this.applySystemGestures(this.systemGestures.down(pointer.id, pointer.x, pointer.y));
+      else apply(this.gestures.down(pointer.id, pointer.x, pointer.y));
     });
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => apply(this.gestures.move(pointer.id, pointer.x, pointer.y)));
-    const release = (pointer: Phaser.Input.Pointer) => apply(this.gestures.up(pointer.id));
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) =>
+      this.systemMode ? this.applySystemGestures(this.systemGestures.move(pointer.id, pointer.x, pointer.y)) : apply(this.gestures.move(pointer.id, pointer.x, pointer.y)),
+    );
+    const release = (pointer: Phaser.Input.Pointer) =>
+      this.systemMode ? this.applySystemGestures(this.systemGestures.up(pointer.id)) : apply(this.gestures.up(pointer.id));
     this.input.on('pointerup', release);
     this.input.on('pointerupoutside', release);
-    this.input.on('gameout', () => apply(this.gestures.cancel()));
+    this.input.on('gameout', () => (this.systemMode ? this.applySystemGestures(this.systemGestures.cancel()) : apply(this.gestures.cancel())));
     // Komputer: kółko myszy przybliża planetę (nad panelami nie).
     this.input.on('wheel', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[], _dx: number, dy: number) => {
-      if (over.length === 0 && !this.overlay && !this.screenOpen) apply(this.gestures.wheel(dy));
+      if (over.length === 0 && !this.overlay && !this.screenOpen) {
+        if (this.systemMode) this.applySystemGestures(this.systemGestures.wheel(dy));
+        else apply(this.gestures.wheel(dy));
+      }
     });
 
     // Komputer: + / − przybliżają i oddalają, 0 wraca do widoku startowego.
@@ -359,6 +381,163 @@ export class PlanetScene extends Phaser.Scene {
     this.openScreen('research');
   }
 
+  // ——— widok układu (plan „widok układu”, etap C) ———
+
+  /** Układ aktywnej planety jako dane do rysowania (miniatury z generatora 2D, własne planety z prawdziwym wyglądem). */
+  private systemScene(index: number): SystemScene | null {
+    const c = this.deps.controller;
+    const system = c.system(index);
+    if (!system) return null;
+    const zone: Record<string, string> = { hot: '#e0785a', warm: '#d8b463', temperate: '#72c4b6', cold: '#8fb0d8', frozen: '#c8d8ec' };
+    return {
+      starColor: findStar(system.star).color,
+      beltAfter: system.belt ? system.belt.after - 1 : null,
+      bodies: system.planets.map((p) => {
+        const slot = c.slotAt(p.address);
+        const own = slot >= 0;
+        const gas = p.body === 'gas-giant' && p.gas && !own;
+        return {
+          address: p.address,
+          orbit: p.orbit,
+          phase: p.angle,
+          label: own ? (c.planetAtSlot(slot)?.displayName ?? p.name) : String.fromCharCode(97 + p.position),
+          zoneColor: zone[p.zone] ?? '#8f9b98',
+          own,
+          active: p.address === c.address,
+          ...(gas ? { gas: { bands: p.gas!.bands, rings: p.gas!.rings } } : { planet: this.planetFor(p.address, p.definitionId) }),
+        };
+      }),
+    };
+  }
+
+  private planetFor(address: string, definitionId: string): Planet {
+    const c = this.deps.controller;
+    const own = c.planetAtSlot(c.slotAt(address));
+    if (own) return own;
+    let planet = this.systemPlanets.get(address);
+    if (!planet) {
+      planet = generatePlanet(findDefinition(definitionId) ?? STARTER.definition, address);
+      this.systemPlanets.set(address, planet);
+    }
+    return planet;
+  }
+
+  /** Oddalenie z planety do układu: kamera „odlatuje” z aktywnej planety, planeta gaśnie. */
+  private enterSystem(): void {
+    const view = this.deps.system;
+    if (!view || this.systemMode) return;
+    const c = this.deps.controller;
+    const index = parseAddress(c.address)?.system ?? c.homeSystem;
+    const scene = this.systemScene(index);
+    if (!scene) return;
+    if (this.gestures.cancel().length > 0) this.deps.display.endDrag();
+    this.systemMode = true;
+    this.selected = null;
+    c.selectSystem(index);
+    view.show(scene, { address: c.address, radiusPt: this.layoutState?.planet.r ?? 120 });
+    this.systemGestures.setZoom(1);
+    setPlanetVisible(false);
+  }
+
+  /** Przybliżenie do własnej planety: lot kamery, planeta pojawia się na miejscu miniatury. */
+  private enterPlanet(address: string): void {
+    const view = this.deps.system;
+    const c = this.deps.controller;
+    const result = c.selectObject(address);
+    if (!result.ok) {
+      this.showToast(result.message, 'error');
+      return;
+    }
+    const finish = () => {
+      this.systemMode = false;
+      this.systemGestures.cancel();
+      this.gestures.setZoom(1);
+      this.deps.display.setZoom(1, true);
+      setPlanetVisible(true);
+      view?.hide();
+      this.refreshValues();
+    };
+    if (view?.visible) view.flyTo(address, this.layoutState?.planet.r ?? 120, finish);
+    else finish();
+  }
+
+  /** Dotknięcie w widoku układu: własna planeta — wejście; inny obiekt — lot i okienko z danymi. */
+  private onSystemTap(x: number, y: number): void {
+    const view = this.deps.system;
+    const address = view?.pick(x / this.dpr, y / this.dpr);
+    if (!view || !address) return;
+    const c = this.deps.controller;
+    if (c.slotAt(address) >= 0) {
+      this.enterPlanet(address);
+      return;
+    }
+    c.selectObject(address);
+    view.flyTo(address, 60, () => this.showObjectInfo(address));
+  }
+
+  /** Okienko obiektu, który nie jest planetą gracza — tylko dane, które gra już ma. */
+  private showObjectInfo(address: string): void {
+    const c = this.deps.controller;
+    const where = parseAddress(address);
+    const p = where ? c.system(where.system)?.planets[where.position - 1] : undefined;
+    if (!p) return;
+    const occupant = c.occupantAt(p);
+    const who: Record<string, string> = { you: 'Twoja planeta', bot: 'miejsce startowe innego gracza', alien: 'forma obca', free: 'wolna' };
+    const lines = [
+      p.body === 'gas-giant' ? 'Gazowy olbrzym' : `Typ: ${findDefinition(p.definitionId)?.category ?? p.definitionId}`,
+      `Strefa: ${ZONE_LABELS[p.zone] ?? p.zone} · orbita ${p.orbit} j.a.`,
+      `Adres: ${p.address} · ${who[occupant] ?? occupant}`,
+    ];
+    this.closeInfo?.();
+    this.closeInfo = openObjectInfo(
+      {
+        title: p.name,
+        lines,
+        actions: [{ label: 'Pokaż na Mapie', primary: true, run: () => this.openMap(where!.system) }],
+      },
+      () => {
+        this.closeInfo = null;
+        c.viewBack();
+        this.deps.system?.flyHome();
+      },
+    );
+  }
+
+  private applySystemGestures(events: GestureEvent[]): void {
+    const view = this.deps.system;
+    if (!view) return;
+    for (const e of events) {
+      if (e.type === 'drag') view.pan(e.dx / this.dpr, e.dy / this.dpr);
+      else if (e.type === 'zoom') view.setZoom(e.zoom);
+      else if (e.type === 'tap') this.onSystemTap(e.x, e.y);
+    }
+  }
+
+  /** Pasek „Galaktyka › Układ › Planeta” i „Resetuj widok” w lewym górnym rogu wolnego miejsca. */
+  private updateNav(): void {
+    const layout = this.layoutState;
+    if (!this.deps.system || !layout) return;
+    this.systemNav ??= new SystemNav(document.body);
+    if (this.overlay || this.screenOpen || this.closeInfo || this.placing) {
+      this.systemNav.hide();
+      return;
+    }
+    const c = this.deps.controller;
+    const key = `${this.systemMode}|${c.address}|${layout.stage.x}|${layout.stage.y}|${layout.stage.w}`;
+    if (key === this.navKey) return;
+    this.navKey = key;
+    const index = parseAddress(c.address)?.system ?? c.homeSystem;
+    const systemName = c.system(index)?.name ?? `Układ ${index}`;
+    const crumbs: NavCrumb[] = [
+      { label: 'Galaktyka', onTap: () => this.openMap() },
+      { label: systemName, onTap: this.systemMode ? null : () => this.enterSystem() },
+    ];
+    if (!this.systemMode) crumbs.push({ label: c.planet.displayName, onTap: null });
+    this.systemNav.show(crumbs, this.systemMode ? () => this.enterPlanet(c.address) : null, layout.stage.x + 8, layout.stage.y + 8, layout.stage.w - 16);
+  }
+
+  private navKey = '';
+
   /** Ekran „Mapa”: cała galaktyka albo od razu wskazany układ. */
   openMap(system?: number): void {
     this.openScreen('map', system ? { system } : {});
@@ -376,6 +555,7 @@ export class PlanetScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.stepCounters(delta);
+    this.updateNav();
     this.refreshTimer -= delta;
     if (this.refreshTimer > 0) return;
     this.refreshTimer = 250;
@@ -386,6 +566,10 @@ export class PlanetScene extends Phaser.Scene {
   private applyGestures(events: GestureEvent[]): void {
     const display = this.deps.display;
     for (const e of events) {
+      if (e.type === 'past-min') {
+        this.enterSystem();
+        continue;
+      }
       if (e.type === 'drag-start') display.beginDrag();
       else if (e.type === 'drag') display.drag(e.dx / this.dpr, e.dy / this.dpr);
       else if (e.type === 'drag-end') display.endDrag();
@@ -396,11 +580,25 @@ export class PlanetScene extends Phaser.Scene {
 
   /** Przycisk albo klawisz: przybliżenie razy `factor` (płynnie — renderer dochodzi do celu). */
   private zoomBy(factor: number): void {
+    // Widok układu (etap C): w układzie przyciski sterują jego kamerą; „−” na najmniejszym przybliżeniu planety
+    // przechodzi do układu.
+    if (this.systemMode) {
+      this.applySystemGestures(this.systemGestures.setZoom(this.systemGestures.zoom * factor));
+      return;
+    }
+    if (factor < 1 && this.gestures.zoom <= MIN_ZOOM + 1e-6 && this.deps.system) {
+      this.enterSystem();
+      return;
+    }
     this.applyGestures(this.gestures.setZoom(this.gestures.zoom * factor));
   }
 
   /** „Resetuj widok”: przybliżenie 1× i biegun u góry. */
   private resetView(): void {
+    if (this.systemMode) {
+      this.enterPlanet(this.deps.controller.address);
+      return;
+    }
     this.gestures.setZoom(1);
     this.deps.display.resetView();
   }
@@ -421,6 +619,8 @@ export class PlanetScene extends Phaser.Scene {
     const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels, this.deps.controller.aiUnlocked ? AI_RULES.length : 0, this.deps.controller.slotInfo.used);
     this.layoutState = layout;
     this.deps.display.resize(viewport.width, viewport.height);
+    this.deps.system?.setRect(layout.stage, viewport.dpr);
+    this.systemGestures.tapSlop = 12 * viewport.dpr;
     this.moveFocus(layout.planet, animate);
     this.ui?.destroy(true);
     this.ui = this.add.container(0, 0);
@@ -2364,4 +2564,12 @@ export class PlanetScene extends Phaser.Scene {
 /** „1:42:7 · seed …” — dla planet z galaktyki (seed = adres) sam adres. */
 function addressLine(address: string, seed: string): string {
   return seed === address ? `adres  ${address}` : `${address} · ${seed}`;
+}
+
+/** Planeta (płótno renderera) gaśnie przy widoku układu i wraca przy przybliżeniu (krótkie przenikanie). */
+function setPlanetVisible(visible: boolean): void {
+  const canvas = document.getElementById('planet');
+  if (!canvas) return;
+  canvas.style.transition = 'opacity .35s ease';
+  canvas.style.opacity = visible ? '1' : '0';
 }
