@@ -86,11 +86,42 @@ const DEPOSIT_EPSILON = 1e-3;
  */
 export function depositTotal(planet: Planet, balance: Balance = BALANCE): Resources {
   const g = planet.gameplay;
-  const size = g.fields / 100;
-  return {
-    metal: Math.round(balance.deposits.perHundredFields.metal * g.richness.metal * size),
-    crystal: Math.round(balance.deposits.perHundredFields.crystal * g.richness.crystal * size),
-  };
+  const d = balance.deposits;
+  if (!d.buildup || !d.konstruktDays) {
+    // Dawny wzór (do v0.64): złoże z liczby pól i zasobności.
+    const size = g.fields / 100;
+    return {
+      metal: Math.round(d.perHundredFields.metal * g.richness.metal * size),
+      crystal: Math.round(d.perHundredFields.crystal * g.richness.crystal * size),
+    };
+  }
+  // Etap 10: rozwój planety + tydzień megakonstruktu głównego surowca (badania „złóż” mnożą całość; tydzień liczony
+  // z bazowego wydobycia — badania wydajności nie powiększają złoża).
+  const kind = depositKind(planet, balance);
+  const share = (id: 'metal' | 'crystal') => (kind === 'balanced' ? (d.balancedShare ?? 0.6) : kind === id ? 1 : 0);
+  const mult = (id: 'metal' | 'crystal') => d.perHundredFields[id] / (BALANCE.deposits.perHundredFields[id] || 1);
+  const amount = (id: 'metal' | 'crystal') => Math.round((d.buildup![id] + share(id) * d.konstruktDays! * konstruktHourly(planet, id, BALANCE) * 24) * mult(id));
+  return { metal: amount('metal'), crystal: amount('crystal') };
+}
+
+/** Rodzaj złóż planety (etap 10): „dużo metalu”, „dużo kryształów” albo „po równo” — z zasobności (bez zmian generatora). */
+export type DepositKind = 'metal' | 'crystal' | 'balanced';
+
+export function depositKind(planet: Planet, balance: Balance = BALANCE): DepositKind {
+  const r = planet.gameplay.richness;
+  const ratio = balance.deposits.kindRatio ?? 1.2;
+  if (r.metal >= r.crystal * ratio) return 'metal';
+  if (r.crystal >= r.metal * ratio) return 'crystal';
+  return 'balanced';
+}
+
+export const DEPOSIT_KIND_LABELS: Record<DepositKind, string> = { metal: 'dużo metalu', crystal: 'dużo kryształów', balanced: 'złoża po równo' };
+
+/** Wydobycie megakonstruktu na godzinę (poz. maks., premia megakompleksu +60%) — miara „tygodnia konstruktu”. */
+export function konstruktHourly(planet: Planet, id: 'metal' | 'crystal', balance: Balance = BALANCE): number {
+  const def = balance.buildings.find((b) => b.produces === id);
+  if (!def) return 0;
+  return scaled(def.baseOutput, balance.maxLevel, balance.levelGrowth) * 60 * planet.gameplay.richness[id] * 1.6;
 }
 
 /** Ile zostało w złożach (0 = wyczerpane). */

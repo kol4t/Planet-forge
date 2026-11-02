@@ -297,7 +297,19 @@ export interface Balance {
    * Naturalne złoża planety: zasób = `perHundredFields` × bogactwo złóż × (pola / 100).
    * Kopalnie je wyczerpują; przyrost podstawowy (`passiveIncome`) — nie (nigdy nie ma blokady).
    */
-  deposits: { perHundredFields: Resources };
+  /**
+   * Złoża (etap 10, decyzja właściciela): planeta ma rodzaj złóż — „dużo metalu”, „dużo kryształów” albo „po równo”
+   * (stosunek zasobności metal/kryształy ≥ `kindRatio`). Złoże = `buildup` (rozwój planety, budowa konstruktu) +
+   * `konstruktDays` dni pracy megakonstruktu na poz. 40 (głównego surowca; „po równo” — oba × `balancedShare`).
+   * `perHundredFields` zostaje jako podstawa mnożnika z badań (stosunek do wartości bazowej).
+   */
+  deposits: {
+    perHundredFields: Resources;
+    buildup?: Resources;
+    konstruktDays?: number;
+    kindRatio?: number;
+    balancedShare?: number;
+  };
   /**
    * Stacja wydobywcza na pasie asteroid (v0.37): urobek na minutę = `output` × poziom × growth^(poz − 1),
    * trafia do magazynu planety jak przyrost podstawowy (bez złóż i energii). Koszt poziomu n =

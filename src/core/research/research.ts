@@ -231,6 +231,7 @@ export function applyResearch(base: Balance, done: readonly string[], extra: rea
       secondsPerUnit: base.colonyShip.secondsPerUnit * mult('travelTime'),
     },
     deposits: {
+      ...base.deposits,
       perHundredFields: {
         metal: base.deposits.perHundredFields.metal * mult('deposits'),
         crystal: base.deposits.perHundredFields.crystal * mult('deposits'),

@@ -5,7 +5,9 @@ import {
   advance,
   createEconomy,
   depositsLeft,
+  depositKind,
   depositTotal,
+  konstruktHourly,
   productionRates,
   setBuildingSettings,
   storageCapacity,
@@ -32,8 +34,11 @@ const strong = (): EconomyState => {
 test('złoża: początkowy zasób deterministyczny z seeda, różny dla różnych planet', () => {
   const total = depositTotal(planet);
   assert.deepEqual(total, depositTotal(generatePlanet(STARTER.definition, STARTER.seed)));
-  // Planeta startowa: 100 pól, więc zasób = baza × bogactwo złóż.
-  assert.equal(total.metal, Math.round(BALANCE.deposits.perHundredFields.metal * planet.gameplay.richness.metal));
+  // Etap 10: złoże = rozwój planety + tydzień megakonstruktu głównego surowca (planeta startowa — „dużo metalu”).
+  const d = BALANCE.deposits;
+  assert.equal(depositKind(planet), 'metal');
+  assert.equal(total.metal, Math.round(d.buildup!.metal + d.konstruktDays! * 24 * konstruktHourly(planet, 'metal')));
+  assert.equal(total.crystal, d.buildup!.crystal);
   const totals = new Set<string>();
   for (const def of PLANET_DEFINITIONS) {
     for (const seed of ['A-1', 'B-2', 'C-3']) {
