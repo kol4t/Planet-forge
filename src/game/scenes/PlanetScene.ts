@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { cachedFieldGrid, fieldGrid } from '../../core/colony/fieldGrid.ts';
 import type { SystemView, SystemScene } from '../../planet-renderer/systemView.ts';
 import { SystemNav, openObjectInfo, type NavCrumb } from '../ui/systemNav.ts';
 import { findStar, parseAddress } from '../../core/galaxy/galaxy.ts';
@@ -434,9 +435,36 @@ export class PlanetScene extends Phaser.Scene {
     this.systemMode = true;
     this.selected = null;
     c.selectSystem(index);
-    view.show(scene, { address: c.address, radiusPt: this.layoutState?.planet.r ?? 120 });
+    const spot = this.layoutState?.planet;
+    view.show(scene, { address: c.address, radiusPt: spot?.r ?? 120, ...(spot ? { at: { x: spot.cx, y: spot.cy } } : {}) });
     this.systemGestures.setZoom(1);
     setPlanetVisible(false);
+    // Planeta niewidoczna — po przenikaniu renderer stoi (oszczędność baterii; etap D).
+    this.time.delayedCall(400, () => {
+      if (this.systemMode) this.deps.display.setPaused(true);
+    });
+    this.prefetchAt = this.time.now + 2000;
+  }
+
+  /** Czas, od którego wolno liczyć w tle siatkę pól kolejnej własnej planety (etap D). */
+  private prefetchAt = Infinity;
+
+  /**
+   * Widok układu: gdy nic się nie dzieje (bez dotyku i lotu ≥ 2 s), liczy siatkę pól jednej własnej planety, której
+   * jeszcze nie ma w pamięci — wejście na nią potem nie czeka na najdroższą część (0,3–0,9 s na komputerze).
+   */
+  private prefetchGrids(): void {
+    if (!this.systemMode || this.time.now < this.prefetchAt) return;
+    const c = this.deps.controller;
+    for (const p of c.planets()) {
+      const planet = c.planetAtSlot(c.slotAt(p.address));
+      if (planet && !cachedFieldGrid(planet)) {
+        fieldGrid(planet);
+        this.prefetchAt = this.time.now + 1500;
+        return;
+      }
+    }
+    this.prefetchAt = Infinity;
   }
 
   /** Przybliżenie do własnej planety: lot kamery, planeta pojawia się na miejscu miniatury. */
@@ -448,16 +476,31 @@ export class PlanetScene extends Phaser.Scene {
       this.showToast(result.message, 'error');
       return;
     }
+    // Planeta pojawia się dopiero gotowa (inna planeta liczy się po zmianie aktywnej) — miniatura czeka na miejscu.
     const finish = () => {
+      if (this.planetPending) {
+        this.time.delayedCall(50, finish);
+        return;
+      }
       this.systemMode = false;
       this.systemGestures.cancel();
       this.gestures.setZoom(1);
+      this.deps.display.setPaused(false);
       this.deps.display.setZoom(1, true);
       setPlanetVisible(true);
       view?.hide();
       this.refreshValues();
     };
-    if (view?.visible) view.flyTo(address, this.layoutState?.planet.r ?? 120, finish);
+    const spot = this.layoutState?.planet;
+    // Lot rusza dopiero po przeliczeniu nowej planety (liczenie blokuje klatki — lepiej przed lotem niż w jego trakcie).
+    const fly = () => {
+      if (this.planetPending) {
+        this.time.delayedCall(50, fly);
+        return;
+      }
+      view!.flyTo(address, spot?.r ?? 120, finish, 600, spot ? { x: spot.cx, y: spot.cy } : undefined);
+    };
+    if (view?.visible) fly();
     else finish();
   }
 
@@ -506,6 +549,8 @@ export class PlanetScene extends Phaser.Scene {
   private applySystemGestures(events: GestureEvent[]): void {
     const view = this.deps.system;
     if (!view) return;
+    // Dotyk odkłada liczenie w tle (żeby nie przerwać gestu).
+    if (events.length > 0 && this.prefetchAt !== Infinity) this.prefetchAt = Math.max(this.prefetchAt, this.time.now + 2000);
     for (const e of events) {
       if (e.type === 'drag') view.pan(e.dx / this.dpr, e.dy / this.dpr);
       else if (e.type === 'zoom') view.setZoom(e.zoom);
@@ -556,6 +601,7 @@ export class PlanetScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.stepCounters(delta);
     this.updateNav();
+    this.prefetchGrids();
     this.refreshTimer -= delta;
     if (this.refreshTimer > 0) return;
     this.refreshTimer = 250;

@@ -68,6 +68,9 @@ export function hasWebGL(): boolean {
   }
 }
 
+/** Ile ostatnich modeli planet trzymać w pamięci grafiki (etap D widoku układu; reszta zwalniana). */
+const PLANET_CACHE = 3;
+
 export class PlanetView implements PlanetDisplay {
   readonly kind = 'webgl' as const;
   private readonly renderer: THREE.WebGLRenderer;
@@ -80,6 +83,11 @@ export class PlanetView implements PlanetDisplay {
   private readonly rotator = new DragRotator(prefersReducedMotion() ? { idleSpin: 0 } : {});
   private readonly colony = new ColonyMeshes(prefersReducedMotion());
   private planetObjects: THREE.Object3D[] = [];
+  /** Ostatnie modele planet (etap D widoku układu): obiekty, próbnik terenu i wzorcowy teren. */
+  private readonly planetCache = new Map<
+    string,
+    { objects: THREE.Object3D[]; sampler: SurfaceSampler; positions: Float32Array | null; colors: Float32Array | null; cloudOpacity: number }
+  >();
   /** Odwiert planetarny (v0.48): ściany, warstwy i jaskinia (cieniowane) + blask i jądro; przebudowa przy zmianie etapu. */
   private drill: THREE.Group | null = null;
   /** Wielka odkrywka ekstraktora (etapy Odkrywka i Megaodkrywka) i liny-rury wiszącego ekstraktora. */
@@ -190,16 +198,38 @@ export class PlanetView implements PlanetDisplay {
     this.setDrill(null, null);
     this.setCables(null);
     this.openPit = null;
-    for (const object of this.planetObjects) {
-      object.parent?.remove(object);
-      disposeObject(object);
+    // Widok układu (etap D): ostatnie modele planet zostają w pamięci (do `PLANET_CACHE`) — powrót na planetę bez
+    // ponownego budowania terenu; starsze są zwalniane (dispose).
+    for (const object of this.planetObjects) object.parent?.remove(object);
+    const key = `${planet.definitionId}|${planet.seed}|${planet.visual.surfaceVersion}|${planet.visual.terrainMethod}`;
+    let entry = this.planetCache.get(key);
+    if (entry) this.planetCache.delete(key);
+    else {
+      const built = createSurfaceSampler(planet);
+      const objects = buildPlanetObjects(planet, built);
+      const land = objects.find((o): o is THREE.Mesh => o.name === 'land' && o instanceof THREE.Mesh);
+      entry = {
+        objects,
+        sampler: built,
+        positions: land ? (land.geometry.getAttribute('position').array as Float32Array).slice() : null,
+        colors: land ? (land.geometry.getAttribute('color').array as Float32Array).slice() : null,
+        cloudOpacity: ((objects.find((o) => o.name === 'clouds') as THREE.Mesh | undefined)?.material as THREE.MeshStandardMaterial | undefined)?.opacity ?? 1,
+      };
     }
-    const sampler = createSurfaceSampler(planet);
-    this.planetObjects = buildPlanetObjects(planet, sampler);
+    // Kolejność = od najdawniej używanego; bieżący model na końcu.
+    this.planetCache.set(key, entry);
+    while (this.planetCache.size > PLANET_CACHE) {
+      const [oldKey, old] = this.planetCache.entries().next().value!;
+      this.planetCache.delete(oldKey);
+      for (const object of old.objects) disposeObject(object);
+    }
+    const sampler = entry.sampler;
+    this.planetObjects = entry.objects;
     this.sun.intensity = planet.visual.style.sunIntensity;
     this.ambient.intensity = planet.visual.style.ambient;
     this.clouds = this.planetObjects.find((o) => o.name === 'clouds');
-    this.cloudOpacity = this.clouds ? ((this.clouds as THREE.Mesh).material as THREE.MeshStandardMaterial).opacity : 1;
+    // Krycie chmur z pamięci modelu (materiał w użyciu ma krycie zmniejszone przy przybliżeniu).
+    this.cloudOpacity = entry.cloudOpacity;
     this.lava = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'lava' && o instanceof THREE.Mesh);
     const ocean = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'ocean' && o instanceof THREE.Mesh);
     this.oceanCut.value.set(0, 1, 0, 2);
@@ -215,13 +245,8 @@ export class PlanetView implements PlanetDisplay {
     this.shaped = { ...sampler, radius: (h) => shapedRadius(planet, h) };
     this.grid = fieldGrid(planet);
     const landMesh = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'land' && o instanceof THREE.Mesh);
-    this.land = landMesh
-      ? {
-          mesh: landMesh,
-          positions: (landMesh.geometry.getAttribute('position').array as Float32Array).slice(),
-          colors: (landMesh.geometry.getAttribute('color').array as Float32Array).slice(),
-        }
-      : null;
+    // Teren wzorcowy (bez wykopów i fundamentów) — z pamięci modelu, bo siatka mogła zostać zmieniona przez kolonię.
+    this.land = landMesh && entry.positions && entry.colors ? { mesh: landMesh, positions: entry.positions, colors: entry.colors } : null;
     this.setHighlight(null);
     this.plotsKey = '';
     this.buildFieldLines(planet, sampler);
@@ -289,6 +314,12 @@ export class PlanetView implements PlanetDisplay {
 
   /** Obrót sam z siebie (domyślnie wyłączony — decyzja właściciela, widok układu). */
   private autoSpin = false;
+
+  private paused = false;
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+  }
 
   setAutoSpin(on: boolean): void {
     this.autoSpin = on;
@@ -1018,6 +1049,11 @@ export class PlanetView implements PlanetDisplay {
   private loop(time: number): void {
     if (this.disposed) return;
     this.frame = requestAnimationFrame(this.loop);
+    // Planeta niewidoczna (widok układu): bez liczenia i rysowania; czas klatki liczony od wznowienia.
+    if (this.paused) {
+      this.lastTime = time;
+      return;
+    }
     const frameMs = time - this.lastTime;
     const dt = Math.min(0.1, frameMs / 1000);
     this.lastTime = time;
@@ -1075,7 +1111,7 @@ export class PlanetView implements PlanetDisplay {
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.frame);
-    for (const object of this.planetObjects) disposeObject(object);
+    for (const entry of this.planetCache.values()) for (const object of entry.objects) disposeObject(object);
     if (this.fieldLines) disposeObject(this.fieldLines);
     if (this.highlight) disposeObject(this.highlight.object);
     if (this.outlines) disposeObject(this.outlines.object);

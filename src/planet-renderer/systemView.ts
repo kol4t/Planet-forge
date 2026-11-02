@@ -82,12 +82,12 @@ export class SystemView {
   }
 
   /** Pokazanie układu; `from` — adres obiektu, z którego kamera „odlatuje” (oddalenie z planety). */
-  show(scene: SystemScene, from?: { address: string; radiusPt: number }): void {
+  show(scene: SystemScene, from?: { address: string; radiusPt: number; at?: { x: number; y: number } }): void {
     this.scene = scene;
     this.user = { zoom: 1, cx: 0, cy: 0 };
     this.placed = placeBodies(scene.bodies, this.now());
     const end = this.camera();
-    const start = from ? this.cameraOn(from.address, from.radiusPt) : null;
+    const start = from ? this.cameraOn(from.address, from.radiusPt, from.at) : null;
     // Zegar lotu rusza od pierwszej narysowanej klatki (pierwsza klatka rysuje miniatury — bywa wolniejsza).
     this.flight = start ? { from: start, to: end, start: -1, ms: 650 } : null;
     this.shown = true;
@@ -103,8 +103,8 @@ export class SystemView {
   }
 
   /** Lot kamery na obiekt (do przybliżenia `radiusPt` — wielkość planety w widoku z bliska), potem `done`. */
-  flyTo(address: string, radiusPt: number, done?: () => void, ms = 600): void {
-    const to = this.cameraOn(address, radiusPt);
+  flyTo(address: string, radiusPt: number, done?: () => void, ms = 600, at?: { x: number; y: number }): void {
+    const to = this.cameraOn(address, radiusPt, at);
     if (!to) return done?.();
     this.flight = { from: this.current(), to, start: -1, ms, ...(done ? { done } : {}) };
   }
@@ -162,12 +162,17 @@ export class SystemView {
     return lerpCamera(f.from, f.to, f.start < 0 ? 0 : (performance.now() - f.start) / f.ms);
   }
 
-  /** Kamera ze środkiem na obiekcie i skalą, przy której jego rysunek ma `radiusPt`. */
-  private cameraOn(address: string, radiusPt: number): SystemCamera | null {
+  /**
+   * Kamera, przy której obiekt ma promień `radiusPt` i stoi w punkcie `at` okna (piksele CSS; domyślnie środek widoku) —
+   * tam, gdzie stoi planeta w widoku z bliska (etap D: miniatura przechodzi w planetę bez skoku).
+   */
+  private cameraOn(address: string, radiusPt: number, at?: { x: number; y: number }): SystemCamera | null {
     const p = this.placed.find((b) => b.address === address);
     if (!p) return null;
     const scale = this.fit.scale * (Math.max(BASE_R, radiusPt) / BASE_R) ** (1 / GROW);
-    return { cx: p.x, cy: p.y, scale };
+    const dx = at ? at.x - (this.rect.x + this.rect.w / 2) : 0;
+    const dy = at ? at.y - (this.rect.y + this.rect.h / 2) : 0;
+    return { cx: p.x - dx / scale, cy: p.y - dy / scale, scale };
   }
 
   private radius(cam: SystemCamera): number {

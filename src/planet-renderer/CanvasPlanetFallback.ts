@@ -366,6 +366,12 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   /** Obrót sam z siebie (domyślnie wyłączony — decyzja właściciela, widok układu). */
   private autoSpin = false;
 
+  private paused = false;
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+  }
+
   setAutoSpin(on: boolean): void {
     this.autoSpin = on;
   }
@@ -911,6 +917,11 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private loop(time: number): void {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
+    // Planeta niewidoczna (widok układu): bez liczenia i rysowania; czas klatki liczony od wznowienia.
+    if (this.paused) {
+      this.last = time;
+      return;
+    }
     const dt = (time - this.last) / 1000;
     this.last = time;
     // Przy przybliżeniu od 2× planeta przestaje sama się obracać (od 1× do 2× autoobrót słabnie);

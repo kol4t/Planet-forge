@@ -58,6 +58,8 @@ export interface PlanetDisplay {
   setGridVisible(visible: boolean): void;
   /** Planeta obraca się sama (Ustawienia; domyślnie nie — widok układu). Bezwładność po przeciągnięciu działa zawsze. */
   setAutoSpin(on: boolean): void;
+  /** Wstrzymanie rysowania (planeta niewidoczna — widok układu, etap D); po wznowieniu rysuje dalej. */
+  setPaused(paused: boolean): void;
   /** Kolektor energii gwiazdy na orbicie (v0.44): poziom 0 = brak. */
   setOrbital(level: number): void;
   /** Megakonstrukty wyrzucone z tej planety, czekające na orbicie (krok 3b): 0 — brak. */

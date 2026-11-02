@@ -2,6 +2,25 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Widok układu, etap D: przejście układ ↔ planeta
+
+- **Lot na miejsce planety:** kamera układu kończy lot tak, że miniatura ma promień i położenie planety z widoku
+  z bliska (`SystemView.cameraOn(..., at)`), potem przenikanie 0,35 s — bez skoku i bez czarnej klatki. Odlot do układu
+  zaczyna się od tego samego punktu.
+- **Najpierw liczenie, potem lot:** wejście na inną własną planetę najpierw przelicza jej wygląd (komunikat
+  „Ładowanie…”), dopiero potem kamera leci — liczenie blokuje klatki, więc lepiej przed lotem niż w jego trakcie.
+  Planeta pokazuje się dopiero gotowa.
+- **Pamięć 3 ostatnich modeli 3D** (`PlanetView.planetCache`, LRU): teren, chmury, ocean i wzorcowy teren zostają;
+  powrót na planetę bez budowania terenu (pomiar: 3D — ponowne wejście ok. 0,2 s liczenia zamiast 0,24–0,3 s
+  + pierwszego razu). Starsze modele zwalniane (dispose).
+- **Renderer stoi, gdy planeta niewidoczna** (`PlanetDisplay.setPaused` — 3D i 2D): w widoku układu nie liczy i nie rysuje.
+- **Siatki pól w tle:** w widoku układu, po 2 s bez dotyku i lotu, liczy się siatka pól jednej własnej planety, której
+  nie ma jeszcze w pamięci (najdroższa część pierwszego wejścia). Dotyk odkłada liczenie.
+- Pamięć (`scripts/perf.ts --deep`): geometrie 3D start → po 10 → po 20 zmianach planety: 48 → 62 → 62 (przed etapem D 48 → 57 → 57) — więcej o pamięć 3 modeli, bez wycieku; pamięć JS bez zmian (36 → 42 MB).
+- Pomiar (przeglądarka bezgłowa): od dotknięcia do pokazania planety — 3D pierwsze wejście ok. 1,5 s, ponowne ok. 0,8 s;
+  2D ok. 0,75 s (w tym lot 0,6 s). Podział liczenia siatki na kroki / Web Worker — niepotrzebny po tych zmianach
+  (do ponownej oceny po pomiarze na iPadzie).
+
 ## 2026-11-02 — Widok układu, etap C: układ 2D jako ekran główny
 
 - **Widok układu** (`planet-renderer/systemView.ts`, matematyka `systemLayout.ts`): osobne płótno Canvas 2D nad

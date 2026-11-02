@@ -40,6 +40,8 @@ Instrukcje i zasady: **`CLAUDE.md`**. Dokumentacja: **`docs/README.md`**.
 4. W układzie: przeciągnij (przesuwanie), ściśnij / rozsuń (przybliżanie), dotknij małej planety — trafia łatwo.
 5. Dotknij obcej planety — kamera do niej leci, okienko z typem, strefą i adresem; „Zamknij” wraca do całego układu.
 6. Dotknij swojej planety — kamera przybliża, pojawia się zwykły widok planety (2D albo 3D), panele działają jak dotąd.
+7. (Etap D) Miniatura w układzie rośnie dokładnie w miejsce planety i płynnie w nią przechodzi — bez czarnej klatki.
+   Przy innej Twojej planecie najpierw krótkie „Ładowanie…”, potem lot. Drugie wejście na tę samą planetę jest szybsze.
 
 ## Lista kontrolna — test na iPadzie (aktualna, v0.46)
 
