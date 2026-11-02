@@ -47,7 +47,10 @@ import {
 import { loadPanels, savePanels, FOCUS_ZOOMS, loadAutoSpin, loadFocusZoom, loadGridVisible, saveAutoSpin, saveFocusZoom, saveGridVisible } from '../ui/uiPrefs.ts';
 import { approach, BUILD_FLASH_MS, PANEL_IN_MS, PANEL_IN_OFFSET, prefersReducedMotion } from '../ui/motion.ts';
 import { COLORS, FONTS, formatAmount, formatDuration, formatInt, formatRate, formatSpan } from '../ui/theme.ts';
-import { OVERLAY_CLOSED } from './OverlayScene.ts';
+import { OPEN_SYSTEM, OVERLAY_CLOSED } from './OverlayScene.ts';
+import { geologyLines } from '../ui/geologyText.ts';
+import { compareGeology } from '../../core/economy/geology.ts';
+import { fuelLabel } from '../../core/economy/fuel.ts';
 
 export interface Viewport {
   width: number;
@@ -280,6 +283,8 @@ export class PlanetScene extends Phaser.Scene {
       if (!this.screenOpen) this.showToast(`Zbadano: ${findResearch(id)?.name ?? id}.`, 'ok', 3000);
       this.refreshValues();
     });
+    // Mapa galaktyki → widok układu (etap E): Mapa się zamyka, ekran główny wlatuje do wskazanego układu.
+    this.game.events.on(OPEN_SYSTEM, (index: number) => this.time.delayedCall(0, () => this.enterSystem(index)));
     this.game.events.on(OVERLAY_CLOSED, (message?: string) => {
       this.screenOpen = false;
       this.input.enabled = true;
@@ -423,20 +428,31 @@ export class PlanetScene extends Phaser.Scene {
     return planet;
   }
 
-  /** Oddalenie z planety do układu: kamera „odlatuje” z aktywnej planety, planeta gaśnie. */
-  private enterSystem(): void {
+  /** Układ w widoku (etap E: także inny niż układ aktywnej planety — wejście z Mapy galaktyki). */
+  private viewSystem = 0;
+
+  /**
+   * Widok układu: z planety — kamera „odlatuje” z aktywnej planety; z galaktyki (`index` z Mapy) — wlot z daleka.
+   * Planeta gaśnie i jej renderer staje.
+   */
+  private enterSystem(index?: number): void {
     const view = this.deps.system;
-    if (!view || this.systemMode) return;
+    if (!view) return;
     const c = this.deps.controller;
-    const index = parseAddress(c.address)?.system ?? c.homeSystem;
-    const scene = this.systemScene(index);
+    const fromGalaxy = index !== undefined;
+    const target = index ?? parseAddress(c.address)?.system ?? c.homeSystem;
+    if (this.systemMode && !fromGalaxy) return;
+    const scene = this.systemScene(target);
     if (!scene) return;
     if (this.gestures.cancel().length > 0) this.deps.display.endDrag();
     this.systemMode = true;
+    this.viewSystem = target;
+    this.navKey = '';
     this.selected = null;
-    c.selectSystem(index);
+    c.selectSystem(target);
     const spot = this.layoutState?.planet;
-    view.show(scene, { address: c.address, radiusPt: spot?.r ?? 120, ...(spot ? { at: { x: spot.cx, y: spot.cy } } : {}) });
+    const inside = parseAddress(c.address)?.system === target;
+    view.show(scene, fromGalaxy || !inside ? 'galaxy' : { address: c.address, radiusPt: spot?.r ?? 120, ...(spot ? { at: { x: spot.cx, y: spot.cy } } : {}) });
     this.systemGestures.setZoom(1);
     setPlanetVisible(false);
     // Planeta niewidoczna — po przenikaniu renderer stoi (oszczędność baterii; etap D).
@@ -507,8 +523,14 @@ export class PlanetScene extends Phaser.Scene {
   /** Dotknięcie w widoku układu: własna planeta — wejście; inny obiekt — lot i okienko z danymi. */
   private onSystemTap(x: number, y: number): void {
     const view = this.deps.system;
-    const address = view?.pick(x / this.dpr, y / this.dpr);
-    if (!view || !address) return;
+    if (!view) return;
+    const address = view.pick(x / this.dpr, y / this.dpr);
+    if (!address) {
+      // Etap E: gwiazda i pas asteroid — okienko z danymi, które gra już ma.
+      const extra = view.pickExtra(x / this.dpr, y / this.dpr);
+      if (extra) this.showSystemInfo(extra);
+      return;
+    }
     const c = this.deps.controller;
     if (c.slotAt(address) >= 0) {
       this.enterPlanet(address);
@@ -518,7 +540,33 @@ export class PlanetScene extends Phaser.Scene {
     view.flyTo(address, 60, () => this.showObjectInfo(address));
   }
 
-  /** Okienko obiektu, który nie jest planetą gracza — tylko dane, które gra już ma. */
+  private afterInfoAction(result: { ok: boolean; message: string }): void {
+    this.showToast(result.message, result.ok ? 'ok' : 'error', 3500);
+    this.navKey = '';
+    this.refreshValues();
+  }
+
+  /** Gwiazda albo pas asteroid układu w widoku (etap E) — dane z generatora galaktyki. */
+  private showSystemInfo(kind: 'star' | 'belt'): void {
+    const c = this.deps.controller;
+    const system = c.system(this.viewSystem);
+    if (!system) return;
+    const star = findStar(system.star);
+    const lines =
+      kind === 'star'
+        ? [
+            `${star.label} · planet: ${system.planetCount}`,
+            `Gazowe olbrzymy: ${system.planets.filter((p) => p.body === 'gas-giant').length} · pas asteroid: ${system.belt ? 'tak' : 'nie'}`,
+          ]
+        : [`Pas asteroid za ${system.belt?.after ?? '?'}. orbitą.`, 'Stację wydobywczą na pasie buduje się w oknie „Planeta” (Kosmos wokół planety), gdy Twoja planeta jest w tym układzie.'];
+    this.closeInfo?.();
+    this.closeInfo = openObjectInfo(
+      { title: kind === 'star' ? system.name : `Pas asteroid — ${system.name}`, lines, actions: [{ label: 'Tabela układu', primary: false, run: () => this.openMap(this.viewSystem) }] },
+      () => (this.closeInfo = null),
+    );
+  }
+
+  /** Okienko obiektu, który nie jest planetą gracza — tylko dane i akcje, które gra już ma (kolonizacja statkiem). */
   private showObjectInfo(address: string): void {
     const c = this.deps.controller;
     const where = parseAddress(address);
@@ -526,17 +574,38 @@ export class PlanetScene extends Phaser.Scene {
     if (!p) return;
     const occupant = c.occupantAt(p);
     const who: Record<string, string> = { you: 'Twoja planeta', bot: 'miejsce startowe innego gracza', alien: 'forma obca', free: 'wolna' };
+    const gas = p.body === 'gas-giant';
     const lines = [
-      p.body === 'gas-giant' ? 'Gazowy olbrzym' : `Typ: ${findDefinition(p.definitionId)?.category ?? p.definitionId}`,
+      gas ? 'Gazowy olbrzym' : `Typ: ${findDefinition(p.definitionId)?.category ?? p.definitionId}`,
       `Strefa: ${ZONE_LABELS[p.zone] ?? p.zone} · orbita ${p.orbit} j.a.`,
       `Adres: ${p.address} · ${who[occupant] ?? occupant}`,
     ];
+    const actions: { label: string; primary?: boolean; run: () => void }[] = [];
+    if (!gas) {
+      const planet = this.planetFor(p.address, p.definitionId);
+      const geology = c.geologyAt(planet, p.address);
+      lines.push(...geologyLines(geology, { name: c.planet.displayName, diff: compareGeology(geology, c.geologyAt(c.planet, c.address)) }));
+    }
+    // Kolonizacja (istniejąca akcja gry): statek z floty, paliwo; zawrócenie lecącego statku.
+    if (occupant === 'free' && !gas) {
+      const own = where!.system === c.homeSystem;
+      const mission = c.missionTo(p.address);
+      if (mission) {
+        lines.push(`Statek kolonizacyjny w drodze — dotrze za ${formatDuration(Math.max(0, (mission.arrivesAt - Date.now()) / 1000))}.`);
+        actions.push({ label: 'Zawróć statek', run: () => this.afterInfoAction(c.cancelMission(p.address)) });
+      } else if (own || c.colonyShipUnlocked) {
+        const ships = c.fleetView().ships.find((x) => x.type === 'colonyShip')!.docked;
+        lines.push(`Statek kolonizacyjny z floty (na stanie: ${ships}) · ${fuelLabel(c.colonyFuelTo(p.address))} · lot ${formatDuration(c.flightSeconds(where!.system))}` + (own ? '' : ` · ${c.riskText(c.address, p.address)}`));
+        actions.push({ label: 'Wyślij statek', primary: true, run: () => this.afterInfoAction(own ? c.colonize(p.address) : c.sendColonyShip(p.address)) });
+      } else lines.push('Do innych układów poleci statek kolonizacyjny — najpierw badanie „Napęd międzygwiezdny” (Eksploracja).');
+    }
+    actions.push({ label: 'Tabela układu', run: () => this.openMap(where!.system) });
     this.closeInfo?.();
     this.closeInfo = openObjectInfo(
       {
         title: p.name,
         lines,
-        actions: [{ label: 'Pokaż na Mapie', primary: true, run: () => this.openMap(where!.system) }],
+        actions,
       },
       () => {
         this.closeInfo = null;
@@ -568,10 +637,10 @@ export class PlanetScene extends Phaser.Scene {
       return;
     }
     const c = this.deps.controller;
-    const key = `${this.systemMode}|${c.address}|${layout.stage.x}|${layout.stage.y}|${layout.stage.w}`;
+    const key = `${this.systemMode}|${this.viewSystem}|${c.address}|${layout.stage.x}|${layout.stage.y}|${layout.stage.w}`;
     if (key === this.navKey) return;
     this.navKey = key;
-    const index = parseAddress(c.address)?.system ?? c.homeSystem;
+    const index = this.systemMode ? this.viewSystem : (parseAddress(c.address)?.system ?? c.homeSystem);
     const systemName = c.system(index)?.name ?? `Układ ${index}`;
     const crumbs: NavCrumb[] = [
       { label: 'Galaktyka', onTap: () => this.openMap() },

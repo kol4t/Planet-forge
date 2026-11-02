@@ -2,6 +2,19 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Widok układu, etap E: galaktyka → układ i pozostałe obiekty
+
+- **Mapa = galaktyka:** „Pokaż układ” (zbadany układ) i „Twój układ” zamykają Mapę i wlatują do widoku układu na ekranie
+  głównym (zdarzenie `OPEN_SYSTEM`, kamera rośnie z daleka). Dotychczasowy widok układu Mapy zostaje jako „Tabela układu”
+  (filtry, tabela złóż) — dostępny z galaktyki i z okienek obiektów.
+- **Inne obiekty w widoku układu:** gwiazda (rodzaj, liczba planet, gazowe olbrzymy, pas) i pas asteroid (położenie,
+  gdzie zbudować stację) — dotknięcie z powiększoną strefą (`SystemView.pickExtra`); gazowe olbrzymy i planety — okienko
+  z istniejącymi danymi. Wolna planeta: geologia i porównanie z aktywną planetą oraz **istniejąca** kolonizacja statkiem
+  („Wyślij statek” / „Zawróć statek”, blokady jak na Mapie). Komety w układzie — brak danych w grze (tylko animacja
+  galaktyki), więc bez okienka.
+- **Galaktyka bez zmian rysowania:** pomiar etapu A — 10 obiektów Phaser (grafiki zbiorcze), etykiety tylko przy
+  odpowiednim przybliżeniu — już spełnia „culling / wsadowo / etykiety wg zoomu”.
+
 ## 2026-11-02 — Widok układu, etap D: przejście układ ↔ planeta
 
 - **Lot na miejsce planety:** kamera układu kończy lot tak, że miniatura ma promień i położenie planety z widoku

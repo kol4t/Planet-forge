@@ -82,12 +82,13 @@ export class SystemView {
   }
 
   /** Pokazanie układu; `from` — adres obiektu, z którego kamera „odlatuje” (oddalenie z planety). */
-  show(scene: SystemScene, from?: { address: string; radiusPt: number; at?: { x: number; y: number } }): void {
+  show(scene: SystemScene, from?: { address: string; radiusPt: number; at?: { x: number; y: number } } | 'galaxy'): void {
     this.scene = scene;
     this.user = { zoom: 1, cx: 0, cy: 0 };
     this.placed = placeBodies(scene.bodies, this.now());
     const end = this.camera();
-    const start = from ? this.cameraOn(from.address, from.radiusPt, from.at) : null;
+    // Z galaktyki (etap E): wlot z daleka — układ rośnie z małego punktu do pełnego widoku.
+    const start = from === 'galaxy' ? { cx: 0, cy: 0, scale: this.fit.scale * 0.08 } : from ? this.cameraOn(from.address, from.radiusPt, from.at) : null;
     // Zegar lotu rusza od pierwszej narysowanej klatki (pierwsza klatka rysuje miniatury — bywa wolniejsza).
     this.flight = start ? { from: start, to: end, start: -1, ms: 650 } : null;
     this.shown = true;
@@ -142,6 +143,35 @@ export class SystemView {
     const cx = this.rect.x + this.rect.w / 2;
     const cy = this.rect.y + this.rect.h / 2;
     return pickBody(this.placed, cam, x - cx, y - cy, this.radius(cam), 1);
+  }
+
+  /**
+   * Gwiazda albo pas asteroid pod palcem (etap E; obiekty mają pierwszeństwo — sprawdź najpierw `pick`).
+   * Strefa gwiazdy ≥ 22 pt, pas — jego szerokość z zapasem.
+   */
+  pickExtra(x: number, y: number): 'star' | 'belt' | null {
+    if (!this.shown || !this.scene) return null;
+    const cam = this.current();
+    const sx = x - (this.rect.x + this.rect.w / 2);
+    const sy = y - (this.rect.y + this.rect.h / 2);
+    const star = toScreen(cam, 0, 0);
+    if (Math.hypot(sx - star.x, sy - star.y) <= Math.max(22, cam.scale * 0.05 * 1.5)) return 'star';
+    const belt = this.beltRadius();
+    if (belt) {
+      // Punkt ekranu → płaszczyzna orbit (odwrócenie nachylenia) i odległość od środka pasa.
+      const wx = sx / cam.scale + cam.cx;
+      const wy = (sy / cam.scale + cam.cy) / SYSTEM_TILT;
+      if (Math.abs(Math.hypot(wx, wy) - belt.r) <= belt.half + 14 / cam.scale) return 'belt';
+    }
+    return null;
+  }
+
+  private beltRadius(): { r: number; half: number } | null {
+    const after = this.scene?.beltAfter;
+    if (after === null || after === undefined || !this.placed[after]) return null;
+    const a = this.placed[after]!.r;
+    const b = this.placed[after + 1]?.r ?? a + 0.1;
+    return { r: (a + b) / 2, half: (b - a) * 0.3 };
   }
 
   dispose(): void {
