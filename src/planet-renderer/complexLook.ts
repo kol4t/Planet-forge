@@ -230,3 +230,16 @@ function lotCrystal(p: Vec3, share: number): boolean {
   const k = 160;
   return hash01(Math.floor(p[0] * k) * 92821 + Math.floor(p[1] * k) * 68917 + Math.floor(p[2] * k) * 1237, 4) < share;
 }
+
+/**
+ * Krater megakonstruktu kryształów (prototyp, 2D): brązowe tarasy — półki jaśniejsze, zbocza ciemniejsze, im głębiej,
+ * tym ciemniej; turkusowe żyły kryształu na zboczach; dno ciemne z kryształami. Barwy jak w 3D (robocze).
+ */
+export function craterGround(pit: OpenPit, p: Vec3): GroundColor {
+  const s = pit.sCached(p);
+  if (s >= 0.999) return lotCrystal(p, 0.08) ? { rgb: CRYSTAL, glow: 0.8 } : { rgb: [0.12, 0.09, 0.07], glow: 0 };
+  const { layer, shelf } = pitBand(pit.look, s);
+  const depth = layer / Math.max(1, pit.look.layers - 1);
+  if (!shelf && lotCrystal(p, 0.05)) return { rgb: CRYSTAL, glow: 0.5 };
+  return { rgb: shade(shelf ? [0.56, 0.45, 0.36] : [0.3, 0.23, 0.18], 1.05 - 0.45 * depth), glow: 0 };
+}

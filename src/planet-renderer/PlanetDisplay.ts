@@ -54,6 +54,8 @@ export interface PlanetDisplay {
   glContext?(): unknown;
   /** Ile modeli planet trzyma pamięć 3D (diagnostyka, etap F widoku układu). */
   modelCache?(): number;
+  /** Prototyp krateru megakonstruktu kryształów (tylko wygląd, do zrzutów). */
+  setCraterPrototype?(proto: { cell: number; stage: 1 | 2 | 3 | 4 } | null): void;
   /** Docelowe przybliżenie (to, do którego widok dochodzi). */
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */

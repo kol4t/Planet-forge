@@ -14,7 +14,9 @@ import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layou
 import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, rimPoint, type DrillParams } from './drill.ts';
 import { drillLook } from '../data/drill.ts';
-import { buildOpenPit, oceanCutValue, pitRadius, snapToContours, type OpenPit } from './openPit.ts';
+import { buildCrater } from './crater.ts';
+import { createCrystalRig, type CrystalRig } from './crystalRigMesh.ts';
+import { buildOpenPit, oceanCutValue, pitBand, pitRadius, snapToContours, type OpenPit } from './openPit.ts';
 import { createPitCables, type PitCables } from './openPitMeshes.ts';
 import { createOrbitalConstruct, HANG_ATTACH, HANG_BOTTOM, type Hanging } from './colonyMeshes.ts';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
@@ -319,6 +321,27 @@ export class PlanetView implements PlanetDisplay {
   private autoSpin = false;
 
   private paused = false;
+  /** Prototyp krateru megakonstruktu kryształów (zrzuty do oceny właściciela): pole środka i etap 1–4. */
+  private craterProto: { cell: number; stage: 1 | 2 | 3 | 4 } | null = null;
+  private craterRig: CrystalRig | null = null;
+
+  /** Prototyp: krater kryształów na polu `cell` w etapie `stage` (null — wyłączony). Tylko wygląd. */
+  setCraterPrototype(proto: { cell: number; stage: 1 | 2 | 3 | 4 } | null): void {
+    this.craterProto = proto;
+    if (this.layout) this.applyColony(this.layout, false);
+  }
+
+  private setCraterRig(pit: OpenPit | null, stage: number): void {
+    if (this.craterRig) {
+      this.craterRig.group.parent?.remove(this.craterRig.group);
+      disposeObject(this.craterRig.group);
+      this.craterRig = null;
+    }
+    if (!pit) return;
+    const hover = pit.rim + 0.02 + 0.01 * stage;
+    this.craterRig = createCrystalRig(pit.center, hover, pit.floorRadius, 0.016 + 0.007 * stage);
+    this.spinGroup.add(this.craterRig.group);
+  }
   /** Ostatnia narysowana klatka (położenie i chwila) — do rysowania rzadziej, gdy planeta stoi. */
   private drawn = { yaw: NaN, pitch: NaN, zoom: NaN, at: -Infinity };
 
@@ -516,7 +539,11 @@ export class PlanetView implements PlanetDisplay {
     // Od etapu „Odkrywka” cały obszar ekstraktora to jedna tarasowa dziura (`openPit.ts`), ekstraktor wisi nad szybem.
     const pitComplex = layout.complexes.find((c) => c.building === 'crystalMine') ?? null;
     this.openPit = pitComplex && this.grid ? buildOpenPit(this.grid, layout, pitComplex, (dir) => this.groundAt(dir)) : null;
-    const hanging = this.openPit ? this.hangingFor(this.openPit) : null;
+    // Prototyp megakonstruktu kryształów (decyzja właściciela 2026-11-02): okrągły krater zamiast odkrywki ekstraktora.
+    const proto = this.craterProto;
+    const protoCell = proto && this.grid ? this.grid.cells[proto.cell] : undefined;
+    if (proto && protoCell) this.openPit = buildCrater(protoCell.center as Vec3, proto.stage, (dir) => this.groundAt(dir));
+    const hanging = this.openPit && !proto ? this.hangingFor(this.openPit) : null;
     this.colony.setHanging(hanging);
     this.colony.setSink(this.pitSink(layout));
     if (fresh) this.colony.setLayout(layout);
@@ -525,6 +552,7 @@ export class PlanetView implements PlanetDisplay {
     this.paintLand(layout, this.colony.pads(), drill);
     this.setDrill(pitComplex, drill);
     this.setCables(this.openPit && hanging ? createPitCables(this.openPit, hanging, (dir) => this.pitGround(dir), this.still) : null);
+    this.setCraterRig(proto && this.openPit ? this.openPit : null, proto?.stage ?? 1);
     // Wyrobisko może zejść poniżej poziomu morza — tafla oceanu nad nim jest wycięta.
     if (pitComplex && !this.openPit) this.oceanCut.value.set(...pitComplex.core, Math.cos(pitComplex.radius * pitShare(pitComplex.stage)));
     else this.oceanCut.value.set(0, 1, 0, 2);
@@ -791,7 +819,7 @@ export class PlanetView implements PlanetDisplay {
         for (let v = 0; v < 3; v++) if (ins[v]) pin(t + v * 3, t + v * 3);
       }
     }
-    if (open && sAt && pit) this.paintOpenPit(pos, col, sAt, pit, complexAt);
+    if (open && sAt && (pit || this.craterProto)) this.paintOpenPit(pos, col, sAt, pit, complexAt);
     positions.needsUpdate = true;
     colors.needsUpdate = true;
     geometry.setAttribute('normal', new THREE.BufferAttribute(facetNormals(positions.array as Float32Array), 3));
@@ -803,7 +831,7 @@ export class PlanetView implements PlanetDisplay {
    * im głębsza warstwa, tym ciemniej; dno ciemne, rzadkie turkusowe żyły kryształu na zboczach. Ścianki obszaru tuż przy
    * krawędzi (s = 0) — jasna skała krawędzi, nic płaskiego w kolorze gruntu.
    */
-  private paintOpenPit(pos: Float32Array, col: Float32Array, sAt: Float32Array, pit: ColonyComplex, complexAt: (x: number, y: number, z: number) => ColonyComplex | null): void {
+  private paintOpenPit(pos: Float32Array, col: Float32Array, sAt: Float32Array, pit: ColonyComplex | null, complexAt: (x: number, y: number, z: number) => ColonyComplex | null): void {
     const open = this.openPit!;
     const look = drillLook(this.planetType);
     const rgb = (hex: string) => {
@@ -815,6 +843,7 @@ export class PlanetView implements PlanetDisplay {
     const floorRgb = slopeRgb.map((v) => v * 0.55);
     const vein = [0.3, 0.72, 0.78] as const;
     const L = open.look.layers;
+    const crater = !!this.craterProto;
     for (let t = 0; t < pos.length; t += 9) {
       const v = t / 3;
       const sMean = (sAt[v]! + sAt[v + 1]! + sAt[v + 2]!) / 3;
@@ -822,7 +851,28 @@ export class PlanetView implements PlanetDisplay {
       const my = pos[t + 1]! + pos[t + 4]! + pos[t + 7]!;
       const mz = pos[t + 2]! + pos[t + 5]! + pos[t + 8]!;
       const len = Math.hypot(mx, my, mz) || 1;
-      if (sMean <= 0 && complexAt(mx / len, my / len, mz / len) !== pit) continue;
+      if (sMean <= 0 && (!pit || complexAt(mx / len, my / len, mz / len) !== pit)) continue;
+      if (crater) {
+        // Krater (prototyp): ścianka na krawędzi z jednym wierzchołkiem w środku zostaje gruntem — gładszy obrys;
+        // warstwy jako pierścienie: półka jasna, zbocze ciemne, im głębiej, tym ciemniej; żyły kryształu na zboczach.
+        const inner = (sAt[v]! > 0 ? 1 : 0) + (sAt[v + 1]! > 0 ? 1 : 0) + (sAt[v + 2]! > 0 ? 1 : 0);
+        if (inner <= 1) continue;
+        const band = pitBand(open.look, sMean);
+        const depth = band.layer / Math.max(1, L - 1);
+        const tone = 0.95 + 0.1 * hash01(t, 11);
+        let c: readonly number[];
+        if (sMean >= 0.995) c = floorRgb;
+        else if (!band.shelf && hash01(t, 12) < 0.06 && sMean > 0.2) c = vein;
+        else if (band.shelf) c = shelfRgb.map((x) => x * (1.15 - 0.45 * depth) * tone);
+        else c = slopeRgb.map((x) => x * (0.8 - 0.35 * depth) * tone);
+        // Ścianka na samej krawędzi — pół na pół z gruntem (miękki obrys zamiast „zębatki”).
+        const mix = inner < 3 ? 0.45 : 1;
+        if (inner < 3) c = shelfRgb;
+        for (let k = 0; k < 3; k++) {
+          for (let j = 0; j < 3; j++) col[t + k * 3 + j] = Math.min(1, col[t + k * 3 + j]! * (1 - mix) + c[j]! * mix);
+        }
+        continue;
+      }
       // Nachylenie ścianki względem pionu planety: półka czy zbocze.
       const ax = pos[t + 3]! - pos[t]!, ay = pos[t + 4]! - pos[t + 1]!, az = pos[t + 5]! - pos[t + 2]!;
       const bx = pos[t + 6]! - pos[t]!, by = pos[t + 7]! - pos[t + 1]!, bz = pos[t + 8]! - pos[t + 2]!;
@@ -1095,6 +1145,7 @@ export class PlanetView implements PlanetDisplay {
       // Powolny obrót wokół własnej osi (konstrukt dryfuje).
       if (!this.still) this.orbitalConstruct.rotation.set(0.6, this.time * 0.15, 0.3);
     }
+    this.craterRig?.update(dt, this.still);
     if (this.homeStation) {
       const [x, y, z] = stationOrbit(this.time, this.still);
       this.homeStation.group.position.set(x, y, z);
