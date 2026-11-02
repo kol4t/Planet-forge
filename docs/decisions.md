@@ -2,6 +2,13 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Decyzje właściciela po raporcie kandydata MVP
+
+- **Nazwa „piraci” zostaje** (ryzyko misji, v0.62) — decyzja właściciela; w Projekcie lore do odnotowania przy K-005
+  (O-205 / O-206), mechanika bez zmian.
+- **Osobny megakonstrukt kryształów powstanie przed MVP** (jak metalowy: osady / układ, budowa, orbita) — kolejny etap;
+  do tego czasu rolę pełni Megaodkrywka.
+
 ## 2026-11-02 — Etap 12: kandydat MVP (testy zapisów i pętli)
 
 - **Zapisy ze starych wersji** jako dane testowe: 7 zapisów utworzonych prawdziwymi wersjami v0.46–v0.66

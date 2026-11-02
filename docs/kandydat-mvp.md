@@ -72,8 +72,7 @@ przed ogłoszeniem MVP.
 ## 4. Otwarte sprawy przed ogłoszeniem MVP (do decyzji właściciela)
 
 1. **Płynność iPada** — wyniki z listy wyżej (blokujące).
-2. **Nazwa „piraci”** (ryzyko misji) a kanon K-005 — do uzgodnienia w Projekcie lore (O-205 / O-206).
-3. **Megakonstrukt kryształów** — dziś rolę „konstruktu kryształów” pełni Megaodkrywka (plan ekonomii, pkt 5);
-   osobny konstrukt kryształów jak metalowy — po MVP albo przed, wg decyzji.
+2. ~~Nazwa „piraci”~~ — **zostaje** (decyzja właściciela 2026-11-02); do odnotowania w Projekcie lore (K-005, O-205 / O-206).
+3. **Megakonstrukt kryształów** — **powstaje przed MVP** (decyzja właściciela 2026-11-02), następny etap.
 4. **Odłożone (zapisane w `CLAUDE.md`):** antymateria zużywana przez megakonstrukty, nowy wygląd Ekstraktora kryształów,
    DNA, osobny ekran SI.
