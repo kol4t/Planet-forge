@@ -2,6 +2,14 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Etap 12: kandydat MVP (testy zapisów i pętli)
+
+- **Zapisy ze starych wersji** jako dane testowe: 7 zapisów utworzonych prawdziwymi wersjami v0.46–v0.66
+  (`tests/fixtures/saves/`, `scripts/make-old-save.ts`), test `oldSaves` — wczytanie, naliczenie, zapis, `PF2:`.
+- **Symulator gra z przewodnikiem** (zagląda do widoku układu, gdy krok tego wymaga) i zapisuje, kiedy który krok
+  wykonany. Krok „Załóż drugą kolonię” przeniesiony za megakonstrukt (pierwsza planeta → konstrukt → kolonia).
+- Raport i lista kontrolna iPada: `docs/kandydat-mvp.md`. Ogłoszenie MVP — po pomiarze płynności przez właściciela.
+
 ## 2026-11-02 — Etap 11 pętli: pierwsze kroki — przewodnik SI Matki (v0.67, decyzje właściciela)
 
 - **Lista zadań SI Matki** — panel „Kolejny krok” (HTML, zwijany; na małych ekranach domyślnie zwinięty): jedno
