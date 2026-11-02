@@ -50,6 +50,8 @@ export interface PlanetDisplay {
    * i pomiarów wydajności (audyt v0.46).
    */
   gpuStats?(): { drawCalls: number; triangles: number; geometries: number; textures: number };
+  /** Kontekst WebGL renderera (3D) — żeby przy starcie nie zwolnić go razem z kontekstami testowymi. */
+  glContext?(): unknown;
   /** Docelowe przybliżenie (to, do którego widok dochodzi). */
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */

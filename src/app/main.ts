@@ -1,3 +1,5 @@
+// Musi być pierwszy: zapamiętuje testowe konteksty WebGL (też z Phasera), żeby je zwolnić po starcie.
+import { releaseProbeContexts } from './glProbe.ts';
 import Phaser from 'phaser';
 import { PlanetScene, type Viewport } from '../game/scenes/PlanetScene.ts';
 import { EmpireScene } from '../game/scenes/EmpireScene.ts';
@@ -176,6 +178,8 @@ function start(boot: BootGuard): void {
   } else {
     renderer = new CanvasPlanetFallback(planetCanvas);
   }
+  // Testowe konteksty WebGL (hasWebGL, Phaser) zwolnione — zostaje jeden: renderer planety (w 2D — żaden).
+  releaseProbeContexts(renderer.glContext?.());
   const space = new SpaceBackground(document.body, () => renderer.orientation());
   const display = withSpace(renderer, space, controller);
   boot.step(`grafika ${display.kind}`);

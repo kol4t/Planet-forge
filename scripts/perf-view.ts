@@ -11,11 +11,11 @@ for (const mode of ['2d', '3d']) {
   await page.addInitScript((mode: string) => {
     localStorage.setItem('planet-forge.boot.v1', JSON.stringify({ run: null, ok: true, lastCrash: null, graphics: mode }));
     const w = window as any;
-    w.__gl = 0; w.__raf = 0;
+    w.__gl = 0; w.__raf = 0; w.__ctx = [];
     const get = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...a: any[]) {
       const c = get.call(this, type as any, ...a);
-      if (c && /webgl/.test(type) && !(this as any).__counted) { (this as any).__counted = true; w.__gl++; }
+      if (c && /webgl/.test(type) && !(this as any).__counted) { (this as any).__counted = true; w.__gl++; w.__ctx.push(c); }
       return c;
     } as any;
     const raf = window.requestAnimationFrame.bind(window);
@@ -30,9 +30,9 @@ for (const mode of ['2d', '3d']) {
     const r0 = w.__raf;
     const g0 = w.__planetForge.display.gpuStats?.();
     await new Promise((r) => setTimeout(r, 3000));
-    return { rafPerSec: Math.round((w.__raf - r0) / 3), gl: w.__gl, gpu: g0 };
+    return { rafPerSec: Math.round((w.__raf - r0) / 3), gl: w.__gl, live: w.__ctx.filter((c: any) => !c.isContextLost()).length, gpu: g0 };
   });
-  out.push(`${mode}: konteksty WebGL na starcie ${idle.gl}; wywołania requestAnimationFrame przy bezruchu ~${idle.rafPerSec}/s (wszystkie pętle razem)`);
+  out.push(`${mode}: konteksty WebGL utworzone przy starcie ${idle.gl}, aktywne po starcie ${idle.live}; wywołania requestAnimationFrame przy bezruchu ~${idle.rafPerSec}/s (wszystkie pętle razem)`);
   // Kolonia na poz. 40 (wszystkie budynki), bez megakonstruktu.
   const colony = await page.evaluate(async () => {
     const { controller: c, display: d } = (window as any).__planetForge;
