@@ -2,6 +2,16 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-02 — Widok układu, etap F: optymalizacja i pomiary po
+
+- Planeta stojąca (bez palca, bezwładności, zmiany przybliżenia) rysowana najwyżej co 50 ms (~20 kl./s) — 3D i 2D;
+  ruch zawsze w pełnej płynności. Widok układu w czasie lotu kamery — 60% gęstości pikseli.
+- Miniatura aktywnej planety w układzie obrócona jak planeta (przejście bez przeskoku lądów).
+- Diagnostyka: poziom widoku, układ, obiekt, modele 3D w pamięci, miniatury układu.
+- Tabela przed / po: `docs/pomiary/widok-ukladu-po.md` (konteksty WebGL 3 → 1, renderer stoi w układzie, bez wycieków,
+  ponowne wejście na planetę 3D ok. 0,8 s z lotem). Ograniczenia klatek nie da się zmierzyć w kontenerze (3D programowe
+  ok. 2 kl./s) — do sprawdzenia na iPadzie.
+
 ## 2026-11-02 — Widok układu, etap E: galaktyka → układ i pozostałe obiekty
 
 - **Mapa = galaktyka:** „Pokaż układ” (zbadany układ) i „Twój układ” zamykają Mapę i wlatują do widoku układu na ekranie

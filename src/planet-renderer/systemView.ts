@@ -19,6 +19,8 @@ export interface SystemBody {
   active: boolean;
   /** Planeta skalista — miniatura z generatora 2D. */
   planet?: Planet;
+  /** Obrót miniatury (rad) — dla aktywnej planety taki jak w widoku z bliska (etap F: przejście bez przeskoku lądów). */
+  yaw?: number;
   /** Gazowy olbrzym — pasy (kolory) i pierścień. */
   gas?: { bands: readonly string[]; rings: boolean };
 }
@@ -73,12 +75,21 @@ export class SystemView {
   /** Obszar rysowania (wolne miejsce poza panelami) i gęstość pikseli. */
   setRect(rect: ViewRect, dpr: number): void {
     this.rect = rect;
-    this.dpr = dpr;
-    this.canvas.width = Math.max(1, Math.round(window.innerWidth * dpr));
-    this.canvas.height = Math.max(1, Math.round(window.innerHeight * dpr));
+    this.fullDpr = dpr;
+    this.applyDpr(dpr);
     this.canvas.style.width = `${window.innerWidth}px`;
     this.canvas.style.height = `${window.innerHeight}px`;
     this.fit = fitCamera(rect.w, rect.h);
+  }
+
+  /** Pełna gęstość pikseli; w czasie lotu kamery płótno ma mniej pikseli (etap F — lżejsze klatki ruchu). */
+  private fullDpr = 1;
+
+  private applyDpr(dpr: number): void {
+    if (dpr === this.dpr && this.canvas.width > 1) return;
+    this.dpr = dpr;
+    this.canvas.width = Math.max(1, Math.round(window.innerWidth * dpr));
+    this.canvas.height = Math.max(1, Math.round(window.innerHeight * dpr));
   }
 
   /** Pokazanie układu; `from` — adres obiektu, z którego kamera „odlatuje” (oddalenie z planety). */
@@ -228,6 +239,8 @@ export class SystemView {
       this.user = { zoom: f.to.scale / this.fit.scale, cx: f.to.cx, cy: f.to.cy };
       f.done?.();
     }
+    // W locie — 60% gęstości pikseli, po zatrzymaniu pełna (najwyżej 1,5× przy ruchu, żeby obraz nie był rozmyty).
+    this.applyDpr(this.flight ? Math.max(1, Math.min(1.5, this.fullDpr * 0.6)) : this.fullDpr);
     this.placed = this.scene ? placeBodies(this.scene.bodies, this.now()) : [];
     this.draw();
   };
@@ -284,7 +297,7 @@ export class SystemView {
       if (b.gas) this.drawGas(s.x, s.y, r, b.gas);
       else if (b.planet) {
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(this.thumb(b.address, b.planet), s.x - r, s.y - r, 2 * r, 2 * r);
+        ctx.drawImage(this.thumb(b.address, b.planet, b.yaw ?? 0.6), s.x - r, s.y - r, 2 * r, 2 * r);
       }
       // Własne planety: złoty pierścień; aktywna — turkusowy, grubszy.
       if (b.own) {
@@ -329,15 +342,23 @@ export class SystemView {
   }
 
   /** Miniatura planety (raz na adres) — małe płótno, powiększane pikselowo. */
-  private thumb(address: string, planet: Planet): HTMLCanvasElement {
-    let c = this.thumbs.get(address);
+  private thumb(address: string, planet: Planet, yaw: number): HTMLCanvasElement {
+    const key = `${address}|${yaw.toFixed(2)}`;
+    let c = this.thumbs.get(key);
     if (!c) {
       c = document.createElement('canvas');
       c.width = THUMBNAIL_SIZE;
       c.height = THUMBNAIL_SIZE;
-      new PlanetThumbnail(planet).draw(c.getContext('2d')!, 0.6);
-      this.thumbs.set(address, c);
+      new PlanetThumbnail(planet).draw(c.getContext('2d')!, yaw);
+      // Mała pamięć: miniatura aktywnej planety zmienia obrót — stare wersje usuwane.
+      for (const k of this.thumbs.keys()) if (k.startsWith(`${address}|`)) this.thumbs.delete(k);
+      this.thumbs.set(key, c);
     }
     return c;
+  }
+
+  /** Liczba miniatur w pamięci (diagnostyka). */
+  get thumbCount(): number {
+    return this.thumbs.size;
   }
 }

@@ -410,6 +410,7 @@ export class PlanetScene extends Phaser.Scene {
           zoneColor: zone[p.zone] ?? '#8f9b98',
           own,
           active: p.address === c.address,
+          ...(p.address === c.address ? { yaw: this.deps.display.orientation().yaw } : {}),
           ...(gas ? { gas: { bands: p.gas!.bands, rings: p.gas!.rings } } : { planet: this.planetFor(p.address, p.definitionId) }),
         };
       }),

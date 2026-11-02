@@ -367,6 +367,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private autoSpin = false;
 
   private paused = false;
+  /** Ostatnie złożenie klatki (etap F) — rzadsze rysowanie, gdy nic się nie zmienia. */
+  private composed = { focus: '', at: -Infinity };
 
   setPaused(paused: boolean): void {
     this.paused = paused;
@@ -928,8 +930,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     // pokazany budynek wstrzymuje autoobrót całkiem.
     this.rotator.spinFactor = this.spinHeld || !this.autoSpin ? 0 : Math.min(1, Math.max(0, 2 - this.zoom));
     this.rotator.update(dt, time);
-    if (this.zoomer.update(dt)) this.resizeBuffer();
+    const zoomed = this.zoomer.update(dt);
+    if (zoomed) this.resizeBuffer();
     const growing = [...this.grownAt.values()].some((t) => performance.now() - t < GROW_MS + 100);
+    let redrawn = false;
     if (
       growing ||
       Number.isNaN(this.lastDrawn.yaw) ||
@@ -937,7 +941,13 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       Math.abs(this.rotator.pitch - this.lastDrawn.pitch) > 0.01
     ) {
       this.renderDisc();
+      redrawn = true;
     }
+    // Etap F (widok układu): gdy nic się nie zmienia, składanie klatki (poświata, orbity, stacja) najwyżej ~20 kl./s.
+    const focusKey = `${this.focus.cx}|${this.focus.cy}|${this.focus.r}`;
+    const moving = redrawn || zoomed || this.rotator.isDragging || focusKey !== this.composed.focus;
+    if (!moving && time - this.composed.at < 50) return;
+    this.composed = { focus: focusKey, at: time };
     const { cx, cy } = this.focus;
     const r = this.focus.r * this.zoom;
     const ctx = this.ctx;

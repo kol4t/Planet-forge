@@ -40,6 +40,8 @@ Instrukcje i zasady: **`CLAUDE.md`**. Dokumentacja: **`docs/README.md`**.
 4. W układzie: przeciągnij (przesuwanie), ściśnij / rozsuń (przybliżanie), dotknij małej planety — trafia łatwo.
 5. Dotknij obcej planety — kamera do niej leci, okienko z typem, strefą i adresem; „Zamknij” wraca do całego układu.
 6. Dotknij swojej planety — kamera przybliża, pojawia się zwykły widok planety (2D albo 3D), panele działają jak dotąd.
+9. (Etap F) Gdy planeta stoi, gra powinna mniej grzać i zużywać baterii (rzadsze rysowanie). Ustawienia → Zgłoś /
+   diagnostyka: linia „widok” pokazuje poziom widoku i liczbę zapamiętanych modeli 3D.
 8. (Etap E) Mapa → zaznacz zbadany układ → „Pokaż układ”: Mapa się zamyka, kamera wlatuje do układu. Dotknij gwiazdy
    (okienko z danymi), pasa asteroid i wolnej planety (geologia, „Wyślij statek”, gdy to możliwe). „Tabela układu”
    otwiera dawny widok Mapy.

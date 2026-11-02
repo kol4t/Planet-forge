@@ -94,6 +94,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     zoomLevel: () => display.zoomLevel(),
     renderScale: display.renderScale ? () => display.renderScale!() : undefined,
     gpuStats: display.gpuStats ? () => display.gpuStats!() : undefined,
+    modelCache: display.modelCache ? () => display.modelCache!() : undefined,
     resetView: () => display.resetView(),
     holdSpin: (hold) => display.holdSpin(hold),
     setGridVisible: (visible) => display.setGridVisible(visible),
@@ -230,6 +231,8 @@ function start(boot: BootGuard): void {
           'grafika teraz': display.kind + (display.renderScale ? ` (rozdzielczość ${Math.round(display.renderScale() * 100)}%)` : ''),
           'płynność (ostatnia minuta)': fps.describe(),
           ...gpuLine(display),
+          // Widok układu (etap F): poziom widoku, modele planet w pamięci 3D, miniatury układu.
+          widok: `${controller.view.level} · układ ${controller.view.system}${controller.view.object ? ` · obiekt ${controller.view.object}` : ''} · modele 3D w pamięci: ${display.modelCache?.() ?? '—'} · miniatury układu: ${system.thumbCount}`,
           planety: `${controller.slotInfo.used} z ${controller.slotInfo.unlocked}`,
           planeta: `${controller.planet.displayName} (${controller.planet.definitionId}, ${controller.address || 'startowa'}, seed ${controller.planet.seed})`,
           budynki: Object.entries(controller.economy.levels)

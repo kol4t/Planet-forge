@@ -52,6 +52,8 @@ export interface PlanetDisplay {
   gpuStats?(): { drawCalls: number; triangles: number; geometries: number; textures: number };
   /** Kontekst WebGL renderera (3D) — żeby przy starcie nie zwolnić go razem z kontekstami testowymi. */
   glContext?(): unknown;
+  /** Ile modeli planet trzyma pamięć 3D (diagnostyka, etap F widoku układu). */
+  modelCache?(): number;
   /** Docelowe przybliżenie (to, do którego widok dochodzi). */
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */

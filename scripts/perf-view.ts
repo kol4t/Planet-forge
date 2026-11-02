@@ -18,6 +18,15 @@ for (const mode of ['2d', '3d']) {
       if (c && /webgl/.test(type) && !(this as any).__counted) { (this as any).__counted = true; w.__gl++; w.__ctx.push(c); }
       return c;
     } as any;
+    // Rysowania WebGL na sekundę (3D) — czy przy bezruchu renderer rysuje rzadziej (etap F).
+    w.__draws = 0;
+    for (const proto of [window.WebGL2RenderingContext?.prototype, window.WebGLRenderingContext?.prototype]) {
+      if (!proto) continue;
+      for (const name of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced'] as const) {
+        const fn = (proto as any)[name];
+        if (typeof fn === 'function') (proto as any)[name] = function (this: unknown, ...a: unknown[]) { w.__draws++; return fn.apply(this, a); };
+      }
+    }
     const raf = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (cb: FrameRequestCallback) => { w.__raf++; return raf(cb); };
   }, mode);
@@ -28,11 +37,12 @@ for (const mode of ['2d', '3d']) {
   const idle = await page.evaluate(async () => {
     const w = window as any;
     const r0 = w.__raf;
+    const d0 = w.__draws;
     const g0 = w.__planetForge.display.gpuStats?.();
     await new Promise((r) => setTimeout(r, 3000));
-    return { rafPerSec: Math.round((w.__raf - r0) / 3), gl: w.__gl, live: w.__ctx.filter((c: any) => !c.isContextLost()).length, gpu: g0 };
+    return { drawsPerSec: Math.round((w.__draws - d0) / 3), rafPerSec: Math.round((w.__raf - r0) / 3), gl: w.__gl, live: w.__ctx.filter((c: any) => !c.isContextLost()).length, gpu: g0 };
   });
-  out.push(`${mode}: konteksty WebGL utworzone przy starcie ${idle.gl}, aktywne po starcie ${idle.live}; wywołania requestAnimationFrame przy bezruchu ~${idle.rafPerSec}/s (wszystkie pętle razem)`);
+  out.push(`${mode}: konteksty WebGL utworzone przy starcie ${idle.gl}, aktywne po starcie ${idle.live}; wywołania requestAnimationFrame przy bezruchu ~${idle.rafPerSec}/s (wszystkie pętle razem); rysowania WebGL przy bezruchu ~${idle.drawsPerSec}/s`);
   // Kolonia na poz. 40 (wszystkie budynki), bez megakonstruktu.
   const colony = await page.evaluate(async () => {
     const { controller: c, display: d } = (window as any).__planetForge;

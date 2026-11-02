@@ -68,6 +68,9 @@ export function hasWebGL(): boolean {
   }
 }
 
+/** Gdy planeta stoi: najwyżej jedna klatka co tyle ms (~20 kl./s) — etap F widoku układu. */
+const QUIET_FRAME_MS = 50;
+
 /** Ile ostatnich modeli planet trzymać w pamięci grafiki (etap D widoku układu; reszta zwalniana). */
 const PLANET_CACHE = 3;
 
@@ -316,6 +319,8 @@ export class PlanetView implements PlanetDisplay {
   private autoSpin = false;
 
   private paused = false;
+  /** Ostatnia narysowana klatka (położenie i chwila) — do rysowania rzadziej, gdy planeta stoi. */
+  private drawn = { yaw: NaN, pitch: NaN, zoom: NaN, at: -Infinity };
 
   setPaused(paused: boolean): void {
     this.paused = paused;
@@ -1096,7 +1101,20 @@ export class PlanetView implements PlanetDisplay {
       this.homeStation.update(dt, this.still);
     }
     if (this.highlight && !this.still) this.highlight.material.opacity = 0.75 + 0.25 * Math.sin(this.time * 2.2);
+    // Etap F (widok układu): gdy planeta stoi (bez palca, bezwładności i zmiany przybliżenia), spokojne animacje
+    // (chmury, orbity, lawa) rysowane rzadziej — do ~20 kl./s; ruch zawsze w pełnej płynności.
+    const moving =
+      this.rotator.isDragging ||
+      Math.abs(this.rotator.yaw - this.drawn.yaw) > 1e-4 ||
+      Math.abs(this.rotator.pitch - this.drawn.pitch) > 1e-4 ||
+      Math.abs(this.zoomer.value - this.drawn.zoom) > 1e-4;
+    if (!moving && time - this.drawn.at < QUIET_FRAME_MS) return;
+    this.drawn = { yaw: this.rotator.yaw, pitch: this.rotator.pitch, zoom: this.zoomer.value, at: time };
     this.renderer.render(this.scene, this.camera);
+  }
+
+  modelCache(): number {
+    return this.planetCache.size;
   }
 
   glContext(): unknown {
