@@ -235,7 +235,19 @@ function lotCrystal(p: Vec3, share: number): boolean {
  * Krater megakonstruktu kryształów (prototyp, 2D): brązowe tarasy — półki jaśniejsze, zbocza ciemniejsze, im głębiej,
  * tym ciemniej; turkusowe żyły kryształu na zboczach; dno ciemne z kryształami. Barwy jak w 3D (robocze).
  */
-export function craterGround(pit: OpenPit, p: Vec3): GroundColor {
+export function craterGround(pit: OpenPit, p: Vec3, shaft: CraterShaft | null = null): GroundColor {
+  if (shaft) {
+    // Szyb w dnie: koncentryczne warstwy coraz głębiej (skorupa → płaszcz → strefa gorąca), w środku blask dna
+    // albo — na ostatnim etapie — jądro planety.
+    const t = angleBetween(pit.center, p) / shaft.angle;
+    if (t < 1) {
+      if (shaft.core && t < 0.32) return { rgb: shaft.colors.core, glow: 1 };
+      if (shaft.core && t < 0.42) return { rgb: shaft.colors.glow, glow: 0.8 };
+      const ring = Math.min(3, Math.floor((1 - t) * 4 * (shaft.depth)));
+      const base = [shaft.colors.crust, shaft.colors.deepCrust, shaft.colors.mantle, shaft.colors.hot][ring]!;
+      return { rgb: shade(base, 0.8 - 0.35 * (1 - t)), glow: ring >= 3 ? 0.3 : 0 };
+    }
+  }
   const s = pit.sCached(p);
   if (s >= 0.999) return lotCrystal(p, 0.08) ? { rgb: CRYSTAL, glow: 0.8 } : { rgb: [0.12, 0.09, 0.07], glow: 0 };
   const { layer, shelf } = pitBand(pit.look, s);
@@ -243,3 +255,12 @@ export function craterGround(pit: OpenPit, p: Vec3): GroundColor {
   if (!shelf && lotCrystal(p, 0.05)) return { rgb: CRYSTAL, glow: 0.5 };
   return { rgb: shade(shelf ? [0.56, 0.45, 0.36] : [0.3, 0.23, 0.18], 1.05 - 0.45 * depth), glow: 0 };
 }
+
+/** Szyb w dnie krateru (2D): promień kątowy, jak głęboko (0–1, ile warstw widać), czy widać jądro, barwy warstw. */
+export interface CraterShaft {
+  angle: number;
+  depth: number;
+  core: boolean;
+  colors: { crust: RGB3; deepCrust: RGB3; mantle: RGB3; hot: RGB3; core: RGB3; glow: RGB3 };
+}
+type RGB3 = [number, number, number];

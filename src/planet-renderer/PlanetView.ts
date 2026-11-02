@@ -14,7 +14,7 @@ import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layou
 import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, rimPoint, type DrillParams } from './drill.ts';
 import { drillLook } from '../data/drill.ts';
-import { buildCrater } from './crater.ts';
+import { buildCrater, craterDrill } from './crater.ts';
 import { createCrystalRig, type CrystalRig } from './crystalRigMesh.ts';
 import { buildOpenPit, oceanCutValue, pitBand, pitRadius, snapToContours, type OpenPit } from './openPit.ts';
 import { createPitCables, type PitCables } from './openPitMeshes.ts';
@@ -200,7 +200,7 @@ export class PlanetView implements PlanetDisplay {
     this.colony.setMetalComplex(null);
     // Obiekty kompleksu kopalni metalu i drogi stoją na terenie (bez obniżenia odkrywki).
     this.colony.setGround((dir) => this.groundAt(dir));
-    this.setDrill(null, null);
+    this.setDrill(null, 0, null);
     this.setCables(null);
     this.openPit = null;
     // Widok układu (etap D): ostatnie modele planet zostają w pamięci (do `PLANET_CACHE`) — powrót na planetę bez
@@ -331,7 +331,7 @@ export class PlanetView implements PlanetDisplay {
     if (this.layout) this.applyColony(this.layout, false);
   }
 
-  private setCraterRig(pit: OpenPit | null, stage: number): void {
+  private setCraterRig(pit: OpenPit | null, stage: number, bottom?: number): void {
     if (this.craterRig) {
       this.craterRig.group.parent?.remove(this.craterRig.group);
       disposeObject(this.craterRig.group);
@@ -339,7 +339,7 @@ export class PlanetView implements PlanetDisplay {
     }
     if (!pit) return;
     const hover = pit.rim + 0.02 + 0.01 * stage;
-    this.craterRig = createCrystalRig(pit.center, hover, pit.floorRadius, 0.016 + 0.007 * stage);
+    this.craterRig = createCrystalRig(pit.center, hover, bottom ?? pit.floorRadius, 0.018 + 0.007 * stage);
     this.spinGroup.add(this.craterRig.group);
   }
   /** Ostatnia narysowana klatka (położenie i chwila) — do rysowania rzadziej, gdy planeta stoi. */
@@ -548,11 +548,12 @@ export class PlanetView implements PlanetDisplay {
     this.colony.setSink(this.pitSink(layout));
     if (fresh) this.colony.setLayout(layout);
     else this.colony.updateLayout(layout);
-    const drill = pitComplex ? this.drillFor(pitComplex) : null;
+    const crater = proto && protoCell && this.openPit ? this.openPit : null;
+    const drill = crater && proto ? craterDrill(crater, proto.stage) : pitComplex ? this.drillFor(pitComplex) : null;
     this.paintLand(layout, this.colony.pads(), drill);
-    this.setDrill(pitComplex, drill);
+    this.setDrill(crater?.center ?? pitComplex?.core ?? null, crater ? proto!.cell : (pitComplex?.cells[0] ?? 0), drill);
     this.setCables(this.openPit && hanging ? createPitCables(this.openPit, hanging, (dir) => this.pitGround(dir), this.still) : null);
-    this.setCraterRig(proto && this.openPit ? this.openPit : null, proto?.stage ?? 1);
+    this.setCraterRig(crater, proto?.stage ?? 1, drill?.bottom);
     // Wyrobisko może zejść poniżej poziomu morza — tafla oceanu nad nim jest wycięta.
     if (pitComplex && !this.openPit) this.oceanCut.value.set(...pitComplex.core, Math.cos(pitComplex.radius * pitShare(pitComplex.stage)));
     else this.oceanCut.value.set(0, 1, 0, 2);
@@ -680,14 +681,14 @@ export class PlanetView implements PlanetDisplay {
   }
 
   /** Siatki odwiertu: tworzone przy zmianie etapu (nie co klatkę), stare zwalniane. */
-  private setDrill(pit: ColonyComplex | null, params: DrillParams | null): void {
+  private setDrill(center: Vec3 | null, seed: number, params: DrillParams | null): void {
     if (this.drill) {
       this.drill.parent?.remove(this.drill);
       disposeObject(this.drill);
       this.drill = null;
     }
-    if (!pit || !params) return;
-    const built = buildDrill(this.openPit?.center ?? pit.core, params, drillLook(this.planetType), pit.cells[0] ?? 0);
+    if (!center || !params) return;
+    const built = buildDrill(this.openPit?.center ?? center, params, drillLook(this.planetType), seed);
     const mesh = (part: { position: Float32Array; color: Float32Array }, material: THREE.Material) => {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(part.position, 3));
@@ -796,9 +797,10 @@ export class PlanetView implements PlanetDisplay {
     this.levelPads(pos, pads, complexAt);
     // Otwór odwiertu: wierzchołki lądu z wnętrza otworu przypięte do okręgu krawędzi (tam zaczynają się ściany studni);
     // ścianka całkiem w otworze ściągnięta do jednego punktu (znika) — pierwotna powierzchnia nie przechodzi przez otwór.
-    if (pit && drill) {
+    const drillAxis = open?.center ?? pit?.core;
+    if (drill && drillAxis) {
       const cosRim = Math.cos(drill.rimAngle);
-      const n = open?.center ?? pit.core;
+      const n = drillAxis;
       const inside = (i: number) =>
         (pos[i]! * n[0] + pos[i + 1]! * n[1] + pos[i + 2]! * n[2]) / Math.hypot(pos[i]!, pos[i + 1]!, pos[i + 2]!) > cosRim;
       const pin = (i: number, from: number) => {
