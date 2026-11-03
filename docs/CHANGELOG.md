@@ -2,6 +2,14 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.69.0 — megakonstrukt kryształów: wiertnica i lej — 2026-11-03
+
+- Wiertnica na linach nad lejem w obszarze Ekstraktora kryształów (poz. 40, „Megastruktury”, kompleks; 1 mln metalu /
+  4 mln kryształów, budowa 1–2 h): +60% i znaleziska, zamiast megakompleksu kryształów.
+- Lej rośnie z wydobyciem złoża (4 etapy, ostatni sięga jądra planety) i zostaje na zawsze — jego pól nie da się zabudować.
+- Dużo kryształów w leju, znaleziska widoczne jako obiekty (3D i 2D).
+- Wiertnicę można wyrzucić na orbitę i ściągnąć nad Ekstraktor innej planety (lej zostaje).
+
 ## v0.68.0 — kandydat MVP — 2026-11-02
 
 - Przewodnik SI Matki: krok „Załóż drugą kolonię” teraz po megakonstrukcie (pierwsza planeta → konstrukt → kolonia).
