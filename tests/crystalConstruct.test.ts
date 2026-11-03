@@ -7,6 +7,7 @@ import { checkCrystalConstruct, craterCenter, craterStageFor, crystalConstructSe
 import { parseOrbiting } from '../src/core/economy/orbitalConstruct.ts';
 import { deserializeEmpire, EMPIRE_KEY } from '../src/core/save/empire.ts';
 import { BALANCE } from '../src/data/balance.ts';
+import { fieldsFor } from '../src/core/economy/footprint.ts';
 import { colonizeNow } from './helpers.ts';
 
 function withMemoryStorage(run: () => void): void {
@@ -174,5 +175,26 @@ test('wiertnica: wyrzucenie na orbitę (lej zostaje, pola dalej zajęte), lądow
     assert.equal(game.craterState()?.rig, true);
     assert.equal(game.colony().complexes.find((c) => c.building === 'crystalMine')?.mega, true);
     assert.ok(game.journalEntries().some((e) => e.text.startsWith('Wiertnica kryształów wylądowała')));
+  });
+});
+
+test('Ekstraktor kryształów: jeden zwarty, okrągły obszar (bez odnóg), może wejść w wodę; inne budynki się przesuwają', () => {
+  withMemoryStorage(() => {
+    const game = readyGame();
+    game.economy = { ...game.economy, levels: { ...game.economy.levels, metalMine: 0, laboratory: 8 } };
+    const { grid, plots } = game.colony();
+    const cells = plots.crystalMine!;
+    assert.equal(cells.length, fieldsFor('crystalMine', 40));
+    const c = grid.cells[cells[0]!]!.center;
+    const dot = (i: number) => { const p = grid.cells[i]!.center; return p[0] * c[0] + p[1] * c[1] + p[2] * c[2]; };
+    const edge = Math.min(...cells.map(dot));
+    // Okrąg: żadne pole spoza obszaru (poza dzielnicą metalu) nie leży bliżej środka niż najdalsze pole obszaru.
+    const metal = new Set(plots.metalMine ?? []);
+    const inside = new Set(cells);
+    for (let i = 0; i < grid.cells.length; i++) if (!inside.has(i) && !metal.has(i)) assert.ok(dot(i) <= edge + 1e-9, `pole ${i} bliżej środka`);
+    // Inne budynki nie stoją na polach Ekstraktora.
+    for (const [id, list] of Object.entries(plots)) if (id !== 'crystalMine') for (const cell of list ?? []) assert.ok(!inside.has(cell), `${id} na polu ${cell}`);
+    // Ten sam obszar po ponownym przeliczeniu (środek stały).
+    assert.deepEqual(game.colony().plots.crystalMine, cells);
   });
 });

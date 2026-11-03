@@ -263,6 +263,20 @@ function start(boot: BootGuard): void {
     scene: [scene, research, map, empire],
   });
 
+  // Okna HTML nad grą (Ustawienia, Kompleks, diagnostyka…): Phaser słucha puszczenia palca na całym oknie przeglądarki,
+  // więc dotknięcie przycisku w oknie HTML „stukało” też w panel gry pod nim (np. zmieniało planetę na liście). Puszczenie
+  // palca, które nie zaczęło się na płótnie gry, nie trafia do Phasera. Przeciągnięcie zaczęte na planecie działa jak dotąd.
+  let downOnGame = false;
+  const onGame = (target: EventTarget | null) => target instanceof HTMLCanvasElement && uiRoot.contains(target);
+  for (const type of ['mousedown', 'touchstart'] as const) {
+    window.addEventListener(type, (e) => (downOnGame = onGame(e.target)), { capture: true, passive: true });
+  }
+  for (const type of ['mouseup', 'touchend'] as const) {
+    window.addEventListener(type, (e) => {
+      if (!downOnGame && !onGame(e.target)) e.stopPropagation();
+    }, { capture: true });
+  }
+
   let pending = 0;
   const onResize = () => {
     cancelAnimationFrame(pending);

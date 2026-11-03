@@ -224,3 +224,37 @@ export function createCraterFinds(pit: OpenPit, groundAt: (dir: Vec3) => number,
     },
   };
 }
+
+/**
+ * Tama na krawędzi leja tam, gdzie lej wchodzi w wodę (decyzja właściciela 2026-11-03): mur od dna przy krawędzi do
+ * nieco ponad poziom morza, na odcinkach obrysu, pod którymi pierwotny teren leży poniżej morza. `ground` — pierwotny
+ * promień terenu, `sea` — promień tafli wody. Jedna siatka (jedno rysowanie); null — lej nie dotyka wody.
+ */
+export function createCraterDam(outline: readonly Vec3[], ground: (dir: Vec3) => number, sea: number): THREE.Mesh | null {
+  const parts: THREE.BufferGeometry[] = [];
+  const thick = 0.007;
+  for (let i = 0; i + 1 < outline.length; i++) {
+    const a = new THREE.Vector3(...outline[i]!);
+    const b = new THREE.Vector3(...outline[i + 1]!);
+    const low = Math.min(ground(outline[i]!), ground(outline[i + 1]!));
+    if (low > sea + 0.002) continue;
+    const mid = a.clone().add(b).normalize();
+    const bottom = low - 0.012;
+    const top = sea + 0.012;
+    const len = a.distanceTo(b) * top * 1.08;
+    const box = new THREE.BoxGeometry(len, top - bottom, thick);
+    // Oś X wzdłuż obrysu, Y w górę (od środka planety), Z w poprzek.
+    const x = b.clone().sub(a).normalize();
+    const z = x.clone().cross(mid).normalize();
+    const y = z.clone().cross(x).normalize();
+    box.applyMatrix4(new THREE.Matrix4().makeBasis(x, y, z));
+    box.translate(...(mid.clone().multiplyScalar((top + bottom) / 2).toArray() as [number, number, number]));
+    parts.push(box);
+  }
+  if (parts.length === 0) return null;
+  const geometry = mergeGeometries(parts)!;
+  for (const p of parts) p.dispose();
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#8a9294', roughness: 0.75, metalness: 0.2, flatShading: true }));
+  mesh.name = 'crater-dam';
+  return mesh;
+}

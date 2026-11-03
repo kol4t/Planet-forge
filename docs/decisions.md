@@ -2,6 +2,16 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-03 — Ekstraktor kryształów jako jeden zwarty lej; okna HTML nie przepuszczają dotyku (v0.69.1)
+
+- **Obszar Ekstraktora kryształów = okrąg** wokół pierwszego pola (`discCells`, `fixedPlots` w `GameController`): bez
+  „odnóg”; pola dowolnego rodzaju — także woda i lawa (decyzja właściciela: w fazie deweloperskiej lej może wejść w wodę).
+  Inne budynki na drodze przenoszą obszar obok (jak przy dzielnicy metalu). Od strony wody na krawędzi wykopu stoi
+  **tama** (3D, `createCraterDam`). Liczba pól bez zmian (`fieldsFor`) — rozmiar to sprawa balansu.
+- **Dotyk w oknach HTML** (Ustawienia → Zgłoś, Kompleks…) nie trafia już do paneli gry pod nimi: puszczenie palca, które
+  nie zaczęło się na płótnie gry, nie dociera do Phasera (`main.ts`). Wcześniej np. stuknięcie w „Pokaż diagnostykę”
+  zmieniało planetę na liście pod oknem.
+
 ## 2026-11-03 — Megakonstrukt kryształów: wiertnica i lej (v0.69)
 
 - **Wygląd zaakceptowany po prototypie** (zrzuty etapów, 4 rundy uwag): tarasowy lej aż do jądra planety (nie szyb),

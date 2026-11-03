@@ -15,7 +15,7 @@ import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, layerAt, rimPoint, type DrillParams } from './drill.ts';
 import { drillLook } from '../data/drill.ts';
 import { buildCrater, CRATER_MIN_RADIUS, craterReach, craterSite, type CraterLook } from './crater.ts';
-import { createCraterCrystals, createCraterFinds, createCrystalRig, type CrystalRig } from './crystalRigMesh.ts';
+import { createCraterCrystals, createCraterDam, createCraterFinds, createCrystalRig, type CrystalRig } from './crystalRigMesh.ts';
 import { buildOpenPit, oceanCutValue, pitBand, pitRadius, snapToContours, type OpenPit } from './openPit.ts';
 import { createPitCables, type PitCables } from './openPitMeshes.ts';
 import { createOrbitalConstruct, HANG_ATTACH, HANG_BOTTOM, type Hanging } from './colonyMeshes.ts';
@@ -201,6 +201,7 @@ export class PlanetView implements PlanetDisplay {
     // Obiekty kompleksu kopalni metalu i drogi stoją na terenie (bez obniżenia odkrywki).
     this.colony.setGround((dir) => this.groundAt(dir));
     this.setDrill(null, 0, null);
+    this.setDam(null);
     this.craterProto = null;
     this.setCables(null);
     this.openPit = null;
@@ -355,6 +356,27 @@ export class PlanetView implements PlanetDisplay {
       },
     };
     this.spinGroup.add(all);
+  }
+
+  private dam: THREE.Object3D | null = null;
+
+  /** Tama na krawędzi wykopu (lej albo wielka odkrywka) tam, gdzie wchodzi w wodę (null — usuń). */
+  private setDam(pit: OpenPit | null): void {
+    if (this.dam) {
+      this.dam.parent?.remove(this.dam);
+      disposeObject(this.dam);
+      this.dam = null;
+    }
+    const ocean = this.planetObjects.find((o): o is THREE.Mesh => o.name === 'ocean' && o instanceof THREE.Mesh);
+    if (!pit || !ocean) return;
+    const sea = 1.001 * ocean.scale.x;
+    const meshes = pit.outline.map((loop) => createCraterDam(loop, (dir) => this.groundAt(dir), sea)).filter((m): m is THREE.Mesh => !!m);
+    if (meshes.length === 0) return;
+    const group = new THREE.Group();
+    group.name = 'pit-dam';
+    group.add(...meshes);
+    this.spinGroup.add(group);
+    this.dam = group;
   }
 
   /** Zawieszenie wiertnicy leja: tuż pod krawędzią, wielkość z promienia leja. */
@@ -581,6 +603,7 @@ export class PlanetView implements PlanetDisplay {
     const cableHang = hanging ?? rigHang;
     this.setCables(this.openPit && cableHang ? createPitCables(this.openPit, cableHang, (dir) => this.pitGround(dir), this.still) : null);
     this.setCraterRig(crater, rigHang, proto?.stage ?? 1, proto?.cell ?? 0);
+    this.setDam(this.openPit);
     // Wyrobisko może zejść poniżej poziomu morza — tafla oceanu nad nim jest wycięta.
     if (pitComplex && !this.openPit) this.oceanCut.value.set(...pitComplex.core, Math.cos(pitComplex.radius * pitShare(pitComplex.stage)));
     else this.oceanCut.value.set(0, 1, 0, 2);
