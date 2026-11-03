@@ -1,5 +1,5 @@
 import { cachedFieldGrid, FIELD_GRID_VERSION, fieldGrid, type BuildRules, type FieldGrid } from '../core/colony/fieldGrid.ts';
-import { choiceCells, fieldCapacity, hasRoomFor, PLOTS_LAYOUT, reconcilePlots, siteFactors, suits, TERRAIN_NAMES, usedLandFields, type Plots } from '../core/colony/plots.ts';
+import { choiceCells, discCells, fieldCapacity, hasRoomFor, PLOTS_LAYOUT, reconcilePlots, siteFactors, suits, TERRAIN_NAMES, usedLandFields, type Plots } from '../core/colony/plots.ts';
 import { fieldsFor, nextStageFrom, stageName, stageOf } from '../core/economy/footprint.ts';
 import { FOOTPRINT, STAGE_NAMES } from '../data/footprint.ts';
 import { COMPLEX_STAGE, complexCandidate, MEGA_STAGE, megaCandidate, validComplexes, type Complex } from '../core/colony/complexes.ts';
@@ -4219,8 +4219,11 @@ export class GameController {
         const need = metalComplexFields((levels.metalMine ?? 0) + 1, slot.metalComplex?.phase ?? 'osady');
         return !!next && next.cells.length >= need && next.cells.every((c) => !others.has(c));
       }
-      const metal = metalFixed(slot, levels);
-      return hasRoomFor(grid, slot.plots, levels, id, BUILDING_ORDER, rules, metal ? { plots: { metalMine: metal.cells }, reserved: metal.reserved } : {});
+      // Ekstraktor kryształów rośnie okręgiem na każdym polu (także woda; inne budynki się przesuną) — miejsce zawsze jest.
+      if (id === 'crystalMine' && (slot.plots.crystalMine?.length ?? 0) > 0) return true;
+      const next = { ...levels, [id]: (levels[id] ?? 0) + 1 };
+      const fixed = fixedPlots(slot, next as BuildingLevels, grid);
+      return hasRoomFor(grid, slot.plots, levels, id, BUILDING_ORDER, rules, fixed);
     };
   }
 
@@ -4271,6 +4274,29 @@ function metalFixed(slot: Slot, levels: Partial<BuildingLevels>, grid: FieldGrid
   return metalComplexCells(grid, slot.planet.seed, slot.metalComplex.center, level, slot.metalComplex.phase);
 }
 
+/**
+ * Obszary stałe planety: dzielnica kopalni metalu (z modelu osad) i Ekstraktor kryształów — lej (pola zajęte na zawsze,
+ * także po zburzeniu — rezerwa), a bez leja jeden zwarty, okrągły obszar wokół pierwszego pola (od v0.69.1, decyzja
+ * właściciela: bez „odnóg”; może wejść w wodę i lawę — od strony wody tama). Pola innych budynków na drodze — przenoszą się.
+ */
+function fixedPlots(slot: Slot, levels: Partial<BuildingLevels>, grid: FieldGrid = fieldGrid(slot.planet)): { plots: Partial<Record<BuildingId, readonly number[]>>; reserved: number[] } {
+  const metal = metalFixed(slot, levels, grid);
+  const scar = slot.crystalComplex?.cells ?? [];
+  const crystalLevel = levels.crystalMine ?? 0;
+  const anchor = slot.plots.crystalMine?.[0];
+  const disc =
+    scar.length === 0 && crystalLevel > 0 && anchor !== undefined && anchor < grid.cells.length
+      ? discCells(grid, anchor, fieldsFor('crystalMine', crystalLevel), new Set([...(metal?.cells ?? []), ...(metal?.reserved ?? [])]))
+      : null;
+  return {
+    plots: {
+      ...(metal ? { metalMine: metal.cells } : {}),
+      ...(scar.length > 0 && crystalLevel > 0 ? { crystalMine: scar } : disc ? { crystalMine: disc } : {}),
+    },
+    reserved: [...(metal?.reserved ?? []), ...scar],
+  };
+}
+
 function syncPlots(slot: Slot, base: BuildRules): Plots {
   const rules = withAnywhere(base, slot.afloat);
   const c = slot.economy.construction;
@@ -4280,17 +4306,10 @@ function syncPlots(slot: Slot, base: BuildRules): Plots {
   // innych budynków; obszar kopalni = pola obiektów z modelu, dzielnica zarezerwowana (etap 2). Dawne pola wracają do puli.
   const others = Object.entries(slot.plots).flatMap(([b, l]) => (b === 'metalMine' ? [] : (l ?? [])));
   slot.metalComplex = ensureMetalComplex(slot.metalComplex, grid, slot.planet.seed, levels.metalMine ?? 0, others);
-  const metal = metalFixed(slot, levels);
-  // Lej megakonstruktu kryształów (v0.69): pola leja zajęte na zawsze — obszar Ekstraktora, a po jego zburzeniu
-  // pola zarezerwowane (nic na nich nie stanie). Pola spoza siatki (zapis z innej wersji) — lej znika.
+  // Lej megakonstruktu kryształów (v0.69): pola spoza siatki (zapis z innej wersji) — lej znika.
   const crater = slot.crystalComplex;
   if (crater && (crater.cells.some((c) => c >= grid.cells.length) || crater.center >= grid.cells.length)) delete slot.crystalComplex;
-  const scar = slot.crystalComplex?.cells ?? [];
-  const fixed: Partial<Record<BuildingId, readonly number[]>> = {
-    ...(metal ? { metalMine: metal.cells } : {}),
-    ...(scar.length > 0 && (levels.crystalMine ?? 0) > 0 ? { crystalMine: scar } : {}),
-  };
-  const reserved = [...(metal?.reserved ?? []), ...scar];
+  const { plots: fixed, reserved } = fixedPlots(slot, levels, grid);
   slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, slot.preferred, Object.keys(fixed).length > 0 || reserved.length > 0 ? { plots: fixed, reserved } : {});
   // Wybrane pole użyte — wybór dotyczy tylko jednego pola.
   if (slot.preferred) {

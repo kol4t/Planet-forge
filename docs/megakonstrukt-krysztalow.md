@@ -22,7 +22,7 @@ Decyzje właściciela z 2026-11-02 i 2026-11-03. Prototyp wyglądu zaakceptowany
 | Warunki | Jak metal: Ekstraktor kryształów poz. 40, badanie „Megastruktury”, działający kompleks Ekstraktora |
 | Koszt i czas | Odwrotne ceny niż metal: 1 mln metalu i 4 mln kryształów; budowa 1–2 h (czas stały dla planety). Ekstraktor w tym czasie pracuje, anulowanie zwraca koszt |
 | Premia | Po ukończeniu Ekstraktor działa jak megakompleks: +60% i znaleziska. Zastępuje megakompleks kryształów (ten z dawnego zapisu działa do czasu wiertnicy) |
-| Miejsce | Lej powstaje na obszarze Ekstraktora: pola Ekstraktora w chwili budowy, środek w polu najbliżej środka obszaru. Zasięg leja na etapie 4 = obszar (najwyżej 0,6 rad) |
+| Miejsce | Obszar Ekstraktora to od v0.69.1 jeden zwarty okrąg wokół pierwszego pola (także na wodzie i lawie; od strony wody tama). Lej powstaje na obszarze Ekstraktora: pola Ekstraktora w chwili budowy, środek w polu najbliżej środka obszaru. Zasięg leja na etapie 4 = obszar (najwyżej 0,6 rad) |
 | Wzrost leja | Z wydobyciem złoża kryształów: postęp = kryształy wydobyte od startu wiertnicy ÷ (próg wyeksploatowania 80% złoża − wydobycie na starcie). Co 25% postępu lej rośnie o etap (1→4), na etapie 4 sięga jądra. Lej się nie zmniejsza |
 | Blizna | Lej zostaje na zawsze, a jego pól nie da się zabudować: to obszar Ekstraktora, a po jego zburzeniu pola zarezerwowane |
 | Orbita | Jak metal: „Wyrzuć na orbitę” (30 min bez premii, 10 antymaterii; lej zostaje), „Ściągnij z orbity” nad Ekstraktor poz. 40 z kompleksem innej planety (paliwo i lot z odległości, ryzyko piratów). Na planecie z dawnym lejem nowa wiertnica drąży go dalej |

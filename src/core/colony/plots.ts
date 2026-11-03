@@ -306,3 +306,20 @@ function districtTarget(grid: FieldGrid, index: number, total: number, taken: Se
   const toward = grid.cells[ring[Math.floor((index * ring.length) / Math.max(1, total)) % ring.length]!]!.center;
   return [2 * toward[0] - center.center[0], 2 * toward[1] - center.center[1], 2 * toward[2] - center.center[2]];
 }
+
+/**
+ * Zwarty, okrągły obszar (Ekstraktor kryształów — jeden lej, decyzja właściciela 2026-11-03): `count` pól najbliżej
+ * pola `center`, dowolnego rodzaju (ląd, lód, woda, lawa — lej może wejść w wodę, od strony wody tama), bez pól z `skip`.
+ * Pierwsze jest pole środka. Deterministyczne (remisy po numerze pola).
+ */
+export function discCells(grid: FieldGrid, center: number, count: number, skip: ReadonlySet<number> = new Set()): number[] {
+  const c = grid.cells[center];
+  if (!c || count <= 0) return [];
+  const [x, y, z] = c.center;
+  return grid.cells
+    .map((cell, i) => ({ i, d: -(cell.center[0] * x + cell.center[1] * y + cell.center[2] * z) }))
+    .filter((e) => e.i === center || !skip.has(e.i))
+    .sort((a, b) => a.d - b.d || a.i - b.i)
+    .slice(0, count)
+    .map((e) => e.i);
+}

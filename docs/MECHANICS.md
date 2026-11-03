@@ -80,6 +80,9 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
   w oknie Kompleks planety z kompletem osad (poz. 40) sprowadza go za antymaterię (lot zależny od odległości) — tam osady
   przechodzą w układ promienisty. Liczby robocze.
 
+- **Ekstraktor kryształów: jeden zwarty obszar** (v0.69.1): okrąg pól wokół pierwszego pola, także na wodzie i lawie
+  (wykop odgrodzony od wody tamą); budynki na drodze przenoszą się obok.
+
 - **Ekstraktor kryształów = wiertnica i lej** (v0.69, `docs/megakonstrukt-krysztalow.md`): od poz. 40, z badaniem
   „Megastruktury” i kompleksem Ekstraktora nad jego obszarem staje **wiertnica** na linach (1 mln metalu / 4 mln kryształów,
   budowa 1–2 h — ekstraktor pracuje). Daje +60% i znaleziska (zamiast megakompleksu kryształów). Drąży **lej**, który
