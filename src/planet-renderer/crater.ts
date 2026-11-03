@@ -117,3 +117,13 @@ export function craterSite(cells: readonly { center: readonly number[]; kind: st
   }
   return best;
 }
+
+/** Punkt leja na „wysokości” `s` (0 — krawędź, 1 — dno) w kierunku `bearing` wokół środka. Czysta matematyka. */
+export function craterSpot(pit: OpenPit, s: number, bearing: number): Vec3 {
+  const c = pit.center;
+  const t0 = norm(Math.abs(c[0]) < 0.9 ? [0, -c[2], c[1]] : [-c[2], 0, c[0]]);
+  const t1: Vec3 = [c[1] * t0[2] - c[2] * t0[1], c[2] * t0[0] - c[0] * t0[2], c[0] * t0[1] - c[1] * t0[0]];
+  const angle = pit.centerDistance - s * (pit.centerDistance - pit.floorAngle);
+  const d: Vec3 = [t0[0] * Math.cos(bearing) + t1[0] * Math.sin(bearing), t0[1] * Math.cos(bearing) + t1[1] * Math.sin(bearing), t0[2] * Math.cos(bearing) + t1[2] * Math.sin(bearing)];
+  return norm([c[0] * Math.cos(angle) + d[0] * Math.sin(angle), c[1] * Math.cos(angle) + d[1] * Math.sin(angle), c[2] * Math.cos(angle) + d[2] * Math.sin(angle)]);
+}

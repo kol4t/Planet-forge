@@ -15,7 +15,7 @@ import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, layerAt, rimPoint, type DrillParams } from './drill.ts';
 import { drillLook } from '../data/drill.ts';
 import { buildCrater, CRATER_MIN_RADIUS, craterSite } from './crater.ts';
-import { createCraterCrystals, createCrystalRig, type CrystalRig } from './crystalRigMesh.ts';
+import { createCraterCrystals, createCraterFinds, createCrystalRig, type CraterFinds, type CrystalRig } from './crystalRigMesh.ts';
 import { buildOpenPit, oceanCutValue, pitBand, pitRadius, snapToContours, type OpenPit } from './openPit.ts';
 import { createPitCables, type PitCables } from './openPitMeshes.ts';
 import { createOrbitalConstruct, HANG_ATTACH, HANG_BOTTOM, type Hanging } from './colonyMeshes.ts';
@@ -322,11 +322,11 @@ export class PlanetView implements PlanetDisplay {
 
   private paused = false;
   /** Prototyp krateru megakonstruktu kryształów (zrzuty do oceny właściciela): pole środka i etap 1–4. */
-  private craterProto: { cell: number; stage: 1 | 2 | 3 | 4 } | null = null;
+  private craterProto: { cell: number; stage: 1 | 2 | 3 | 4; finds?: CraterFinds } | null = null;
   private craterRig: CrystalRig | null = null;
 
   /** Prototyp: krater kryształów na polu `cell` w etapie `stage` (null — wyłączony). Tylko wygląd. */
-  setCraterPrototype(proto: { cell: number; stage: 1 | 2 | 3 | 4 } | null): void {
+  setCraterPrototype(proto: { cell: number; stage: 1 | 2 | 3 | 4; finds?: CraterFinds } | null): void {
     this.craterProto = proto;
     if (this.layout) this.applyColony(this.layout, false);
   }
@@ -343,8 +343,15 @@ export class PlanetView implements PlanetDisplay {
     const rig = createCrystalRig(hanging, pit.look.cables);
     const all = new THREE.Group();
     all.name = 'crater-rig';
-    all.add(rig.group, createCraterCrystals(pit, (dir) => this.pitGround(dir), 3 + stage * 3, seed));
-    this.craterRig = { group: all, update: rig.update };
+    const finds = createCraterFinds(pit, (dir) => this.pitGround(dir), this.craterProto?.finds ?? {}, seed);
+    all.add(rig.group, createCraterCrystals(pit, (dir) => this.pitGround(dir), 30 + stage * 30, seed), finds.group);
+    this.craterRig = {
+      group: all,
+      update: (dt, still) => {
+        rig.update(dt, still);
+        finds.update(dt, still);
+      },
+    };
     this.spinGroup.add(all);
   }
 

@@ -5,7 +5,7 @@ import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
 import { complexGround, craterGround, type CraterColors } from './complexLook.ts';
-import { buildCrater, craterSite } from './crater.ts';
+import { buildCrater, craterSite, craterSpot } from './crater.ts';
 import { drillLook } from '../data/drill.ts';
 import { buildOpenPit, type OpenPit } from './openPit.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
@@ -43,6 +43,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   /** Prototyp krateru megakonstruktu kryształów (tylko wygląd) i jego etap. */
   private crater: OpenPit | null = null;
   private craterStage = 1;
+  private craterFinds: Readonly<Record<string, number>> = {};
   private craterColors: CraterColors | null = null;
   private planetType = '';
   private levels: BuildingLevels | undefined;
@@ -209,6 +210,39 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       ctx.fillStyle = '#8ff5e2';
       ctx.fillRect(snapX(c.x + (end.x - c.x) * t), snapY(c.y + (end.y - c.y) * t), pixel, pixel);
     }
+    // Znaleziska na półkach leja (jak w 3D): kryształ rdzeniowy — turkusowy słup, odłamek rezonansowy — fioletowy
+    // romb nad półką, zapis z głębi — ciemna płyta z jasnymi pasami.
+    const L = crater.look.layers;
+    let slot = 0;
+    for (const id of ['core-crystal', 'resonant-shard', 'deep-record'] as const) {
+      for (let n = 0; n < (this.craterFinds[id] ?? 0); n++) {
+        slot++;
+        const layer = Math.max(0, Math.min(L - 1, Math.floor(L * 0.25 + hash01(slot * 13, id.length + 40) * L * 0.5)));
+        const p = toScreen(craterSpot(crater, (layer + 1 - crater.look.shelf / 2) / L, (slot / 10) * Math.PI * 2 + n * 0.37));
+        if (p.depth < 0.1) continue;
+        const x = snapX(p.x);
+        const y = snapY(p.y);
+        const sz = this.craterStage >= 3 ? 2 : 1;
+        if (id === 'core-crystal') {
+          ctx.fillStyle = '#2bb8c4';
+          ctx.fillRect(x - sz * pixel, y - 4 * sz * pixel, sz * 2 * pixel, 5 * sz * pixel);
+          ctx.fillStyle = '#9ffcff';
+          ctx.fillRect(x - (sz - 1) * pixel - (sz === 1 ? 0 : 0), y - 5 * sz * pixel, Math.max(1, sz) * pixel, 2 * sz * pixel);
+        } else if (id === 'resonant-shard') {
+          const bob = now === 0 ? 0 : Math.round(Math.sin(now / 500 + n));
+          ctx.fillStyle = '#c9a8ff';
+          ctx.fillRect(x, y - (4 + bob) * sz * pixel, sz * pixel, 3 * sz * pixel);
+          ctx.fillRect(x - sz * pixel, y - (3 + bob) * sz * pixel, 3 * sz * pixel, sz * pixel);
+          ctx.fillStyle = '#6a3fd0';
+          ctx.fillRect(x - 2 * sz * pixel, y - sz * pixel, 5 * sz * pixel, sz * pixel);
+        } else {
+          ctx.fillStyle = '#26221f';
+          ctx.fillRect(x - 2 * sz * pixel, y - 4 * sz * pixel, 4 * sz * pixel, 5 * sz * pixel);
+          ctx.fillStyle = '#e0a040';
+          for (let r = 0; r < 3; r++) ctx.fillRect(x - sz * pixel, y - (3 - r * 1.2) * sz * pixel, 2 * sz * pixel, Math.max(1, sz * 0.5) * pixel);
+        }
+      }
+    }
     // Piasta: złoty pierścień, stalowy środek, kryształ na wierzchu.
     const n = 1 + this.craterStage;
     const x0 = snapX(c.x);
@@ -340,12 +374,13 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   }
 
   /** Prototyp: krater kryształów na polu `cell` w etapie `stage` (null — wyłączony). Tylko wygląd. */
-  setCraterPrototype(proto: { cell: number; stage: 1 | 2 | 3 | 4 } | null): void {
+  setCraterPrototype(proto: { cell: number; stage: 1 | 2 | 3 | 4; finds?: Readonly<Record<string, number>> } | null): void {
     const colony = this.colony;
     const index = proto && this.grid ? (proto.cell >= 0 ? proto.cell : craterSite(this.grid.cells, (colony?.complexes ?? []).flatMap((c) => c.cells.map((i) => this.grid!.cells[i]!.center as [number, number, number])))) : -1;
     const cell = proto && this.grid ? this.grid.cells[index] : undefined;
     this.crater = proto && cell ? buildCrater(cell.center as [number, number, number], proto.stage, () => 1) : null;
     this.craterStage = proto?.stage ?? 1;
+    this.craterFinds = proto?.finds ?? {};
     const look = drillLook(this.planetType);
     const rgb = (h: string): [number, number, number] => {
       const n = parseInt(h.slice(1), 16);

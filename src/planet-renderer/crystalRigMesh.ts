@@ -105,8 +105,8 @@ export function createCraterCrystals(pit: OpenPit, groundAt: (dir: Vec3) => numb
   const R = pit.centerDistance;
   for (let k = 0; k < count; k++) {
     // Tylko górne warstwy (skała) — niżej płaszcz i żar.
-    const layer = Math.floor(hash01(seed + k, 31) * Math.max(1, Math.ceil(L * 0.6)));
-    const s = (layer + 1 - pit.look.shelf / 2) / L;
+    const layer = Math.floor(hash01(seed + k, 31) * Math.max(1, Math.ceil(L * 0.8)));
+    const s = (layer + 1 - pit.look.shelf * (0.15 + 0.7 * hash01(seed + k, 36))) / L;
     if (!pitBand(pit.look, s).shelf) continue;
     const angle = R - s * (R - pit.floorAngle);
     const bearing = hash01(seed + k, 32) * Math.PI * 2;
@@ -131,4 +131,96 @@ export function createCraterCrystals(pit: OpenPit, groundAt: (dir: Vec3) => numb
   const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: CRYSTAL_RIG_LOOK.crystal, emissive: CRYSTAL_RIG_LOOK.crystalGlow, roughness: 0.2, metalness: 0.1, flatShading: true }));
   mesh.name = 'crater-crystals';
   return mesh;
+}
+
+/** Znaleziska widoczne w leju (prototyp): id znaleziska → liczba sztuk (`data/finds.ts`). */
+export type CraterFinds = Readonly<Record<string, number>>;
+
+/** Wygląd znalezisk w leju (robocze; bez treści fabularnych — tylko kształt i barwa z opisu znaleziska). */
+export const CRATER_FIND_LOOK = {
+  /** Kryształ rdzeniowy — wielki, regularny, sześciokątny kryształ na półce. */
+  'core-crystal': { color: '#9ffcff', emissive: '#2bb8c4' },
+  /** Odłamek rezonansowy — fioletowy odłamek unoszący się nad półką w pierścieniu. */
+  'resonant-shard': { color: '#c9a8ff', emissive: '#6a3fd0' },
+  /** Zapis z głębi — ciemna płyta z jasnym, uporządkowanym wzorem. */
+  'deep-record': { color: '#26221f', emissive: '#e0a040' },
+} as const;
+
+/**
+ * Obiekty znalezisk na półkach leja: każda sztuka to osobny obiekt na środku półki (deterministycznie z `seed` i id),
+ * najwyżej 3 warstwy od dna. Kilka rysowań (po jednym na rodzaj). Odłamki unoszą się i obracają (`update`).
+ */
+export function createCraterFinds(pit: OpenPit, groundAt: (dir: Vec3) => number, finds: CraterFinds, seed: number): { group: THREE.Group; update(dt: number, still: boolean): void } {
+  const group = new THREE.Group();
+  group.name = 'crater-finds';
+  const L = pit.look.layers;
+  const c = new THREE.Vector3(...pit.center);
+  const helper = Math.abs(c.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+  const e1 = helper.clone().cross(c).normalize();
+  const e2 = c.clone().cross(e1);
+  const R = pit.centerDistance;
+  // Wielkość obiektów rośnie z lejem (najwyżej jak duża gromada kryształów × 3).
+  const unit = Math.min(0.045, 0.015 + R * 0.06);
+  const spinners: THREE.Object3D[] = [];
+  let slot = 0;
+  const place = (id: string, n: number): { dir: THREE.Vector3; radius: number; q: THREE.Quaternion } => {
+    const h = hash01(seed + slot * 13, id.length + 40);
+    slot++;
+    const layer = Math.max(0, Math.min(L - 1, Math.floor(L * 0.25 + h * L * 0.5)));
+    const s = (layer + 1 - pit.look.shelf / 2) / L;
+    const angle = R - s * (R - pit.floorAngle);
+    const bearing = (slot / 10) * Math.PI * 2 + n * 0.37 + hash01(seed + slot, 41) * 0.4;
+    const t = e1.clone().multiplyScalar(Math.cos(bearing)).add(e2.clone().multiplyScalar(Math.sin(bearing)));
+    const dir = c.clone().multiplyScalar(Math.cos(angle)).add(t.multiplyScalar(Math.sin(angle))).normalize();
+    const radius = groundAt([dir.x, dir.y, dir.z]);
+    return { dir, radius, q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir) };
+  };
+  const material = (id: keyof typeof CRATER_FIND_LOOK) =>
+    new THREE.MeshStandardMaterial({ color: CRATER_FIND_LOOK[id].color, emissive: CRATER_FIND_LOOK[id].emissive, emissiveIntensity: 0.8, roughness: 0.25, metalness: 0.2, flatShading: true });
+  const at = (o: THREE.Object3D, p: { dir: THREE.Vector3; radius: number; q: THREE.Quaternion }) => {
+    o.position.copy(p.dir.clone().multiplyScalar(p.radius));
+    o.quaternion.copy(p.q);
+    group.add(o);
+  };
+  for (let n = 0; n < (finds['core-crystal'] ?? 0); n++) {
+    // Sześciokątny słup z ostrym szczytem i dwoma mniejszymi u podstawy.
+    const g = mergeGeometries([
+      new THREE.CylinderGeometry(unit * 0.45, unit * 0.5, unit * 2.2, 6).translate(0, unit * 1.1, 0),
+      new THREE.ConeGeometry(unit * 0.45, unit * 0.9, 6).translate(0, unit * 2.65, 0),
+      new THREE.CylinderGeometry(unit * 0.22, unit * 0.25, unit * 1.1, 6).rotateZ(0.5).translate(unit * 0.55, unit * 0.45, 0),
+      new THREE.CylinderGeometry(unit * 0.2, unit * 0.22, unit * 0.9, 6).rotateX(-0.5).translate(0, unit * 0.4, unit * 0.5),
+    ])!;
+    at(new THREE.Mesh(g, material('core-crystal')), place('core-crystal', n));
+  }
+  for (let n = 0; n < (finds['resonant-shard'] ?? 0); n++) {
+    // Odłamek w powietrzu nad półką, wokół cienki pierścień.
+    const holder = new THREE.Group();
+    const shard = new THREE.Mesh(new THREE.OctahedronGeometry(unit * 0.6, 0).scale(0.6, 1.8, 0.6), material('resonant-shard'));
+    shard.position.y = unit * 2.2;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(unit * 0.9, unit * 0.07, 4, 16).rotateX(Math.PI / 2), material('resonant-shard'));
+    ring.position.y = unit * 2.2;
+    holder.add(shard, ring);
+    spinners.push(shard);
+    at(holder, place('resonant-shard', n));
+  }
+  for (let n = 0; n < (finds['deep-record'] ?? 0); n++) {
+    // Pionowa ciemna płyta z jasnymi, równoległymi pasami (uporządkowany wzór).
+    const holder = new THREE.Group();
+    holder.add(new THREE.Mesh(new THREE.BoxGeometry(unit * 1.6, unit * 2.4, unit * 0.3).translate(0, unit * 1.2, 0), new THREE.MeshStandardMaterial({ color: CRATER_FIND_LOOK['deep-record'].color, roughness: 0.6, metalness: 0.3, flatShading: true })));
+    const lines = mergeGeometries([0.6, 1.1, 1.6, 2.0].map((y, i) => new THREE.BoxGeometry(unit * (1.2 - i * 0.15), unit * 0.08, unit * 0.34).translate(0, unit * y, 0)))!;
+    holder.add(new THREE.Mesh(lines, new THREE.MeshBasicMaterial({ color: CRATER_FIND_LOOK['deep-record'].emissive, toneMapped: false })));
+    at(holder, place('deep-record', n));
+  }
+  let time = 0;
+  return {
+    group,
+    update(dt, still) {
+      if (still) return;
+      time += dt;
+      for (const [i, o] of spinners.entries()) {
+        o.rotation.y += dt * 0.8;
+        o.position.y = unit * (2.2 + 0.25 * Math.sin(time * 1.5 + i));
+      }
+    },
+  };
 }
