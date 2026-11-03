@@ -8,14 +8,14 @@ import { pitRadius, type OpenPit } from './openPit.ts';
 import { CORE_RADIUS } from './drill.ts';
 
 /**
- * Wygląd krateru wg etapu (1–4): promień kątowy, liczba tarasów, głębokość (ułamek promienia planety). Lej tarasami
+ * Wygląd krateru wg etapu (1–4): promień kątowy, liczba tarasów, głębokość (ułamek promienia planety), liczba lin wiertnicy. Lej tarasami
  * w dół — na etapie 4 aż do jądra planety (decyzja właściciela 2026-11-02: lej, nie szyb). Robocze.
  */
-export const CRATER_STAGES: Readonly<Record<1 | 2 | 3 | 4, { radius: number; layers: number; depth: number }>> = {
-  1: { radius: 0.1, layers: 2, depth: 0.08 },
-  2: { radius: 0.2, layers: 3, depth: 0.2 },
-  3: { radius: 0.33, layers: 5, depth: 0.4 },
-  4: { radius: 0.5, layers: 8, depth: 0.68 },
+export const CRATER_STAGES: Readonly<Record<1 | 2 | 3 | 4, { radius: number; layers: number; depth: number; cables: number }>> = {
+  1: { radius: 0.1, layers: 2, depth: 0.08, cables: 3 },
+  2: { radius: 0.2, layers: 3, depth: 0.2, cables: 3 },
+  3: { radius: 0.33, layers: 5, depth: 0.4, cables: 4 },
+  4: { radius: 0.5, layers: 8, depth: 0.68, cables: 5 },
 };
 
 /** Najgłębiej, jak schodzi lej (promień od środka planety) — powierzchnia jądra (`drill.ts`, CORE_RADIUS). */
@@ -50,7 +50,7 @@ export function buildCrater(center: Vec3, stage: 1 | 2 | 3 | 4, ground: (dir: Ve
   const st = CRATER_STAGES[stage];
   const R = st.radius;
   const floorAngle = R * 0.14;
-  const look: OpenPitLook = { layers: st.layers, depth: st.depth, shelf: 0.35, floor: 1.9, hang: 0.3, cables: 0, sag: 0, status: 'robocza' };
+  const look: OpenPitLook = { layers: st.layers, depth: st.depth, shelf: 0.35, floor: 1.9, hang: 0.3, cables: st.cables, sag: 0.01, status: 'robocza' };
   const c = norm(center);
   const outline: Vec3[] = Array.from({ length: 129 }, (_, i) => {
     const a = (i / 128) * Math.PI * 2;
@@ -95,4 +95,25 @@ export function buildCrater(center: Vec3, stage: 1 | 2 | 3 | 4, ground: (dir: Ve
   };
   pit.floorRadius = pitRadius(pit, 1, ground(c));
   return pit;
+}
+
+/**
+ * Pole na środek leja (prototyp): najdalej od wszystkich zajętych pól kolonii — lej nie przykrywa budynków.
+ * `taken` — kierunki zajętych pól. Czysta matematyka.
+ */
+export function craterSite(cells: readonly { center: readonly number[]; kind: string }[], taken: readonly Vec3[]): number {
+  let best = 0;
+  let bestDist = -1;
+  for (let i = 0; i < cells.length; i++) {
+    // Środek leja na lądzie (nie na wodzie ani lawie).
+    if (cells[i]!.kind === 'water' || cells[i]!.kind === 'lava') continue;
+    const c = cells[i]!.center as Vec3;
+    let near = Math.PI;
+    for (const t of taken) near = Math.min(near, angleBetween(c, t));
+    if (near > bestDist) {
+      bestDist = near;
+      best = i;
+    }
+  }
+  return best;
 }

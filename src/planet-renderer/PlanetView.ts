@@ -14,8 +14,8 @@ import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layou
 import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, layerAt, rimPoint, type DrillParams } from './drill.ts';
 import { drillLook } from '../data/drill.ts';
-import { buildCrater, CRATER_MIN_RADIUS } from './crater.ts';
-import { createCrystalRig, type CrystalRig } from './crystalRigMesh.ts';
+import { buildCrater, CRATER_MIN_RADIUS, craterSite } from './crater.ts';
+import { createCraterCrystals, createCrystalRig, type CrystalRig } from './crystalRigMesh.ts';
 import { buildOpenPit, oceanCutValue, pitBand, pitRadius, snapToContours, type OpenPit } from './openPit.ts';
 import { createPitCables, type PitCables } from './openPitMeshes.ts';
 import { createOrbitalConstruct, HANG_ATTACH, HANG_BOTTOM, type Hanging } from './colonyMeshes.ts';
@@ -331,16 +331,26 @@ export class PlanetView implements PlanetDisplay {
     if (this.layout) this.applyColony(this.layout, false);
   }
 
-  private setCraterRig(pit: OpenPit | null, stage: number, bottom?: number): void {
+  /** Wiertnica nad lejem i gromady kryształów na półkach (null — usuń). Liny rysuje `setCables`. */
+  private setCraterRig(pit: OpenPit | null, hanging: Hanging | null, stage: number, seed: number): void {
     if (this.craterRig) {
       this.craterRig.group.parent?.remove(this.craterRig.group);
       disposeObject(this.craterRig.group);
       this.craterRig = null;
     }
-    if (!pit) return;
-    const hover = pit.rim + 0.02 + 0.01 * stage;
-    this.craterRig = createCrystalRig(pit.center, hover, bottom ?? pit.floorRadius, 0.02 + 0.008 * stage);
-    this.spinGroup.add(this.craterRig.group);
+    if (!pit || !hanging) return;
+    // Wiertnica i gromady kryształów (w układzie planety) w jednej grupie — usuwane razem.
+    const rig = createCrystalRig(hanging, pit.look.cables);
+    const all = new THREE.Group();
+    all.name = 'crater-rig';
+    all.add(rig.group, createCraterCrystals(pit, (dir) => this.pitGround(dir), 3 + stage * 3, seed));
+    this.craterRig = { group: all, update: rig.update };
+    this.spinGroup.add(all);
+  }
+
+  /** Zawieszenie wiertnicy leja: tuż pod krawędzią, wielkość z promienia leja. */
+  private craterHanging(pit: OpenPit, stage: number): Hanging {
+    return { dir: pit.center, radius: pit.rim - 0.012 - 0.008 * stage, size: Math.min(0.3, pit.centerDistance * 0.3), spin: 0 };
   }
   /** Ostatnia narysowana klatka (położenie i chwila) — do rysowania rzadziej, gdy planeta stoi. */
   private drawn = { yaw: NaN, pitch: NaN, zoom: NaN, at: -Infinity };
@@ -541,7 +551,9 @@ export class PlanetView implements PlanetDisplay {
     this.openPit = pitComplex && this.grid ? buildOpenPit(this.grid, layout, pitComplex, (dir) => this.groundAt(dir)) : null;
     // Prototyp megakonstruktu kryształów (decyzja właściciela 2026-11-02): okrągły krater zamiast odkrywki ekstraktora.
     const proto = this.craterProto;
-    const protoCell = proto && this.grid ? this.grid.cells[proto.cell] : undefined;
+    // Pole −1: lej w miejscu najdalej od zabudowy (prototyp — bez latających budynków).
+    const protoIndex = proto && this.grid ? (proto.cell >= 0 ? proto.cell : craterSite(this.grid.cells, layout.complexes.flatMap((c) => c.cells.map((i) => this.grid!.cells[i]!.center as Vec3)))) : -1;
+    const protoCell = proto && this.grid ? this.grid.cells[protoIndex] : undefined;
     if (proto && protoCell) this.openPit = buildCrater(protoCell.center as Vec3, proto.stage, (dir) => this.groundAt(dir));
     const hanging = this.openPit && !proto ? this.hangingFor(this.openPit) : null;
     this.colony.setHanging(hanging);
@@ -553,8 +565,10 @@ export class PlanetView implements PlanetDisplay {
     const drill = crater ? null : pitComplex ? this.drillFor(pitComplex) : null;
     this.paintLand(layout, this.colony.pads(), drill);
     this.setDrill(crater?.center ?? pitComplex?.core ?? null, crater ? proto!.cell : (pitComplex?.cells[0] ?? 0), drill);
-    this.setCables(this.openPit && hanging ? createPitCables(this.openPit, hanging, (dir) => this.pitGround(dir), this.still) : null);
-    this.setCraterRig(crater, proto?.stage ?? 1);
+    const rigHang = crater && proto ? this.craterHanging(crater, proto.stage) : null;
+    const cableHang = hanging ?? rigHang;
+    this.setCables(this.openPit && cableHang ? createPitCables(this.openPit, cableHang, (dir) => this.pitGround(dir), this.still) : null);
+    this.setCraterRig(crater, rigHang, proto?.stage ?? 1, proto?.cell ?? 0);
     // Wyrobisko może zejść poniżej poziomu morza — tafla oceanu nad nim jest wycięta.
     if (pitComplex && !this.openPit) this.oceanCut.value.set(...pitComplex.core, Math.cos(pitComplex.radius * pitShare(pitComplex.stage)));
     else this.oceanCut.value.set(0, 1, 0, 2);

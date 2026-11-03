@@ -247,7 +247,7 @@ export function craterGround(pit: OpenPit, p: Vec3, colors: CraterColors): Groun
     return lotCrystal(p, 0.08) && layer < 2 ? { rgb: CRYSTAL, glow: 0.8 } : { rgb: shade(colors.layers[Math.min(3, layer + 1)]!, 0.6), glow: 0 };
   }
   const { shelf } = pitBand(pit.look, s);
-  if (!shelf && layer < 2 && lotCrystal(p, 0.05)) return { rgb: CRYSTAL, glow: 0.5 };
+  if (shelf && layer < 2 && lotCrystal(p, 0.012)) return { rgb: CRYSTAL, glow: 0.8 };
   const base = shelf ? shade(colors.layers[layer]!, 1.12) : shade(colors.layers[Math.min(3, layer + 1)]!, 0.8);
   const rgb: [number, number, number] = [0, 1, 2].map((j) => base[j]! + (colors.glow[j]! - base[j]!) * heat * 0.7) as [number, number, number];
   return { rgb, glow: heat * 0.6 };

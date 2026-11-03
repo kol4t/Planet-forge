@@ -5,7 +5,7 @@ import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
 import { complexGround, craterGround, type CraterColors } from './complexLook.ts';
-import { buildCrater } from './crater.ts';
+import { buildCrater, craterSite } from './crater.ts';
 import { drillLook } from '../data/drill.ts';
 import { buildOpenPit, type OpenPit } from './openPit.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
@@ -180,8 +180,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   }
 
   /**
-   * Wiertnica nad kraterem (prototyp, 2D): pikselowy sześciokąt ze stali z jasnym pokładem, turkusowa wiązka w dół
-   * (pulsuje) i krążące odłamki kryształu. Rośnie z etapem.
+   * Wiertnica nad lejem (prototyp, 2D): złota piasta z kryształem nad środkiem i liny-rury do kotew na krawędzi leja
+   * (3–5 lin, jak w 3D), z jasnym błyskiem płynącym po linie.
    */
   private drawCraterRig(toScreen: (p: readonly number[]) => { x: number; y: number; depth: number }, pixel: number, snapX: (x: number) => number, snapY: (y: number) => number, now: number): void {
     const crater = this.crater;
@@ -189,35 +189,43 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const c = toScreen(crater.center);
     if (c.depth < 0.15) return;
     const ctx = this.ctx;
-    const n = 2 + this.craterStage;
+    const outline = crater.outline[0]!;
+    const cables = crater.look.cables;
+    ctx.globalAlpha = Math.min(1, c.depth * 2.5);
+    ctx.lineCap = 'round';
+    for (let k = 0; k < cables; k++) {
+      const end = toScreen(outline[Math.round((k * (outline.length - 1)) / cables)]!);
+      if (end.depth < 0.05) continue;
+      ctx.strokeStyle = '#7fa9b0';
+      ctx.lineWidth = Math.max(1.5, pixel * 0.8);
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      // Kotwa na krawędzi i błysk kryształu płynący po linie.
+      ctx.fillStyle = '#c9a24a';
+      ctx.fillRect(snapX(end.x) - pixel, snapY(end.y) - pixel, pixel * 2, pixel * 2);
+      const t = now === 0 ? 0.5 : (now / 1800 + k / cables) % 1;
+      ctx.fillStyle = '#8ff5e2';
+      ctx.fillRect(snapX(c.x + (end.x - c.x) * t), snapY(c.y + (end.y - c.y) * t), pixel, pixel);
+    }
+    // Piasta: złoty pierścień, stalowy środek, kryształ na wierzchu.
+    const n = 1 + this.craterStage;
     const x0 = snapX(c.x);
     const y0 = snapY(c.y);
-    const pulse = now === 0 ? 1 : 0.6 + 0.4 * Math.sin(now / 300);
-    ctx.globalAlpha = Math.min(1, c.depth * 2.5);
-    // Wiązka — turkusowy słup w dół ekranu (do dna krateru).
-    ctx.fillStyle = `rgba(111, 233, 255, ${0.35 * pulse})`;
-    ctx.fillRect(x0 - pixel, y0, pixel * 2, pixel * (n + 3));
-    // Sześciokąt: rzędy pikseli o zmiennej szerokości (ciemniejsza obręcz, jaśniejszy środek), uniesiony nad krater.
-    const lift = -pixel * (n + 2);
-    for (let row = -n; row <= n; row++) {
-      const half = n * 2 - Math.abs(row);
-      ctx.fillStyle = '#5b6563';
-      ctx.fillRect(x0 - half * pixel, y0 + lift + row * pixel, (half * 2 + 1) * pixel, pixel);
-      if (Math.abs(row) < n - 1) {
-        const inner = half - 2;
-        ctx.fillStyle = '#a9b5b2';
-        ctx.fillRect(x0 - inner * pixel, y0 + lift + row * pixel, (inner * 2 + 1) * pixel, pixel);
+    for (let dy = -n; dy <= n; dy++) {
+      const half = Math.round(Math.sqrt(Math.max(0, n * n - dy * dy)));
+      ctx.fillStyle = '#c9a24a';
+      ctx.fillRect(x0 - half * pixel, y0 + dy * pixel, (half * 2 + 1) * pixel, pixel);
+      if (Math.abs(dy) < n - 1) {
+        const inner = Math.max(0, half - 1);
+        ctx.fillStyle = '#5b6563';
+        ctx.fillRect(x0 - inner * pixel, y0 + dy * pixel, (inner * 2 + 1) * pixel, pixel);
       }
     }
-    // Świecące płozy i odłamki kryształu krążące wokół.
-    ctx.fillStyle = '#6fe9ff';
-    for (const dx of [-n, 0, n]) ctx.fillRect(x0 + dx * pixel, y0 + lift + (n + 1) * pixel, pixel, pixel);
-    const spin = now / 2000;
     ctx.fillStyle = '#8ff5e2';
-    for (let i = 0; i < 6; i++) {
-      const a = spin + (i / 6) * Math.PI * 2;
-      ctx.fillRect(snapX(x0 + Math.cos(a) * pixel * (n * 2 + 3)), snapY(y0 + lift + Math.sin(a) * pixel * (n + 2)), pixel, pixel);
-    }
+    ctx.fillRect(x0, y0 - pixel, pixel, pixel * 3);
+    ctx.fillRect(x0 - pixel, y0, pixel * 3, pixel);
     ctx.globalAlpha = 1;
   }
 
@@ -333,7 +341,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
 
   /** Prototyp: krater kryształów na polu `cell` w etapie `stage` (null — wyłączony). Tylko wygląd. */
   setCraterPrototype(proto: { cell: number; stage: 1 | 2 | 3 | 4 } | null): void {
-    const cell = proto && this.grid ? this.grid.cells[proto.cell] : undefined;
+    const colony = this.colony;
+    const index = proto && this.grid ? (proto.cell >= 0 ? proto.cell : craterSite(this.grid.cells, (colony?.complexes ?? []).flatMap((c) => c.cells.map((i) => this.grid!.cells[i]!.center as [number, number, number])))) : -1;
+    const cell = proto && this.grid ? this.grid.cells[index] : undefined;
     this.crater = proto && cell ? buildCrater(cell.center as [number, number, number], proto.stage, () => 1) : null;
     this.craterStage = proto?.stage ?? 1;
     const look = drillLook(this.planetType);
