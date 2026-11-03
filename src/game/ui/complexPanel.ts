@@ -140,7 +140,21 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
     const cv = options.construct.view();
     const go = q<HTMLButtonElement>('.cp-construct-go');
     const costText = `${formatInt(cv.cost.metal)} metalu · ${formatInt(cv.cost.crystal)} kryształów`;
-    q('.cp-construct').textContent = cv.built
+    const crystal = cv.kind === 'crystal';
+    const crater = cv.crater
+      ? `Lej: etap ${cv.crater.stage} z 4${cv.crater.stage === 4 ? ' — sięga jądra planety' : ''} · ${cv.crater.fields} pól zajętych na zawsze.`
+      : '';
+    q('.cp-construct').textContent = crystal
+      ? cv.built
+        ? `Działa: wiertnica wisi na linach nad lejem i drąży ku jądru. Premia +${cv.bonus}% całego budynku i znaleziska (pojawiają się w leju). Lej rośnie z wydobyciem złoża — co ćwierć drogi do wyczerpania o etap.\n${crater}`
+        : cv.building
+          ? `Wiertnica w budowie — gotowa za ${formatDuration(cv.building.secondsLeft)} (${Math.round(cv.building.progress * 100)}%). Ekstraktor pracuje; potem nad jego obszarem zacznie się lej.\n${crater}`
+          : `Od Ekstraktora poz. 40 nad jego obszarem staje wiertnica na linach: +${cv.bonus}% całego budynku i znaleziska. Drąży lej, który rośnie z wydobyciem aż do jądra planety i zostaje na zawsze — jego pól nie da się zabudować.\n` +
+            `Koszt: ${costText} · budowa ${formatDuration(cv.seconds)} (ekstraktor pracuje).` +
+            (cv.crater?.left ? `\nZostał tu lej po poprzedniej wiertnicy (${crater.toLowerCase()}) — nowa wiertnica drąży go dalej.` : '') +
+            (cv.legacyMega ? `\nDawny megakompleks działa do czasu zbudowania wiertnicy.` : '') +
+            (cv.reason ? `\n${cv.reason}` : '')
+      : cv.built
       ? `Działa: kompleks w układzie promienistym — 4 fabryki na ramionach, pasy do konstruktu. Premia +${cv.bonus}% całego budynku i znaleziska. Nie da się go przenieść inaczej niż przez orbitę (niżej).`
       : cv.building
         ? `W budowie na placu — gotowy za ${formatDuration(cv.building.secondsLeft)} (${Math.round(cv.building.progress * 100)}%). Kopalnia pracuje; po ukończeniu osady przejdą w układ promienisty.`
@@ -173,19 +187,24 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
       const o = options.orbit;
       const lines: string[] = [];
       if (cv.built && orbit.launch.preparing) {
-        lines.push(`Przygotowanie do startu na orbitę — ${formatDuration(orbit.launch.preparing.secondsLeft)}. Konstrukt nie daje teraz premii; po starcie zostaną osady.`);
+        lines.push(`Przygotowanie do startu na orbitę — ${formatDuration(orbit.launch.preparing.secondsLeft)}. ${crystal ? 'Wiertnica nie daje teraz premii; po starcie zostanie lej.' : 'Konstrukt nie daje teraz premii; po starcie zostaną osady.'}`);
         orbitRow.append(armedButton('Anuluj start', 'tp-secondary', o.cancel));
       } else if (cv.built) {
-        lines.push(`Wyrzuć na orbitę: przygotowanie ${formatDuration(orbit.launch.prepareSeconds)} (bez premii), ${fuelLabel(orbit.launch.fuel)}. Na planecie zostaną 4 osady z pustym placem; konstrukt ściągniesz potem na inną planetę z kompletem osad.` + (orbit.launch.reason ? `\n${orbit.launch.reason}` : ''));
+        lines.push(
+          (crystal
+            ? `Wyrzuć na orbitę: przygotowanie ${formatDuration(orbit.launch.prepareSeconds)} (bez premii), ${fuelLabel(orbit.launch.fuel)}. Na planecie zostanie lej (na zawsze); wiertnicę ściągniesz potem nad Ekstraktor poz. 40 innej planety.`
+            : `Wyrzuć na orbitę: przygotowanie ${formatDuration(orbit.launch.prepareSeconds)} (bez premii), ${fuelLabel(orbit.launch.fuel)}. Na planecie zostaną 4 osady z pustym placem; konstrukt ściągniesz potem na inną planetę z kompletem osad.`) + (orbit.launch.reason ? `\n${orbit.launch.reason}` : ''),
+        );
         const b = armedButton('Wyrzuć na orbitę', 'tp-secondary', o.launch);
         b.disabled = !!orbit.launch.reason;
         orbitRow.append(b);
       } else if (orbit.incoming) {
-        lines.push(`Megakonstrukt z orbity ${orbit.incoming.originName} ląduje tutaj za ${formatDuration(orbit.incoming.secondsLeft)}.`);
+        lines.push(`${crystal ? 'Wiertnica' : 'Megakonstrukt'} z orbity ${orbit.incoming.originName} ląduje tutaj za ${formatDuration(orbit.incoming.secondsLeft)}.`);
       } else if (orbit.inOrbit.length > 0) {
-        if (orbit.landingReason) lines.push(`Na orbicie czeka megakonstrukt (${orbit.inOrbit.length}). ${orbit.landingReason}`);
+        const what = crystal ? 'wiertnica kryształów' : 'megakonstrukt';
+        if (orbit.landingReason) lines.push(`Na orbicie czeka ${what} (${orbit.inOrbit.length}). ${orbit.landingReason}`);
         else {
-          lines.push('Na orbicie czeka megakonstrukt — możesz go ściągnąć tutaj zamiast budować nowy:');
+          lines.push(`Na orbicie czeka ${what} — możesz ${crystal ? 'ją' : 'go'} ściągnąć tutaj zamiast budować now${crystal ? 'ą' : 'y'}:`);
           for (const k of orbit.inOrbit.slice(0, 3)) {
             const b = document.createElement('button');
             b.type = 'button';
@@ -214,7 +233,7 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
         act(options.construct!.cancel)();
       });
     } else {
-      go.textContent = 'Zbuduj megakonstrukt';
+      go.textContent = crystal ? 'Zbuduj wiertnicę' : 'Zbuduj megakonstrukt';
       go.disabled = !!cv.reason;
       go.addEventListener('click', act(options.construct.start));
     }

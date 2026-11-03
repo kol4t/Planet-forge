@@ -5,7 +5,7 @@ import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
 import { complexGround, craterGround, type CraterColors } from './complexLook.ts';
-import { buildCrater, craterSite, craterSpot } from './crater.ts';
+import { buildCrater, craterReach, craterSite, craterSpot, type CraterLook } from './crater.ts';
 import { drillLook } from '../data/drill.ts';
 import { buildOpenPit, type OpenPit } from './openPit.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
@@ -44,6 +44,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private crater: OpenPit | null = null;
   private craterStage = 1;
   private craterFinds: Readonly<Record<string, number>> = {};
+  private craterRig = true;
+  private craterKey = 'null';
   private craterColors: CraterColors | null = null;
   private planetType = '';
   private levels: BuildingLevels | undefined;
@@ -106,6 +108,7 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   setPlanet(planet: Planet): void {
     this.planetType = planet.definitionId;
     this.crater = null;
+    this.craterKey = 'null';
     this.craterColors = null;
     this.look = discLook(planet);
     this.sampler = this.look.sampler;
@@ -191,7 +194,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     if (c.depth < 0.15) return;
     const ctx = this.ctx;
     const outline = crater.outline[0]!;
-    const cables = crater.look.cables;
+    // Bez wiertnicy (odleciała) — same liny nie, tylko znaleziska.
+    const cables = this.craterRig ? crater.look.cables : 0;
     ctx.globalAlpha = Math.min(1, c.depth * 2.5);
     ctx.lineCap = 'round';
     for (let k = 0; k < cables; k++) {
@@ -242,6 +246,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
           for (let r = 0; r < 3; r++) ctx.fillRect(x - sz * pixel, y - (3 - r * 1.2) * sz * pixel, 2 * sz * pixel, Math.max(1, sz * 0.5) * pixel);
         }
       }
+    }
+    if (!this.craterRig) {
+      ctx.globalAlpha = 1;
+      return;
     }
     // Piasta: złoty pierścień, stalowy środek, kryształ na wierzchu.
     const n = 1 + this.craterStage;
@@ -373,13 +381,18 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     ctx.globalAlpha = 1;
   }
 
-  /** Prototyp: krater kryształów na polu `cell` w etapie `stage` (null — wyłączony). Tylko wygląd. */
-  setCraterPrototype(proto: { cell: number; stage: 1 | 2 | 3 | 4; finds?: Readonly<Record<string, number>> } | null): void {
+  /** Lej megakonstruktu kryształów (z gry albo prototyp; null — brak): środek, pola, etap, wiertnica, znaleziska. */
+  setCrater(proto: CraterLook | null): void {
+    const key = JSON.stringify(proto);
+    if (key === this.craterKey) return;
+    this.craterKey = key;
     const colony = this.colony;
     const index = proto && this.grid ? (proto.cell >= 0 ? proto.cell : craterSite(this.grid.cells, (colony?.complexes ?? []).flatMap((c) => c.cells.map((i) => this.grid!.cells[i]!.center as [number, number, number])))) : -1;
     const cell = proto && this.grid ? this.grid.cells[index] : undefined;
-    this.crater = proto && cell ? buildCrater(cell.center as [number, number, number], proto.stage, () => 1) : null;
+    const reach = proto?.cells?.length && cell && this.grid ? craterReach(this.grid.cells, cell.center as [number, number, number], proto.cells) : undefined;
+    this.crater = proto && cell ? buildCrater(cell.center as [number, number, number], proto.stage, () => 1, reach) : null;
     this.craterStage = proto?.stage ?? 1;
+    this.craterRig = proto?.rig !== false;
     this.craterFinds = proto?.finds ?? {};
     const look = drillLook(this.planetType);
     const rgb = (h: string): [number, number, number] => {
@@ -634,6 +647,8 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             const index = cell >= 0 ? colony.owner[cell]! : -1;
             if (index < 0) return null;
             const c = colony.complexes[index]!;
+            // Lej megakonstruktu kryształów zamiast zabudowy Ekstraktora — poza lejem naturalny teren.
+            if (crater && c.building === 'crystalMine') return null;
             // Kompleks kopalni metalu z modelu (etap 2) — teren naturalny, obiekty na symbolach.
             if (c.building === 'metalMine' && this.metal) return null;
             // Farma wiatrowa stoi na naturalnym terenie.
@@ -692,8 +707,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     for (const c of this.colony.complexes) {
       const grow = this.growth(c.building);
       if (grow <= 0) continue;
-      // Kompleks kopalni metalu z modelu — symbole (`drawMetal`) zamiast zabudowy pól.
+      // Kompleks kopalni metalu z modelu — symbole (`drawMetal`) zamiast zabudowy pól; lej zamiast Ekstraktora.
       if (c.building === 'metalMine' && this.metal) continue;
+      if (c.building === 'crystalMine' && this.crater) continue;
       // Wielka odkrywka: ekstraktor nad środkiem dziury, nie w środku obszaru.
       const pit = c.building === 'crystalMine' ? this.openPit : null;
       const core = toScreen(pit?.center ?? c.core);

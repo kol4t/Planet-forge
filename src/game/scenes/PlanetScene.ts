@@ -53,6 +53,9 @@ import { geologyLines } from '../ui/geologyText.ts';
 import { compareGeology } from '../../core/economy/geology.ts';
 import { fuelLabel } from '../../core/economy/fuel.ts';
 
+/** Znaleziska widoczne w leju megakonstruktu kryształów (`crystalRigMesh.ts`, `CRATER_FIND_LOOK`). */
+const CRATER_FINDS = ['core-crystal', 'resonant-shard', 'deep-record'] as const;
+
 export interface Viewport {
   width: number;
   height: number;
@@ -1719,6 +1722,15 @@ export class PlanetScene extends Phaser.Scene {
       colony.complexes,
       colony.metalComplex,
     );
+    // Lej megakonstruktu kryształów (v0.69): etap, pola, wiertnica, znaleziska w leju — renderer przebudowuje przy zmianie.
+    const crater = controller.craterState();
+    const craterKey = crater ? `${controller.address}|${crater.center}|${crater.stage}|${crater.rig}|${crater.cells.length}|${CRATER_FINDS.map((f) => crater.finds[f] ?? 0).join(',')}` : '';
+    if (craterKey !== this.craterKey) {
+      this.craterKey = craterKey;
+      this.deps.display.setCrater?.(
+        crater ? { cell: crater.center, cells: crater.cells, stage: crater.stage, rig: crater.rig, finds: Object.fromEntries(CRATER_FINDS.map((f) => [f, crater.finds[f] ?? 0])) } : null,
+      );
+    }
     // Kolektor energii gwiazdy na orbicie (v0.44) — tani zapis liczby; renderer przebudowuje tylko przy zmianie.
     this.deps.display.setOrbital(controller.collectorView(now).level);
     // Stacja macierzysta (v0.55) — pierścień na orbicie planety, nad którą krąży.
@@ -2251,6 +2263,9 @@ export class PlanetScene extends Phaser.Scene {
   private cardAt: CardPlacement | null = null;
   private cardRefreshAt = 0;
 
+  /** Ostatni lej przekazany rendererowi (adres, środek, etap, wiertnica, znaleziska). */
+  private craterKey = '';
+
   /** Okno „Kompleks” (HTML) budynku aktywnej planety. */
   private openComplex(id: BuildingId): void {
     const c = this.deps.controller;
@@ -2265,7 +2280,12 @@ export class PlanetScene extends Phaser.Scene {
             construct: { view: () => c.metalConstructView(), start: () => c.startMetalConstruct(), cancel: () => c.cancelMetalConstruct() },
             orbit: { view: () => c.orbitView(), launch: () => c.launchConstruct(), cancel: () => c.cancelLaunch(), land: (index: number) => c.landConstruct(index) },
           }
-        : {}),
+        : id === 'crystalMine'
+          ? {
+              construct: { view: () => c.crystalConstructView(), start: () => c.startCrystalConstruct(), cancel: () => c.cancelCrystalConstruct() },
+              orbit: { view: () => c.crystalOrbitView(), launch: () => c.launchCrystal(), cancel: () => c.cancelCrystalLaunch(), land: (index: number) => c.landCrystal(index) },
+            }
+          : {}),
       splitMega: () => c.splitMega(id),
       finds: () => c.findsView().total,
       openFinds: () => {

@@ -11,6 +11,7 @@ imperium gwiezdne, antymateria jako paliwo.
 | Planeta: start, pola, złoża (3 rodzaje złóż) | ✅ | v0.45, v0.65 |
 | Rozwój: 6 budynków do poz. 40, kompleksy, badania, kolejka 5 | ✅ | v0.38–v0.45, v0.65 |
 | Megakonstrukt kopalni metalu (główny motyw planety, ok. tydzień wydobycia) | ✅ | v0.59–v0.61, v0.65 |
+| Megakonstrukt kryształów (wiertnica nad lejem do jądra, orbita) | ✅ | v0.69 |
 | Wyczerpanie: 80% złóż = planeta wyeksploatowana, resztki wolniej | ✅ | v0.54 |
 | Transport surowców, przeniesienie konstruktu (orbita, transfer) | ✅ | v0.36, v0.56, v0.61 |
 | Antymateria = paliwo każdego lotu | ✅ | v0.53 |
@@ -73,6 +74,6 @@ przed ogłoszeniem MVP.
 
 1. **Płynność iPada** — wyniki z listy wyżej (blokujące).
 2. ~~Nazwa „piraci”~~ — **zostaje** (decyzja właściciela 2026-11-02); do odnotowania w Projekcie lore (K-005, O-205 / O-206).
-3. **Megakonstrukt kryształów** — **powstaje przed MVP** (decyzja właściciela 2026-11-02), następny etap.
+3. **Megakonstrukt kryształów** — **gotowy** (v0.69: wiertnica i lej do jądra, `docs/megakonstrukt-krysztalow.md`).
 4. **Odłożone (zapisane w `CLAUDE.md`):** antymateria zużywana przez megakonstrukty, nowy wygląd Ekstraktora kryształów,
    DNA, osobny ekran SI.

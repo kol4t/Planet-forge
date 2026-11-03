@@ -14,8 +14,8 @@ import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layou
 import { pitDepthMax, pitShare, pitSink3d } from './complexLook.ts';
 import { bearingOf, buildDrill, drillParams, drillStage, layerAt, rimPoint, type DrillParams } from './drill.ts';
 import { drillLook } from '../data/drill.ts';
-import { buildCrater, CRATER_MIN_RADIUS, craterSite } from './crater.ts';
-import { createCraterCrystals, createCraterFinds, createCrystalRig, type CraterFinds, type CrystalRig } from './crystalRigMesh.ts';
+import { buildCrater, CRATER_MIN_RADIUS, craterReach, craterSite, type CraterLook } from './crater.ts';
+import { createCraterCrystals, createCraterFinds, createCrystalRig, type CrystalRig } from './crystalRigMesh.ts';
 import { buildOpenPit, oceanCutValue, pitBand, pitRadius, snapToContours, type OpenPit } from './openPit.ts';
 import { createPitCables, type PitCables } from './openPitMeshes.ts';
 import { createOrbitalConstruct, HANG_ATTACH, HANG_BOTTOM, type Hanging } from './colonyMeshes.ts';
@@ -201,6 +201,7 @@ export class PlanetView implements PlanetDisplay {
     // Obiekty kompleksu kopalni metalu i drogi stoją na terenie (bez obniżenia odkrywki).
     this.colony.setGround((dir) => this.groundAt(dir));
     this.setDrill(null, 0, null);
+    this.craterProto = null;
     this.setCables(null);
     this.openPit = null;
     // Widok układu (etap D): ostatnie modele planet zostają w pamięci (do `PLANET_CACHE`) — powrót na planetę bez
@@ -322,11 +323,12 @@ export class PlanetView implements PlanetDisplay {
 
   private paused = false;
   /** Prototyp krateru megakonstruktu kryształów (zrzuty do oceny właściciela): pole środka i etap 1–4. */
-  private craterProto: { cell: number; stage: 1 | 2 | 3 | 4; finds?: CraterFinds } | null = null;
+  private craterProto: CraterLook | null = null;
   private craterRig: CrystalRig | null = null;
 
-  /** Prototyp: krater kryształów na polu `cell` w etapie `stage` (null — wyłączony). Tylko wygląd. */
-  setCraterPrototype(proto: { cell: number; stage: 1 | 2 | 3 | 4; finds?: CraterFinds } | null): void {
+  /** Lej megakonstruktu kryształów (z gry albo prototyp; null — brak): środek, pola, etap, wiertnica, znaleziska. */
+  setCrater(proto: CraterLook | null): void {
+    if (JSON.stringify(proto) === JSON.stringify(this.craterProto)) return;
     this.craterProto = proto;
     if (this.layout) this.applyColony(this.layout, false);
   }
@@ -338,9 +340,9 @@ export class PlanetView implements PlanetDisplay {
       disposeObject(this.craterRig.group);
       this.craterRig = null;
     }
-    if (!pit || !hanging) return;
-    // Wiertnica i gromady kryształów (w układzie planety) w jednej grupie — usuwane razem.
-    const rig = createCrystalRig(hanging, pit.look.cables);
+    if (!pit) return;
+    // Wiertnica (gdy wisi nad lejem) i gromady kryształów ze znaleziskami (w układzie planety) w jednej grupie.
+    const rig = hanging ? createCrystalRig(hanging, pit.look.cables) : { group: new THREE.Group(), update: () => undefined };
     const all = new THREE.Group();
     all.name = 'crater-rig';
     const finds = createCraterFinds(pit, (dir) => this.pitGround(dir), this.craterProto?.finds ?? {}, seed);
@@ -561,9 +563,12 @@ export class PlanetView implements PlanetDisplay {
     // Pole −1: lej w miejscu najdalej od zabudowy (prototyp — bez latających budynków).
     const protoIndex = proto && this.grid ? (proto.cell >= 0 ? proto.cell : craterSite(this.grid.cells, layout.complexes.flatMap((c) => c.cells.map((i) => this.grid!.cells[i]!.center as Vec3)))) : -1;
     const protoCell = proto && this.grid ? this.grid.cells[protoIndex] : undefined;
-    if (proto && protoCell) this.openPit = buildCrater(protoCell.center as Vec3, proto.stage, (dir) => this.groundAt(dir));
+    const reach = proto?.cells?.length && protoCell && this.grid ? craterReach(this.grid.cells, protoCell.center as Vec3, proto.cells) : undefined;
+    if (proto && protoCell) this.openPit = buildCrater(protoCell.center as Vec3, proto.stage, (dir) => this.groundAt(dir), reach);
     const hanging = this.openPit && !proto ? this.hangingFor(this.openPit) : null;
     this.colony.setHanging(hanging);
+    // Lej zamiast zabudowy Ekstraktora (megakonstrukt kryształów).
+    this.colony.setHidden(proto && protoCell ? 'crystalMine' : null);
     this.colony.setSink(this.pitSink(layout));
     if (fresh) this.colony.setLayout(layout);
     else this.colony.updateLayout(layout);
@@ -572,7 +577,7 @@ export class PlanetView implements PlanetDisplay {
     const drill = crater ? null : pitComplex ? this.drillFor(pitComplex) : null;
     this.paintLand(layout, this.colony.pads(), drill);
     this.setDrill(crater?.center ?? pitComplex?.core ?? null, crater ? proto!.cell : (pitComplex?.cells[0] ?? 0), drill);
-    const rigHang = crater && proto ? this.craterHanging(crater, proto.stage) : null;
+    const rigHang = crater && proto && proto.rig !== false ? this.craterHanging(crater, proto.stage) : null;
     const cableHang = hanging ?? rigHang;
     this.setCables(this.openPit && cableHang ? createPitCables(this.openPit, cableHang, (dir) => this.pitGround(dir), this.still) : null);
     this.setCraterRig(crater, rigHang, proto?.stage ?? 1, proto?.cell ?? 0);

@@ -46,9 +46,10 @@ function onCircle(c: Vec3, p: Vec3, angle: number): Vec3 {
  * Okrągły krater o środku `center` i etapie `stage` (1–4). `ground` — promień pierwotnego terenu (poziom krawędzi =
  * średnia terenu na obwodzie). Zwraca obiekt jak wielka odkrywka — renderer liczy z niego teren i krawędzie.
  */
-export function buildCrater(center: Vec3, stage: 1 | 2 | 3 | 4, ground: (dir: Vec3) => number): OpenPit {
+export function buildCrater(center: Vec3, stage: 1 | 2 | 3 | 4, ground: (dir: Vec3) => number, reach?: number): OpenPit {
   const st = CRATER_STAGES[stage];
-  const R = st.radius;
+  // Zasięg leja na etapie 4 (obszar Ekstraktora) — wcześniejsze etapy w tej samej proporcji co `CRATER_STAGES`.
+  const R = reach ? (reach * st.radius) / CRATER_STAGES[4].radius : st.radius;
   const floorAngle = R * 0.14;
   const look: OpenPitLook = { layers: st.layers, depth: st.depth, shelf: 0.35, floor: 1.9, hang: 0.3, cables: st.cables, sag: 0.01, status: 'robocza' };
   const c = norm(center);
@@ -126,4 +127,26 @@ export function craterSpot(pit: OpenPit, s: number, bearing: number): Vec3 {
   const angle = pit.centerDistance - s * (pit.centerDistance - pit.floorAngle);
   const d: Vec3 = [t0[0] * Math.cos(bearing) + t1[0] * Math.sin(bearing), t0[1] * Math.cos(bearing) + t1[1] * Math.sin(bearing), t0[2] * Math.cos(bearing) + t1[2] * Math.sin(bearing)];
   return norm([c[0] * Math.cos(angle) + d[0] * Math.sin(angle), c[1] * Math.cos(angle) + d[1] * Math.sin(angle), c[2] * Math.cos(angle) + d[2] * Math.sin(angle)]);
+}
+
+/** Lej do wyglądu (z gry albo z prototypu): pole środka (−1 — z dala od zabudowy), pola leja, etap, wiertnica, znaleziska. */
+export interface CraterLook {
+  cell: number;
+  /** Pola leja (obszar Ekstraktora) — z nich zasięg leja na etapie 4; brak — zasięg z `CRATER_STAGES`. */
+  cells?: readonly number[];
+  stage: 1 | 2 | 3 | 4;
+  /** Wiertnica wisi nad lejem (brak = tak). */
+  rig?: boolean;
+  finds?: Readonly<Record<string, number>>;
+}
+
+/** Zasięg leja na etapie 4 z jego pól: najdalszy środek pola od środka leja + pół pola (najwyżej 0,6 rad). */
+export function craterReach(cells: readonly { center: readonly number[]; radius: number }[], center: Vec3, ids: readonly number[]): number {
+  let reach = 0;
+  for (const id of ids) {
+    const c = cells[id];
+    if (!c) continue;
+    reach = Math.max(reach, angleBetween(center, c.center as Vec3) + c.radius * 0.6);
+  }
+  return Math.min(0.6, Math.max(0.06, reach));
 }

@@ -428,6 +428,19 @@ export interface Balance {
     orbit: { prepareSeconds: number; launchFuel: number; landingFuelFactor: number; speedFactor: number };
     status: 'robocza';
   };
+  /**
+   * Megakonstrukt kryształów (decyzje właściciela 2026-11-03, `docs/megakonstrukt-krysztalow.md`): wiertnica nad lejem
+   * w obszarze Ekstraktora; lej rośnie co `1/stages` wydobycia złoża (od startu konstruktu do progu wyeksploatowania)
+   * i zostaje na zawsze. Wyrzucenie na orbitę i ściągnięcie — jak megakonstrukt metalu (`metalComplex.orbit`).
+   */
+  crystalComplex: {
+    /** Poziom Ekstraktora potrzebny do budowy i do lądowania wiertnicy. */
+    level: number;
+    constructSeconds: { min: number; max: number };
+    constructCost: { metal: number; crystal: number };
+    stages: number;
+    status: 'robocza';
+  };
   buildings: readonly BuildingDef[];
 }
 
@@ -789,6 +802,8 @@ export interface OrbitalConstruct {
   lifted?: boolean;
   /** Przechwycenie przez piratów w czasie lądowania (etap 7) — tylko opóźnienie. */
   incident?: MissionIncident;
+  /** Rodzaj konstruktu: wiertnica kryształów (od v0.69); brak = megakonstrukt kopalni metalu. */
+  kind?: 'crystal';
 }
 
 /** Stacja kolonii (etap 9, robocza): mała stacja-przekaźnik na orbicie kolonii, działa od `readyAt`. */

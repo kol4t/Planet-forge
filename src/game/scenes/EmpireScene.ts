@@ -952,14 +952,16 @@ export class EmpireScene extends OverlayScene {
     const orbiting = c.orbitingView();
     if (orbiting.length > 0) {
       y += this.s(8);
-      line('Megakonstrukty poza planetą', 13, COLORS.gold, { fontStyle: '600' }, 6);
+      line('Megakonstrukty i wiertnice poza planetą', 13, COLORS.gold, { fontStyle: '600' }, 6);
       for (const o of orbiting) {
         line(
           o.state === 'przygotowanie'
-            ? `${o.originName}: przygotowanie do startu`
+            ? `${o.crystal ? 'Wiertnica kryształów' : 'Megakonstrukt'} — ${o.originName}: przygotowanie do startu`
             : o.state === 'na_orbicie'
-              ? `Na orbicie ${o.originName} — ściągniesz go w oknie Kompleks Kopalni metalu na planecie z kompletem osad (poz. 40).`
-              : `Leci z orbity ${o.originName} na ${o.targetName}.`,
+              ? o.crystal
+                ? `Wiertnica kryształów na orbicie ${o.originName} — ściągniesz ją w oknie Kompleks Ekstraktora kryształów (poz. 40).`
+                : `Na orbicie ${o.originName} — ściągniesz go w oknie Kompleks Kopalni metalu na planecie z kompletem osad (poz. 40).`
+              : `${o.crystal ? 'Wiertnica kryształów leci' : 'Leci'} z orbity ${o.originName} na ${o.targetName}.`,
           11.5,
           COLORS.muted,
           {},
@@ -1055,10 +1057,10 @@ export class EmpireScene extends OverlayScene {
         ...c.shipmentsView().map((t) => `Transportowiec: ${t.fromName} → ${t.toName} · ${formatInt(t.cargo.metal + t.cargo.crystal)} · ${formatDuration(t.secondsLeft)}`),
         ...c.orbitingView().map((o) =>
           o.state === 'przygotowanie'
-            ? `Megakonstrukt z ${o.originName}: start na orbitę za ${formatDuration(o.secondsLeft)}`
+            ? `${o.crystal ? 'Wiertnica' : 'Megakonstrukt'} z ${o.originName}: start na orbitę za ${formatDuration(o.secondsLeft)}`
             : o.state === 'na_orbicie'
-              ? `Megakonstrukt na orbicie ${o.originName} — czeka na ściągnięcie`
-              : `Megakonstrukt: orbita ${o.originName} → ${o.targetName} · ${formatDuration(o.secondsLeft)}`,
+              ? `${o.crystal ? 'Wiertnica' : 'Megakonstrukt'} na orbicie ${o.originName} — czeka na ściągnięcie`
+              : `${o.crystal ? 'Wiertnica' : 'Megakonstrukt'}: orbita ${o.originName} → ${o.targetName} · ${formatDuration(o.secondsLeft)}`,
         ),
         ...c.transfersView().map((t) =>
           t.phase === 'packing'

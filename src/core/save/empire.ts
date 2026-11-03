@@ -24,6 +24,10 @@ import { deserialize, parseEconomy, parsePlanetRef, SAVE_KEY, type SaveData } fr
 import type { Plots } from '../colony/plots.ts';
 import { parseComplexes, type Complex } from '../colony/complexes.ts';
 import { parseMetalComplex, type MetalComplexSave } from '../colony/complexLayout.ts';
+import { parseCrystalComplex, type CrystalComplexSave } from '../economy/crystalConstruct.ts';
+
+/** Górna granica numeru pola przy odczycie (dokładnie sprawdza gra względem siatki planety). */
+const MAX_CELLS = 100_000;
 import { COMPLEX_FAMILIES } from '../../data/complexes.ts';
 
 export const EMPIRE_VERSION = 2;
@@ -67,6 +71,11 @@ export interface SlotSave {
    * Brak = zapis starszy — środek wybierany automatycznie przy pierwszym przeliczeniu pól (`ensureMetalComplex`).
    */
   metalComplex?: MetalComplexSave;
+  /**
+   * Megakonstrukt kryształów i lej (od v0.69 — opcjonalne): faza, pola leja, środek, wydobycie na starcie, etap, budowa.
+   * Pola sprawdza gra względem siatki planety (spoza siatki pomijane).
+   */
+  crystalComplex?: CrystalComplexSave;
 }
 
 export interface EmpireSave {
@@ -229,6 +238,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
       ...(parseStation(raw.starCollector) ? { starCollector: parseStation(raw.starCollector) } : {}),
       ...(parseAfloat(raw.afloat).length > 0 ? { afloat: parseAfloat(raw.afloat) } : {}),
       ...(parseMetalComplex(raw.metalComplex) ? { metalComplex: parseMetalComplex(raw.metalComplex)! } : {}),
+      ...(parseCrystalComplex(raw.crystalComplex, MAX_CELLS) ? { crystalComplex: parseCrystalComplex(raw.crystalComplex, MAX_CELLS)! } : {}),
     });
   }
   if (!isNum(data.active) || !Number.isInteger(data.active) || data.active < 0 || data.active >= slots.length) return null;

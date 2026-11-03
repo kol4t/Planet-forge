@@ -1605,6 +1605,12 @@ export class ColonyMeshes {
     return out;
   }
 
+  /** Budynek bez zabudowy (lej megakonstruktu kryształów zamiast Ekstraktora, v0.69). Przed `updateLayout`. */
+  setHidden(building: BuildingId | null): void {
+    this.hidden = building;
+  }
+  private hidden: BuildingId | null = null;
+
   /** Obniżenie terenu (odkrywka) w punkcie — konstrukcje odkrywki stoją niżej. */
   setSink(sink: (dir: Vec3) => number): void {
     this.sink = sink;
@@ -1651,6 +1657,7 @@ export class ColonyMeshes {
     this.belts = [];
     this.roadItems = [];
     for (const c of layout.complexes) {
+      if (c.building === this.hidden) continue;
       const metal = c.building === 'metalMine' ? this.metal : null;
       const sig = metal ? `${metal.layout.obiekty.map((o) => o.slotId + o.poziom).join(',')}${metal.mega ? '+' : ''}` : `${c.cells.length}@${c.stage}${c.mega ? '+' : ''}`;
       if (this.seeded && this.signature.get(c.building) !== sig && !this.still) this.grownAt.set(c.building, this.time);
