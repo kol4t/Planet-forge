@@ -3,8 +3,9 @@
 // Kopalnia metalu: gęsta zabudowa przemysłowa (dachy złote i szare, drogi, żar okien pieców) — gęstsza z etapem.
 // Ekstraktor kryształów: odkrywka — tarasowe pierścienie schodzące w głąb (ciemniej ku środkowi), świecące kryształy
 // na dnie, zabudowa na krawędzi; dziura rośnie z etapem. Pozostałe budynki — spójny grunt w tym samym stylu.
-import { CRATER_DEPTH, drillStage } from './drill.ts';
-import { pitBand, type OpenPit } from './openPit.ts';
+import { CRATER_DEPTH, drillStage, layerAt } from './drill.ts';
+import { pitBand, pitDepthAt, type OpenPit } from './openPit.ts';
+import { CRATER_MIN_RADIUS } from './crater.ts';
 import type { ColonyComplex, Vec3 } from './colony.ts';
 import { angleBetween, hash01 } from './colony.ts';
 
@@ -229,4 +230,32 @@ export function complexGround(c: ColonyComplex, p: Vec3, pit: OpenPit | null = n
 function lotCrystal(p: Vec3, share: number): boolean {
   const k = 160;
   return hash01(Math.floor(p[0] * k) * 92821 + Math.floor(p[1] * k) * 68917 + Math.floor(p[2] * k) * 1237, 4) < share;
+}
+
+/**
+ * Krater megakonstruktu kryształów (prototyp, 2D): tarasowy lej — półki jaśniejsze, zbocza ciemniejsze; barwa warstwy
+ * wg głębokości (skorupa → płaszcz → strefa gorąca), turkusowe żyły kryształu w skorupie; na dnie najgłębszego leja
+ * świeci jądro planety. Barwy jak w 3D (robocze).
+ */
+export function craterGround(pit: OpenPit, p: Vec3, colors: CraterColors): GroundColor {
+  const s = pit.sCached(p);
+  const radius = 1 - pitDepthAt(pit.look, s);
+  const layer = layerAt(radius);
+  const heat = Math.max(0, 1 - (radius - CRATER_MIN_RADIUS) / 0.12);
+  if (s >= 0.999) {
+    if (radius < CRATER_MIN_RADIUS + 0.03) return { rgb: colors.core, glow: 1 };
+    return lotCrystal(p, 0.08) && layer < 2 ? { rgb: CRYSTAL, glow: 0.8 } : { rgb: shade(colors.layers[Math.min(3, layer + 1)]!, 0.6), glow: 0 };
+  }
+  const { shelf } = pitBand(pit.look, s);
+  if (layer < 3 && lotCrystal(p, shelf ? 0.16 : 0.05)) return { rgb: CRYSTAL, glow: 0.8 };
+  const base = shelf ? shade(colors.layers[layer]!, 1.12) : shade(colors.layers[Math.min(3, layer + 1)]!, 0.8);
+  const rgb: [number, number, number] = [0, 1, 2].map((j) => base[j]! + (colors.glow[j]! - base[j]!) * heat * 0.7) as [number, number, number];
+  return { rgb, glow: heat * 0.6 };
+}
+
+/** Barwy warstw planety dla krateru (2D): skorupa, głębsza skorupa, płaszcz, strefa gorąca; jądro i blask. */
+export interface CraterColors {
+  layers: readonly [number, number, number][];
+  core: [number, number, number];
+  glow: [number, number, number];
 }

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { legacyMega } from './helpers.ts';
 import { GameController } from '../src/app/GameController.ts';
 import { complexCandidate, megaCandidate, parseComplexes, validComplexes } from '../src/core/colony/complexes.ts';
 import { PLOTS_LAYOUT } from '../src/core/colony/plots.ts';
@@ -121,13 +122,17 @@ test('kontroler: megakompleks na najwyższym etapie — +60%, znaleziska zaplano
     game.research = { done: ['crystal-complex', 'megastructures'], current: null };
     game.economy = { ...game.economy, levels: { ...game.economy.levels, crystalMine: 20, powerPlant: 25, storage: 10 }, stock: { metal: 90000, crystal: 90000 } };
     assert.ok(game.mergeComplex('crystalMine', 0).ok);
+    // Od v0.69 Ekstraktor nie tworzy nowego megakompleksu (zastępuje go megakonstrukt kryształów)…
     const mega = game.complexView('crystalMine')!.mega;
-    assert.ok(mega.candidate && mega.candidate.gainPerMinute > 0, mega.reason ?? '');
+    assert.equal(mega.candidate, null);
+    assert.match(game.mergeMega('crystalMine', 0).message, /megakonstrukt/);
+    // …ale megakompleks z dawnego zapisu działa dalej: +60% zamiast +30%, znaleziska, wyłączenie.
     const before = game.rates.crystal;
-    assert.ok(game.mergeMega('crystalMine', 0).ok);
-    assert.ok(Math.abs(game.rates.crystal - before - mega.candidate!.gainPerMinute) < 1e-6);
+    legacyMega(game, 'crystalMine');
+    assert.ok(game.rates.crystal > before * 1.2);
     assert.equal(game.complexView('crystalMine')!.mega.active, true);
-    assert.equal(game.findsView(0).upcoming.length, 1);
+    game.tick(1);
+    assert.equal(game.findsView(1).upcoming.length, 1);
     assert.equal(game.buildingCard('crystalMine').stage, 'Megaodkrywka');
     assert.ok(game.splitMega('crystalMine', 0).ok);
     assert.equal(game.complexView('crystalMine')!.mega.active, false);
@@ -184,7 +189,10 @@ test('znaleziska (v0.43.1): megakompleks co kilka godzin coś znajduje (też off
     // Megaodkrywka kryształów (kopalnia metalu od etapu 3 kompleksu ma megakonstrukt zamiast megakompleksu).
     game.research = { done: ['crystal-complex', 'megastructures'], current: null };
     game.economy = { ...game.economy, levels: { ...game.economy.levels, crystalMine: 20, powerPlant: 25, storage: 10 }, stock: { metal: 90000, crystal: 90000 } };
-    assert.ok(game.mergeComplex('crystalMine', 0).ok && game.mergeMega('crystalMine', 0).ok);
+    assert.ok(game.mergeComplex('crystalMine', 0).ok);
+    legacyMega(game, 'crystalMine');
+    game.tick(0);
+    game.save();
     assert.equal(game.findsView(0).total, 0);
     const later = new GameController(48 * 3600_000);
     const view = later.findsView(48 * 3600_000);

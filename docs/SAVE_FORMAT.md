@@ -45,7 +45,8 @@ Kopiuj zapis / Wczytaj zapis).
   "exploited": ["1:16:4"],        // wyeksploatowane planety, każda raz (od v0.54, opcjonalne; błędne adresy pomijane)
   "orbiting": [                   // megakonstrukty na orbicie / w locie do lądowania (od v0.61, opcjonalne)
     { "origin": "1:16:4", "readyAt": 1800000, "fuel": 10, "lifted": true,   // start z planety, koniec przygotowania, paliwo
-      "target": "1:16:1", "landsAt": 2040000 }                              // opcjonalnie: ściągany na planetę
+      "target": "1:16:1", "landsAt": 2040000,                               // opcjonalnie: ściągany na planetę
+      "kind": "crystal" }                                                   // od v0.69: wiertnica kryształów (brak = metal)
   ],
   "guide": { "step": 4, "seen": ["system"], "transport": true },  // przewodnik SI Matki (od v0.67, opcjonalne;
                                   //   "off": true — wyłączony; brak = start od pierwszego niewykonanego kroku)
@@ -114,9 +115,22 @@ opóźnienie (s), część utraconego ładunku (tylko transport, 0–1), uszkodz
     "phase": "osady",                            // „osady” albo „konstrukt”
     "states": { "osada1.fabryka": { "stan": "zniszczony", "wytrzymalosc": 0 } },  // tylko odstępstwa (na razie nigdy)
     "build": { "startedAt": 0, "readyAt": 5400000, "cost": { "metal": 60000, "crystal": 40000 } }  // budowa megakonstruktu (od v0.60, opcjonalne)
+  },
+  "crystalComplex": {                            // megakonstrukt kryształów i lej (od v0.69, opcjonalne)
+    "phase": "konstrukt",                        // „budowa”, „konstrukt” (wiertnica pracuje) albo „lej” (wiertnica odleciała)
+    "cells": [41, 42, 57],                       // pola leja — zajęte na zawsze
+    "center": 42,                                // pole środka leja (jedno z `cells`)
+    "minedAt": 1200000,                          // kryształy wydobyte ze złoża, gdy wiertnica zaczęła pracę
+    "stage": 2,                                  // etap leja 1–4 (największy osiągnięty)
+    "build": { "startedAt": 0, "readyAt": 4200000, "cost": { "metal": 1000000, "crystal": 4000000 }, "fresh": true }  // tylko w fazie „budowa”
   }
 }
 ```
+
+**`crystalComplex`** (`core/economy/crystalConstruct.ts`, `docs/megakonstrukt-krysztalow.md`): nieznana faza, brak pól
+albo środek spoza `cells` — pole pomijane; numery pól spoza siatki planety odrzuca gra przy przeliczeniu pól (lej znika).
+Błędny etap = 1. Faza „budowa” wymaga poprawnego `build` (`readyAt ≥ startedAt`, koszt); `fresh` — lej powstał z tą
+budową (znika przy anulowaniu). `EMPIRE_VERSION` bez zmian.
 
 **`metalComplex`** (`core/colony/complexLayout.ts`, `docs/kompleks-kopalni-metalu.md`): środek musi mieć długość 0,9–1,1
 (jest normalizowany), błędna faza = „osady”, stany tylko dla znanych `slotId` (`osadaN.kopalniaM`, `osadaN.fabryka`,

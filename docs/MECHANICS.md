@@ -80,6 +80,13 @@ Laboratorium. Poziomy 1–40. Koszt rośnie wykładniczo z poziomem, wydobycie =
   w oknie Kompleks planety z kompletem osad (poz. 40) sprowadza go za antymaterię (lot zależny od odległości) — tam osady
   przechodzą w układ promienisty. Liczby robocze.
 
+- **Ekstraktor kryształów = wiertnica i lej** (v0.69, `docs/megakonstrukt-krysztalow.md`): od poz. 40, z badaniem
+  „Megastruktury” i kompleksem Ekstraktora nad jego obszarem staje **wiertnica** na linach (1 mln metalu / 4 mln kryształów,
+  budowa 1–2 h — ekstraktor pracuje). Daje +60% i znaleziska (zamiast megakompleksu kryształów). Drąży **lej**, który
+  rośnie z wydobyciem złoża (co 25% drogi do wyeksploatowania o etap, etap 4 sięga jądra) i zostaje na zawsze: jego pól nie
+  da się zabudować. Znaleziska widać w leju. Wiertnicę przenosi się przez orbitę jak megakonstrukt metalu (lej zostaje);
+  ściągnąć ją można nad Ekstraktor poz. 40 z kompleksem. Liczby robocze (`BALANCE.crystalComplex`).
+
 - **Transfer megakonstruktu** (v0.56): megakompleks można wysłać na inną planetę gracza (okno Kompleks → „Wyślij
   konstrukt…”). 30 min rozkładania (budynek nie pracuje; anulowanie zwraca koszt i paliwo), potem lot (2× wolniej niż
   transportowiec). Koszt: 5× paliwo transportowca na trasie + 10% kosztu ostatniego poziomu. Na starej planecie zostają

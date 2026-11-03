@@ -1,3 +1,4 @@
+import type { CraterLook } from './crater.ts';
 import type { BuildingId, BuildingLevels, Planet } from '../core/types.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
@@ -54,6 +55,8 @@ export interface PlanetDisplay {
   glContext?(): unknown;
   /** Ile modeli planet trzyma pamięć 3D (diagnostyka, etap F widoku układu). */
   modelCache?(): number;
+  /** Prototyp krateru megakonstruktu kryształów (tylko wygląd, do zrzutów). */
+  setCrater?(proto: CraterLook | null): void;
   /** Docelowe przybliżenie (to, do którego widok dochodzi). */
   zoomLevel(): number;
   /** Pokaż / ukryj siatkę pól (Ustawienia → Widok). */

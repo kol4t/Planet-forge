@@ -54,6 +54,7 @@ export function parseOrbiting(raw: unknown): OrbitalConstruct[] {
       fuel: Math.max(0, o.fuel),
       ...(flying ? { target: o.target, landsAt: o.landsAt } : {}),
       ...(o.lifted === true ? { lifted: true } : {}),
+      ...(o.kind === 'crystal' ? { kind: 'crystal' as const } : {}),
       ...(flying && parseIncident(o.incident) ? { incident: parseIncident(o.incident)! } : {}),
     });
   }

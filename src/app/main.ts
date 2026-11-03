@@ -95,6 +95,7 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     renderScale: display.renderScale ? () => display.renderScale!() : undefined,
     gpuStats: display.gpuStats ? () => display.gpuStats!() : undefined,
     modelCache: display.modelCache ? () => display.modelCache!() : undefined,
+    setCrater: display.setCrater ? (p) => display.setCrater!(p) : undefined,
     resetView: () => display.resetView(),
     holdSpin: (hold) => display.holdSpin(hold),
     setGridVisible: (visible) => display.setGridVisible(visible),

@@ -10,7 +10,7 @@ import { deserializeEmpire, EMPIRE_KEY, parseAfloat } from '../src/core/save/emp
 import type { BuildingId } from '../src/core/types.ts';
 import { BALANCE } from '../src/data/balance.ts';
 import { PLANET_DEFINITIONS } from '../src/data/planets.ts';
-import { colonizeNow } from './helpers.ts';
+import { colonizeNow, legacyMega } from './helpers.ts';
 
 function withMemoryStorage(run: () => void): void {
   const store = new Map<string, string>();
@@ -88,7 +88,7 @@ function megaGame() {
   game.research = { done: ['crystal-complex', 'megastructures'], current: null };
   game.economy = { ...game.economy, levels: { ...game.economy.levels, crystalMine: 20, powerPlant: 25, storage: 14 }, stock: { metal: 500_000, crystal: 500_000 }, antimatter: 100 };
   assert.ok(game.mergeComplex('crystalMine', 0).ok);
-  assert.ok(game.mergeMega('crystalMine', 0).ok);
+  legacyMega(game, 'crystalMine');
   return { game, home, colony };
 }
 

@@ -101,6 +101,7 @@ import { hasFreeSlot, inspectStoredEmpire, JOURNAL_LIMIT, writeEmpire, type Empi
 import { exportSave, importSave } from '../core/save/transfer.ts';
 import { landingCheck, landingFuel, landingSeconds, launchCheck, orbitalState } from '../core/economy/orbitalConstruct.ts';
 import { checkConstruct, constructProgress, constructSeconds, type ConstructCheck } from '../core/economy/metalConstruct.ts';
+import { checkCrystalConstruct, craterCenter, craterStageFor, crystalBuildProgress, crystalConstructSeconds, crystalLandingReason, crystalLaunchReason, type CraterStage, type CrystalComplexSave, type CrystalConstructCheck } from '../core/economy/crystalConstruct.ts';
 import { ensureMetalComplex, metalComplexFields, metalComplexCells, type MetalComplexCells, type MetalComplexSave } from '../core/colony/complexLayout.ts';
 import type { AsteroidStation, Balance, StellarEmpire, ColonyStation, ConstructTransfer, Fleet, OrbitalConstruct, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
@@ -144,6 +145,8 @@ interface Slot {
   afloat?: BuildingId[];
   /** Kompleks kopalni metalu (etap 1 — tylko model, bez wpływu na wygląd i ekonomię). */
   metalComplex?: MetalComplexSave;
+  /** Megakonstrukt kryształów i lej (v0.69): faza, pola leja (zajęte na zawsze), środek, etap. */
+  crystalComplex?: CrystalComplexSave;
   /** Budynek rozkładany do lotu (v0.56, z `transfers` — bez zapisu): nie pracuje, nie da się go ulepszyć ani zburzyć. */
   packing?: BuildingId;
 }
@@ -396,8 +399,11 @@ export interface OrbitView {
   inOrbit: { index: number; originName: string; seconds: number; fuel: number; risk: string }[];
 }
 
-/** Megakonstrukt kopalni metalu (etap 3 kompleksu). */
+/** Megakonstrukt kopalni metalu (etap 3 kompleksu) albo kryształów (`kind: 'crystal'`, v0.69). */
 export interface MetalConstructView {
+  kind?: 'crystal';
+  /** Lej megakonstruktu kryształów: etap 1–4, liczba pól (zajętych na zawsze), czy wiertnica już odleciała. */
+  crater?: { stage: number; fields: number; left: boolean } | null;
   built: boolean;
   building: { secondsLeft: number; progress: number } | null;
   cost: Resources;
@@ -639,7 +645,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -1006,7 +1012,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     const guided = this.processGuide(now);
@@ -1175,6 +1181,10 @@ export class GameController {
     if (packed) return { ok: false, message: packed };
     if (id === 'laboratory' && this.research.current) {
       return { ok: false, message: 'Laboratorium: najpierw poczekaj na koniec badania.' };
+    }
+    const drill = this.slots[this.active]!.crystalComplex?.phase;
+    if (id === 'crystalMine' && (drill === 'konstrukt' || drill === 'budowa')) {
+      return { ok: false, message: 'Nad Ekstraktorem pracuje wiertnica kryształów — najpierw wyrzuć ją na orbitę (okno Kompleks).' };
     }
     const result = demolishBuilding(this.economy, id, this.balance);
     if (!result.ok) return { ok: false, message: result.message };
@@ -2197,11 +2207,244 @@ export class GameController {
     return texts;
   }
 
+  // ——— megakonstrukt kryształów i lej (v0.69) ———
+
+  /** Okno Kompleks Ekstraktora kryształów: wiertnica (budowa, praca, orbita) i lej. */
+  crystalConstructView(now = Date.now()): MetalConstructView {
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const save = slot.crystalComplex;
+    const check = this.crystalCheck(slot);
+    const b = save?.phase === 'budowa' ? save.build : undefined;
+    return {
+      kind: 'crystal',
+      displaced: 0,
+      built: save?.phase === 'konstrukt',
+      building: b ? { secondsLeft: Math.max(0, (b.readyAt - now) / 1000), progress: crystalBuildProgress(save, now) ?? 0 } : null,
+      cost: this.balance.crystalComplex.constructCost,
+      seconds: crystalConstructSeconds(slot.planet.seed, this.balance),
+      bonus: MEGA_RULES.bonus,
+      legacyMega: save?.phase !== 'konstrukt' && !!slot.complexes?.some((c) => c.building === 'crystalMine' && c.mega),
+      reason: check.ok ? null : check.message,
+      crater: save ? { stage: save.stage, fields: save.cells.length, left: save.phase === 'lej' } : null,
+    };
+  }
+
+  private crystalCheck(slot: Slot): CrystalConstructCheck {
+    const busy = this.orbiting.some((o) => o.kind === 'crystal' && o.target === slot.address);
+    return checkCrystalConstruct(
+      {
+        unlocked: this.unlocked(MEGA_RULES.unlock),
+        level: (slot === this.slots[this.active] ? this.economy : slot.economy).levels.crystalMine ?? 0,
+        complexActive: !!slot.complexes?.some((c) => c.building === 'crystalMine'),
+        save: slot.crystalComplex,
+        stock: this.economy.stock,
+        busy,
+      },
+      slot.planet.seed,
+      this.balance,
+    );
+  }
+
+  /** Kryształy wydobyte już ze złoża planety (aktywna — bieżący stan). */
+  private minedCrystal(slot: Slot): number {
+    const economy = slot === this.slots[this.active] ? this.economy : slot.economy;
+    return economy.mined?.crystal ?? 0;
+  }
+
+  /** Nowy albo istniejący lej na planecie, gdy wiertnica zaczyna pracę (budowa albo lądowanie). */
+  private craterFor(slot: Slot): CrystalComplexSave | null {
+    if (slot.crystalComplex) return slot.crystalComplex;
+    const cells = [...(slot.plots.crystalMine ?? [])];
+    if (cells.length === 0) return null;
+    const grid = fieldGrid(slot.planet);
+    const center = craterCenter(cells, grid.cells.map((c) => c.center));
+    return { phase: 'lej', cells, center, minedAt: this.minedCrystal(slot), stage: 1 };
+  }
+
+  /** Start budowy wiertnicy nad obszarem Ekstraktora (płaci aktywna planeta; ekstraktor pracuje dalej). */
+  startCrystalConstruct(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const check = this.crystalCheck(slot);
+    if (!check.ok) return check;
+    const crater = this.craterFor(slot);
+    if (!crater) return { ok: false, message: 'Ekstraktor kryształów nie ma pól — nie ma gdzie wykopać leja.' };
+    const failed = this.payFor(check.cost, 'Megakonstrukt kryształów');
+    if (failed) return failed;
+    slot.crystalComplex = { ...crater, phase: 'budowa', build: { startedAt: now, readyAt: now + check.seconds * 1000, cost: check.cost, ...(slot.crystalComplex ? {} : { fresh: true }) } };
+    syncPlots(slot, this.buildRules);
+    this.log('build', `${this.planet.displayName}: rozpoczęto budowę megakonstruktu kryształów — wiertnicy nad lejem (gotowa za ${formatFlight(check.seconds)}).`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Wiertnica w budowie — gotowa za ${formatFlight(check.seconds)}. Ekstraktor pracuje dalej.` };
+  }
+
+  /** Anulowanie budowy wiertnicy (zwrot kosztu aktywnej planecie). Lej, który już był, zostaje. */
+  cancelCrystalConstruct(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    const save = slot.crystalComplex;
+    const build = save?.phase === 'budowa' ? save.build : undefined;
+    if (!save || !build) return { ok: false, message: 'Megakonstrukt kryształów nie jest w budowie.' };
+    // Lej wykopany dopiero dla tej budowy znika razem z nią; wcześniejszy lej (po innej wiertnicy) zostaje.
+    if (build.fresh) delete slot.crystalComplex;
+    else {
+      const { build: _gone, ...rest } = save;
+      slot.crystalComplex = { ...rest, phase: 'lej' };
+    }
+    const stock = this.economy.stock;
+    this.economy = { ...this.economy, stock: { metal: stock.metal + build.cost.metal, crystal: stock.crystal + build.cost.crystal } };
+    syncPlots(slot, this.buildRules);
+    this.log('build', `${this.planet.displayName}: budowa megakonstruktu kryształów anulowana — koszt zwrócony.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: 'Budowa megakonstruktu kryształów anulowana — koszt zwrócony.' };
+  }
+
+  /** Wiertnica zaczyna pracę na planecie (po budowie albo lądowaniu): +60% i znaleziska, lej rośnie od teraz. */
+  private startDrilling(slot: Slot, at: number): void {
+    const crater = slot.crystalComplex ?? this.craterFor(slot);
+    if (!crater) return;
+    const { build: _gone, ...rest } = crater;
+    slot.crystalComplex = { ...rest, phase: 'konstrukt', minedAt: crater.phase === 'lej' && crater.stage > 1 ? crater.minedAt : this.minedCrystal(slot) };
+    slot.complexes = slot.complexes?.map((c) => (c.building === 'crystalMine' ? { ...c, mega: true } : c));
+    const key = `${slot.planet.seed}:crystalMine`;
+    if (this.finds.next[key] === undefined) this.finds = { ...this.finds, next: { ...this.finds.next, [key]: at + findInterval(key, at) } };
+    syncPlots(slot, this.buildRules);
+  }
+
+  /**
+   * Wiertnice (wszystkie planety, także podczas nieobecności): ukończona budowa → praca (+60%, znaleziska); pracująca
+   * wiertnica pogłębia lej z wydobyciem złoża (etapy 1→4, 4 — jądro planety).
+   */
+  private processCrystalConstructs(now: number): string[] {
+    const texts: string[] = [];
+    for (const slot of this.slots) {
+      const save = slot.crystalComplex;
+      if (!save) continue;
+      if (save.phase === 'budowa' && save.build && save.build.readyAt <= now) {
+        const at = save.build.readyAt;
+        this.startDrilling(slot, at);
+        const text = `${slot.planet.displayName}: megakonstrukt kryształów gotowy — wiertnica pracuje nad lejem, +${MEGA_RULES.bonus}% i znaleziska.`;
+        this.log('build', text, at);
+        texts.push(text);
+      }
+      const cur = slot.crystalComplex;
+      if (cur?.phase !== 'konstrukt') continue;
+      const stage = craterStageFor(cur, this.minedCrystal(slot), depositTotal(slot.planet, this.balanceFor(slot)).crystal, this.balance);
+      if (stage > cur.stage) {
+        slot.crystalComplex = { ...cur, stage };
+        const text = stage === 4
+          ? `${slot.planet.displayName}: lej wiertnicy sięgnął jądra planety.`
+          : `${slot.planet.displayName}: lej wiertnicy poszerzył się — etap ${stage} z 4.`;
+        this.log('build', text, now);
+        texts.push(text);
+      }
+    }
+    return texts;
+  }
+
+  /** Lej aktywnej planety do wyglądu (null — brak): środek, pola, etap, czy wiertnica stoi nad nim. */
+  craterState(): { center: number; cells: readonly number[]; stage: CraterStage; rig: boolean; finds: Record<string, number> } | null {
+    const save = this.slots[this.active]!.crystalComplex;
+    if (!save) return null;
+    const rig = (save.phase === 'konstrukt' || save.phase === 'budowa') && !this.orbiting.some((o) => o.kind === 'crystal' && o.origin === this.address && o.lifted);
+    return { center: save.center, cells: save.cells, stage: save.stage, rig, finds: { ...this.finds.items } };
+  }
+
+  /** Okno Kompleks Ekstraktora: wyrzucenie wiertnicy tej planety i ściągnięcie wiertnic z orbity tutaj. */
+  crystalOrbitView(now = Date.now()): OrbitView {
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const preparing = this.launchingFrom(this.address, now, 'crystal');
+    const launchReason = crystalLaunchReason(slot.crystalComplex);
+    const fuel = this.balance.metalComplex.orbit.launchFuel;
+    const incoming = this.orbiting.find((o) => o.target === this.address && o.kind === 'crystal');
+    const landing = crystalLandingReason(slot.crystalComplex, this.economy.levels.crystalMine ?? 0, !!slot.complexes?.some((c) => c.building === 'crystalMine'), !!incoming, this.balance);
+    return {
+      launch: {
+        fuel,
+        prepareSeconds: this.balance.metalComplex.orbit.prepareSeconds,
+        reason: preparing ? null : (launchReason ?? (this.economy.antimatter < fuel ? `Brak paliwa: start kosztuje ${fuel} antymaterii, brakuje ${Math.ceil(fuel - this.economy.antimatter)}.` : null)),
+        preparing: preparing ? { secondsLeft: Math.max(0, (preparing.readyAt - now) / 1000) } : null,
+      },
+      incoming: incoming?.landsAt ? { originName: this.slotName(incoming.origin), secondsLeft: Math.max(0, (incoming.landsAt - now) / 1000) } : null,
+      landingReason: landing,
+      inOrbit: this.orbiting
+        .map((o, index) => ({ o, index }))
+        .filter(({ o }) => orbitalState(o, now) === 'na_orbicie' && o.kind === 'crystal')
+        .map(({ o, index }) => {
+          const distance = this.distanceBetween(o.origin, this.address);
+          return { index, originName: this.slotName(o.origin), seconds: landingSeconds(distance, this.balance), fuel: landingFuel(distance, this.balance), risk: this.riskText(o.origin, this.address) };
+        }),
+    };
+  }
+
+  /** Wyrzucenie wiertnicy aktywnej planety na orbitę: paliwo od razu, przygotowanie bez premii; lej zostaje. */
+  launchCrystal(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const slot = this.slots[this.active]!;
+    const reason = crystalLaunchReason(slot.crystalComplex) ?? (this.launchingFrom(this.address, now, 'crystal') ? 'Wiertnica jest już przygotowywana do startu.' : null);
+    if (reason) return { ok: false, message: reason };
+    const fuel = this.balance.metalComplex.orbit.launchFuel;
+    if (this.economy.antimatter < fuel) return { ok: false, message: `Brak paliwa: start kosztuje ${fuel} antymaterii, brakuje ${Math.ceil(fuel - this.economy.antimatter)}.` };
+    const prepare = this.balance.metalComplex.orbit.prepareSeconds;
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
+    this.orbiting.push({ origin: this.address, readyAt: now + prepare * 1000, fuel, kind: 'crystal' });
+    slot.complexes = slot.complexes?.map((c) => (c.building === 'crystalMine' ? { ...c, mega: false } : c));
+    syncPlots(slot, this.buildRules);
+    this.log('ship', `${this.planet.displayName}: wiertnica kryształów przygotowywana do startu na orbitę (${formatFlight(prepare)}).`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Wiertnica startuje na orbitę za ${formatFlight(prepare)} (${fuelLabel(fuel)}). Lej zostanie na planecie.` };
+  }
+
+  /** Anulowanie startu wiertnicy w czasie przygotowania: premia i paliwo wracają. */
+  cancelCrystalLaunch(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const o = this.launchingFrom(this.address, now, 'crystal');
+    if (!o) return { ok: false, message: 'Nic nie startuje (wiertnica już na orbicie?).' };
+    this.orbiting = this.orbiting.filter((x) => x !== o);
+    const slot = this.slots[this.active]!;
+    slot.complexes = slot.complexes?.map((c) => (c.building === 'crystalMine' ? { ...c, mega: true } : c));
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter + o.fuel };
+    syncPlots(slot, this.buildRules);
+    this.log('ship', `${this.planet.displayName}: start wiertnicy kryształów anulowany.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: 'Start anulowany — wiertnica pracuje dalej, paliwo zwrócone.' };
+  }
+
+  /** Ściągnięcie wiertnicy z orbity (`index` z `crystalOrbitView().inOrbit`) nad Ekstraktor aktywnej planety. */
+  landCrystal(index: number, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const o = this.orbiting[index];
+    if (!o || orbitalState(o, now) !== 'na_orbicie' || o.kind !== 'crystal') return { ok: false, message: 'Tej wiertnicy nie ma na orbicie.' };
+    const slot = this.slots[this.active]!;
+    syncPlots(slot, this.buildRules);
+    const reason = crystalLandingReason(slot.crystalComplex, this.economy.levels.crystalMine ?? 0, !!slot.complexes?.some((c) => c.building === 'crystalMine'), this.orbiting.some((x) => x.target === this.address && x.kind === 'crystal'), this.balance);
+    if (reason) return { ok: false, message: reason };
+    const distance = this.distanceBetween(o.origin, this.address);
+    const fuel = landingFuel(distance, this.balance);
+    const short = fuelShortage(fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    const seconds = landingSeconds(distance, this.balance);
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
+    const incident = this.incidentFor(o.origin, this.address, 'delay', now, seconds, 0);
+    this.orbiting = this.orbiting.map((x) => (x === o ? { ...x, target: this.address, landsAt: now + seconds * 1000, ...(incident ? { incident } : {}) } : x));
+    this.log('ship', `Wiertnica kryształów z orbity ${this.slotName(o.origin)} leci na ${this.planet.displayName} (${fuelLabel(fuel)}).`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Wiertnica ląduje na ${this.planet.displayName} za ${formatFlight(seconds)} (${fuelLabel(fuel)}).` };
+  }
+
   // ——— megakonstrukt na orbicie (krok 3b) ———
 
   /** Konstrukt startujący z planety `address` (przygotowanie albo już na orbicie / w locie, a jeszcze nie zdjęty). */
-  private launchingFrom(address: string, now: number): OrbitalConstruct | undefined {
-    return this.orbiting.find((o) => o.origin === address && !o.lifted && now < o.readyAt);
+  private launchingFrom(address: string, now: number, kind?: 'crystal'): OrbitalConstruct | undefined {
+    return this.orbiting.find((o) => o.origin === address && !o.lifted && now < o.readyAt && o.kind === kind);
   }
 
   /** Okno Kompleks kopalni metalu: wyrzucenie konstruktu tej planety i ściągnięcie konstruktów z orbity tutaj. */
@@ -2210,7 +2453,7 @@ export class GameController {
     syncPlots(slot, this.buildRules);
     const preparing = this.launchingFrom(this.address, now);
     const launch = launchCheck(slot.metalComplex, !!preparing, this.economy.antimatter, this.balance);
-    const incoming = this.orbiting.find((o) => o.target === this.address);
+    const incoming = this.orbiting.find((o) => o.target === this.address && !o.kind);
     const landing = landingCheck(slot.metalComplex, this.economy.levels.metalMine ?? 0, !!incoming);
     return {
       launch: {
@@ -2223,7 +2466,7 @@ export class GameController {
       landingReason: landing,
       inOrbit: this.orbiting
         .map((o, index) => ({ o, index }))
-        .filter(({ o }) => orbitalState(o, now) === 'na_orbicie')
+        .filter(({ o }) => orbitalState(o, now) === 'na_orbicie' && !o.kind)
         .map(({ o, index }) => {
           const distance = this.distanceBetween(o.origin, this.address);
           return { index, originName: this.slotName(o.origin), seconds: landingSeconds(distance, this.balance), fuel: landingFuel(distance, this.balance), risk: this.riskText(o.origin, this.address) };
@@ -2232,10 +2475,11 @@ export class GameController {
   }
 
   /** Wszystkie konstrukty poza planetami (Imperium → Flota). */
-  orbitingView(now = Date.now()): { originName: string; state: 'przygotowanie' | 'na_orbicie' | 'w_locie'; targetName: string | null; secondsLeft: number }[] {
+  orbitingView(now = Date.now()): { originName: string; state: 'przygotowanie' | 'na_orbicie' | 'w_locie'; targetName: string | null; secondsLeft: number; crystal: boolean }[] {
     return this.orbiting.map((o) => {
       const state = orbitalState(o, now);
       return {
+        crystal: o.kind === 'crystal',
         originName: this.slotName(o.origin),
         state,
         targetName: o.target ? this.slotName(o.target) : null,
@@ -2246,7 +2490,7 @@ export class GameController {
 
   /** Ile konstruktów krąży nad aktywną planetą (wygląd orbity). */
   constructsInOrbitHere(now = Date.now()): number {
-    return this.orbiting.filter((o) => o.origin === this.address && orbitalState(o, now) === 'na_orbicie').length;
+    return this.orbiting.filter((o) => o.origin === this.address && orbitalState(o, now) === 'na_orbicie' && !o.kind).length;
   }
 
   /** Wyrzucenie megakonstruktu aktywnej planety na orbitę: paliwo od razu, 30 min przygotowania bez premii. */
@@ -2287,10 +2531,10 @@ export class GameController {
   landConstruct(index: number, now = Date.now()): ActionMessage {
     this.tick(now);
     const o = this.orbiting[index];
-    if (!o || orbitalState(o, now) !== 'na_orbicie') return { ok: false, message: 'Tego konstruktu nie ma na orbicie.' };
+    if (!o || orbitalState(o, now) !== 'na_orbicie' || o.kind) return { ok: false, message: 'Tego konstruktu nie ma na orbicie.' };
     const slot = this.slots[this.active]!;
     syncPlots(slot, this.buildRules);
-    const reason = landingCheck(slot.metalComplex, this.economy.levels.metalMine ?? 0, this.orbiting.some((x) => x.target === this.address));
+    const reason = landingCheck(slot.metalComplex, this.economy.levels.metalMine ?? 0, this.orbiting.some((x) => x.target === this.address && !x.kind));
     if (reason) return { ok: false, message: reason };
     const distance = this.distanceBetween(o.origin, this.address);
     const fuel = landingFuel(distance, this.balance);
@@ -2313,6 +2557,18 @@ export class GameController {
   private processOrbit(now: number): string[] {
     const texts: string[] = [];
     for (const o of [...this.orbiting]) {
+      if (!o.lifted && o.readyAt <= now && o.kind === 'crystal') {
+        o.lifted = true;
+        const slot = this.slots[this.slotAt(o.origin)];
+        if (slot?.crystalComplex?.phase === 'konstrukt') {
+          slot.crystalComplex = { ...slot.crystalComplex, phase: 'lej' };
+          slot.complexes = slot.complexes?.map((c) => (c.building === 'crystalMine' ? { ...c, mega: false } : c));
+          syncPlots(slot, this.buildRules);
+        }
+        const text = `Wiertnica kryształów z ${this.slotName(o.origin)} jest na orbicie — na planecie został lej. Ściągnij ją nad Ekstraktor kryształów poz. ${this.balance.crystalComplex.level} (okno Kompleks).`;
+        this.log('ship', text, o.readyAt);
+        texts.push(text);
+      }
       if (!o.lifted && o.readyAt <= now) {
         o.lifted = true;
         const slot = this.slots[this.slotAt(o.origin)];
@@ -2330,21 +2586,33 @@ export class GameController {
       if (inc && !inc.done && inc.at <= now) {
         o.landsAt += inc.delaySeconds * 1000;
         o.incident = { ...inc, done: true };
-        const text = `Piraci zaatakowali megakonstrukt lecący na ${this.slotName(o.target)} — konstrukt jest cały, lądowanie opóźnione o ${formatFlight(inc.delaySeconds)}.`;
+        const text = `Piraci zaatakowali ${o.kind === 'crystal' ? 'wiertnicę kryształów lecącą' : 'megakonstrukt lecący'} na ${this.slotName(o.target)} — ${o.kind === 'crystal' ? 'wiertnica' : 'konstrukt'} jest cał${o.kind === 'crystal' ? 'a' : 'y'}, lądowanie opóźnione o ${formatFlight(inc.delaySeconds)}.`;
         this.log('ship', text, inc.at);
         texts.push(text);
       }
       if (o.landsAt > now) continue;
       const index = this.slotAt(o.target);
       const slot = this.slots[index];
-      const reason = slot ? landingCheck(slot.metalComplex, slot.economy.levels.metalMine ?? 0, false) : 'Planety celu już nie ma.';
+      const levels = slot ? (index === this.active ? this.economy : slot.economy).levels : null;
+      const reason = !slot
+        ? 'Planety celu już nie ma.'
+        : o.kind === 'crystal'
+          ? crystalLandingReason(slot.crystalComplex, levels!.crystalMine ?? 0, !!slot.complexes?.some((c) => c.building === 'crystalMine'), false, this.balance)
+          : landingCheck(slot.metalComplex, slot.economy.levels.metalMine ?? 0, false);
       if (reason || !slot) {
         // Cel się nie nadaje — konstrukt wraca na orbitę planety, z której wystartował.
-        this.orbiting = this.orbiting.map((x) => (x === o ? { origin: o.origin, readyAt: o.readyAt, fuel: o.fuel, lifted: true } : x));
-        this.log('ship', `Megakonstrukt nie wylądował (${reason}) — wrócił na orbitę.`, o.landsAt);
+        this.orbiting = this.orbiting.map((x) => (x === o ? { origin: o.origin, readyAt: o.readyAt, fuel: o.fuel, lifted: true, ...(o.kind ? { kind: o.kind } : {}) } : x));
+        this.log('ship', `${o.kind === 'crystal' ? 'Wiertnica kryształów' : 'Megakonstrukt'} nie wylądował${o.kind === 'crystal' ? 'a' : ''} (${reason}) — wrócił${o.kind === 'crystal' ? 'a' : ''} na orbitę.`, o.landsAt);
         continue;
       }
       this.orbiting = this.orbiting.filter((x) => x !== o);
+      if (o.kind === 'crystal') {
+        this.startDrilling(slot, o.landsAt);
+        const text = `Wiertnica kryształów wylądowała na ${slot.planet.displayName} — pracuje nad lejem, +${MEGA_RULES.bonus}% i znaleziska.`;
+        this.log('ship', text, o.landsAt);
+        texts.push(text);
+        continue;
+      }
       slot.metalComplex = { center: slot.metalComplex!.center, phase: 'konstrukt', ...(slot.metalComplex!.states ? { states: slot.metalComplex!.states } : {}) };
       const list = slot.complexes ?? [];
       slot.complexes = list.some((c) => c.building === 'metalMine')
@@ -2520,8 +2788,9 @@ export class GameController {
     const level = this.economy.levels[id] ?? 0;
     const complex = slot.complexes?.find((c) => c.building === id);
     const packing = this.transfers.find((t) => t.from === this.address && t.building === id && !t.departed) ?? null;
-    const reason = id === 'metalMine' && (slot.metalComplex?.phase === 'konstrukt' || slot.metalComplex?.build)
-      ? 'Megakonstruktu nie da się wysłać jak megakompleksu — wyrzucenie na orbitę i ściągnięcie na inną planetę: następny krok.'
+    const drill = slot.crystalComplex?.phase;
+    const reason = (id === 'metalMine' && (slot.metalComplex?.phase === 'konstrukt' || slot.metalComplex?.build)) || (id === 'crystalMine' && (drill === 'konstrukt' || drill === 'budowa'))
+      ? 'Megakonstruktu nie da się wysłać jak megakompleksu — wyrzuć go na orbitę i ściągnij na inną planetę.'
       : !complex?.mega
       ? 'Wysłać można tylko megakompleks.'
       : this.economy.construction?.building === id || (this.economy.queue ?? []).includes(id)
@@ -2933,7 +3202,7 @@ export class GameController {
       complexes: this.slots.flatMap((s) => (s.complexes ?? []).map((c) => c.family)),
       stationReady: stationReady(this.station, Date.now()),
       planets: this.slots.length,
-      konstrukt: this.slots.some((s) => s.metalComplex?.phase === 'konstrukt'),
+      konstrukt: this.slots.some((s) => s.metalComplex?.phase === 'konstrukt' || s.crystalComplex?.phase === 'konstrukt'),
       transport: !!this.guide?.transport,
       exploited: this.exploited.length,
       stellar: !!this.stellar,
@@ -3508,6 +3777,7 @@ export class GameController {
     this.processTransfers(now);
     this.processShipyard(now);
     this.processMetalConstructs(now);
+    this.processCrystalConstructs(now);
     this.processOrbit(now);
     this.processFinds(now);
     this.offlineGain = null;
@@ -3567,6 +3837,7 @@ export class GameController {
         ...(slot.collector ? { starCollector: slot.collector } : {}),
         ...(slot.afloat?.length ? { afloat: slot.afloat } : {}),
         ...(slot.metalComplex ? { metalComplex: slot.metalComplex } : {}),
+        ...(slot.crystalComplex ? { crystalComplex: slot.crystalComplex } : {}),
       })),
     };
   }
@@ -3724,7 +3995,7 @@ export class GameController {
     const found = complexCandidate(all, levels, family, names, FOOTPRINT[id][COMPLEX_STAGE]!.from);
     const candidate = found.ok ? { gainPerMinute: this.familyGain(family, this.ratesWith([...all, { family: family.id, building: id }])) - this.familyGain(family, this.rates) } : null;
     // Kopalnia metalu (etap 3 kompleksu): zamiast megakompleksu — megakonstrukt (`metalConstructView`).
-    const mega = id === 'metalMine' ? { ok: false as const, reason: 'Zamiast megakompleksu — megakonstrukt od poz. 40.' } : megaCandidate(all, levels, family, names, FOOTPRINT[id][MEGA_STAGE]!.from);
+    const mega = id === 'metalMine' || id === 'crystalMine' ? { ok: false as const, reason: 'Zamiast megakompleksu — megakonstrukt od poz. 40.' } : megaCandidate(all, levels, family, names, FOOTPRINT[id][MEGA_STAGE]!.from);
     const megaGain = mega.ok ? this.familyGain(family, this.ratesWith(all.map((c) => (c.building === id ? { ...c, mega: true } : c)))) - this.familyGain(family, this.rates) : 0;
     return {
       name: family.name,
@@ -3862,6 +4133,8 @@ export class GameController {
     if (packed) return { ok: false, message: packed };
     const metal = this.slots[this.active]!.metalComplex;
     if (id === 'metalMine' && (metal?.phase === 'konstrukt' || metal?.build)) return { ok: false, message: 'Wielka fabryka jest częścią megakonstruktu — nie da się jej wyłączyć.' };
+    const drill = this.slots[this.active]!.crystalComplex?.phase;
+    if (id === 'crystalMine' && (drill === 'konstrukt' || drill === 'budowa')) return { ok: false, message: 'Kompleks Ekstraktora jest częścią megakonstruktu kryształów — nie da się go wyłączyć.' };
     const slot = this.slots[this.active]!;
     const list = slot.complexes ?? [];
     const own = list.find((c) => c.building === id);
@@ -3885,6 +4158,7 @@ export class GameController {
     if (!family) return { ok: false, message: 'Ten budynek nie tworzy kompleksów.' };
     // Kopalnia metalu (etap 3): zamiast megakompleksu od poz. 20 — megakonstrukt po komplecie osad (poz. 40).
     if (id === 'metalMine') return { ok: false, message: 'Kopalnia metalu: zamiast megakompleksu — megakonstrukt od poz. 40 (okno Kompleks → Megakonstrukt).' };
+    if (id === 'crystalMine') return { ok: false, message: 'Ekstraktor kryształów: zamiast megakompleksu — megakonstrukt od poz. 40 (okno Kompleks → Megakonstrukt).' };
     if (!this.unlocked(MEGA_RULES.unlock)) return { ok: false, message: `Najpierw zbadaj ${MEGA_RULES.research}.` };
     const slot = this.slots[this.active]!;
     syncPlots(slot, this.buildRules);
@@ -3913,6 +4187,9 @@ export class GameController {
     const slot = this.slots[this.active]!;
     if (id === 'metalMine' && (slot.metalComplex?.phase === 'konstrukt' || slot.metalComplex?.build)) {
       return { ok: false, message: 'Megakonstrukt działa na stałe — nie da się go wyłączyć.' };
+    }
+    if (id === 'crystalMine' && (slot.crystalComplex?.phase === 'konstrukt' || slot.crystalComplex?.phase === 'budowa')) {
+      return { ok: false, message: 'Wiertnica pracuje na stałe — można ją tylko wyrzucić na orbitę.' };
     }
     const list = slot.complexes ?? [];
     if (!family || !list.some((c) => c.building === id && c.mega)) return { ok: false, message: 'Nie ma megakompleksu do wyłączenia.' };
@@ -4004,7 +4281,17 @@ function syncPlots(slot: Slot, base: BuildRules): Plots {
   const others = Object.entries(slot.plots).flatMap(([b, l]) => (b === 'metalMine' ? [] : (l ?? [])));
   slot.metalComplex = ensureMetalComplex(slot.metalComplex, grid, slot.planet.seed, levels.metalMine ?? 0, others);
   const metal = metalFixed(slot, levels);
-  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, slot.preferred, metal ? { plots: { metalMine: metal.cells }, reserved: metal.reserved } : {});
+  // Lej megakonstruktu kryształów (v0.69): pola leja zajęte na zawsze — obszar Ekstraktora, a po jego zburzeniu
+  // pola zarezerwowane (nic na nich nie stanie). Pola spoza siatki (zapis z innej wersji) — lej znika.
+  const crater = slot.crystalComplex;
+  if (crater && (crater.cells.some((c) => c >= grid.cells.length) || crater.center >= grid.cells.length)) delete slot.crystalComplex;
+  const scar = slot.crystalComplex?.cells ?? [];
+  const fixed: Partial<Record<BuildingId, readonly number[]>> = {
+    ...(metal ? { metalMine: metal.cells } : {}),
+    ...(scar.length > 0 && (levels.crystalMine ?? 0) > 0 ? { crystalMine: scar } : {}),
+  };
+  const reserved = [...(metal?.reserved ?? []), ...scar];
+  slot.plots = reconcilePlots(grid, slot.plots, levels, BUILDING_ORDER, rules, slot.preferred, Object.keys(fixed).length > 0 || reserved.length > 0 ? { plots: fixed, reserved } : {});
   // Wybrane pole użyte — wybór dotyczy tylko jednego pola.
   if (slot.preferred) {
     for (const [id, cell] of Object.entries(slot.preferred) as [BuildingId, number][]) {
@@ -4086,6 +4373,7 @@ function restoreSlots(saved: readonly SlotSave[]): Slot[] {
       ...(slot.starCollector ? { collector: slot.starCollector } : {}),
       ...(slot.afloat?.length ? { afloat: slot.afloat } : {}),
       ...(slot.metalComplex ? { metalComplex: slot.metalComplex } : {}),
+      ...(slot.crystalComplex ? { crystalComplex: slot.crystalComplex } : {}),
     });
   }
   return slots;

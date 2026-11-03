@@ -2,6 +2,17 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-03 — Megakonstrukt kryształów: wiertnica i lej (v0.69)
+
+- **Wygląd zaakceptowany po prototypie** (zrzuty etapów, 4 rundy uwag): tarasowy lej aż do jądra planety (nie szyb),
+  2× szerszy na etapie 4 niż pierwszy prototyp, wiertnica na 3–5 linach do krawędzi (jak w v0.49), dużo kryształów
+  i znaleziska jako obiekty w leju.
+- **Zasady (wszystkie zalecane):** warunki jak metal z odwrotnymi cenami (1 mln metalu / 4 mln kryształów), lej rośnie
+  z wydobyciem złoża (co 25% drogi do wyeksploatowania o etap), lej na obszarze Ekstraktora, wiertnica przenosi się przez
+  orbitę jak megakonstrukt metalu, a lej zostaje na zawsze (pola niezabudowywalne). Szczegóły:
+  `docs/megakonstrukt-krysztalow.md`.
+- **Megakompleks kryształów zastąpiony** (jak metalu w v0.60): nowy nie powstaje, a ten z zapisu działa do czasu wiertnicy.
+
 ## 2026-11-02 — Decyzje właściciela po raporcie kandydata MVP
 
 - **Nazwa „piraci” zostaje** (ryzyko misji, v0.62) — decyzja właściciela; w Projekcie lore do odnotowania przy K-005

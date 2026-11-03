@@ -4,7 +4,9 @@ import { fieldGrid, type FieldGrid } from '../core/colony/fieldGrid.ts';
 import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import { cellLookup, collectorOrbit, constructOrbit, hash01, stationOrbit, layoutFromPlots, plotsKey, type CellLookup, type ColonyLayout } from './colony.ts';
-import { complexGround } from './complexLook.ts';
+import { complexGround, craterGround, type CraterColors } from './complexLook.ts';
+import { buildCrater, craterReach, craterSite, craterSpot, type CraterLook } from './crater.ts';
+import { drillLook } from '../data/drill.ts';
 import { buildOpenPit, type OpenPit } from './openPit.ts';
 import { borderChains, borderStates, cellBorders, CHOICE, FIELD_COLORS, FIELD_LINE, HIGHLIGHT, outlineBorders, type BorderChain, type HighlightMode } from './fieldOverlay.ts';
 import { DragRotator } from './input/dragRotator.ts';
@@ -38,6 +40,14 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private colony: ColonyLayout | undefined;
   /** Wielka odkrywka ekstraktora (Odkrywka, Megaodkrywka) — koncentryczny rysunek dziury w tarczy. */
   private openPit: OpenPit | null = null;
+  /** Prototyp krateru megakonstruktu kryształów (tylko wygląd) i jego etap. */
+  private crater: OpenPit | null = null;
+  private craterStage = 1;
+  private craterFinds: Readonly<Record<string, number>> = {};
+  private craterRig = true;
+  private craterKey = 'null';
+  private craterColors: CraterColors | null = null;
+  private planetType = '';
   private levels: BuildingLevels | undefined;
   private site: BuildSite | null = null;
   private look: DiscLook | undefined;
@@ -96,6 +106,10 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   }
 
   setPlanet(planet: Planet): void {
+    this.planetType = planet.definitionId;
+    this.crater = null;
+    this.craterKey = 'null';
+    this.craterColors = null;
     this.look = discLook(planet);
     this.sampler = this.look.sampler;
     this.grid = fieldGrid(planet);
@@ -167,6 +181,94 @@ export class CanvasPlanetFallback implements PlanetDisplay {
       next: next ? { dir: next.pozycja, size: metalObjectSize(next, layout.unit) } : null,
       targets: metalPickTargets(layout, mega),
     };
+  }
+
+  /**
+   * Wiertnica nad lejem (prototyp, 2D): złota piasta z kryształem nad środkiem i liny-rury do kotew na krawędzi leja
+   * (3–5 lin, jak w 3D), z jasnym błyskiem płynącym po linie.
+   */
+  private drawCraterRig(toScreen: (p: readonly number[]) => { x: number; y: number; depth: number }, pixel: number, snapX: (x: number) => number, snapY: (y: number) => number, now: number): void {
+    const crater = this.crater;
+    if (!crater) return;
+    const c = toScreen(crater.center);
+    if (c.depth < 0.15) return;
+    const ctx = this.ctx;
+    const outline = crater.outline[0]!;
+    // Bez wiertnicy (odleciała) — same liny nie, tylko znaleziska.
+    const cables = this.craterRig ? crater.look.cables : 0;
+    ctx.globalAlpha = Math.min(1, c.depth * 2.5);
+    ctx.lineCap = 'round';
+    for (let k = 0; k < cables; k++) {
+      const end = toScreen(outline[Math.round((k * (outline.length - 1)) / cables)]!);
+      if (end.depth < 0.05) continue;
+      ctx.strokeStyle = '#7fa9b0';
+      ctx.lineWidth = Math.max(1.5, pixel * 0.8);
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      // Kotwa na krawędzi i błysk kryształu płynący po linie.
+      ctx.fillStyle = '#c9a24a';
+      ctx.fillRect(snapX(end.x) - pixel, snapY(end.y) - pixel, pixel * 2, pixel * 2);
+      const t = now === 0 ? 0.5 : (now / 1800 + k / cables) % 1;
+      ctx.fillStyle = '#8ff5e2';
+      ctx.fillRect(snapX(c.x + (end.x - c.x) * t), snapY(c.y + (end.y - c.y) * t), pixel, pixel);
+    }
+    // Znaleziska na półkach leja (jak w 3D): kryształ rdzeniowy — turkusowy słup, odłamek rezonansowy — fioletowy
+    // romb nad półką, zapis z głębi — ciemna płyta z jasnymi pasami.
+    const L = crater.look.layers;
+    let slot = 0;
+    for (const id of ['core-crystal', 'resonant-shard', 'deep-record'] as const) {
+      for (let n = 0; n < (this.craterFinds[id] ?? 0); n++) {
+        slot++;
+        const layer = Math.max(0, Math.min(L - 1, Math.floor(L * 0.25 + hash01(slot * 13, id.length + 40) * L * 0.5)));
+        const p = toScreen(craterSpot(crater, (layer + 1 - crater.look.shelf / 2) / L, (slot / 10) * Math.PI * 2 + n * 0.37));
+        if (p.depth < 0.1) continue;
+        const x = snapX(p.x);
+        const y = snapY(p.y);
+        const sz = this.craterStage >= 3 ? 2 : 1;
+        if (id === 'core-crystal') {
+          ctx.fillStyle = '#2bb8c4';
+          ctx.fillRect(x - sz * pixel, y - 4 * sz * pixel, sz * 2 * pixel, 5 * sz * pixel);
+          ctx.fillStyle = '#9ffcff';
+          ctx.fillRect(x - (sz - 1) * pixel - (sz === 1 ? 0 : 0), y - 5 * sz * pixel, Math.max(1, sz) * pixel, 2 * sz * pixel);
+        } else if (id === 'resonant-shard') {
+          const bob = now === 0 ? 0 : Math.round(Math.sin(now / 500 + n));
+          ctx.fillStyle = '#c9a8ff';
+          ctx.fillRect(x, y - (4 + bob) * sz * pixel, sz * pixel, 3 * sz * pixel);
+          ctx.fillRect(x - sz * pixel, y - (3 + bob) * sz * pixel, 3 * sz * pixel, sz * pixel);
+          ctx.fillStyle = '#6a3fd0';
+          ctx.fillRect(x - 2 * sz * pixel, y - sz * pixel, 5 * sz * pixel, sz * pixel);
+        } else {
+          ctx.fillStyle = '#26221f';
+          ctx.fillRect(x - 2 * sz * pixel, y - 4 * sz * pixel, 4 * sz * pixel, 5 * sz * pixel);
+          ctx.fillStyle = '#e0a040';
+          for (let r = 0; r < 3; r++) ctx.fillRect(x - sz * pixel, y - (3 - r * 1.2) * sz * pixel, 2 * sz * pixel, Math.max(1, sz * 0.5) * pixel);
+        }
+      }
+    }
+    if (!this.craterRig) {
+      ctx.globalAlpha = 1;
+      return;
+    }
+    // Piasta: złoty pierścień, stalowy środek, kryształ na wierzchu.
+    const n = 1 + this.craterStage;
+    const x0 = snapX(c.x);
+    const y0 = snapY(c.y);
+    for (let dy = -n; dy <= n; dy++) {
+      const half = Math.round(Math.sqrt(Math.max(0, n * n - dy * dy)));
+      ctx.fillStyle = '#c9a24a';
+      ctx.fillRect(x0 - half * pixel, y0 + dy * pixel, (half * 2 + 1) * pixel, pixel);
+      if (Math.abs(dy) < n - 1) {
+        const inner = Math.max(0, half - 1);
+        ctx.fillStyle = '#5b6563';
+        ctx.fillRect(x0 - inner * pixel, y0 + dy * pixel, (inner * 2 + 1) * pixel, pixel);
+      }
+    }
+    ctx.fillStyle = '#8ff5e2';
+    ctx.fillRect(x0, y0 - pixel, pixel, pixel * 3);
+    ctx.fillRect(x0 - pixel, y0, pixel * 3, pixel);
+    ctx.globalAlpha = 1;
   }
 
   /**
@@ -279,7 +381,34 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     ctx.globalAlpha = 1;
   }
 
+  /** Lej megakonstruktu kryształów (z gry albo prototyp; null — brak): środek, pola, etap, wiertnica, znaleziska. */
+  setCrater(proto: CraterLook | null): void {
+    const key = JSON.stringify(proto);
+    if (key === this.craterKey) return;
+    this.craterKey = key;
+    const colony = this.colony;
+    const index = proto && this.grid ? (proto.cell >= 0 ? proto.cell : craterSite(this.grid.cells, (colony?.complexes ?? []).flatMap((c) => c.cells.map((i) => this.grid!.cells[i]!.center as [number, number, number])))) : -1;
+    const cell = proto && this.grid ? this.grid.cells[index] : undefined;
+    const reach = proto?.cells?.length && cell && this.grid ? craterReach(this.grid.cells, cell.center as [number, number, number], proto.cells) : undefined;
+    this.crater = proto && cell ? buildCrater(cell.center as [number, number, number], proto.stage, () => 1, reach) : null;
+    this.craterStage = proto?.stage ?? 1;
+    this.craterRig = proto?.rig !== false;
+    this.craterFinds = proto?.finds ?? {};
+    const look = drillLook(this.planetType);
+    const rgb = (h: string): [number, number, number] => {
+      const n = parseInt(h.slice(1), 16);
+      return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+    };
+    this.craterColors = { layers: [rgb(look.crust), rgb(look.deepCrust), rgb(look.mantle), rgb(look.hot)], core: rgb(look.core), glow: rgb(look.glow) };
+    this.lastDrawn = { yaw: NaN, pitch: NaN };
+  }
+
   showBuilding(id: BuildingId): boolean {
+    if (id === 'crystalMine' && this.crater) {
+      const turn = facingAngles(this.crater.center, 0, focusLift(this.zoomer.target));
+      this.rotator.turnTo(turn.yaw, turn.pitch, performance.now());
+      return true;
+    }
     const c = this.colony?.complexes.find((x) => x.building === id);
     if (!c) return false;
     const dir = id === 'crystalMine' && this.openPit ? this.openPit.center : c.core;
@@ -509,13 +638,17 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const { yaw, pitch } = this.rotator;
     const colony = this.colony;
     const lookup = this.lookup;
+    const crater = this.crater;
     const overlay =
-      colony && lookup && colony.complexes.length > 0
+      colony && lookup && (colony.complexes.length > 0 || crater)
         ? (x: number, y: number, z: number) => {
+            if (crater && this.craterColors && crater.inside([x, y, z])) return craterGround(crater, [x, y, z], this.craterColors);
             const cell = lookup(x, y, z);
             const index = cell >= 0 ? colony.owner[cell]! : -1;
             if (index < 0) return null;
             const c = colony.complexes[index]!;
+            // Lej megakonstruktu kryształów zamiast zabudowy Ekstraktora — poza lejem naturalny teren.
+            if (crater && c.building === 'crystalMine') return null;
             // Kompleks kopalni metalu z modelu (etap 2) — teren naturalny, obiekty na symbolach.
             if (c.building === 'metalMine' && this.metal) return null;
             // Farma wiatrowa stoi na naturalnym terenie.
@@ -570,11 +703,13 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     };
     const blink = (phase: number, period = 600) => (now === 0 ? 1 : 0.45 + 0.55 * Math.abs(Math.sin(now / period + phase)));
     this.drawMetal(toScreen, r, this.growth('metalMine'));
+    this.drawCraterRig(toScreen, pixel, snapX, snapY, now);
     for (const c of this.colony.complexes) {
       const grow = this.growth(c.building);
       if (grow <= 0) continue;
-      // Kompleks kopalni metalu z modelu — symbole (`drawMetal`) zamiast zabudowy pól.
+      // Kompleks kopalni metalu z modelu — symbole (`drawMetal`) zamiast zabudowy pól; lej zamiast Ekstraktora.
       if (c.building === 'metalMine' && this.metal) continue;
+      if (c.building === 'crystalMine' && this.crater) continue;
       // Wielka odkrywka: ekstraktor nad środkiem dziury, nie w środku obszaru.
       const pit = c.building === 'crystalMine' ? this.openPit : null;
       const core = toScreen(pit?.center ?? c.core);

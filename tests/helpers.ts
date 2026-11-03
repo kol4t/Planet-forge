@@ -25,3 +25,14 @@ export function colonizeNow(game: GameController, address: string, now = 0): Act
   game.switchPlanet(index, now);
   return { ok: true, message: sent.message };
 }
+
+/**
+ * Dawny megakompleks z zapisu (sprzed megakonstruktów): kopalnia metalu i Ekstraktor kryształów nie tworzą już nowych
+ * megakompleksów (v0.60 / v0.69 — zastępuje je megakonstrukt), ale megakompleks z zapisu działa dalej. Ustawia go wprost.
+ */
+export function legacyMega(game: GameController, id: string): void {
+  const inner = game as unknown as { slots: { complexes?: { building: string; mega?: boolean }[] }[]; active: number };
+  const slot = inner.slots[inner.active]!;
+  slot.complexes = (slot.complexes ?? []).map((c) => (c.building === id ? { ...c, mega: true } : c));
+  game.colony();
+}

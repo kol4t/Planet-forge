@@ -1,0 +1,152 @@
+// Krater megakonstruktu kryształów (prototyp wyglądu, decyzje właściciela 2026-11-02): okrągły, tarasowy krater
+// poszerza się wokół jednego miejsca z etapem rozbudowy; nad środkiem unosi się wiertnica. Dziura zostaje na zawsze.
+// Czysta matematyka (bez three/DOM): ta sama postać co wielka odkrywka (`OpenPit`), więc ląd 3D, wycięcie oceanu
+// i gładkie krawędzie tarasów działają bez zmian w rendererze. Liczby robocze.
+import type { OpenPitLook } from '../data/openPit.ts';
+import { angleBetween, type Vec3 } from './colony.ts';
+import { pitRadius, type OpenPit } from './openPit.ts';
+import { CORE_RADIUS } from './drill.ts';
+
+/**
+ * Wygląd krateru wg etapu (1–4): promień kątowy, liczba tarasów, głębokość (ułamek promienia planety), liczba lin wiertnicy. Lej tarasami
+ * w dół — na etapie 4 aż do jądra planety (decyzja właściciela 2026-11-02: lej, nie szyb). Robocze.
+ */
+export const CRATER_STAGES: Readonly<Record<1 | 2 | 3 | 4, { radius: number; layers: number; depth: number; cables: number }>> = {
+  1: { radius: 0.1, layers: 2, depth: 0.08, cables: 3 },
+  2: { radius: 0.2, layers: 3, depth: 0.2, cables: 3 },
+  3: { radius: 0.33, layers: 5, depth: 0.4, cables: 4 },
+  4: { radius: 0.5, layers: 8, depth: 0.68, cables: 5 },
+};
+
+/** Najgłębiej, jak schodzi lej (promień od środka planety) — powierzchnia jądra (`drill.ts`, CORE_RADIUS). */
+export const CRATER_MIN_RADIUS = CORE_RADIUS + 0.02;
+
+const norm = (v: Vec3): Vec3 => {
+  const l = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / l, v[1] / l, v[2] / l];
+};
+const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+/** Kierunek styczny w punkcie `p` od środka `c` (w stronę rosnącej odległości od środka). */
+function away(p: Vec3, c: Vec3): Vec3 {
+  const k = dot(p, c);
+  return norm([p[0] * k - c[0], p[1] * k - c[1], p[2] * k - c[2]]);
+}
+
+/** Punkt na okręgu o promieniu `angle` wokół `c` w kierunku punktu `p` (po wielkim kole). */
+function onCircle(c: Vec3, p: Vec3, angle: number): Vec3 {
+  const k = dot(p, c);
+  let d: Vec3 = [p[0] - c[0] * k, p[1] - c[1] * k, p[2] - c[2] * k];
+  if (Math.hypot(...d) < 1e-9) d = Math.abs(c[0]) < 0.9 ? [0, -c[2], c[1]] : [-c[2], 0, c[0]];
+  d = norm(d);
+  return norm([c[0] * Math.cos(angle) + d[0] * Math.sin(angle), c[1] * Math.cos(angle) + d[1] * Math.sin(angle), c[2] * Math.cos(angle) + d[2] * Math.sin(angle)]);
+}
+
+/**
+ * Okrągły krater o środku `center` i etapie `stage` (1–4). `ground` — promień pierwotnego terenu (poziom krawędzi =
+ * średnia terenu na obwodzie). Zwraca obiekt jak wielka odkrywka — renderer liczy z niego teren i krawędzie.
+ */
+export function buildCrater(center: Vec3, stage: 1 | 2 | 3 | 4, ground: (dir: Vec3) => number, reach?: number): OpenPit {
+  const st = CRATER_STAGES[stage];
+  // Zasięg leja na etapie 4 (obszar Ekstraktora) — wcześniejsze etapy w tej samej proporcji co `CRATER_STAGES`.
+  const R = reach ? (reach * st.radius) / CRATER_STAGES[4].radius : st.radius;
+  const floorAngle = R * 0.14;
+  const look: OpenPitLook = { layers: st.layers, depth: st.depth, shelf: 0.35, floor: 1.9, hang: 0.3, cables: st.cables, sag: 0.01, status: 'robocza' };
+  const c = norm(center);
+  const outline: Vec3[] = Array.from({ length: 129 }, (_, i) => {
+    const a = (i / 128) * Math.PI * 2;
+    // Dowolny punkt w kierunku a: obrót wokół środka.
+    const t0 = norm(Math.abs(c[0]) < 0.9 ? [0, -c[2], c[1]] : [-c[2], 0, c[0]]);
+    const t1: Vec3 = [c[1] * t0[2] - c[2] * t0[1], c[2] * t0[0] - c[0] * t0[2], c[0] * t0[1] - c[1] * t0[0]];
+    const d: Vec3 = [t0[0] * Math.cos(a) + t1[0] * Math.sin(a), t0[1] * Math.cos(a) + t1[1] * Math.sin(a), t0[2] * Math.cos(a) + t1[2] * Math.sin(a)];
+    return norm([c[0] * Math.cos(R) + d[0] * Math.sin(R), c[1] * Math.cos(R) + d[1] * Math.sin(R), c[2] * Math.cos(R) + d[2] * Math.sin(R)]);
+  });
+  const rim = outline.reduce((sum, p) => sum + ground(p), 0) / outline.length;
+  const s = (p: Vec3) => {
+    const a = angleBetween(c, p);
+    if (a >= R) return 0;
+    if (a <= floorAngle) return 1;
+    return (R - a) / (R - floorAngle);
+  };
+  const field = (p: Vec3) => {
+    const a = angleBetween(c, p);
+    const d = Math.abs(R - a);
+    if (a >= R) return { s: 0, d, g: [0, 0, 0] as Vec3 };
+    if (a <= floorAngle) return { s: 1, d, g: [0, 0, 0] as Vec3 };
+    // `s` maleje na zewnątrz: spadek = −kierunek od środka / szerokość zbocza.
+    const t = away(p, c);
+    const k = -1 / (R - floorAngle);
+    return { s: (R - a) / (R - floorAngle), d, g: [t[0] * k, t[1] * k, t[2] * k] as Vec3 };
+  };
+  const pit: OpenPit = {
+    look,
+    center: c,
+    centerDistance: R,
+    floorAngle,
+    reach: R,
+    rim,
+    floorRadius: 0,
+    outline: [outline],
+    distance: (p) => Math.abs(R - angleBetween(c, p)),
+    nearest: (p) => onCircle(c, p, R),
+    inside: (p) => angleBetween(c, p) < R,
+    s,
+    field,
+    sCached: s,
+  };
+  pit.floorRadius = pitRadius(pit, 1, ground(c));
+  return pit;
+}
+
+/**
+ * Pole na środek leja (prototyp): najdalej od wszystkich zajętych pól kolonii — lej nie przykrywa budynków.
+ * `taken` — kierunki zajętych pól. Czysta matematyka.
+ */
+export function craterSite(cells: readonly { center: readonly number[]; kind: string }[], taken: readonly Vec3[]): number {
+  let best = 0;
+  let bestDist = -1;
+  for (let i = 0; i < cells.length; i++) {
+    // Środek leja na lądzie (nie na wodzie ani lawie).
+    if (cells[i]!.kind === 'water' || cells[i]!.kind === 'lava') continue;
+    const c = cells[i]!.center as Vec3;
+    let near = Math.PI;
+    for (const t of taken) near = Math.min(near, angleBetween(c, t));
+    if (near > bestDist) {
+      bestDist = near;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** Punkt leja na „wysokości” `s` (0 — krawędź, 1 — dno) w kierunku `bearing` wokół środka. Czysta matematyka. */
+export function craterSpot(pit: OpenPit, s: number, bearing: number): Vec3 {
+  const c = pit.center;
+  const t0 = norm(Math.abs(c[0]) < 0.9 ? [0, -c[2], c[1]] : [-c[2], 0, c[0]]);
+  const t1: Vec3 = [c[1] * t0[2] - c[2] * t0[1], c[2] * t0[0] - c[0] * t0[2], c[0] * t0[1] - c[1] * t0[0]];
+  const angle = pit.centerDistance - s * (pit.centerDistance - pit.floorAngle);
+  const d: Vec3 = [t0[0] * Math.cos(bearing) + t1[0] * Math.sin(bearing), t0[1] * Math.cos(bearing) + t1[1] * Math.sin(bearing), t0[2] * Math.cos(bearing) + t1[2] * Math.sin(bearing)];
+  return norm([c[0] * Math.cos(angle) + d[0] * Math.sin(angle), c[1] * Math.cos(angle) + d[1] * Math.sin(angle), c[2] * Math.cos(angle) + d[2] * Math.sin(angle)]);
+}
+
+/** Lej do wyglądu (z gry albo z prototypu): pole środka (−1 — z dala od zabudowy), pola leja, etap, wiertnica, znaleziska. */
+export interface CraterLook {
+  cell: number;
+  /** Pola leja (obszar Ekstraktora) — z nich zasięg leja na etapie 4; brak — zasięg z `CRATER_STAGES`. */
+  cells?: readonly number[];
+  stage: 1 | 2 | 3 | 4;
+  /** Wiertnica wisi nad lejem (brak = tak). */
+  rig?: boolean;
+  finds?: Readonly<Record<string, number>>;
+}
+
+/** Zasięg leja na etapie 4 z jego pól: najdalszy środek pola od środka leja + pół pola (najwyżej 0,6 rad). */
+export function craterReach(cells: readonly { center: readonly number[]; radius: number }[], center: Vec3, ids: readonly number[]): number {
+  let reach = 0;
+  for (const id of ids) {
+    const c = cells[id];
+    if (!c) continue;
+    reach = Math.max(reach, angleBetween(center, c.center as Vec3) + c.radius * 0.6);
+  }
+  return Math.min(0.6, Math.max(0.06, reach));
+}

@@ -94,6 +94,14 @@ export const BALANCE: Balance = {
     orbit: { prepareSeconds: 1800, launchFuel: 10, landingFuelFactor: 5, speedFactor: 2 },
     status: 'robocza',
   },
+  // Megakonstrukt kryształów (v0.69, decyzje właściciela 2026-11-03): jak metal, odwrotne ceny; orbita — `metalComplex.orbit`.
+  crystalComplex: {
+    level: 40,
+    constructSeconds: { min: 3600, max: 7200 },
+    constructCost: { metal: 1_000_000, crystal: 4_000_000 },
+    stages: 4,
+    status: 'robocza',
+  },
   fuel: {
     transport: { inSystem: 1, base: 2, unitsPerOne: 20 },
     colonyShip: { inSystem: 3, base: 3, unitsPerOne: 15 },
