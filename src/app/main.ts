@@ -17,7 +17,10 @@ import { PLANET_DEFINITIONS } from '../data/planets.ts';
 import { BootGuard } from './bootGuard.ts';
 import { createErrorLog } from './feedback.ts';
 import { FpsMeter } from './fpsMeter.ts';
-import { GameController } from './GameController.ts';
+import { GameController, savedPlanets } from './GameController.ts';
+import { preloadGrids, storeNewGrids } from './gridStore.ts';
+import { guardScenes } from './sceneGuard.ts';
+import type { Planet } from '../core/types.ts';
 import { registerServiceWorker } from './pwa.ts';
 
 function showError(message: string): void {
@@ -26,6 +29,24 @@ function showError(message: string): void {
   status.hidden = false;
   status.classList.add('error');
   status.textContent = message;
+}
+
+/**
+ * Komunikat po błędzie w pętli scen (v0.69.2): pasek u góry ekranu, dotknięcie odświeża grę (postęp jest w zapisie).
+ * Pokazywany raz; gra próbuje działać dalej.
+ */
+let sceneErrorShown = false;
+function showSceneError(): void {
+  if (sceneErrorShown) return;
+  sceneErrorShown = true;
+  const bar = document.createElement('button');
+  bar.type = 'button';
+  bar.textContent = 'Coś poszło nie tak w grze. Dotknij, aby odświeżyć — postęp jest zapisany. (Szczegóły: Ustawienia → Zgłoś / diagnostyka)';
+  bar.style.cssText =
+    'position:fixed;left:50%;top:max(12px, env(safe-area-inset-top));transform:translateX(-50%);z-index:1000;max-width:min(92vw, 640px);min-height:44px;' +
+    'padding:10px 18px;border-radius:12px;border:1px solid #d4b06a;background:#13201f;color:#f0e6cf;font:600 15px/1.35 system-ui, sans-serif;';
+  bar.addEventListener('click', () => location.reload());
+  document.body.append(bar);
 }
 
 /** Marginesy bezpieczne (notch, pasek Home) odczytane z CSS env(). */
@@ -250,6 +271,11 @@ function start(boot: BootGuard): void {
   const research = new ResearchScene({ controller, getViewport });
   const map = new MapScene({ controller, getViewport });
   const empire = new EmpireScene({ controller, getViewport });
+  // Osłona pętli scen (v0.69.2): błąd w odświeżaniu paneli trafia do diagnostyki i daje komunikat zamiast cichego zatrzymania.
+  guardScenes({ planeta: scene, badania: research, mapa: map, imperium: empire } as never, (message, where, first) => {
+    if (first) errors.record(message, where);
+    showSceneError();
+  });
   const game = new Phaser.Game({
     // Panele rysowane w Canvas 2D: jedyny kontekst WebGL ma planeta (mniej pamięci grafiki).
     type: Phaser.CANVAS,
@@ -345,11 +371,26 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 const boot = new BootGuard(safeStorage(), Date.now());
+const launch = () => {
+  try {
+    start(boot);
+  } catch (error) {
+    errors.record((error as Error).message, 'start');
+    boot.step(`błąd: ${(error as Error).message}`);
+    console.error(error);
+    showError(`Nie udało się uruchomić gry: ${(error as Error).message}`);
+  }
+};
+// Siatki pól planet gracza z pamięci przeglądarki (v0.69.2) — bez nich pierwsze wejście na planetę i przejście 2D↔3D
+// liczyły siatkę od nowa (przycięcie). Gdy pamięci brak albo coś pójdzie nie tak — gra startuje jak dawniej.
+let planetsToLoad: Planet[] = [];
 try {
-  start(boot);
-} catch (error) {
-  errors.record((error as Error).message, 'start');
-  boot.step(`błąd: ${(error as Error).message}`);
-  console.error(error);
-  showError(`Nie udało się uruchomić gry: ${(error as Error).message}`);
+  planetsToLoad = savedPlanets();
+} catch {
+  planetsToLoad = [];
 }
+storeNewGrids();
+preloadGrids(planetsToLoad)
+  .then((n) => boot.step(`siatki z pamięci: ${n}/${planetsToLoad.length}`))
+  .catch(() => undefined)
+  .finally(launch);

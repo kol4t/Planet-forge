@@ -121,16 +121,37 @@ const CACHE_SIZE = 16;
 const fieldGridKey = (planet: Planet) =>
   `${planet.definitionId}|${planet.seed}|${planet.gameplay.fields}|${planet.visual.surfaceVersion}|${planet.visual.terrainMethod}`;
 
+/** Klucz siatki planety (pamięć podręczna i przechowanie w przeglądarce — z wersją siatki). */
+export const fieldGridStoreKey = (planet: Planet) => `${FIELD_GRID_VERSION}|${fieldGridKey(planet)}`;
+
+/** Słuchacze nowo policzonych siatek (v0.69.2: aplikacja zapisuje je w pamięci przeglądarki). */
+const builtListeners = new Set<(planet: Planet, grid: FieldGrid) => void>();
+export function onFieldGridBuilt(listener: (planet: Planet, grid: FieldGrid) => void): () => void {
+  builtListeners.add(listener);
+  return () => builtListeners.delete(listener);
+}
+
+const remember = (key: string, grid: FieldGrid) => {
+  if (cache.size >= CACHE_SIZE) cache.delete(cache.keys().next().value!);
+  cache.set(key, grid);
+};
+
 /** Siatka pól planety (pamięć podręczna — liczona raz na planetę). */
 export function fieldGrid(planet: Planet): FieldGrid {
   const key = fieldGridKey(planet);
   let grid = cache.get(key);
   if (!grid) {
     grid = buildFieldGrid(planet);
-    if (cache.size >= CACHE_SIZE) cache.delete(cache.keys().next().value!);
-    cache.set(key, grid);
+    remember(key, grid);
+    for (const listener of builtListeners) listener(planet, grid);
   }
   return grid;
+}
+
+/** Siatka wczytana z przechowania (bez liczenia) — trafia do pamięci podręcznej, jeśli planety jeszcze tam nie ma. */
+export function primeFieldGrid(planet: Planet, grid: FieldGrid): void {
+  const key = fieldGridKey(planet);
+  if (!cache.has(key)) remember(key, grid);
 }
 
 /** Czyści pamięć siatek (testy: sprawdzenie, czy coś liczy siatki bez potrzeby). */
@@ -196,8 +217,6 @@ export function touchesSea(grid: FieldGrid, cells: Iterable<number>): boolean {
   return false;
 }
 
-/** Pole morza (woda albo lawa) — tylko dla megakonstruktów. */
-export const isSeaCell = (grid: FieldGrid, index: number) => index >= grid.seaCellStart;
 
 interface SurfaceMap {
   samples: Vec3[];

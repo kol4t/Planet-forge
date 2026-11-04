@@ -4366,6 +4366,24 @@ function anchorsOnly(plots: Plots): Plots {
   return out;
 }
 
+/**
+ * Planety z zapisu w pamięci przeglądarki (bez uruchamiania gry; nowa gra — planeta startowa). Do wczytania ich siatek
+ * pól z przechowania przed startem (v0.69.2, `app/gridStore.ts`). Aktywna planeta pierwsza.
+ */
+export function savedPlanets(): Planet[] {
+  const saved = inspectStoredEmpire().empire;
+  if (!saved) return [generatePlanet(STARTER.definition, STARTER.seed)];
+  const out: Planet[] = [];
+  saved.slots.forEach((slot, i) => {
+    const definition = findDefinition(slot.planet.definitionId);
+    if (!definition || slot.planet.generatorVersion !== GENERATOR_VERSION) return;
+    const planet = generatePlanet(definition, slot.planet.seed);
+    if (i === saved.active) out.unshift(planet);
+    else out.push(planet);
+  });
+  return out;
+}
+
 /** Miejsca z zapisu → planety (nieznane typy i inne wersje generatora są pomijane). */
 function restoreSlots(saved: readonly SlotSave[]): Slot[] {
   const slots: Slot[] = [];

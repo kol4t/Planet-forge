@@ -2,6 +2,18 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-04 — Płynność: siatki pól z pamięci przeglądarki, osłona pętli scen (v0.69.2, audyt 2026-11 punkty 1–2)
+
+- **Siatki pól w IndexedDB** (`app/gridStore.ts`, pakowanie `core/colony/fieldGridPack.ts`): pierwsze liczenie siatki
+  trwało 0,3–0,7 s (komputer) i dawało przycięcie przy zmianie planety i przy przejściu 2D↔3D (zgłoszenie właściciela).
+  Każda policzona siatka zapisuje się w tle (bez strat — Float64, ten sam podział pól), przy starcie gra czeka najwyżej
+  2,5 s na siatki swoich planet. Pomiar (przeglądarka bezgłowa): start 1,8 s → 0,44 s, wejście na planetę 300–600 ms →
+  1–7 ms. Siatka 2–3 MB, najwyżej 14 siatek. `localStorage` odpada (limit ok. 5 MB — tam jest zapis gry). Pamięć to
+  tylko przyspieszenie: brak, błąd albo inna `FIELD_GRID_VERSION` → liczenie jak wcześniej. Pierwsze wejście na nową
+  kolonię nadal liczy siatkę raz (potem jest zapamiętana); liczenie w Web Workerze — możliwe później.
+- **Osłona pętli scen** (`app/sceneGuard.ts`): wyjątek w `update()` sceny Phaser nie zatrzymuje już paneli po cichu —
+  wpis w diagnostyce (raz na treść), pasek „Coś poszło nie tak… Dotknij, aby odświeżyć”, scena próbuje działać dalej.
+
 ## 2026-11-03 — Ekstraktor kryształów jako jeden zwarty lej; okna HTML nie przepuszczają dotyku (v0.69.1)
 
 - **Obszar Ekstraktora kryształów = okrąg** wokół pierwszego pola (`discCells`, `fixedPlots` w `GameController`): bez

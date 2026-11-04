@@ -87,3 +87,10 @@ dist/                gra w jednym pliku index.html + manifest, sw.js, ikony (pub
   (20–100 ms). Planety nieaktywne nie liczą siatek przy starcie (`SlotSave.fields`).
 - 3D: jeden kontekst WebGL (panele w Canvas 2D), budżet pikseli i automatyczna rozdzielczość (`adaptiveResolution.ts`).
 - Szczegóły i liczby: `docs/PERFORMANCE.md`.
+
+## Pamięć siatek pól i osłona scen (v0.69.2)
+
+- `app/gridStore.ts` — IndexedDB `planet-forge.grids`: siatki pól planet gracza (spakowane `core/colony/fieldGridPack.ts`),
+  wczytywane przed startem (`savedPlanets()` z `GameController.ts`, `primeFieldGrid`), zapisywane w tle po policzeniu
+  (`onFieldGridBuilt`). Tylko przyspieszenie — stan gry jest wyłącznie w zapisie (`localStorage`).
+- `app/sceneGuard.ts` — owija `update()` scen Phaser: błąd → diagnostyka + pasek z odświeżeniem.

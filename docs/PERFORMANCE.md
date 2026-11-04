@@ -131,3 +131,10 @@ Tego nie zastąpi żadna symulacja. Zajmuje ok. 5 minut.
 
 Dobrze: średnio ≥ 50 kl./s, najsłabsza sekunda ≥ 40. Jeśli „grafika 3D” pokazuje rosnące liczby geometrii lub tekstur
 po kilku zmianach planety — to wyciek, zgłoś go.
+
+## v0.69.2 — siatki pól z pamięci przeglądarki
+
+Zmierzone w przeglądarce bezgłowej (podgląd dev, 2D, komputer): gotowa gra po starcie **1,8 s → 0,44 s** (siatka
+planety z IndexedDB), pierwsze wejście na inną planetę **300–600 ms → 1–7 ms** (gdy jej siatka jest już zapamiętana).
+Odczyt spakowanej siatki 8–30 ms zamiast liczenia 300–700 ms (`docs/decisions.md`, 2026-11-04). Na iPadzie do
+sprawdzenia: przycięcie przy zmianie planety i przy przejściu 2D↔3D powinno zniknąć od drugiego uruchomienia gry.
