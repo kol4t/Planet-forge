@@ -284,7 +284,10 @@ function start(boot: BootGuard): void {
     width: viewport.width * viewport.dpr,
     height: viewport.height * viewport.dpr,
     scale: { mode: Phaser.Scale.NONE, zoom: 1 / viewport.dpr },
-    input: { activePointers: 3 },
+    // windowEvents: false (v0.69.5) — Phaser słucha dotyku tylko na swoim płótnie. Wcześniej rejestrował też dotknięcia
+    // zaczęte w oknach HTML (przeklikiwanie, v0.69.1), a ich puszczenie blokowaliśmy — każde stuknięcie w oknie zajmowało
+    // jedno z 3 miejsc na palce i po trzech gra przestawała reagować (zamrożony ekran u właściciela).
+    input: { activePointers: 3, windowEvents: false },
     banner: false,
     scene: [scene, research, map, empire],
   });
@@ -312,22 +315,15 @@ function start(boot: BootGuard): void {
   guardStep('step');
   guardStep('headlessStep');
 
-  // Okna HTML nad grą (Ustawienia, Kompleks, diagnostyka…): Phaser słucha puszczenia palca na całym oknie przeglądarki,
-  // więc dotknięcie przycisku w oknie HTML „stukało” też w panel gry pod nim (np. zmieniało planetę na liście). Puszczenie
-  // palca, które nie zaczęło się na płótnie gry, nie trafia do Phasera. Przeciągnięcie zaczęte na planecie działa jak dotąd.
-  // v0.69.3: dotknięcia liczone osobno dla każdego palca (identyfikator) — puszczenie palca, który zaczął na płótnie gry,
-  // zawsze trafia do Phasera; blokowane jest tylko puszczenie palca, który zaczął w oknie HTML.
+  // Okna HTML nad grą (Ustawienia, Kompleks, diagnostyka…): dotknięcia w nich nie trafiają do Phasera (`windowEvents: false`).
+  // Śledzenie palców zaczętych na płótnie gry — tylko do zwolnienia zawieszonych palców, gdy nikt nie dotyka ekranu.
   const onGame = (target: EventTarget | null) => target instanceof HTMLCanvasElement && uiRoot.contains(target);
   const gameTouches = new Set<number>();
-  let mouseOnGame = false;
   window.addEventListener('touchstart', (e) => {
     if (onGame(e.target)) for (const t of Array.from(e.changedTouches)) gameTouches.add(t.identifier);
   }, { capture: true, passive: true });
-  window.addEventListener('mousedown', (e) => (mouseOnGame = onGame(e.target)), { capture: true, passive: true });
   const endTouch = (e: TouchEvent) => {
-    const fromGame = Array.from(e.changedTouches).some((t) => gameTouches.has(t.identifier));
     for (const t of Array.from(e.changedTouches)) gameTouches.delete(t.identifier);
-    if (!fromGame && !onGame(e.target)) e.stopPropagation();
     // Wszystkie palce zdjęte: po obsłużeniu zdarzenia przez grę gest planety nie może dalej „trzymać” palca.
     if (e.touches.length === 0) {
       gameTouches.clear();
@@ -339,6 +335,9 @@ function start(boot: BootGuard): void {
       }, 300);
     }
   };
+  window.addEventListener('touchend', endTouch, { capture: true, passive: true });
+  window.addEventListener('touchcancel', endTouch, { capture: true, passive: true });
+
   // v0.69.4 (zamrożony ekran u właściciela): Phaser ma 3 „miejsca na palce” i każde jest zajęte do zdarzenia puszczenia
   // palca. Gdy iPad je zgubi (gest systemowy, przełączenie aplikacji…), po trzech takich razach gra przestaje przyjmować
   // dotyk, choć dalej rysuje planetę. Gdy nikt nie dotyka ekranu, zajęte miejsca są zwalniane (wpis w diagnostyce).
@@ -385,11 +384,6 @@ function start(boot: BootGuard): void {
       releaseStalePointers('gra nie przyjmowała dotknięć');
     }
   }, { passive: true });
-  window.addEventListener('touchend', endTouch, { capture: true });
-  window.addEventListener('touchcancel', endTouch, { capture: true });
-  window.addEventListener('mouseup', (e) => {
-    if (!mouseOnGame && !onGame(e.target)) e.stopPropagation();
-  }, { capture: true });
 
   let pending = 0;
   const onResize = () => {
