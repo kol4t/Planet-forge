@@ -2,6 +2,12 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.69.4 — hotfix: zamrożony ekran (druga runda) — 2026-11-05
+
+- Gra zwalnia „zawieszone palce” (gdy iPad zgubi zdarzenie puszczenia palca, gra przestawała przyjmować dotyk).
+- Wykrywacz: jeśli dotyk nie dociera do gry albo ekran czeka na okno, którego nie widać — gra sama się odblokowuje
+  i zapisuje stan w diagnostyce („Dotyk: … — odblokowano”).
+
 ## v0.69.3 — hotfix: zamrożony ekran — 2026-11-05
 
 - Błąd w jednej klatce nie zamraża już paneli (wcześniej planeta się kręciła, a nic nie dało się stuknąć); zamiast tego
