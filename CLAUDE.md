@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.69.4 — opublikowana: hotfix zamrożonego ekranu (zawieszone palce Phasera, osłona pętli); siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
+## Stan obecny (v0.69.5 — opublikowana: przyczyna zamrożonego ekranu usunięta (Phaser `windowEvents: false`); zawieszone palce, osłona pętli; siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -120,6 +120,8 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   **v0.69.3 (hotfix):** wyjątek w klatce Phasera nie zatrzymuje pętli paneli (`game.step` osłonięte w `main.ts`),
   odblokowanie dotyku (`PlanetScene.watchInput`, `releaseFingers`, osłona `relayout`), ostrzeżenie o wyczerpanym złożu przy wiertnicy. **v0.69.4 (hotfix):** zwalnianie zawieszonych miejsc na palce Phasera
   (3 aktywne wskaźniki), wykrywacz nieprzyjętego dotyku i odblokowanie z zapisem stanu w diagnostyce (`main.ts`, `PlanetScene.unstick`).
+  **v0.69.5 (hotfix):** przyczyna — blokada puszczenia palca z v0.69.1 zajmowała miejsca na palce przy stuknięciach w oknach HTML;
+  teraz Phaser słucha tylko swojego płótna (`input.windowEvents: false`).
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody

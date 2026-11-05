@@ -2,6 +2,11 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.69.5 — hotfix: przyczyna zamrożonego ekranu — 2026-11-05
+
+- Stuknięcia w oknach (Zgłoś, Kompleks, Ustawienia…) nie „zużywają” już dotyku gry — po kilku takich stuknięciach gra
+  przestawała reagować. Przyczyna była w poprawce przeklikiwania z v0.69.1; przeklikiwanie nadal nie wraca.
+
 ## v0.69.4 — hotfix: zamrożony ekran (druga runda) — 2026-11-05
 
 - Gra zwalnia „zawieszone palce” (gdy iPad zgubi zdarzenie puszczenia palca, gra przestawała przyjmować dotyk).
