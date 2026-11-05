@@ -2,6 +2,17 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-05 — Zamrożony ekran, druga runda: zawieszone „miejsca na palce” (v0.69.4)
+
+- Diagnostyka właściciela po zamrożeniu: „ostatnie błędy: brak” — to nie wyjątek. Pasek „Galaktyka › …” znikał, czyli
+  ekran planety uważał, że jakieś okno jest otwarte, albo dotyk w ogóle nie docierał do gry.
+- **Mechanizm (sprawdzony eksperymentem):** Phaser ma 3 miejsca na palce, każde zajęte do zdarzenia puszczenia palca;
+  gdy iPad je zgubi (gest systemowy, przełączenie aplikacji), po trzech razach gra nie przyjmuje żadnego dotyku, choć
+  rysuje dalej. Teraz: gdy nikt nie dotyka ekranu (oraz przy schowaniu gry) zajęte miejsca są zwalniane; wykrywacz
+  (dwa nieprzyjęte dotknięcia płótna z rzędu) zwalnia je też w trakcie; dotyk przyjęty, a ekran czeka na okno
+  Badań / Mapy / Imperium, którego nie widać (> 1 s) — odblokowanie. Każde odblokowanie zapisuje w diagnostyce stan
+  sprzed odblokowania („Dotyk: … — odblokowano”, stan ekranu i liczba zajętych palców) — na trop przyczyny.
+
 ## 2026-11-05 — Zablokowany dotyk: zabezpieczenia (v0.69.3, zgłoszenie właściciela ze zrzutem)
 
 Objaw (iPad, 3D): karta Ekstraktora otwarta, nic nie da się stuknąć ani zamknąć, planeta dalej się obraca. Przyczyny

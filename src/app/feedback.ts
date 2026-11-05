@@ -136,7 +136,7 @@ export function createErrorLog(storage: StorageLike | null, version: string): Er
         same.at = at;
         entries = [...entries.filter((e) => e !== same), same];
       } else {
-        entries = [...entries, { at, message: text, where: where.slice(0, 120), version, count: 1 }].slice(-ERROR_LOG_SIZE);
+        entries = [...entries, { at, message: text, where: where.slice(0, 240), version, count: 1 }].slice(-ERROR_LOG_SIZE);
       }
       write(entries);
     },
