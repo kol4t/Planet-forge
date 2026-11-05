@@ -2,6 +2,11 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.69.2 — płynność: siatki pól z pamięci, osłona scen — 2026-11-05
+
+- Siatka pól planety zapamiętywana w przeglądarce: szybszy start i zmiana planety bez przycięcia (od drugiego uruchomienia).
+- Błąd w odświeżaniu paneli nie zatrzymuje gry po cichu — pasek z odświeżeniem i wpis w diagnostyce.
+
 ## v0.69.1 — zwarty lej Ekstraktora, okna bez przeklikiwania — 2026-11-03
 
 - Ekstraktor kryształów zajmuje jeden okrągły obszar (bez „odnóg”), może wejść w wodę i lawę; od strony wody tama (3D).
