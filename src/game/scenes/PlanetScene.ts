@@ -696,6 +696,7 @@ export class PlanetScene extends Phaser.Scene {
 
 
   update(_time: number, delta: number): void {
+    this.watchInput();
     this.stepCounters(delta);
     this.updateNav();
     this.prefetchGrids();
@@ -755,7 +756,55 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   /** `animate` — planeta płynnie przechodzi do nowego miejsca (zwijanie/rozwijanie paneli). */
+  /**
+   * Przebudowa paneli z osłoną (v0.69.3, zgłoszenie właściciela 2026-11-05: „nic nie da się kliknąć ani zamknąć”):
+   * wyjątek w połowie przebudowy zostawiał stare przyciski usunięte, a nowe niegotowe. Teraz błąd trafia do diagnostyki,
+   * wybór budynku i tryb wyboru pola są czyszczone, a panele budowane drugi raz w bezpiecznym stanie.
+   */
   relayout(animate = false): void {
+    try {
+      this.relayoutUnsafe(animate);
+    } catch (error) {
+      setTimeout(() => {
+        throw error;
+      });
+      this.selected = null;
+      this.placing = null;
+      this.buildingCard.hide();
+      this.relayoutUnsafe(animate);
+    }
+  }
+
+  /**
+   * Zabezpieczenie dotyku (v0.69.3): co klatkę — gdy ekran Badań / Mapy / Imperium miał się otworzyć, a go nie ma
+   * (np. błąd przy otwieraniu), po ok. pół sekundy dotyk wraca; gdy dotyk jest wyłączony bez otwartego ekranu — wraca od razu.
+   */
+  private watchInput(): void {
+    if (this.screenOpen) {
+      const shown = (['research', 'map', 'empire'] as const).some((k) => this.scene.isActive(k) || this.scene.isPaused(k));
+      this.screenMissing = shown ? 0 : this.screenMissing + 1;
+      if (this.screenMissing > 30) {
+        this.screenOpen = false;
+        this.screenMissing = 0;
+        this.input.enabled = true;
+        this.refreshValues();
+      }
+    } else if (!this.input.enabled) this.input.enabled = true;
+  }
+  private screenMissing = 0;
+
+  /**
+   * Wszystkie palce zdjęte z ekranu (zgłasza `main.ts` po `touchend`) — jeśli gest planety wciąż „trzyma” palec
+   * (zgubione zdarzenie), zostaje zwolniony; inaczej kolejne dotknięcia brały się za szczypanie zamiast stuknięć.
+   */
+  releaseFingers(): void {
+    const tracker = this.systemMode ? this.systemGestures : this.gestures;
+    if (!tracker.holding) return;
+    if (this.systemMode) this.applySystemGestures(this.systemGestures.cancel());
+    else this.applyGestures(this.gestures.cancel());
+  }
+
+  private relayoutUnsafe(animate = false): void {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
     this.gestures.tapSlop = 12 * viewport.dpr;

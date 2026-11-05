@@ -114,6 +114,11 @@ export class GestureTracker {
     return [{ type: 'zoom', zoom: next }];
   }
 
+  /** Czy gest trzyma jakiś palec (do zwolnienia, gdy przeglądarka mówi, że nikt nie dotyka ekranu). */
+  get holding(): boolean {
+    return this.points.size > 0;
+  }
+
   /** Wszystkie palce znikły (np. przełączenie aplikacji). */
   cancel(): GestureEvent[] {
     const wasDragging = this.dragId !== null;

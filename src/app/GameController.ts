@@ -404,6 +404,8 @@ export interface MetalConstructView {
   kind?: 'crystal';
   /** Lej megakonstruktu kryształów: etap 1–4, liczba pól (zajętych na zawsze), czy wiertnica już odleciała. */
   crater?: { stage: number; fields: number; left: boolean } | null;
+  /** Złoże kryształów planety już w większości wydobyte (≥ próg wyeksploatowania) — wiertnica niewiele wydobędzie. */
+  lowDeposit?: boolean;
   built: boolean;
   building: { secondsLeft: number; progress: number } | null;
   cost: Resources;
@@ -2227,6 +2229,7 @@ export class GameController {
       legacyMega: save?.phase !== 'konstrukt' && !!slot.complexes?.some((c) => c.building === 'crystalMine' && c.mega),
       reason: check.ok ? null : check.message,
       crater: save ? { stage: save.stage, fields: save.cells.length, left: save.phase === 'lej' } : null,
+      lowDeposit: this.minedCrystal(slot) >= depositTotal(slot.planet, this.balanceFor(slot)).crystal * this.balance.exploitation.threshold,
     };
   }
 

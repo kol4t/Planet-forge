@@ -133,3 +133,15 @@ test('płynne przybliżanie: widok dochodzi do celu w ćwierć sekundy, bez prze
   assert.equal(z.value, 2, '„Ogranicz ruch”: od razu');
   assert.equal(z.update(1 / 60), false);
 });
+
+test('gest: „trzyma palec” do puszczenia albo anulowania (v0.69.3 — zwolnienie zgubionego palca)', () => {
+  const g = new GestureTracker();
+  assert.equal(g.holding, false);
+  g.down(1, 10, 10);
+  assert.equal(g.holding, true);
+  g.up(1);
+  assert.equal(g.holding, false);
+  g.down(2, 10, 10);
+  g.cancel();
+  assert.equal(g.holding, false);
+});

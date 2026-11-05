@@ -144,7 +144,10 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
     const crater = cv.crater
       ? `Lej: etap ${cv.crater.stage} z 4${cv.crater.stage === 4 ? ' — sięga jądra planety' : ''} · ${cv.crater.fields} pól zajętych na zawsze.`
       : '';
-    q('.cp-construct').textContent = crystal
+    const lowDeposit = crystal && cv.lowDeposit
+      ? '\nUwaga: złoże kryształów tej planety jest już w większości wydobyte — wiertnica niewiele wydobędzie, a lej od razu sięgnie jądra. Lepiej postawić ją (albo ściągnąć z orbity) na planecie z pełnym złożem.'
+      : '';
+    q('.cp-construct').textContent = (crystal
       ? cv.built
         ? `Działa: wiertnica wisi na linach nad lejem i drąży ku jądru. Premia +${cv.bonus}% całego budynku i znaleziska (pojawiają się w leju). Lej rośnie z wydobyciem złoża — co ćwierć drogi do wyczerpania o etap.\n${crater}`
         : cv.building
@@ -162,7 +165,7 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
           `Koszt: ${costText} · budowa ${formatDuration(cv.seconds)} (kopalnia pracuje).` +
           (cv.legacyMega ? `\nDawny megakompleks działa do czasu zbudowania konstruktu.` : '') +
           (cv.displaced > 0 ? `\nUwaga: ${cv.displaced} pól innych budynków leży na miejscu układu promienistego — po ukończeniu te budynki przeniosą się obok (poziom bez zmian).` : '') +
-          (cv.reason ? `\n${cv.reason}` : '');
+          (cv.reason ? `\n${cv.reason}` : '')) + lowDeposit;
     // Orbita (krok 3b): wyrzucenie gotowego konstruktu, a na komplecie osad — ściągnięcie konstruktów z orbity.
     const orbit = options.orbit?.view();
     const orbitText = q<HTMLElement>('.cp-orbit');
