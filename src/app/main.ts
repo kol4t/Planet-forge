@@ -333,10 +333,58 @@ function start(boot: BootGuard): void {
       gameTouches.clear();
       // Z zapasem czasu (gra obsługuje puszczenie palca w swojej klatce) i tylko gdy nikt nie dotyka ekranu.
       setTimeout(() => {
-        if (gameTouches.size === 0) scene.releaseFingers();
+        if (gameTouches.size !== 0) return;
+        scene.releaseFingers();
+        releaseStalePointers('palec zawieszony po puszczeniu');
       }, 300);
     }
   };
+  // v0.69.4 (zamrożony ekran u właściciela): Phaser ma 3 „miejsca na palce” i każde jest zajęte do zdarzenia puszczenia
+  // palca. Gdy iPad je zgubi (gest systemowy, przełączenie aplikacji…), po trzech takich razach gra przestaje przyjmować
+  // dotyk, choć dalej rysuje planetę. Gdy nikt nie dotyka ekranu, zajęte miejsca są zwalniane (wpis w diagnostyce).
+  const stuckLogged = new Set<string>();
+  const logStuck = (what: string, before: string) => {
+    if (stuckLogged.has(what)) return;
+    stuckLogged.add(what);
+    errors.record(`Dotyk: ${what} — odblokowano`, `stan przed: ${before}`);
+  };
+  const busyPointers = () => (game.input?.pointers ?? []).filter((p) => p.id > 0 && p.active).length;
+  const releaseStalePointers = (what: string): boolean => {
+    const before = `${scene.inputSnapshot()} palce=${busyPointers()}`;
+    let freed = false;
+    for (const pointer of game.input?.pointers ?? []) {
+      if (pointer.id > 0 && pointer.active) {
+        pointer.reset();
+        freed = true;
+      }
+    }
+    if (freed) logStuck(what, before);
+    return freed;
+  };
+  // Przełączenie aplikacji / zablokowanie iPada w trakcie dotyku — puszczenie palca może nie przyjść: zwolnij miejsca.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) return;
+    for (const pointer of game.input?.pointers ?? []) if (pointer.id > 0 && pointer.active) pointer.reset();
+    scene.releaseFingers();
+  });
+  // Wykrywacz: dotknięcie płótna gry, którego gra nie przyjęła (żaden palec Phasera nie ma tej chwili wciśnięcia) —
+  // po dwóch takich z rzędu: zwolnienie palców i odblokowanie ekranu planety, stan zapisany w diagnostyce.
+  let missed = 0;
+  // Sprawdzenie zaraz po obsłużeniu dotyku przez grę (faza bąbelkowania na `window` — po nasłuchu płótna Phasera).
+  window.addEventListener('touchstart', (e) => {
+    if (!onGame(e.target)) return;
+    const stamp = e.timeStamp;
+    const took = (game.input?.pointers ?? []).some((p) => p.id > 0 && p.downTime === stamp);
+    // Dotyk przyjęty, ale ekran planety czeka na okno Badań / Mapy / Imperium, którego nie widać — odblokuj.
+    const before = scene.inputSnapshot();
+    if (took && scene.unstick()) logStuck('ekran planety czekał na okno, którego nie było', before);
+    missed = took ? 0 : missed + 1;
+    // Dwa nieprzyjęte dotknięcia z rzędu przy jednym palcu na ekranie — miejsca na palce zajęte przez zgubione puszczenia.
+    if (missed >= 2 && e.touches.length === 1) {
+      missed = 0;
+      releaseStalePointers('gra nie przyjmowała dotknięć');
+    }
+  }, { passive: true });
   window.addEventListener('touchend', endTouch, { capture: true });
   window.addEventListener('touchcancel', endTouch, { capture: true });
   window.addEventListener('mouseup', (e) => {

@@ -689,6 +689,7 @@ export class PlanetScene extends Phaser.Scene {
     if (this.screenOpen) return;
     this.closeOverlay();
     this.screenOpen = true;
+    this.screenOpenedAt = this.time.now;
     this.input.enabled = false;
     if (this.gestures.cancel().length > 0) this.deps.display.endDrag();
     this.scene.launch(key, data);
@@ -803,6 +804,33 @@ export class PlanetScene extends Phaser.Scene {
     if (this.systemMode) this.applySystemGestures(this.systemGestures.cancel());
     else this.applyGestures(this.gestures.cancel());
   }
+
+  /** Stan dotyku do diagnostyki (zamrożony ekran — v0.69.4). */
+  inputSnapshot(): string {
+    const shown = (['research', 'map', 'empire'] as const).filter((k) => this.scene.isActive(k)).join('+') || '—';
+    return `input=${this.input.enabled} ekran=${this.screenOpen}/${shown} okno=${!!this.overlay} info=${!!this.closeInfo} wybór=${!!this.placing} budynek=${this.selected ?? '—'} układ=${this.systemMode} lot=${this.planetPending} gest=${this.gestures.holding}`;
+  }
+
+  /**
+   * Odblokowanie ekranu planety, gdy dotyk nie dociera (v0.69.4): bez widocznego ekranu Badań / Mapy / Imperium —
+   * powrót dotyku; gest zwolniony. Zwraca, czy coś było zablokowane.
+   */
+  unstick(): boolean {
+    let changed = false;
+    const shown = (['research', 'map', 'empire'] as const).some((k) => this.scene.isActive(k) && this.scene.isVisible(k));
+    // Ekran dopiero się otwiera (ok. 1 s) — nie przeszkadzać.
+    if (this.screenOpen && !shown && this.time.now - this.screenOpenedAt > 1000) {
+      this.screenOpen = false;
+      changed = true;
+    }
+    if (!this.screenOpen && !this.input.enabled) {
+      this.input.enabled = true;
+      changed = true;
+    }
+    if (changed) this.relayout();
+    return changed;
+  }
+  private screenOpenedAt = 0;
 
   private relayoutUnsafe(animate = false): void {
     const viewport = this.deps.getViewport();
