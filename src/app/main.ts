@@ -288,6 +288,29 @@ function start(boot: BootGuard): void {
     banner: false,
     scene: [scene, research, map, empire],
   });
+  // Osłona całej klatki Phasera (v0.69.3, zgłoszenie właściciela: „klikałem 15 s i się zablokowało”): wyjątek w klatce
+  // (np. w opóźnionym wywołaniu, animacji, tworzeniu ekranu) zatrzymywał pętlę paneli na zawsze — panele zamarzały,
+  // a planeta (osobna pętla) kręciła się dalej. Teraz błąd trafia do diagnostyki, pojawia się pasek z odświeżeniem,
+  // a następna klatka rusza normalnie. Podmiana przed startem pętli (Phaser wiąże `step` przy starcie).
+  const loopErrors = new Set<string>();
+  const guardStep = (name: 'step' | 'headlessStep') => {
+    const original = game[name].bind(game);
+    game[name] = (time: number, delta: number) => {
+      try {
+        original(time, delta);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!loopErrors.has(message)) {
+          loopErrors.add(message);
+          const where = error instanceof Error ? (error.stack ?? '').split('\n').slice(1, 3).join(' ').trim().slice(0, 160) : '';
+          errors.record(message, `klatka gry ${where}`.trim());
+        }
+        showSceneError();
+      }
+    };
+  };
+  guardStep('step');
+  guardStep('headlessStep');
 
   // Okna HTML nad grą (Ustawienia, Kompleks, diagnostyka…): Phaser słucha puszczenia palca na całym oknie przeglądarki,
   // więc dotknięcie przycisku w oknie HTML „stukało” też w panel gry pod nim (np. zmieniało planetę na liście). Puszczenie
