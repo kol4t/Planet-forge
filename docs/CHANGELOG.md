@@ -2,6 +2,13 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.69.3 — hotfix: zamrożony ekran — 2026-11-05
+
+- Błąd w jednej klatce nie zamraża już paneli (wcześniej planeta się kręciła, a nic nie dało się stuknąć); zamiast tego
+  pasek „Coś poszło nie tak — dotknij, aby odświeżyć” i wpis w diagnostyce.
+- Dodatkowe zabezpieczenia dotyku: ekran, który się nie otworzył, zgubiony palec, przerwana przebudowa paneli.
+- Okno wiertnicy ostrzega przy wyczerpanym złożu kryształów.
+
 ## v0.69.2 — płynność: siatki pól z pamięci, osłona scen — 2026-11-05
 
 - Siatka pól planety zapamiętywana w przeglądarce: szybszy start i zmiana planety bez przycięcia (od drugiego uruchomienia).
