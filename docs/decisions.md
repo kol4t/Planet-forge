@@ -2,6 +2,23 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-05 — Zablokowany dotyk: zabezpieczenia (v0.69.3, zgłoszenie właściciela ze zrzutem)
+
+Objaw (iPad, 3D): karta Ekstraktora otwarta, nic nie da się stuknąć ani zamknąć, planeta dalej się obraca. Przyczyny
+nie udało się odtworzyć (w przeglądarce testowej ekrany i panele działają), więc trzy zabezpieczenia na każdą z możliwych:
+- **Ekran, który się nie otworzył** (`PlanetScene.watchInput`): gdy gra czeka na Badania / Mapę / Imperium, a ekranu nie
+  ma po ok. 0,5 s — dotyk wraca; wyłączony dotyk bez otwartego ekranu wraca od razu.
+- **Przebudowa paneli z osłoną** (`relayout`): błąd w połowie przebudowy (stare przyciski usunięte, nowe nie) — wpis
+  w diagnostyce, wybór budynku czyszczony, panele budowane drugi raz.
+- **Zgubiony palec** (`releaseFingers`, `main.ts`): gdy przeglądarka mówi, że nikt nie dotyka ekranu, a gest planety
+  „trzyma” palec — zwolnienie. Blokada przeklikiwania okien (v0.69.1) liczy teraz każdy palec osobno (identyfikator).
+- **Główna przyczyna zamrożenia (potwierdzona eksperymentem):** wyjątek w klatce Phasera (np. w opóźnionym wywołaniu
+  `time.delayedCall`) zatrzymywał pętlę paneli na zawsze — ekran zamarzał, a planeta (osobna pętla Three.js / Canvas)
+  kręciła się dalej. Teraz `game.step` jest osłonięte (`main.ts`): błąd → diagnostyka („klatka gry” + miejsce), pasek
+  z odświeżeniem, następna klatka rusza. Treść błędu u właściciela — do odczytania w diagnostyce („ostatnie błędy”).
+- Okno wiertnicy ostrzega, gdy złoże kryształów jest już w większości wydobyte (wiertnica niewiele wydobędzie, lej od razu
+  sięga jądra).
+
 ## 2026-11-04 — Płynność: siatki pól z pamięci przeglądarki, osłona pętli scen (v0.69.2, audyt 2026-11 punkty 1–2)
 
 - **Siatki pól w IndexedDB** (`app/gridStore.ts`, pakowanie `core/colony/fieldGridPack.ts`): pierwsze liczenie siatki

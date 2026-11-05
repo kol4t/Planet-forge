@@ -288,20 +288,60 @@ function start(boot: BootGuard): void {
     banner: false,
     scene: [scene, research, map, empire],
   });
+  // Osłona całej klatki Phasera (v0.69.3, zgłoszenie właściciela: „klikałem 15 s i się zablokowało”): wyjątek w klatce
+  // (np. w opóźnionym wywołaniu, animacji, tworzeniu ekranu) zatrzymywał pętlę paneli na zawsze — panele zamarzały,
+  // a planeta (osobna pętla) kręciła się dalej. Teraz błąd trafia do diagnostyki, pojawia się pasek z odświeżeniem,
+  // a następna klatka rusza normalnie. Podmiana przed startem pętli (Phaser wiąże `step` przy starcie).
+  const loopErrors = new Set<string>();
+  const guardStep = (name: 'step' | 'headlessStep') => {
+    const original = game[name].bind(game);
+    game[name] = (time: number, delta: number) => {
+      try {
+        original(time, delta);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!loopErrors.has(message)) {
+          loopErrors.add(message);
+          const where = error instanceof Error ? (error.stack ?? '').split('\n').slice(1, 3).join(' ').trim().slice(0, 160) : '';
+          errors.record(message, `klatka gry ${where}`.trim());
+        }
+        showSceneError();
+      }
+    };
+  };
+  guardStep('step');
+  guardStep('headlessStep');
 
   // Okna HTML nad grą (Ustawienia, Kompleks, diagnostyka…): Phaser słucha puszczenia palca na całym oknie przeglądarki,
   // więc dotknięcie przycisku w oknie HTML „stukało” też w panel gry pod nim (np. zmieniało planetę na liście). Puszczenie
   // palca, które nie zaczęło się na płótnie gry, nie trafia do Phasera. Przeciągnięcie zaczęte na planecie działa jak dotąd.
-  let downOnGame = false;
+  // v0.69.3: dotknięcia liczone osobno dla każdego palca (identyfikator) — puszczenie palca, który zaczął na płótnie gry,
+  // zawsze trafia do Phasera; blokowane jest tylko puszczenie palca, który zaczął w oknie HTML.
   const onGame = (target: EventTarget | null) => target instanceof HTMLCanvasElement && uiRoot.contains(target);
-  for (const type of ['mousedown', 'touchstart'] as const) {
-    window.addEventListener(type, (e) => (downOnGame = onGame(e.target)), { capture: true, passive: true });
-  }
-  for (const type of ['mouseup', 'touchend'] as const) {
-    window.addEventListener(type, (e) => {
-      if (!downOnGame && !onGame(e.target)) e.stopPropagation();
-    }, { capture: true });
-  }
+  const gameTouches = new Set<number>();
+  let mouseOnGame = false;
+  window.addEventListener('touchstart', (e) => {
+    if (onGame(e.target)) for (const t of Array.from(e.changedTouches)) gameTouches.add(t.identifier);
+  }, { capture: true, passive: true });
+  window.addEventListener('mousedown', (e) => (mouseOnGame = onGame(e.target)), { capture: true, passive: true });
+  const endTouch = (e: TouchEvent) => {
+    const fromGame = Array.from(e.changedTouches).some((t) => gameTouches.has(t.identifier));
+    for (const t of Array.from(e.changedTouches)) gameTouches.delete(t.identifier);
+    if (!fromGame && !onGame(e.target)) e.stopPropagation();
+    // Wszystkie palce zdjęte: po obsłużeniu zdarzenia przez grę gest planety nie może dalej „trzymać” palca.
+    if (e.touches.length === 0) {
+      gameTouches.clear();
+      // Z zapasem czasu (gra obsługuje puszczenie palca w swojej klatce) i tylko gdy nikt nie dotyka ekranu.
+      setTimeout(() => {
+        if (gameTouches.size === 0) scene.releaseFingers();
+      }, 300);
+    }
+  };
+  window.addEventListener('touchend', endTouch, { capture: true });
+  window.addEventListener('touchcancel', endTouch, { capture: true });
+  window.addEventListener('mouseup', (e) => {
+    if (!mouseOnGame && !onGame(e.target)) e.stopPropagation();
+  }, { capture: true });
 
   let pending = 0;
   const onResize = () => {
