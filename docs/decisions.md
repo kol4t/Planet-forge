@@ -2,6 +2,15 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-05 — Przyczyna zamrożonego ekranu znaleziona (v0.69.5)
+
+- **Przyczyna:** poprawka przeklikiwania okien z v0.69.1 blokowała Phaserowi zdarzenie puszczenia palca dla dotknięć
+  zaczętych w oknach HTML, a Phaser (domyślnie `windowEvents: true`) rejestrował ich początek na `window`. Każde
+  stuknięcie w oknie HTML (Zgłoś, Kompleks, Wyślij, Zamknij…) zajmowało na stałe jedno z 3 miejsc na palce; po trzech —
+  gra nie przyjmowała dotyku (planeta rysowała się dalej). Odtworzone skryptem: Ustawienia → Zgłoś → Wyślij → Zamknij.
+- **Poprawka u źródła:** `input.windowEvents: false` — Phaser słucha tylko swojego płótna; ręczna blokada zdarzeń
+  usunięta. Przeklikiwanie okien nie wraca (test), zabezpieczenia z v0.69.3–v0.69.4 zostają jako zapas.
+
 ## 2026-11-05 — Zamrożony ekran, druga runda: zawieszone „miejsca na palce” (v0.69.4)
 
 - Diagnostyka właściciela po zamrożeniu: „ostatnie błędy: brak” — to nie wyjątek. Pasek „Galaktyka › …” znikał, czyli
