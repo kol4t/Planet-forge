@@ -19,6 +19,9 @@ export interface StationModuleDef {
 /** Miejsce na osi stacji pod rdzeniem (dok megakonstruktów — decyzja właściciela 2026-11-09). */
 export const AXIS_SOCKET = -1;
 
+/** Etap planu stacji, do którego moduły już działają (wyższe — „wkrótce”). */
+export const STATION_STAGE_READY = 2;
+
 /** Liczba gniazd na pierścieniu stacji macierzystej (etap 1). */
 export const STATION_SOCKETS = 6;
 

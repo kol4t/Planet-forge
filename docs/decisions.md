@@ -1101,3 +1101,10 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
   jeden kontekst WebGL, planeta ukryta na czas stacji; wspólna matematyka 2D/3D w `stationScreenLayout.ts`. Model
   modułów z istniejących pól zapisu stacji (bez nowych pól); 6 gniazd stałych, kolejne moduły w etapach 2–6.
 - Na ekranie stacji aktywna jest planeta, nad którą stacja krąży (ona płaci za moduły, jak dotąd).
+
+## 2026-11-09 — Stacja, etap 2a: badania stacji
+
+- Osobny stan badań w zapisie stacji (`station.research`, `station.lab`), silnik `core/station/stationResearch.ts`
+  niezależny od badań planet (inne pierścienie, koszt z magazynu stacji, jedna kolejka). Efekty zwykłego rodzaju
+  (`ResearchEffect`) trafiają do balansu każdej planety jako dodatkowe (`balanceFor`), efekty samej stacji
+  (`stationResearchTime`) i „przygotowania” etapów — tylko w stacji. Lista badań to szkic do zastąpienia (krok 2c).

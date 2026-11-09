@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { STATION_MODULES, STATION_SOCKETS } from '../src/data/stationModules.ts';
+import { STATION_MODULES, STATION_SOCKETS, STATION_STAGE_READY } from '../src/data/stationModules.ts';
 import { moduleAnchor, pickStationModule, projectStation, rotateStation } from '../src/planet-renderer/stationScreenLayout.ts';
 import { socketAngle, stationScreen, stationScreenKey } from '../src/core/station/stationScreen.ts';
 import type { HomeStation } from '../src/core/types.ts';
@@ -24,7 +24,8 @@ test('ekran stacji: brak stacji = brak modelu; rdzeń w budowie, potem gotowy', 
   assert.equal(ready.ready, true);
   assert.equal(ready.modules.find((m) => m.id === 'core')!.state, 'ready');
   assert.equal(ready.modules.find((m) => m.id === 'storage')!.state, 'empty');
-  assert.ok(ready.modules.filter((m) => m.stage > 1).every((m) => m.state === 'soon'));
+  assert.ok(ready.modules.filter((m) => m.stage > STATION_STAGE_READY).every((m) => m.state === 'soon'));
+  assert.equal(ready.modules.find((m) => m.id === 'lab')!.state, 'empty');
 });
 
 test('ekran stacji: moduł w rozbudowie pokazuje działający poziom i docelowy', () => {

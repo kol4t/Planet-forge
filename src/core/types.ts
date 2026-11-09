@@ -788,6 +788,10 @@ export interface HomeStation {
   storage?: AsteroidStation;
   /** Stocznia (v0.58) — moduł stacji, buduje statki floty. */
   shipyard?: AsteroidStation;
+  /** Laboratorium orbitalne (etap 2a planu stacji) — badania stacji. */
+  lab?: AsteroidStation;
+  /** Badania stacji (etap 2a): zbadane i badanie w toku. */
+  research?: { done: string[]; current: { id: string; startedAt: number; readyAt: number } | null };
   stock: Resources;
 }
 

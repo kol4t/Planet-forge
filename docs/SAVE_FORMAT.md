@@ -72,6 +72,11 @@ Kopiuj zapis / Wczytaj zapis).
     "core": { "level": 1, "readyAt": 0 },       //   rdzeń SI Matki (readyAt — koniec budowy, ms)
     "storage": { "level": 2, "readyAt": 0 },    //   magazyn orbitalny (opcjonalny; błędny pomijany)
     "shipyard": { "level": 1, "readyAt": 0 },   //   stocznia (od v0.58, opcjonalna)
+    "lab": { "level": 2, "readyAt": 0 },        //   Laboratorium orbitalne (od v0.73, opcjonalne; błędne pomijane)
+    "research": {                               //   badania stacji (od v0.73, opcjonalne; nieznane id pomijane)
+      "done": ["st-power"],
+      "current": { "id": "st-ai-node", "startedAt": 0, "readyAt": 0 }   // badanie w toku albo null
+    },
     "stock": { "metal": 1200, "crystal": 0 }    //   zapasy na stacji (ujemne → 0)
   },
   "slots": [ SlotSave, … ]

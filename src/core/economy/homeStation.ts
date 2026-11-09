@@ -3,6 +3,7 @@
 // Czysta logika: budowa i rozbudowa (warunki → koszt → nowy stan), pojemność, odczyt z zapisu.
 import type { AsteroidStation, Balance, HomeStation, Resources } from '../types.ts';
 import { stationLevelAt } from './asteroids.ts';
+import { parseStationResearch } from '../station/stationResearch.ts';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
@@ -75,12 +76,16 @@ export function parseHomeStation(raw: any): HomeStation | null {
   if (!core) return null;
   const storage = parseLevel(raw.storage);
   const shipyard = parseLevel(raw.shipyard);
+  const lab = parseLevel(raw.lab);
+  const research = raw.research ? parseStationResearch(raw.research) : null;
   const amount = (v: unknown) => (isNum(v) && v > 0 ? v : 0);
   return {
     address: raw.address,
     core,
     ...(storage ? { storage } : {}),
     ...(shipyard ? { shipyard } : {}),
+    ...(lab ? { lab } : {}),
+    ...(research && (research.done.length > 0 || research.current) ? { research } : {}),
     stock: { metal: amount(raw.stock?.metal), crystal: amount(raw.stock?.crystal) },
   };
 }

@@ -36,3 +36,4 @@ Do poprawienia w Projekcie lore (pliki w `docs/lore/` są kopią — nie poprawi
 - **O-206** — w `CLAUDE.md` zostało „w klimacie OGame” z dopiskiem o K-005; zmiana samego sformułowania czeka na decyzję właściciela.
 
 | Moduły stacji: Rdzeń SI Matki, Magazyn orbitalny, Stocznia, Laboratorium orbitalne, Dok handlowy, Moduł mieszkalny, Nasłuch (robocze, etap 1 planu stacji) | `src/data/stationModules.ts` | — |
+| Kategorie i badania stacji (Produkcja, Flota, SI, Planetologia, Handel, Eksploracja; 27 badań — szkic roboczy, etap 2a) | `src/data/stationResearch.ts` | — |

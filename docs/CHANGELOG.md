@@ -2,6 +2,17 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.73.0 — stacja kosmiczna, etap 2a: badania stacji — robocza
+
+Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 2):
+- Moduł **Laboratorium orbitalne** (gniazdo 2): budowa i rozbudowa do poz. 10, płaci **magazyn stacji**.
+- Osobne drzewko **badań stacji** (`data/stationResearch.ts`, szkic roboczy 27 badań): 6 kategorii — Produkcja, Flota,
+  SI, Planetologia, Handel, Eksploracja — połączonych **mostami**; płaci magazyn stacji, kolejka osobna od planet
+  (jedno badanie naraz), efekty działają na wszystkie planety imperium; część badań „przygotowuje” kolejne etapy.
+- Ekran „Badania stacji” (`StationResearchScene`): wybór kategorii, galaktyka kategorii z mostami, szczegóły i start;
+  wejście: „Badania” na dolnym pasku na ekranie stacji i przycisk na karcie laboratorium.
+- Silnik `core/station/stationResearch.ts`, zapis `station.lab`, `station.research` (opcjonalne).
+
 ## v0.72.0 — stacja kosmiczna, etap 1: ekran stacji — 2026-11-09
 
 Plan `docs/plan-stacji.md` (decyzje właściciela 2026-11-09: pierścień z osią, kolory jak interfejs, 2D i 3D od razu,

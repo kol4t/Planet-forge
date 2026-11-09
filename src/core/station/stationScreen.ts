@@ -1,7 +1,7 @@
 // Ekran stacji (plan `docs/plan-stacji.md`, etap 1): stan modułów stacji macierzystej w gniazdach — wspólne źródło
 // dla wyglądu (2D i 3D), wyboru modułu dotykiem i panelu „Moduły”. Czysta logika, bez zmian w zapisie: moduły wynikają
 // z istniejących pól stacji (`core`, `storage`, `shipyard`).
-import { STATION_MODULES, STATION_SOCKETS, type StationModuleId } from '../../data/stationModules.ts';
+import { STATION_MODULES, STATION_SOCKETS, STATION_STAGE_READY, type StationModuleId } from '../../data/stationModules.ts';
 import { stationLevelAt } from '../economy/asteroids.ts';
 import type { AsteroidStation, HomeStation } from '../types.ts';
 
@@ -37,12 +37,12 @@ function moduleState(part: AsteroidStation | undefined, at: number): Pick<Statio
 export function stationScreen(station: HomeStation | null, at: number): StationScreenModel | null {
   if (!station) return null;
   const ready = at >= station.core.readyAt;
-  const parts: Partial<Record<StationModuleId, AsteroidStation | undefined>> = { storage: station.storage, shipyard: station.shipyard };
+  const parts: Partial<Record<StationModuleId, AsteroidStation | undefined>> = { storage: station.storage, shipyard: station.shipyard, lab: station.lab };
   const modules = STATION_MODULES.map((def): StationModuleView => {
     if (def.id === 'core') {
       return { id: 'core', socket: null, level: ready ? station.core.level : 0, state: ready ? 'ready' : 'building', upgrading: ready ? null : station.core.level, stage: 1 };
     }
-    if (def.stage > 1) return { id: def.id, socket: def.socket, level: 0, state: 'soon', upgrading: null, stage: def.stage };
+    if (def.stage > STATION_STAGE_READY) return { id: def.id, socket: def.socket, level: 0, state: 'soon', upgrading: null, stage: def.stage };
     return { id: def.id, socket: def.socket, stage: def.stage, ...moduleState(parts[def.id], at) };
   });
   return { ready, modules };
