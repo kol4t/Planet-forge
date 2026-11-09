@@ -144,9 +144,11 @@ export function openComplexPanel(options: ComplexPanelOptions): () => void {
     const crater = cv.crater
       ? `Lej: etap ${cv.crater.stage} z 4${cv.crater.stage === 4 ? ' — sięga jądra planety' : ''} · ${cv.crater.fields} pól zajętych na zawsze.`
       : '';
-    const lowDeposit = crystal && cv.lowDeposit
-      ? '\nUwaga: złoże kryształów tej planety jest już w większości wydobyte — wiertnica niewiele wydobędzie, a lej od razu sięgnie jądra. Lepiej postawić ją (albo ściągnąć z orbity) na planecie z pełnym złożem.'
-      : '';
+    const lowDeposit = !cv.lowDeposit || cv.built
+      ? ''
+      : crystal
+        ? '\nUwaga: złoże kryształów tej planety jest już w większości wydobyte — wiertnica niewiele wydobędzie, a lej od razu sięgnie jądra. Lepiej postawić ją (albo ściągnąć z orbity) na planecie z pełnym złożem.'
+        : '\nUwaga: złoże metalu tej planety jest już w większości wydobyte — megakonstrukt niewiele wydobędzie. Lepiej postawić go (albo ściągnąć z orbity) na planecie z pełnym złożem.';
     q('.cp-construct').textContent = (crystal
       ? cv.built
         ? `Działa: wiertnica wisi na linach nad lejem i drąży ku jądru. Premia +${cv.bonus}% całego budynku i znaleziska (pojawiają się w leju). Lej rośnie z wydobyciem złoża — co ćwierć drogi do wyczerpania o etap.\n${crater}`

@@ -252,7 +252,7 @@ export function capacityAtLevel(level: number, balance: Balance = BALANCE): numb
 
 /** Czas budowy (s) poziomu `targetLevel`. */
 export function buildSeconds(targetLevel: number, balance: Balance = BALANCE): number {
-  return balance.buildSecondsPerLevel * targetLevel;
+  return Math.round(balance.buildSecondsPerLevel * targetLevel * (balance.buildTimeGrowth ?? 1) ** Math.max(0, targetLevel - 1));
 }
 
 /** Postęp trwającej budowy 0..1 (0, gdy nic się nie buduje). */

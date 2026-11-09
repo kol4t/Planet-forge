@@ -2,6 +2,12 @@
 
 Krótki rejestr istotnych decyzji (najnowsze na górze).
 
+## 2026-11-09 — Strojenie ekonomii przed MVP (v0.70, `docs/strojenie-ekonomii.md`)
+
+- Pętla ok. miesiąca z wolniejszym startem: czas budowy rośnie ×1,07 na poziom (`BALANCE.buildTimeGrowth`, poz. 40 ok.
+  4,7 h), praca megakonstruktu 7 → 6 dni. Symulacja: poz. 40 w 6. / 7. dniu (aktywny / okazjonalny), pętla 30 / 37 dni.
+- Ekstraktor kryształów zostaje 50 pól; megakonstrukt na wyczerpanym złożu — tylko ostrzeżenie (metal i kryształy).
+
 ## 2026-11-05 — Przyczyna zamrożonego ekranu znaleziona (v0.69.5)
 
 - **Przyczyna:** poprawka przeklikiwania okien z v0.69.1 blokowała Phaserowi zdarzenie puszczenia palca dla dotknięć

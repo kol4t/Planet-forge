@@ -33,19 +33,19 @@ Koszt poz. 1: 60 metalu, 15 kryształów; wzrost kosztu ×1.2 na poziom.
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (metal/min) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
 | 1 | 60 | 15 | 30 s | 18,9 | 10,5 | 1 | Kopalnia |
-| 2 | 72 | 18 | 1 min | 39,7 | 22,1 | 1 | Kopalnia |
-| 3 | 86 | 21 | 1 min 30 s | 62,5 | 34,7 | 1 | Kopalnia |
-| 5 | 124 | 31 | 2 min 30 s | 114,9 | 63,8 | 2 | Kopalnia |
-| 6 | 149 | 37 | 3 min | 144,7 | 80,4 | 2 | Zakład przetwórczy |
-| 8 | 214 | 53 | 4 min | 212,8 | 118,2 | 3 | Zakład przetwórczy |
-| 10 | 309 | 77 | 5 min | 293,2 | 162,9 | 5 | Zakład przetwórczy |
-| 12 | 445 | 111 | 6 min | 387,9 | 215,5 | 6 | Huta |
-| 15 | 770 | 192 | 7 min 30 s | 561,3 | 311,8 | 7 | Huta |
-| 19 | 1597 | 399 | 9 min 30 s | 864,2 | 480,1 | 8 | Huta |
-| 20 | 1916 | 479 | 10 min | 955,2 | 530,7 | 10 | Kombinat metalowy |
-| 25 | 4769 | 1192 | 12 min 30 s | 1523,9 | 846,6 | 12 | Kombinat metalowy |
-| 30 | 11 868 | 2967 | 15 min | 2333,8 | 1296,6 | 15 | Kombinat metalowy |
-| 40 | 73 488 | 18 372 | 20 min | 5068,8 | 2816,0 | 20 | Kombinat metalowy |
+| 2 | 72 | 18 | 1 min 4 s | 39,7 | 22,1 | 1 | Kopalnia |
+| 3 | 86 | 21 | 1 min 43 s | 62,5 | 34,7 | 1 | Kopalnia |
+| 5 | 124 | 31 | 3 min 17 s | 114,9 | 63,8 | 2 | Kopalnia |
+| 6 | 149 | 37 | 4 min 12 s | 144,7 | 80,4 | 2 | Zakład przetwórczy |
+| 8 | 214 | 53 | 6 min 25 s | 212,8 | 118,2 | 3 | Zakład przetwórczy |
+| 10 | 309 | 77 | 9 min 12 s | 293,2 | 162,9 | 5 | Zakład przetwórczy |
+| 12 | 445 | 111 | 12 min 38 s | 387,9 | 215,5 | 6 | Huta |
+| 15 | 770 | 192 | 19 min 20 s | 561,3 | 311,8 | 7 | Huta |
+| 19 | 1597 | 399 | 32 min 7 s | 864,2 | 480,1 | 8 | Huta |
+| 20 | 1916 | 479 | 36 min 10 s | 955,2 | 530,7 | 10 | Kombinat metalowy |
+| 25 | 4769 | 1192 | 1 h 3 min | 1523,9 | 846,6 | 12 | Kombinat metalowy |
+| 30 | 11 868 | 2967 | 1 h 46 min | 2333,8 | 1296,6 | 15 | Kombinat metalowy |
+| 40 | 73 488 | 18 372 | 4 h 39 min | 5068,8 | 2816,0 | 20 | Kombinat metalowy |
 
 ### Ekstraktor kryształów (`crystalMine`)
 
@@ -54,19 +54,19 @@ Koszt poz. 1: 48 metalu, 24 kryształów; wzrost kosztu ×1.22 na poziom.
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (kryształy/min) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
 | 1 | 48 | 24 | 30 s | 10,5 | 10,5 | 1 | Wiertło |
-| 2 | 58 | 29 | 1 min | 22,1 | 22,1 | 2 | Wiertło |
-| 3 | 71 | 35 | 1 min 30 s | 34,7 | 34,7 | 2 | Wiertło |
-| 5 | 106 | 53 | 2 min 30 s | 63,8 | 63,8 | 3 | Wiertło |
-| 6 | 129 | 64 | 3 min | 80,4 | 80,4 | 6 | Szyb wiertniczy |
-| 8 | 193 | 96 | 4 min | 118,2 | 118,2 | 8 | Szyb wiertniczy |
-| 10 | 287 | 143 | 5 min | 162,9 | 162,9 | 10 | Szyb wiertniczy |
-| 12 | 427 | 213 | 6 min | 215,5 | 215,5 | 16 | Odkrywka |
-| 15 | 776 | 388 | 7 min 30 s | 311,8 | 311,8 | 19 | Odkrywka |
-| 19 | 1720 | 860 | 9 min 30 s | 480,1 | 480,1 | 22 | Odkrywka |
-| 20 | 2099 | 1049 | 10 min | 530,7 | 530,7 | 40 | Megaodkrywka |
-| 25 | 5673 | 2836 | 12 min 30 s | 846,6 | 846,6 | 50 | Megaodkrywka |
-| 30 | 15 334 | 7667 | 15 min | 1296,6 | 1296,6 | 50 | Megaodkrywka |
-| 40 | 112 014 | 56 007 | 20 min | 2816,0 | 2816,0 | 50 | Megaodkrywka |
+| 2 | 58 | 29 | 1 min 4 s | 22,1 | 22,1 | 2 | Wiertło |
+| 3 | 71 | 35 | 1 min 43 s | 34,7 | 34,7 | 2 | Wiertło |
+| 5 | 106 | 53 | 3 min 17 s | 63,8 | 63,8 | 3 | Wiertło |
+| 6 | 129 | 64 | 4 min 12 s | 80,4 | 80,4 | 6 | Szyb wiertniczy |
+| 8 | 193 | 96 | 6 min 25 s | 118,2 | 118,2 | 8 | Szyb wiertniczy |
+| 10 | 287 | 143 | 9 min 12 s | 162,9 | 162,9 | 10 | Szyb wiertniczy |
+| 12 | 427 | 213 | 12 min 38 s | 215,5 | 215,5 | 16 | Odkrywka |
+| 15 | 776 | 388 | 19 min 20 s | 311,8 | 311,8 | 19 | Odkrywka |
+| 19 | 1720 | 860 | 32 min 7 s | 480,1 | 480,1 | 22 | Odkrywka |
+| 20 | 2099 | 1049 | 36 min 10 s | 530,7 | 530,7 | 40 | Megaodkrywka |
+| 25 | 5673 | 2836 | 1 h 3 min | 846,6 | 846,6 | 50 | Megaodkrywka |
+| 30 | 15 334 | 7667 | 1 h 46 min | 1296,6 | 1296,6 | 50 | Megaodkrywka |
+| 40 | 112 014 | 56 007 | 4 h 39 min | 2816,0 | 2816,0 | 50 | Megaodkrywka |
 
 ### Elektrownia (`powerPlant`)
 
@@ -75,19 +75,19 @@ Koszt poz. 1: 75 metalu, 30 kryształów; wzrost kosztu ×1.2 na poziom.
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (energia) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
 | 1 | 75 | 30 | 30 s | 23,1 | 0 | 1 | Farma wiatrowa |
-| 2 | 90 | 36 | 1 min | 48,5 | 0 | 2 | Farma wiatrowa |
-| 3 | 108 | 43 | 1 min 30 s | 76,4 | 0 | 2 | Farma wiatrowa |
-| 5 | 155 | 62 | 2 min 30 s | 140,4 | 0 | 3 | Farma wiatrowa |
-| 6 | 186 | 74 | 3 min | 176,9 | 0 | 4 | Generator fuzyjny |
-| 8 | 268 | 107 | 4 min | 260,0 | 0 | 5 | Generator fuzyjny |
-| 10 | 386 | 154 | 5 min | 358,4 | 0 | 6 | Generator fuzyjny |
-| 12 | 557 | 222 | 6 min | 474,1 | 0 | 8 | Elektrownia jądrowa |
-| 15 | 962 | 385 | 7 min 30 s | 686,0 | 0 | 10 | Elektrownia jądrowa |
-| 19 | 1996 | 798 | 9 min 30 s | 1056,3 | 0 | 12 | Elektrownia jądrowa |
-| 20 | 2396 | 958 | 10 min | 1167,5 | 0 | 16 | Reaktor antymaterii |
-| 25 | 5962 | 2384 | 12 min 30 s | 1862,5 | 0 | 22 | Reaktor antymaterii |
-| 30 | 14 836 | 5934 | 15 min | 2852,5 | 0 | 22 | Reaktor antymaterii |
-| 40 | 91 860 | 36 744 | 20 min | 6195,2 | 0 | 22 | Reaktor antymaterii |
+| 2 | 90 | 36 | 1 min 4 s | 48,5 | 0 | 2 | Farma wiatrowa |
+| 3 | 108 | 43 | 1 min 43 s | 76,4 | 0 | 2 | Farma wiatrowa |
+| 5 | 155 | 62 | 3 min 17 s | 140,4 | 0 | 3 | Farma wiatrowa |
+| 6 | 186 | 74 | 4 min 12 s | 176,9 | 0 | 4 | Generator fuzyjny |
+| 8 | 268 | 107 | 6 min 25 s | 260,0 | 0 | 5 | Generator fuzyjny |
+| 10 | 386 | 154 | 9 min 12 s | 358,4 | 0 | 6 | Generator fuzyjny |
+| 12 | 557 | 222 | 12 min 38 s | 474,1 | 0 | 8 | Elektrownia jądrowa |
+| 15 | 962 | 385 | 19 min 20 s | 686,0 | 0 | 10 | Elektrownia jądrowa |
+| 19 | 1996 | 798 | 32 min 7 s | 1056,3 | 0 | 12 | Elektrownia jądrowa |
+| 20 | 2396 | 958 | 36 min 10 s | 1167,5 | 0 | 16 | Reaktor antymaterii |
+| 25 | 5962 | 2384 | 1 h 3 min | 1862,5 | 0 | 22 | Reaktor antymaterii |
+| 30 | 14 836 | 5934 | 1 h 46 min | 2852,5 | 0 | 22 | Reaktor antymaterii |
+| 40 | 91 860 | 36 744 | 4 h 39 min | 6195,2 | 0 | 22 | Reaktor antymaterii |
 
 ### Magazyn (`storage`)
 
@@ -96,19 +96,19 @@ Koszt poz. 1: 70 metalu, 35 kryształów; wzrost kosztu ×1.2 na poziom.
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (pojemność) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
 | 1 | 70 | 35 | 30 s | 1000 | 0 | 1 | Skład |
-| 2 | 84 | 42 | 1 min | 1600 | 0 | 2 | Skład |
-| 3 | 100 | 50 | 1 min 30 s | 2560 | 0 | 2 | Skład |
-| 5 | 145 | 72 | 2 min 30 s | 6553 | 0 | 2 | Skład |
-| 6 | 174 | 87 | 3 min | 10 485 | 0 | 3 | Magazyn |
-| 8 | 250 | 125 | 4 min | 26 843 | 0 | 4 | Magazyn |
-| 10 | 361 | 180 | 5 min | 68 719 | 0 | 5 | Magazyn |
-| 12 | 520 | 260 | 6 min | 175 921 | 0 | 6 | Terminal magazynowy |
-| 15 | 898 | 449 | 7 min 30 s | 720 575 | 0 | 8 | Terminal magazynowy |
-| 19 | 1863 | 931 | 9 min 30 s | 4 722 366 | 0 | 9 | Terminal magazynowy |
-| 20 | 2236 | 1118 | 10 min | 7 555 786 | 0 | 10 | Megaskład |
-| 25 | 5564 | 2782 | 12 min 30 s | 79 228 162 | 0 | 14 | Megaskład |
-| 30 | 13 846 | 6923 | 15 min | 830 767 497 | 0 | 14 | Megaskład |
-| 40 | 85 736 | 42 868 | 20 min | 91 343 852 333 | 0 | 14 | Megaskład |
+| 2 | 84 | 42 | 1 min 4 s | 1600 | 0 | 2 | Skład |
+| 3 | 100 | 50 | 1 min 43 s | 2560 | 0 | 2 | Skład |
+| 5 | 145 | 72 | 3 min 17 s | 6553 | 0 | 2 | Skład |
+| 6 | 174 | 87 | 4 min 12 s | 10 485 | 0 | 3 | Magazyn |
+| 8 | 250 | 125 | 6 min 25 s | 26 843 | 0 | 4 | Magazyn |
+| 10 | 361 | 180 | 9 min 12 s | 68 719 | 0 | 5 | Magazyn |
+| 12 | 520 | 260 | 12 min 38 s | 175 921 | 0 | 6 | Terminal magazynowy |
+| 15 | 898 | 449 | 19 min 20 s | 720 575 | 0 | 8 | Terminal magazynowy |
+| 19 | 1863 | 931 | 32 min 7 s | 4 722 366 | 0 | 9 | Terminal magazynowy |
+| 20 | 2236 | 1118 | 36 min 10 s | 7 555 786 | 0 | 10 | Megaskład |
+| 25 | 5564 | 2782 | 1 h 3 min | 79 228 162 | 0 | 14 | Megaskład |
+| 30 | 13 846 | 6923 | 1 h 46 min | 830 767 497 | 0 | 14 | Megaskład |
+| 40 | 85 736 | 42 868 | 4 h 39 min | 91 343 852 333 | 0 | 14 | Megaskład |
 
 ### Kolektor antymaterii (`antimatterCollector`)
 
@@ -117,19 +117,19 @@ Koszt poz. 1: 400 metalu, 260 kryształów; wzrost kosztu ×1.25 na poziom.
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (antymateria/h) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
 | 1 | 400 | 260 | 30 s | 0,6 | 18,9 | 1 | Pułapka |
-| 2 | 500 | 325 | 1 min | 1,3 | 39,7 | 2 | Pułapka |
-| 3 | 625 | 406 | 1 min 30 s | 2,1 | 62,5 | 2 | Pułapka |
-| 5 | 976 | 634 | 2 min 30 s | 3,8 | 114,9 | 2 | Pułapka |
-| 6 | 1220 | 793 | 3 min | 4,8 | 144,7 | 3 | Kolektor |
-| 8 | 1907 | 1239 | 4 min | 7,1 | 212,8 | 4 | Kolektor |
-| 10 | 2980 | 1937 | 5 min | 9,8 | 293,2 | 5 | Kolektor |
-| 12 | 4656 | 3026 | 6 min | 12,9 | 387,9 | 6 | Pole pułapek |
-| 15 | 9094 | 5911 | 7 min 30 s | 18,7 | 561,3 | 8 | Pole pułapek |
-| 19 | 22 204 | 14 432 | 9 min 30 s | 28,8 | 864,2 | 9 | Pole pułapek |
-| 20 | 27 755 | 18 041 | 10 min | 31,8 | 955,2 | 10 | Megakolektor |
-| 25 | 84 703 | 55 057 | 12 min 30 s | 50,8 | 1523,9 | 14 | Megakolektor |
-| 30 | 258 493 | 168 021 | 15 min | 77,8 | 2333,8 | 14 | Megakolektor |
-| 40 | 2 407 412 | 1 564 818 | 20 min | 169,0 | 5068,8 | 14 | Megakolektor |
+| 2 | 500 | 325 | 1 min 4 s | 1,3 | 39,7 | 2 | Pułapka |
+| 3 | 625 | 406 | 1 min 43 s | 2,1 | 62,5 | 2 | Pułapka |
+| 5 | 976 | 634 | 3 min 17 s | 3,8 | 114,9 | 2 | Pułapka |
+| 6 | 1220 | 793 | 4 min 12 s | 4,8 | 144,7 | 3 | Kolektor |
+| 8 | 1907 | 1239 | 6 min 25 s | 7,1 | 212,8 | 4 | Kolektor |
+| 10 | 2980 | 1937 | 9 min 12 s | 9,8 | 293,2 | 5 | Kolektor |
+| 12 | 4656 | 3026 | 12 min 38 s | 12,9 | 387,9 | 6 | Pole pułapek |
+| 15 | 9094 | 5911 | 19 min 20 s | 18,7 | 561,3 | 8 | Pole pułapek |
+| 19 | 22 204 | 14 432 | 32 min 7 s | 28,8 | 864,2 | 9 | Pole pułapek |
+| 20 | 27 755 | 18 041 | 36 min 10 s | 31,8 | 955,2 | 10 | Megakolektor |
+| 25 | 84 703 | 55 057 | 1 h 3 min | 50,8 | 1523,9 | 14 | Megakolektor |
+| 30 | 258 493 | 168 021 | 1 h 46 min | 77,8 | 2333,8 | 14 | Megakolektor |
+| 40 | 2 407 412 | 1 564 818 | 4 h 39 min | 169,0 | 5068,8 | 14 | Megakolektor |
 
 ### Laboratorium (`laboratory`)
 
@@ -138,19 +138,19 @@ Koszt poz. 1: 200 metalu, 400 kryształów; wzrost kosztu ×1.22 na poziom.
 | Poziom | Koszt metalu | Koszt kryształów | Czas budowy | Wydobycie (—) | Zużycie energii | Pola | Etap |
 |---|---|---|---|---|---|---|---|
 | 1 | 200 | 400 | 30 s | — | 6,3 | 1 | Pracownia |
-| 2 | 244 | 488 | 1 min | — | 13,2 | 2 | Pracownia |
-| 3 | 297 | 595 | 1 min 30 s | — | 20,8 | 2 | Pracownia |
-| 5 | 443 | 886 | 2 min 30 s | — | 38,3 | 2 | Pracownia |
-| 6 | 540 | 1081 | 3 min | — | 48,2 | 3 | Laboratorium |
-| 8 | 804 | 1609 | 4 min | — | 70,9 | 4 | Laboratorium |
-| 10 | 1197 | 2394 | 5 min | — | 97,7 | 5 | Laboratorium |
-| 12 | 1782 | 3564 | 6 min | — | 129,3 | 6 | Instytut |
-| 15 | 3236 | 6472 | 7 min 30 s | — | 187,1 | 8 | Instytut |
-| 19 | 7169 | 14 339 | 9 min 30 s | — | 288,1 | 9 | Instytut |
-| 20 | 8747 | 17 494 | 10 min | — | 318,4 | 10 | Kampus badawczy |
-| 25 | 23 641 | 47 282 | 12 min 30 s | — | 508,0 | 14 | Kampus badawczy |
-| 30 | 63 894 | 127 789 | 15 min | — | 777,9 | 14 | Kampus badawczy |
-| 40 | 466 727 | 933 455 | 20 min | — | 1689,6 | 14 | Kampus badawczy |
+| 2 | 244 | 488 | 1 min 4 s | — | 13,2 | 2 | Pracownia |
+| 3 | 297 | 595 | 1 min 43 s | — | 20,8 | 2 | Pracownia |
+| 5 | 443 | 886 | 3 min 17 s | — | 38,3 | 2 | Pracownia |
+| 6 | 540 | 1081 | 4 min 12 s | — | 48,2 | 3 | Laboratorium |
+| 8 | 804 | 1609 | 6 min 25 s | — | 70,9 | 4 | Laboratorium |
+| 10 | 1197 | 2394 | 9 min 12 s | — | 97,7 | 5 | Laboratorium |
+| 12 | 1782 | 3564 | 12 min 38 s | — | 129,3 | 6 | Instytut |
+| 15 | 3236 | 6472 | 19 min 20 s | — | 187,1 | 8 | Instytut |
+| 19 | 7169 | 14 339 | 32 min 7 s | — | 288,1 | 9 | Instytut |
+| 20 | 8747 | 17 494 | 36 min 10 s | — | 318,4 | 10 | Kampus badawczy |
+| 25 | 23 641 | 47 282 | 1 h 3 min | — | 508,0 | 14 | Kampus badawczy |
+| 30 | 63 894 | 127 789 | 1 h 46 min | — | 777,9 | 14 | Kampus badawczy |
+| 40 | 466 727 | 933 455 | 4 h 39 min | — | 1689,6 | 14 | Kampus badawczy |
 
 ## Etapy obszaru budynku (`src/data/footprint.ts`)
 
