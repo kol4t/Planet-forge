@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.70.1 — **MVP ogłoszone 2026-11-09** (`docs/mvp.md`); opublikowana: płynniejsze 2D na planecie lawowej (rozdzielczość tarczy w ruchu); strojenie ekonomii przed MVP (czas budowy ×1,07 na poziom, megakonstrukt 6 dni); przyczyna zamrożonego ekranu usunięta (Phaser `windowEvents: false`); zawieszone palce, osłona pętli; siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
+## Stan obecny (v0.71.0 — **MVP ogłoszone 2026-11-09 na v0.70.1** (`docs/mvp.md`); opublikowana: porządki w interfejsie (panel Planeta z listą planet, ☰ = Ustawienia, Galaktyka zamiast Mapy, SI w Imperium, bez planet w tle); płynniejsze 2D na planecie lawowej (rozdzielczość tarczy w ruchu); strojenie ekonomii przed MVP (czas budowy ×1,07 na poziom, megakonstrukt 6 dni); przyczyna zamrożonego ekranu usunięta (Phaser `windowEvents: false`); zawieszone palce, osłona pętli; siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -127,6 +127,10 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   złożu także dla metalu; Ekstraktor 50 pól bez zmian. Symulacja: poz. 40 w 6. / 7. dniu, pętla 30 / 37 dni (aktywny / okazjonalny).
   **v0.70.1:** płynność 2D — tarcza w ruchu w 2/3 rozdzielczości, gdy rysowanie trwa > 9 ms (`CanvasPlanetFallback`),
   lawa liczona raz na piksel (`lastPoint` w `surface.ts`); planeta lawowa przy obrocie ok. 31 → 17 ms na tarczę.
+- **v0.71 — porządki w interfejsie po MVP** (zgłoszenie właściciela, 7 punktów): okno HTML chowa kartę budowli
+  (`body:has(#text-panel)` w `index.html`), widok układu zamyka wybrany budynek, bez sąsiednich planet w tle
+  (`skyFor` w `main.ts`), „Mapa” → „Galaktyka”, panel Planeta = lista planet + skrót („Szczegóły” — `PanelState.detail`),
+  ☰ = Ustawienia (na telefonie menu ukrytych przycisków), SI bez przycisku na pasku (Imperium → SI).
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
@@ -148,7 +152,7 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
 - **Galaktyka** (`core/galaxy`): 100 układów, orbity w czasie świata, wiedza (sygnał → zbadany), ekspedycje, rzadkie obiekty,
   wyszukiwarka; kolonizacja z mapy i statkiem; boty i formy obce tylko jako opis.
 - **SI Matka** (`core/ai`): propozycje w dymku, poziomy Podpowiada / Pyta / Samo, „Autonomia” (SI pod nieobecność).
-- **Interfejs** (`game/`): pasek zasobów, dolny pasek (☰ + Produkcja, Badania, Mapa, Imperium, Planeta, SI) na całą
+- **Interfejs** (`game/`): pasek zasobów, dolny pasek (☰ = Ustawienia + Produkcja, Badania, Galaktyka, Imperium, Planeta) na całą
   szerokość, jeden wysuwany panel. **Zasada okien (v0.46)**: jeden panel albo wybrany budynek; Produkcja zostaje obok karty
   budowli (bez okienka „Budynek”); dymek SI chowa się przy wybranym budynku. Skalowanie komputer/tablet/telefon (`layout.ts`),
   cele ≥ 44 pt, bez hovera, okna HTML przewijane, wyjaśnienie niedoboru energii (dotknięcie ENERGII).

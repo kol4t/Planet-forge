@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.71.0 — porządki w interfejsie (po MVP) — robocza
+## v0.71.0 — porządki w interfejsie (po MVP) — 2026-11-09
 
 Zgłoszenie właściciela ze zrzutami (7 punktów):
 - Okno „Kompleks” (i inne okna HTML) chowa kartę budowli — okna nie nachodzą na siebie.
