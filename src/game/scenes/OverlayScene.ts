@@ -16,6 +16,8 @@ export interface OverlaySceneDeps {
 export const OVERLAY_CLOSED = 'overlay-closed';
 /** Widok układu (etap E): Mapa galaktyki prosi ekran główny o wejście do układu (numer w zdarzeniu). */
 export const OPEN_SYSTEM = 'open-system-view';
+/** Ekran stacji (etap 1 planu stacji): Imperium prosi ekran główny o pokazanie stacji macierzystej. */
+export const OPEN_STATION = 'open-station-view';
 
 /** Ruch palca (pt), poniżej którego dotknięcie jest „stuknięciem”, a nie przesunięciem. */
 const TAP_SLOP = 10;

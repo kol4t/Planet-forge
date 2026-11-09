@@ -1084,3 +1084,20 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
 - **Pokazanie ulepszenia.** Po udanym ulepszeniu `PlanetDisplay.showBuilding()` płynnie obraca planetę do nowej budowli (dotyk przerywa obrót), a budowla wyrasta z krótką animacją.
 - **Atmosfera bez „aureoli”.** Poprzedni shader liczył fresnel na tylnej ściance sfery 1.14 z mieszaniem addytywnym — dawał jasny pierścień z ostrą zewnętrzną krawędzią. Teraz jasność zależy od odległości promienia widzenia od powierzchni (zanika do zera na brzegu, sfera 1.075), plus delikatna mgiełka na tarczy; obie słabną po nocnej stronie.
 - **Narzędzia.** Bez frameworków: TypeScript + esbuild (jeden plik `dist/index.html`), testy `node:test` uruchamiane bezpośrednio na plikach `.ts` (Node ≥ 22.18). Wersje bibliotek jak w v0.1: Phaser 3.90.0, three r185.
+
+## 2026-11-09 — Stacja kosmiczna jako główny obiekt dalszej gry (plan, decyzje właściciela)
+
+- Plan: `docs/plan-stacji.md`. Własny ekran stacji (jak planeta), stacja macierzysta + wyspecjalizowane, wygląd rośnie
+  z modułami. Moduły na początek: stacja badawcza, dok handlowy, wydobycie z kosmosu, załoga (nowy zasób), kontakt
+  z obcymi (sygnały i spotkania, robocze — do Projektu lore). Nowe stacje: statek konstrukcyjny albo przeniesienie
+  stacji macierzystej (wybór gracza). Kolejność etapów: ekran → badania → handel → wydobycie i nowe stacje → załoga → obcy.
+- Antymateria w megakonstruktach odłożona dalej (decyzja właściciela).
+
+## 2026-11-09 — Stacja, etap 1: ekran stacji (decyzje właściciela)
+
+- Kształt „Pierścień z osią”, kolory jak interfejs (kamień, turkus, złoto), 2D i 3D w jednej wersji; wejścia: widok
+  układu (znaczek przy planecie), lista „Planeta”, Imperium („Pokaż stację”).
+- Architektura: ekran stacji to tryb tego samego renderera (`PlanetDisplay.setStationScreen` / `pickStationModule`) —
+  jeden kontekst WebGL, planeta ukryta na czas stacji; wspólna matematyka 2D/3D w `stationScreenLayout.ts`. Model
+  modułów z istniejących pól zapisu stacji (bez nowych pól); 6 gniazd stałych, kolejne moduły w etapach 2–6.
+- Na ekranie stacji aktywna jest planeta, nad którą stacja krąży (ona płaci za moduły, jak dotąd).

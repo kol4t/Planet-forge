@@ -25,6 +25,11 @@ Styl (C-001): kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i 
 - **Panele**: Produkcja (karty 6 budynków), Planeta (v0.71: lista planet imperium — dotknięcie przełącza — i skrót
   aktywnej: nazwa, pola, złoża; „Szczegóły” pokazuje pełny opis: typ, specjalizacja, kosmos, złoża, środowisko,
   „‹ Planety” wraca; „Kosmos”).
+- **Ekran stacji** (v0.72, etap 1 planu stacji): stacja macierzysta zamiast planety (2D pikselowo, 3D low-poly),
+  obrót palcem i przybliżenie jak planeta; ścieżka „Galaktyka › Układ › Planeta › Stacja” (planeta = powrót).
+  „Produkcja” → **„Moduły”** (karty rdzenia, magazynu, stoczni i gniazd „wkrótce”); dotknięcie modułu na stacji —
+  złota ramka karty. Wejścia: znaczek stacji przy planecie w widoku układu, wiersz „Stacja macierzysta” na liście
+  w „Planeta”, „Pokaż stację” na karcie w Imperium.
 - **Tło**: gwiazdy i mgławice, bez sąsiednich planet (v0.71 — sąsiadów pokazuje widok układu).
 
 ### Zasada okien (v0.46)

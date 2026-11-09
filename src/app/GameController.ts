@@ -15,6 +15,8 @@ import { back as viewBack, focusObject, focusSystem, resetView, startView, zoomB
 import { cargoAfter, pirateNests, riskLabel, rollIncident, routeRisk, type IncidentKind, type MapPoint, type RouteRisk } from '../core/economy/missionRisk.ts';
 import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAnywhere } from '../core/economy/constructTransfer.ts';
 import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeStationStorage } from '../core/economy/homeStation.ts';
+import { stationScreen, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
+import { stationModuleDef } from '../data/stationModules.ts';
 import {
   advance,
   antimatterAmount,
@@ -481,6 +483,18 @@ export interface TransferView {
 }
 
 /** Stacja macierzysta do karty w Imperium (v0.55). */
+/** Karta modułu stacji w panelu „Moduły” (etap 1 planu stacji). */
+export interface StationModuleCard extends StationModuleView {
+  name: string;
+  description: string;
+  /** Do końca budowy / ulepszenia (s). */
+  secondsLeft: number;
+  /** Koszt następnego poziomu (null — najwyższy albo moduł bez rozbudowy). */
+  nextCost: Resources | null;
+  /** Akcja przycisku „Ulepsz” (null — brak). */
+  action: 'storage' | 'shipyard' | null;
+}
+
 export interface HomeStationView {
   /** Badanie „Moduł orbitalny” zbadane. */
   unlocked: boolean;
@@ -1780,6 +1794,35 @@ export class GameController {
       relay: s ? colonyStationReady(this.colonyStations, this.address, now) : false,
       transportUnlocked: this.unlocked('transport'),
     };
+  }
+
+  /** Ekran stacji (etap 1 planu stacji): moduły w gniazdach; null — stacji nie ma. Tanie — co odświeżenie. */
+  stationScreen(now = Date.now()): StationScreenModel | null {
+    return stationScreen(this.station, now);
+  }
+
+  /** Karty modułów do panelu „Moduły” na ekranie stacji (etap 1). */
+  stationModuleCards(now = Date.now()): StationModuleCard[] {
+    const model = stationScreen(this.station, now);
+    if (!model) return [];
+    const view = this.stationView(now);
+    const yard = this.fleetView(now).shipyard;
+    return model.modules.map((m) => {
+      const def = stationModuleDef(m.id);
+      const card: StationModuleCard = { ...m, name: def.name, description: def.description, secondsLeft: 0, nextCost: null, action: null };
+      if (m.id === 'core') card.secondsLeft = view.coreSecondsLeft;
+      if (m.id === 'storage') {
+        card.secondsLeft = view.storageSecondsLeft;
+        card.nextCost = view.nextStorageCost;
+        card.action = model.ready && view.nextStorageCost ? 'storage' : null;
+      }
+      if (m.id === 'shipyard') {
+        card.secondsLeft = yard.secondsLeft;
+        card.nextCost = yard.nextCost;
+        card.action = model.ready && yard.nextCost ? 'shipyard' : null;
+      }
+      return card;
+    });
   }
 
   /** Stacja nad aktywną planetą (do wyglądu orbity, tanie — co klatkę); null — brak albo krąży nad inną. */

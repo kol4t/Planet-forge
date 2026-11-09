@@ -16,6 +16,10 @@ import { beltSegments, metalObjectSize, metalPickTargets, metalPieces, mineDetai
 import { facingAngles, focusLift, type BuildSite, type HomeStationLook, type PlanetDisplay } from './PlanetDisplay.ts';
 import { discLook, renderDisc, type DiscLook } from './discRenderer.ts';
 import { ZoomSmoother } from './input/zoom.ts';
+import { stationScreenKey, type StationScreenModel } from '../core/station/stationScreen.ts';
+import type { StationModuleId } from '../data/stationModules.ts';
+import { drawStationDots, stationDots } from './stationSprite.ts';
+import { pickStationModule } from './stationScreenLayout.ts';
 import type { RGB, SurfaceSampler } from './surface.ts';
 
 // Widok 2D (domyślny od v0.7): ta sama planeta z tego samego seeda, rysowana piksel
@@ -493,6 +497,28 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   }
 
   /** Stacja macierzysta (v0.55). */
+  /** Ekran stacji (etap 1 planu stacji): stacja pikselowo zamiast tarczy planety. */
+  private stationModel: StationScreenModel | null = null;
+  private stationKey = '';
+  private stationPoints: ReturnType<typeof stationDots> = [];
+
+  setStationScreen(model: StationScreenModel | null): void {
+    this.stationModel = model;
+    const key = stationScreenKey(model);
+    if (key === this.stationKey) return;
+    this.stationKey = key;
+    this.stationPoints = model ? stationDots(model) : [];
+    // Wymuszenie nowej klatki (i tarczy planety po powrocie).
+    this.lastDrawn = { yaw: NaN, pitch: NaN };
+    this.composed = { focus: '', at: -Infinity };
+  }
+
+  pickStationModule(x: number, y: number): StationModuleId | null {
+    if (!this.stationModel) return null;
+    const r = this.focus.r * this.zoom;
+    return pickStationModule(this.stationModel.modules, this.rotator.yaw, this.rotator.pitch, { cx: this.focus.cx, cy: this.focus.cy, r }, x, y, Math.max(30, r * 0.16));
+  }
+
   setHomeStation(look: HomeStationLook | null): void {
     this.homeStation = look;
   }
@@ -1086,6 +1112,17 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const zoomed = this.zoomer.update(dt);
     if (zoomed) this.resizeBuffer();
     const growing = [...this.grownAt.values()].some((t) => performance.now() - t < GROW_MS + 100);
+    if (this.stationModel) {
+      // Ekran stacji: bez tarczy planety — stacja rysowana co klatkę w ruchu, w bezruchu ~20 kl./s.
+      const focusKey = `${this.focus.cx}|${this.focus.cy}|${this.focus.r}|${this.stationKey}`;
+      const turned = Math.abs(this.rotator.yaw - this.lastDrawn.yaw) > 1e-4 || Math.abs(this.rotator.pitch - this.lastDrawn.pitch) > 1e-4 || Number.isNaN(this.lastDrawn.yaw);
+      if (!turned && !zoomed && !this.rotator.isDragging && focusKey === this.composed.focus && time - this.composed.at < 50) return;
+      this.composed = { focus: focusKey, at: time };
+      this.lastDrawn = { yaw: this.rotator.yaw, pitch: this.rotator.pitch };
+      this.ctx.clearRect(0, 0, this.w, this.h);
+      drawStationDots(this.ctx, this.stationPoints, this.rotator.yaw, this.rotator.pitch, this.focus.cx, this.focus.cy, this.focus.r * this.zoom);
+      return;
+    }
     let redrawn = false;
     const turning =
       !Number.isNaN(this.lastDrawn.yaw) &&

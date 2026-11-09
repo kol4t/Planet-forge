@@ -23,7 +23,12 @@ export interface SystemBody {
   yaw?: number;
   /** Gazowy olbrzym — pasy (kolory) i pierścień. */
   gas?: { bands: readonly string[]; rings: boolean };
+  /** Nad planetą krąży stacja macierzysta (etap 1 planu stacji) — znaczek obok, dotknięcie = ekran stacji. */
+  station?: boolean;
 }
+
+/** Przesunięcie znaczka stacji względem środka planety (× promień rysunku). */
+const STATION_OFFSET = { x: 1.55, y: -1.25 };
 
 export interface SystemScene {
   starColor: string;
@@ -154,6 +159,25 @@ export class SystemView {
     const cx = this.rect.x + this.rect.w / 2;
     const cy = this.rect.y + this.rect.h / 2;
     return pickBody(this.placed, cam, x - cx, y - cy, this.radius(cam), 1);
+  }
+
+  /** Znaczek stacji pod palcem (adres planety, nad którą krąży) albo null — sprawdzany przed `pick`. */
+  pickStation(x: number, y: number): string | null {
+    if (!this.shown || !this.scene) return null;
+    const cam = this.current();
+    const cx = this.rect.x + this.rect.w / 2;
+    const cy = this.rect.y + this.rect.h / 2;
+    const radius = this.radius(cam);
+    for (let i = 0; i < this.scene.bodies.length; i++) {
+      const b = this.scene.bodies[i]!;
+      const p = this.placed[i];
+      if (!b.station || !p) continue;
+      const s = toScreen(cam, p.x, p.y);
+      const r = radius * (1 + 0.1 * p.depth);
+      const hit = Math.max(22, r * 0.9);
+      if (Math.hypot(x - cx - (s.x + r * STATION_OFFSET.x), y - cy - (s.y + r * STATION_OFFSET.y)) <= hit) return b.address;
+    }
+    return null;
   }
 
   /**
@@ -307,11 +331,29 @@ export class SystemView {
         ctx.arc(s.x, s.y, r + 4, 0, Math.PI * 2);
         ctx.stroke();
       }
+      if (b.station) this.drawStationMark(s.x + r * STATION_OFFSET.x, s.y + r * STATION_OFFSET.y, Math.max(7, r * 0.55));
       ctx.fillStyle = b.own ? '#e8dcc0' : '#8ea6a0';
       ctx.font = `600 ${b.own ? 12 : 11}px Inter, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.fillText(b.label, s.x, s.y + r + 16);
     }
+  }
+
+  /** Znaczek stacji macierzystej: turkusowy pierścień z osią i złotymi panelami (pikselowo). */
+  private drawStationMark(x: number, y: number, r: number): void {
+    const ctx = this.ctx;
+    ctx.strokeStyle = '#5ff2e0';
+    ctx.lineWidth = Math.max(1.5, r * 0.18);
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * 0.45, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#62716e';
+    ctx.fillRect(x - r * 0.08, y - r * 1.05, r * 0.16, r * 2.1);
+    ctx.fillStyle = '#d6b25e';
+    ctx.fillRect(x - r * 0.55, y - r * 1.1, r * 0.4, r * 0.18);
+    ctx.fillRect(x + r * 0.15, y - r * 1.1, r * 0.4, r * 0.18);
+    ctx.fillStyle = '#2b3735';
+    ctx.fillRect(x - r * 0.22, y - r * 0.22, r * 0.44, r * 0.44);
   }
 
   private drawGas(x: number, y: number, r: number, gas: { bands: readonly string[]; rings: boolean }): void {

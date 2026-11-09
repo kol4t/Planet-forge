@@ -7,7 +7,7 @@ import { TOUCH, type Rect } from '../ui/layout.ts';
 import { empireAlerts, planetBadges, planetBars, sortPlanets, type AlertTarget, type CardTone, type EmpireAlert, type PlanetSort } from '../ui/empireCards.ts';
 import { openTransportPanel } from '../ui/transportPanel.ts';
 import { COLORS, FONTS, formatClock, formatDuration, formatInt, formatRate } from '../ui/theme.ts';
-import { OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
+import { OPEN_STATION, OverlayScene, type OverlaySceneDeps } from './OverlayScene.ts';
 
 export interface EmpireSceneData {
   tab?: EmpireTab;
@@ -524,7 +524,9 @@ export class EmpireScene extends OverlayScene {
     bg.fillRect(this.px(cx - iconR * 1.15), this.px(cy - iconR * 0.12), this.px(iconR * 0.38), this.px(iconR * 0.24));
     bg.fillRect(this.px(cx + iconR * 0.77), this.px(cy - iconR * 0.12), this.px(iconR * 0.38), this.px(iconR * 0.24));
     const tx = cx + iconR * 1.3 + this.s(8);
-    const tw = rect.x + rect.w - pad - tx;
+    // „Pokaż stację” (etap 1 planu stacji) w prawym górnym rogu karty — tekst kończy się przed nim.
+    const showW = v.built ? this.s(150) : 0;
+    const tw = rect.x + rect.w - pad - tx - (showW ? showW + this.s(8) : 0);
     const subtitle = !v.unlocked
       ? 'zablokowana — badanie „Moduł orbitalny” (Badania → Stacja i handel)'
       : v.built
@@ -571,6 +573,14 @@ export class EmpireScene extends OverlayScene {
           ready && !upgrading && v.nextStorageCost ? 'secondary' : 'disabled',
           () => done(c.upgradeStationStorage()),
         );
+    if (v.built) {
+      items.push(
+        this.button(rect.x + rect.w - pad - showW, rect.y + pad, showW, 'Pokaż stację', 'primary', () => {
+          this.game.events.emit(OPEN_STATION);
+          this.close();
+        }),
+      );
+    }
     items.push(
       first,
       this.button(bx + third + gap, by, third, 'Na stację', !blocked && v.capacity > 0 ? 'primary' : 'disabled', () =>

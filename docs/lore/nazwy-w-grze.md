@@ -34,3 +34,5 @@ Do poprawienia w Projekcie lore (pliki w `docs/lore/` są kopią — nie poprawi
 - **O-005** — repozytorium jest już dostępne; `docs/technical-brief.md` nie istnieje, `docs/decisions.md` i `src/data/planets.ts` nie zawierają ustaleń fabularnych poza roboczymi nazwami (R-002).
 - **O-301** — gra ma już galaktykę ze 100 układami, gwiazdy, boty i formy obce (wszystko robocze).
 - **O-206** — w `CLAUDE.md` zostało „w klimacie OGame” z dopiskiem o K-005; zmiana samego sformułowania czeka na decyzję właściciela.
+
+| Moduły stacji: Rdzeń SI Matki, Magazyn orbitalny, Stocznia, Laboratorium orbitalne, Dok handlowy, Moduł mieszkalny, Nasłuch (robocze, etap 1 planu stacji) | `src/data/stationModules.ts` | — |
