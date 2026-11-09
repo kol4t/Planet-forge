@@ -60,6 +60,7 @@ export function stationScreen(station: HomeStation | null, at: number): StationS
     storage3: station.storage3,
     shipyard3: station.shipyard3,
     lab3: station.lab3,
+    dock: station.dock,
   };
   // Rdzeń: pierwszy poziom = budowa stacji; wyższe (krok 2d-1) — rozbudowa (poprzedni poziom działa w jej trakcie).
   const coreLevel = stationCoreLevel(station, at);

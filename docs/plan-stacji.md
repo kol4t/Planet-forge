@@ -98,7 +98,7 @@ Szkic badań z kroku 2a (zastąpiony w kroku 2c pełną listą — `docs/badania
   budowli — **zawsze z adekwatnie większą nagrodą** za większe ryzyko.
 - **Zamówienia kupców:** nagrody — antymateria i surowce, przyspieszenie (badanie / budowa), rzadkie rzeczy (znaleziska,
   dane naukowe).
-- Kroki: **3a** moduł doku (po badaniu „Dok handlowy”, poziomy = lepszy kurs) i stały rynek (wymiana z magazynu stacji);
+- Kroki: **3a** (zrobione — v0.79.0) moduł doku (po badaniu „Dok handlowy”, poziomy = lepszy kurs) i stały rynek (wymiana z magazynu stacji);
   **3b** kupcy, statki na sprzedaż, zamówienia; **3c** wzmocnienia budowli za antymaterię.
 - **Osobny etap później (decyzja właściciela):** oferta „wydobądź całe złoże w 10 min, ale planeta eksploduje” i odnowa
   planet przez obcą cywilizację (ok. 3 dni, teren wokół niebezpieczny) — wymaga uzgodnienia w Projekcie lore.

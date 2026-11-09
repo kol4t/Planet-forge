@@ -12,6 +12,7 @@ import { openStellarBoard } from '../ui/stellarBoard.ts';
 import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import { openConstructTransferPanel } from '../ui/constructTransferPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
+import { openTradePanel } from '../ui/tradePanel.ts';
 import { openFindsPanel } from '../ui/findsPanel.ts';
 import { openFactoryPanel } from '../ui/factoryPanel.ts';
 import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
@@ -674,18 +675,22 @@ export class PlanetScene extends Phaser.Scene {
     y += state.height / this.dpr + this.s(4);
     const canUpgrade = !!card.action && card.state !== 'building';
     // Opis tylko, gdy zmieści się nad kosztem i przyciskiem.
-    const bottom = rect.y + rect.h - pad - (canUpgrade || (card.id === 'lab' && card.level > 0) ? TOUCH + this.s(20) : 0);
+    const bottom = rect.y + rect.h - pad - (canUpgrade || ((card.id === 'lab' || card.id === 'dock') && card.level > 0) ? TOUCH + this.s(20) : 0);
     const desc = this.text(rect.x + pad, y, card.description, 10.5, COLORS.muted, { wordWrap: { width: this.px(w) }, lineSpacing: this.px(1) });
     if (y + desc.height / this.dpr > bottom) desc.setVisible(false);
     // Laboratorium orbitalne (etap 2a): obok „Ulepsz” wejście do badań stacji; płaci magazyn stacji.
-    const research = card.id === 'lab' && card.level > 0;
+    // Laboratorium — „Badania”, dok handlowy — „Handel” (etap 3a) obok przycisku rozbudowy.
+    const research = (card.id === 'lab' || card.id === 'dock') && card.level > 0;
     const half = research && canUpgrade ? (w - this.s(6)) / 2 : w;
     if (canUpgrade) {
       const cost = card.nextCost!;
       this.text(rect.x + pad, rect.y + rect.h - pad - TOUCH - this.s(17), `${card.payer === 'station' ? 'Magazyn stacji' : 'Koszt'}: ${formatInt(cost.metal)} · ${formatInt(cost.crystal)}`, 10.5, COLORS.stone, { fixedWidth: this.px(w) });
       this.addButton(rect.x + pad, rect.y + rect.h - pad - TOUCH, half, TOUCH, card.level === 0 ? 'Zbuduj' : research ? `Poz. ${card.level + 1}` : `Ulepsz do ${card.level + 1}`, 'primary', () => this.upgradeModule(card.action!), 13);
     }
-    if (research) this.addButton(rect.x + rect.w - pad - half, rect.y + rect.h - pad - TOUCH, half, TOUCH, 'Badania', 'secondary', () => this.openScreen('stationResearch'), 13);
+    if (research) {
+      const label = card.id === 'dock' ? 'Handel' : 'Badania';
+      this.addButton(rect.x + rect.w - pad - half, rect.y + rect.h - pad - TOUCH, half, TOUCH, label, 'secondary', () => (card.id === 'dock' ? this.openTrade() : this.openScreen('stationResearch')), 13);
+    }
   }
 
   private moduleState(card: StationModuleCard): string {
@@ -735,6 +740,17 @@ export class PlanetScene extends Phaser.Scene {
       const card = cards.find((x) => x.id === row.id);
       if (card) row.state.setText(this.moduleState(card));
     }
+  }
+
+  /** Okno „Dok handlowy” (etap 3a): stały rynek stacji. */
+  private openTrade(): void {
+    const c = this.deps.controller;
+    this.closeAsteroid?.();
+    this.closeAsteroid = openTradePanel({
+      view: () => c.tradeView(),
+      trade: (give, amount, take) => c.trade(give, amount, take),
+      onDone: (message) => this.showToast(message, 'ok', 2600),
+    });
   }
 
   /** Wiersz stacji macierzystej na liście w panelu „Planeta”. */

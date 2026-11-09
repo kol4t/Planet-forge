@@ -20,6 +20,7 @@ import { stationCoreLevel, stationScreen, type StationModuleView, type StationSc
 import { STATION_CORE, stationModuleDef } from '../data/stationModules.ts';
 import { activeResearch, completeStationResearch, EMPTY_STATION_RESEARCH, labLanes, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
 import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect, type StationStat } from '../data/stationResearch.ts';
+import { dockCost, dockLevel, marketRate, marketSpread, marketTrade, TRADE, type TradeGood } from '../core/station/trade.ts';
 import { AUTO_RULES, categoryNeedsLab, pickNightResearch, supplyCargo, type SupplyThreshold } from '../core/station/stationAuto.ts';
 import { auraEffects, auraReachName, auraShare, auraStats, STATION_AURA, type AuraStats } from '../core/station/stationAura.ts';
 import {
@@ -557,6 +558,19 @@ export interface StationResearchView {
   }[];
 }
 
+/** Stały rynek doku handlowego (etap 3a). */
+export interface TradeView {
+  level: number;
+  spread: number;
+  antimatterTrade: boolean;
+  stock: Resources;
+  capacity: number;
+  wallet: number;
+  rates: { metalToCrystal: number; crystalToMetal: number; antimatterToMetal: number; antimatterToCrystal: number };
+  /** Do następnej zmiany kursów (s). */
+  nextChangeSeconds: number;
+}
+
 /** Karta modułu stacji w panelu „Moduły” (etap 1 planu stacji). */
 export interface StationModuleCard extends StationModuleView {
   name: string;
@@ -566,7 +580,7 @@ export interface StationModuleCard extends StationModuleView {
   /** Koszt następnego poziomu (null — najwyższy albo moduł bez rozbudowy). */
   nextCost: Resources | null;
   /** Akcja przycisku „Ulepsz” (id modułu; null — brak). */
-  action: 'core' | 'storage' | 'shipyard' | 'lab' | 'storage2' | 'shipyard2' | 'lab2' | 'storage3' | 'shipyard3' | 'lab3' | null;
+  action: 'core' | 'dock' | 'storage' | 'shipyard' | 'lab' | 'storage2' | 'shipyard2' | 'lab2' | 'storage3' | 'shipyard3' | 'lab3' | null;
   /** Kto płaci: planeta pod stacją albo magazyn stacji. */
   payer: 'planet' | 'station';
   /** Czego brakuje do rozbudowy (np. badanie) — zamiast przycisku. */
@@ -1908,6 +1922,18 @@ export class GameController {
         }
         return card;
       }
+      if (m.id === 'dock') {
+        // Dok handlowy (etap 3a): po badaniu „Dok handlowy”, płaci magazyn stacji.
+        const dock = s.dock;
+        const next = (dock?.level ?? 0) + 1;
+        card.secondsLeft = left(dock);
+        card.payer = 'station';
+        card.nextCost = next <= TRADE.dock.maxLevel ? dockCost(next) : null;
+        const allowed = done.includes('st-trade-dock');
+        card.action = model.ready && card.nextCost && allowed ? 'dock' : null;
+        if (!allowed) card.needs = 'badanie „Dok handlowy” (Badania stacji → Handel)';
+        return card;
+      }
       const base = def.copyOf ?? (m.id as 'storage' | 'shipyard' | 'lab');
       const part = s[m.id as 'storage' | 'shipyard' | 'lab'];
       const next = (part?.level ?? 0) + 1;
@@ -1928,10 +1954,77 @@ export class GameController {
   /** Rozbudowa modułu stacji z karty w „Modułach” (rdzeń, magazyny, stocznie, laboratoria — także drugie i trzecie). */
   upgradeStationModule(id: NonNullable<StationModuleCard['action']>, now = Date.now()): ActionMessage {
     if (id === 'core') return this.upgradeStationCore(now);
+    if (id === 'dock') return this.upgradeStationDock(now);
     const copy = (id.endsWith('3') ? 3 : id.endsWith('2') ? 2 : 1) as 1 | 2 | 3;
     if (id.startsWith('storage')) return this.upgradeStationStorage(now, copy);
     if (id.startsWith('shipyard')) return this.upgradeShipyard(now, copy);
     return this.upgradeStationLab(now, copy);
+  }
+
+  // ——— dok handlowy (etap 3a) ———
+
+  /** Budowa / rozbudowa doku handlowego (po badaniu „Dok handlowy”; płaci magazyn stacji). */
+  upgradeStationDock(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const s = this.station;
+    if (!s || !stationReady(s, now)) return { ok: false, message: 'Stacja macierzysta nie jest jeszcze gotowa.' };
+    if (!this.stationDone('st-trade-dock')) return { ok: false, message: 'Najpierw zbadaj „Dok handlowy” (Badania stacji → Handel).' };
+    if (s.dock && now < s.dock.readyAt) return { ok: false, message: 'Dok handlowy jest właśnie rozbudowywany.' };
+    const level = (s.dock?.level ?? 0) + 1;
+    if (level > TRADE.dock.maxLevel) return { ok: false, message: `Dok handlowy ma już najwyższy poziom (${TRADE.dock.maxLevel}).` };
+    const cost = dockCost(level);
+    if (s.stock.metal < cost.metal || s.stock.crystal < cost.crystal) {
+      return { ok: false, message: `Dok handlowy poz. ${level} — w magazynie stacji brakuje: ${Math.max(0, Math.ceil(cost.metal - s.stock.metal))} metalu, ${Math.max(0, Math.ceil(cost.crystal - s.stock.crystal))} kryształów.` };
+    }
+    const seconds = TRADE.dock.secondsPerLevel * level;
+    this.station = { ...s, stock: { metal: s.stock.metal - cost.metal, crystal: s.stock.crystal - cost.crystal }, dock: { level, readyAt: now + seconds * 1000 } };
+    this.log('build', `Stacja macierzysta: dok handlowy — ${level === 1 ? 'budowa' : `rozbudowa do poz. ${level}`}.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Dok handlowy poz. ${level} — gotowy za ${formatFlight(seconds)}.` };
+  }
+
+  /** Stały rynek doku: poziom, marża, kursy, magazyn stacji i portfel antymaterii. */
+  tradeView(now = Date.now()): TradeView {
+    const s = this.station;
+    const level = dockLevel(s, now);
+    const rates = this.stationDone('st-rates');
+    const rate = (give: TradeGood, take: TradeGood) => marketRate(give, take, now, Math.max(1, level), rates);
+    return {
+      level,
+      spread: marketSpread(Math.max(1, level), rates),
+      antimatterTrade: this.stationDone('st-antimatter-trade'),
+      stock: s?.stock ?? { metal: 0, crystal: 0 },
+      capacity: stationCapacity(s, now, this.balance),
+      wallet: this.economy.antimatter,
+      rates: { metalToCrystal: rate('metal', 'crystal'), crystalToMetal: rate('crystal', 'metal'), antimatterToMetal: rate('antimatter', 'metal'), antimatterToCrystal: rate('antimatter', 'crystal') },
+      nextChangeSeconds: Math.max(0, (TRADE.periodMs - (now % TRADE.periodMs)) / 1000),
+    };
+  }
+
+  /** Wymiana na stałym rynku doku (metal / kryształy z magazynu stacji, antymateria z portfela). */
+  trade(give: TradeGood, amount: number, take: 'metal' | 'crystal', now = Date.now()): ActionMessage {
+    this.tick(now);
+    const s = this.station;
+    if (!s) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
+    const r = marketTrade(
+      { level: dockLevel(s, now), stock: s.stock, wallet: this.economy.antimatter, capacity: stationCapacity(s, now, this.balance), antimatterTrade: this.stationDone('st-antimatter-trade'), ratesResearch: this.stationDone('st-rates'), at: now },
+      give,
+      amount,
+      take,
+    );
+    if (!r.ok) return r;
+    const stock = { ...s.stock };
+    if (give === 'antimatter') this.economy = { ...this.economy, antimatter: this.economy.antimatter - amount };
+    else stock[give] -= amount;
+    stock[take] += r.received;
+    this.station = { ...s, stock };
+    const names: Record<TradeGood, string> = { metal: 'metalu', crystal: 'kryształów', antimatter: 'antymaterii' };
+    const text = `Dok handlowy: ${Math.floor(amount * 10) / 10} ${names[give]} → ${r.received} ${names[take]}.`;
+    this.log('empire', text, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: text };
   }
 
   /** Rozbudowa rdzenia stacji (krok 2d-1): po badaniu, płaci magazyn stacji. */

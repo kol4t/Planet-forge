@@ -799,6 +799,8 @@ export interface HomeStation {
   shipyard?: AsteroidStation;
   /** Laboratorium orbitalne (etap 2a planu stacji) — badania stacji. */
   lab?: AsteroidStation;
+  /** Dok handlowy (etap 3a planu stacji). */
+  dock?: AsteroidStation;
   /** Rozbudowa rdzenia do poz. 2 / 3 (krok 2d-1; `core` zostaje pierwszym poziomem — budową stacji). */
   coreUpgrade?: AsteroidStation;
   /** Drugie i trzecie egzemplarze modułów w pierścieniach 2 i 3 (krok 2d-1; wymagają rdzenia poz. 2 / 3). */
