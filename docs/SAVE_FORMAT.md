@@ -38,6 +38,7 @@ Kopiuj zapis / Wczytaj zapis).
   "discoveries": { "16": 4, … },  // wiedza o galaktyce: układ → poziom 1–4 (od v0.34.2)
   "expeditions": [ … ],           // ekspedycje w drodze (od v0.34.3, opcjonalne)
   "shipments": [ … ],             // transportowce (od v0.36, opcjonalne; od v0.55 "station": "to" | "from" — lot na stację / ze stacji;
+                                  // od v0.77 "ships": { "transport": 2, "courier": 1, "heavyTransport": 1 } — skład konwoju / inny statek;
                                   //   od v0.58 "ship": true — transportowiec floty, "escort": n — okręty eskorty;
                                   //   od v0.62 "incident" — atak piratów, patrz niżej)
   "comets": [ … ],                // holowniki po komety (od v0.37.1, opcjonalne; od v0.58 "ship": true — holownik floty)
