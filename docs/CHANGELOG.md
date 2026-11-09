@@ -2,6 +2,17 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.79.0 — stacja kosmiczna, krok 3a: dok handlowy i stały rynek — robocza
+
+Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 3):
+- Moduł **Dok handlowy** (gniazdo 3): po badaniu stacji „Dok handlowy”, poz. 1–5, płaci magazyn stacji; wyższy poziom —
+  mniejsza marża (30% → 14%; badanie „Kursy wymiany” −5 pkt).
+- **Stały rynek** (karta doku → „Handel”): metal ↔ kryształy z magazynu stacji; **sprzedaż antymaterii** za metal albo
+  kryształy po badaniu „Handel antymaterią”. Kursy wahają się ±20% co 6 h (takie same dla wszystkich), wartości robocze:
+  kryształ = 2 metalu, antymateria = 1500 metalu.
+- `core/station/trade.ts` (`TRADE`), okno `game/ui/tradePanel.ts`, zapis `station.dock` (opcjonalny).
+- Dalej: 3b — kupcy z lepszymi ofertami, statki na sprzedaż i zamówienia; 3c — wzmocnienia budowli za antymaterię.
+
 ## v0.78.0 — stacja kosmiczna, krok 2d-3: automatyka SI — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (przełączniki w „Badania stacji”, gdy nie jest wybrane badanie):

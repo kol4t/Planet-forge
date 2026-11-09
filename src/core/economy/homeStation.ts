@@ -119,7 +119,7 @@ export function parseHomeStation(raw: any): HomeStation | null {
   const shipyard = parseLevel(raw.shipyard);
   const lab = parseLevel(raw.lab);
   const extra = Object.fromEntries(
-    (['coreUpgrade', 'storage2', 'shipyard2', 'lab2', 'storage3', 'shipyard3', 'lab3'] as const).map((k) => [k, parseLevel(raw[k])] as const).filter(([, v]) => v),
+    (['dock', 'coreUpgrade', 'storage2', 'shipyard2', 'lab2', 'storage3', 'shipyard3', 'lab3'] as const).map((k) => [k, parseLevel(raw[k])] as const).filter(([, v]) => v),
   );
   const research = raw.research ? parseStationResearch(raw.research) : null;
   const amount = (v: unknown) => (isNum(v) && v > 0 ? v : 0);

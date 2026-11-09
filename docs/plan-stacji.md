@@ -89,11 +89,19 @@ Szkic badań z kroku 2a (zastąpiony w kroku 2c pełną listą — `docs/badania
   kolejka, autonomia — etap 2 zamknięty): poziomy rdzenia (drugi i trzeci pierścień gniazd), nowe statki (Kurier,
   Ciężki transportowiec, Konwoje), automatyka SI (dostawy, SI nocna, autonomia), kolejka stacji.
 
-### Etap 3 — Dok handlowy
-- Moduł **Dok handlowy**: rynek z **kupcami sterowanymi przez grę** (bez innych graczy — zakres MVP): wymiana metalu ↔
-  kryształów po kursie, który się zmienia; okazjonalne **zamówienia kupców** (dostarcz X w czasie Y → nagroda).
-- Kupcy przylatują i odlatują (widać statki przy doku).
-- Później (osobna decyzja): szlaki handlowe między stacjami.
+### Etap 3 — Dok handlowy (decyzje właściciela 2026-11-09)
+- **Stały rynek + kupcy:** rynek doku zawsze dostępny po gorszym kursie; kupcy przylatują co kilka godzin z lepszymi
+  ofertami, statkami na sprzedaż i zamówieniami.
+- **Towary:** metal ↔ kryształy; **sprzedaż antymaterii** za metal / kryształy; **statki** od kupców; **wzmocnienia
+  budowli za antymaterię** — różne efekty, część z ryzykiem (np. 180% wydobycia przez 2 h, ale 10% szansy na wybuch);
+  u kupców lepsza jakość albo bez skutków ubocznych. Skutki: awaria (naprawa), utrata części poziomów albo zniszczenie
+  budowli — **zawsze z adekwatnie większą nagrodą** za większe ryzyko.
+- **Zamówienia kupców:** nagrody — antymateria i surowce, przyspieszenie (badanie / budowa), rzadkie rzeczy (znaleziska,
+  dane naukowe).
+- Kroki: **3a** (zrobione — v0.79.0) moduł doku (po badaniu „Dok handlowy”, poziomy = lepszy kurs) i stały rynek (wymiana z magazynu stacji);
+  **3b** kupcy, statki na sprzedaż, zamówienia; **3c** wzmocnienia budowli za antymaterię.
+- **Osobny etap później (decyzja właściciela):** oferta „wydobądź całe złoże w 10 min, ale planeta eksploduje” i odnowa
+  planet przez obcą cywilizację (ok. 3 dni, teren wokół niebezpieczny) — wymaga uzgodnienia w Projekcie lore.
 
 ### Etap 4 — Wydobycie z kosmosu i nowe stacje
 - **Statek konstrukcyjny** (stocznia): leci w wybrane miejsce w widoku układu — gazowy olbrzym, pas asteroid, pusty punkt —

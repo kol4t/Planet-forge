@@ -74,6 +74,7 @@ Kopiuj zapis / Wczytaj zapis).
     "storage": { "level": 2, "readyAt": 0 },    //   magazyn orbitalny (opcjonalny; błędny pomijany)
     "shipyard": { "level": 1, "readyAt": 0 },   //   stocznia (od v0.58, opcjonalna)
     "lab": { "level": 2, "readyAt": 0 },        //   Laboratorium orbitalne (od v0.73, opcjonalne; błędne pomijane)
+    "dock": { "level": 1, "readyAt": 0 },       //   dok handlowy (od v0.79, opcjonalny)
     "coreUpgrade": { "level": 2, "readyAt": 0 }, //   rozbudowa rdzenia do poz. 2/3 (od v0.76, opcjonalna)
     "auto": { "supply": 0.75, "night": "production" }, // automatyka SI stacji (od v0.78): próg dostaw, kategoria SI nocnej
     "storage2": { … }, "shipyard2": { … }, "lab2": { … },   // drugie egzemplarze modułów (od v0.76, pierścień 2)

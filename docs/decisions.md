@@ -1135,3 +1135,9 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
 - Dostawy z progiem gracza (50 / 75 / 90%), SI nocna z wybraną kategorią (najtańsze dostępne), kolejka 1 badania,
   autonomia (magazyn i laboratorium z magazynu stacji). Wszystko w `processStationAuto` w każdym takcie gry.
 - Poprawka: `processStationResearch` (i automatyka) w liście `tick` — wcześniej tylko w nadrabianiu przy starcie.
+
+## 2026-11-09 — Stacja, etap 3: dok handlowy (decyzje właściciela)
+
+- Rynek stały (gorszy kurs) + kupcy (lepsze oferty, statki, zamówienia z nagrodami: antymateria i surowce,
+  przyspieszenie, rzadkie rzeczy). Sprzedaż antymaterii; wzmocnienia budowli za antymaterię z ryzykiem (awaria,
+  utrata poziomów, zniszczenie — zawsze adekwatna nagroda). Eksplozja i odnowa planet (obca cywilizacja) — osobny etap.
