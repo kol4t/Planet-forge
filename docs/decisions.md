@@ -1129,3 +1129,9 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
 - W pierścieniach 2 i 3 drugie / trzecie egzemplarze magazynu, stoczni i laboratorium (pola `storage2`…`lab3`).
   Stocznie równolegle: start statku = najwcześniejszy koniec spośród `lanes` ostatnich budów. Laboratoria równolegle:
   `research.more`. Kopie stoczni i laboratorium mają jeden poziom.
+
+## 2026-11-09 — Stacja, krok 2d-3: automatyka SI (decyzje właściciela)
+
+- Dostawy z progiem gracza (50 / 75 / 90%), SI nocna z wybraną kategorią (najtańsze dostępne), kolejka 1 badania,
+  autonomia (magazyn i laboratorium z magazynu stacji). Wszystko w `processStationAuto` w każdym takcie gry.
+- Poprawka: `processStationResearch` (i automatyka) w liście `tick` — wcześniej tylko w nadrabianiu przy starcie.

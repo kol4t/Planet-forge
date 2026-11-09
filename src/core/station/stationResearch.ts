@@ -12,6 +12,8 @@ export interface StationResearchState {
   current: { id: string; startedAt: number; readyAt: number } | null;
   /** Badania w drugim i trzecim laboratorium (krok 2d-1). */
   more?: { id: string; startedAt: number; readyAt: number }[];
+  /** Badanie zlecone „po” bieżącym (kolejka stacji, krok 2d-3). */
+  queued?: string;
 }
 
 /** Wszystkie badania w toku (pierwsze laboratorium i kolejne). */
@@ -141,7 +143,7 @@ export function completeStationResearch(state: StationResearchState, now: number
   if (finished.length === 0) return { research: state, completed: [] };
   const left = active.filter((a) => now < a.readyAt);
   const done = [...state.done, ...finished.map((f) => f.id)];
-  const research: StationResearchState = { done, current: left[0] ?? null, ...(left.length > 1 ? { more: left.slice(1) } : {}) };
+  const research: StationResearchState = { done, current: left[0] ?? null, ...(left.length > 1 ? { more: left.slice(1) } : {}), ...(state.queued ? { queued: state.queued } : {}) };
   return { research, completed: finished.map((f) => f.id) };
 }
 
@@ -201,5 +203,6 @@ export function parseStationResearch(raw: any): StationResearchState {
   const more = Array.isArray(raw.more)
     ? (raw.more as any[]).filter((m) => m && typeof m.id === 'string' && known.has(m.id) && !done.includes(m.id) && m.id !== current?.id && Number.isFinite(m.startedAt) && Number.isFinite(m.readyAt) && m.readyAt >= m.startedAt).slice(0, 2).map((m) => ({ id: m.id as string, startedAt: m.startedAt as number, readyAt: m.readyAt as number }))
     : [];
-  return { done, current, ...(more.length > 0 ? { more } : {}) };
+  const queued = typeof raw.queued === 'string' && known.has(raw.queued) && !done.includes(raw.queued) ? raw.queued : null;
+  return { done, current, ...(more.length > 0 ? { more } : {}), ...(queued ? { queued } : {}) };
 }

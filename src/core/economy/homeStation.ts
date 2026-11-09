@@ -6,6 +6,7 @@ import { stationLevelAt } from './asteroids.ts';
 import { parseStationResearch } from '../station/stationResearch.ts';
 import { stationCoreLevel } from '../station/stationScreen.ts';
 import { STATION_CORE } from '../../data/stationModules.ts';
+import { parseStationAuto } from '../station/stationAuto.ts';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
@@ -129,6 +130,7 @@ export function parseHomeStation(raw: any): HomeStation | null {
     ...(shipyard ? { shipyard } : {}),
     ...(lab ? { lab } : {}),
     ...extra,
+    ...(parseStationAuto(raw.auto) ? { auto: parseStationAuto(raw.auto)! } : {}),
     ...(research && (research.done.length > 0 || research.current) ? { research } : {}),
     stock: { metal: amount(raw.stock?.metal), crystal: amount(raw.stock?.crystal) },
   };

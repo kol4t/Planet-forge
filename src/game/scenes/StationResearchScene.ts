@@ -232,6 +232,7 @@ export class StationResearchScene extends OverlayScene {
       return;
     }
     if (!node) {
+      this.buildAuto(view, rect, pad, w, () => y, (v) => (y = v));
       if (view.lab === 0) {
         line('Laboratorium orbitalne', 16, COLORS.gold, { fontFamily: FONTS.serif });
         line('Badania stacji prowadzi Laboratorium orbitalne — zbuduj je w „Modułach” stacji. Płaci magazyn stacji: dowieź surowce transportowcem („Na stację”).', 12, COLORS.stone);
@@ -257,7 +258,42 @@ export class StationResearchScene extends OverlayScene {
     }
     if (node.status === 'available') {
       this.addButton(rect.x + pad, bottom - TOUCH, w, TOUCH, 'Rozpocznij badanie', 'primary', () => this.act(this.deps.controller.startStationResearch(node.id)));
+    } else if (view.auto.queueUnlocked && (node.status === 'busy' || node.status === 'needs-research' || node.status === 'needs-lab')) {
+      // Kolejka stacji (krok 2d-3): badanie zlecone „po” bieżącym.
+      const queued = view.auto.queued?.id === node.id;
+      this.addButton(rect.x + pad, bottom - TOUCH, w, TOUCH, queued ? 'Usuń z kolejki' : 'Do kolejki stacji', queued ? 'secondary' : 'primary', () => this.act(this.deps.controller.queueStationResearch(queued ? null : node.id)));
     }
+  }
+
+  /** Automatyka SI (krok 2d-3): dostawy na stację, SI nocna, kolejka, autonomia — przełączniki w panelu. */
+  private buildAuto(view: StationResearchView, rect: Rect, pad: number, w: number, getY: () => number, setY: (v: number) => void): void {
+    const a = view.auto;
+    if (!a.supplyUnlocked && !a.nightUnlocked && !a.queueUnlocked && !a.autonomy) return;
+    const c = this.deps.controller;
+    let y = getY();
+    const label = (text: string, color: string = COLORS.muted) => {
+      const t = this.text(rect.x + pad, y, text, 11, color, { wordWrap: { width: this.px(w) } });
+      y += t.height / this.dpr + this.s(4);
+    };
+    label('AUTOMATYKA SI', COLORS.teal);
+    const h = TOUCH - this.s(6);
+    if (a.supplyUnlocked) {
+      const steps: (0.5 | 0.75 | 0.9 | null)[] = [null, 0.5, 0.75, 0.9];
+      const next = steps[(steps.indexOf(a.supply) + 1) % steps.length]!;
+      this.addButton(rect.x + pad, y, w, h, `Dostawy na stację: ${a.supply ? `ponad ${Math.round(a.supply * 100)}% magazynu planety` : 'wyłączone'}`, a.supply ? 'primary' : 'secondary', () => this.act(c.setStationSupply(next)));
+      y += h + this.s(6);
+    }
+    if (a.nightUnlocked) {
+      const cats: (StationCategoryId | null)[] = [null, ...view.categories.map((x) => x.id)];
+      const next = cats[(cats.indexOf(a.night) + 1) % cats.length]!;
+      const name = a.night ? view.categories.find((x) => x.id === a.night)!.name : 'wyłączona';
+      this.addButton(rect.x + pad, y, w, h, `SI nocna: ${name}`, a.night ? 'primary' : 'secondary', () => this.act(c.setStationNight(next)));
+      y += h + this.s(6);
+    }
+    if (a.queueUnlocked) label(a.queued ? `Kolejka stacji: „${a.queued.name}”` : 'Kolejka stacji: pusta — dotknij badania, „Do kolejki stacji”.');
+    if (a.autonomy) label('Autonomia: SI rozbudowuje pełny magazyn stacji i laboratorium, gdy blokuje SI nocną.');
+    y += this.s(6);
+    setY(y);
   }
 
   private act(result: { ok: boolean; message: string }): void {

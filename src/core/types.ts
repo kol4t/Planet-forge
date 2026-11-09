@@ -809,7 +809,9 @@ export interface HomeStation {
   shipyard3?: AsteroidStation;
   lab3?: AsteroidStation;
   /** Badania stacji (etap 2a): zbadane i badanie w toku. */
-  research?: { done: string[]; current: { id: string; startedAt: number; readyAt: number } | null; more?: { id: string; startedAt: number; readyAt: number }[] };
+  research?: { done: string[]; current: { id: string; startedAt: number; readyAt: number } | null; more?: { id: string; startedAt: number; readyAt: number }[]; queued?: string };
+  /** Automatyka SI stacji (krok 2d-3): próg dostaw (0,5 / 0,75 / 0,9) i kategoria SI nocnej. */
+  auto?: { supply?: 0.5 | 0.75 | 0.9; night?: 'production' | 'fleet' | 'ai' | 'planetology' | 'trade' | 'exploration' };
   stock: Resources;
 }
 

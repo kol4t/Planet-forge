@@ -2,6 +2,19 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.78.0 — stacja kosmiczna, krok 2d-3: automatyka SI — robocza
+
+Decyzje właściciela 2026-11-09 (przełączniki w „Badania stacji”, gdy nie jest wybrane badanie):
+- **Automatyczne dostawy** (badanie „Automatyczne dostawy”): próg ustawiany przez gracza — 50 / 75 / 90% magazynu
+  planety; nadwyżka ponad próg leci wolnym transportowcem na stację (najwyżej co 30 min z planety, ze wszystkich planet).
+- **SI nocna** (badanie „SI nocna”): wybierasz kategorię — gdy laboratorium jest wolne, SI zaczyna najtańsze dostępne
+  badanie tej kategorii, na które starcza magazynu stacji.
+- **Kolejka stacji** (badanie „Kolejka stacji”): „Do kolejki stacji” na badaniu — startuje, gdy zwolni się laboratorium.
+- **Autonomia stacji** (badanie „Autonomia stacji”): SI rozbudowuje magazyn orbitalny, gdy jest prawie pełny (z magazynu
+  stacji), i Laboratorium orbitalne, gdy blokuje badania kategorii SI nocnej.
+- **Poprawka:** badania stacji kończyły się dopiero po ponownym uruchomieniu gry (od v0.73) — teraz w trakcie gry.
+- `core/station/stationAuto.ts`, zapis `station.auto`, `station.research.queued` (opcjonalne).
+
 ## v0.77.0 — stacja kosmiczna, krok 2d-2: nowe statki i konwoje — 2026-11-09
 
 Decyzje właściciela 2026-11-09:
