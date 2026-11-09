@@ -2,6 +2,24 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.80.0 — stacja kosmiczna, krok 3b: kredyty i kupcy — robocza
+
+Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 3):
+- **Kredyty** (nazwa robocza) — waluta-przedmiot, nie konto: leżą w magazynie stacji, używają ich tylko stacje i kupcy
+  (planety nie). 1 kredyt ≈ 10 metalu (robocze).
+- **Rynek doku przez kredyty**: sprzedajesz metal / kryształy (z magazynu stacji) i antymaterię (po badaniu) za kredyty,
+  kupujesz metal / kryształy za kredyty — dawna bezpośrednia wymiana metal ↔ kryształy znika (idzie przez kredyty).
+- **Opłaty za premię stacji**: planety w zasięgu premii płacą stacji kredyty (12 / h × udział planety; planety niczego
+  nie tracą — robocze).
+- **Kupcy**: przylatują co 6 h i zostają 4 h (z czasu świata — także pod nieobecność). Każdy ma 2–3 oferty lepsze niż
+  rynek (raz na wizytę), czasem statek na sprzedaż (transportowiec, eskorta, kurier) i zamówienie: dostarcz metal albo
+  kryształy do magazynu stacji w 12 h → kredyty, antymateria, czasem przyspieszenie badania stacji o 2 h albo znalezisko.
+  Większy dok — większe oferty.
+- `core/station/merchants.ts` (`MERCHANTS`), okno doku rozbudowane (`game/ui/tradePanel.ts`), zapis `station.credits`,
+  `station.feesAt`, `station.merchant` (opcjonalne).
+- Do zrobienia później (decyzja właściciela): rozwinąć temat waluty (transport kredytów statkami, przechwytywanie przez
+  piratów, kolejne stacje z własnym magazynem kredytów).
+
 ## v0.79.0 — stacja kosmiczna, krok 3a: dok handlowy i stały rynek — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 3):

@@ -20,7 +20,8 @@ import { stationCoreLevel, stationScreen, type StationModuleView, type StationSc
 import { STATION_CORE, stationModuleDef } from '../data/stationModules.ts';
 import { activeResearch, completeStationResearch, EMPTY_STATION_RESEARCH, labLanes, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
 import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect, type StationStat } from '../data/stationResearch.ts';
-import { dockCost, dockLevel, marketRate, marketSpread, marketTrade, TRADE, type TradeGood } from '../core/station/trade.ts';
+import { dockCost, dockLevel, marketSpread, TRADE, type TradeGood } from '../core/station/trade.ts';
+import { auraFees, buyPrice, contractOpen, marketBuy, marketSell, merchantAt, merchantVisit, MERCHANTS, sellPrice, type MerchantContract, type MerchantOffer } from '../core/station/merchants.ts';
 import { AUTO_RULES, categoryNeedsLab, pickNightResearch, supplyCargo, type SupplyThreshold } from '../core/station/stationAuto.ts';
 import { auraEffects, auraReachName, auraShare, auraStats, STATION_AURA, type AuraStats } from '../core/station/stationAura.ts';
 import {
@@ -566,9 +567,29 @@ export interface TradeView {
   stock: Resources;
   capacity: number;
   wallet: number;
-  rates: { metalToCrystal: number; crystalToMetal: number; antimatterToMetal: number; antimatterToCrystal: number };
   /** Do następnej zmiany kursów (s). */
   nextChangeSeconds: number;
+  /** Kredyty w magazynie stacji (krok 3b). */
+  credits: number;
+  /** Kredyty za 1 jednostkę: sprzedaż (metal, kryształy, antymateria) i kupno (metal, kryształy). */
+  sell: Record<TradeGood, number>;
+  buy: { metal: number; crystal: number };
+  /** Opłaty za premię stacji: kredytów na godzinę. */
+  feesPerHour: number;
+  merchant: {
+    present: boolean;
+    name: string;
+    /** Do odlotu (gdy jest) albo do przylotu następnego (s). */
+    secondsLeft: number;
+    offers: (MerchantOffer & { used: boolean })[];
+    ship: { type: ShipType; name: string; credits: number; sold: boolean } | null;
+    /** Zamówienie bieżącej wizyty (do przyjęcia). */
+    contract: MerchantContract;
+    /** Zamówienie bieżącej wizyty już przyjęte (albo inne trwa). */
+    contractTaken: boolean;
+  };
+  /** Przyjęte zamówienie w toku. */
+  activeContract: (MerchantContract & { secondsLeft: number; from: string }) | null;
 }
 
 /** Karta modułu stacji w panelu „Moduły” (etap 1 planu stacji). */
@@ -753,7 +774,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -1125,7 +1146,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     const guided = this.processGuide(now);
@@ -1989,7 +2010,6 @@ export class GameController {
     const s = this.station;
     const level = dockLevel(s, now);
     const rates = this.stationDone('st-rates');
-    const rate = (give: TradeGood, take: TradeGood) => marketRate(give, take, now, Math.max(1, level), rates);
     return {
       level,
       spread: marketSpread(Math.max(1, level), rates),
@@ -1997,34 +2017,212 @@ export class GameController {
       stock: s?.stock ?? { metal: 0, crystal: 0 },
       capacity: stationCapacity(s, now, this.balance),
       wallet: this.economy.antimatter,
-      rates: { metalToCrystal: rate('metal', 'crystal'), crystalToMetal: rate('crystal', 'metal'), antimatterToMetal: rate('antimatter', 'metal'), antimatterToCrystal: rate('antimatter', 'crystal') },
       nextChangeSeconds: Math.max(0, (TRADE.periodMs - (now % TRADE.periodMs)) / 1000),
+      credits: s?.credits ?? 0,
+      sell: { metal: sellPrice('metal', now, Math.max(1, level), rates), crystal: sellPrice('crystal', now, Math.max(1, level), rates), antimatter: sellPrice('antimatter', now, Math.max(1, level), rates) },
+      buy: { metal: buyPrice('metal', now, Math.max(1, level), rates), crystal: buyPrice('crystal', now, Math.max(1, level), rates) },
+      feesPerHour: auraFees(this.slots.map((slot) => this.auraShareFor(slot.address, now)), 3_600_000),
+      merchant: this.merchantView(now),
+      activeContract: this.activeContract(now),
     };
   }
 
-  /** Wymiana na stałym rynku doku (metal / kryształy z magazynu stacji, antymateria z portfela). */
-  trade(give: TradeGood, amount: number, take: 'metal' | 'crystal', now = Date.now()): ActionMessage {
-    this.tick(now);
-    const s = this.station;
-    if (!s) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
-    const r = marketTrade(
-      { level: dockLevel(s, now), stock: s.stock, wallet: this.economy.antimatter, capacity: stationCapacity(s, now, this.balance), antimatterTrade: this.stationDone('st-antimatter-trade'), ratesResearch: this.stationDone('st-rates'), at: now },
-      give,
-      amount,
-      take,
-    );
-    if (!r.ok) return r;
-    const stock = { ...s.stock };
-    if (give === 'antimatter') this.economy = { ...this.economy, antimatter: this.economy.antimatter - amount };
-    else stock[give] -= amount;
-    stock[take] += r.received;
-    this.station = { ...s, stock };
-    const names: Record<TradeGood, string> = { metal: 'metalu', crystal: 'kryształów', antimatter: 'antymaterii' };
-    const text = `Dok handlowy: ${Math.floor(amount * 10) / 10} ${names[give]} → ${r.received} ${names[take]}.`;
+  private merchantView(now: number): TradeView['merchant'] {
+    const at = merchantAt(now);
+    const visit = merchantVisit(at.index, Math.max(1, dockLevel(this.station, now)));
+    const m = this.station?.merchant;
+    const mine = m?.visit === at.index;
+    return {
+      present: at.present,
+      name: visit.name,
+      secondsLeft: Math.max(0, ((at.present ? at.leavesAt : at.nextAt) - now) / 1000),
+      offers: visit.offers.map((o, i) => ({ ...o, used: mine && m!.used.includes(i) })),
+      ship: visit.ship ? { ...visit.ship, name: findShip(visit.ship.type)?.name ?? visit.ship.type, sold: mine && m!.shipSold === true } : null,
+      contract: visit.contract,
+      contractTaken: contractOpen(m, now),
+    };
+  }
+
+  private activeContract(now: number): TradeView['activeContract'] {
+    const c = this.station?.merchant?.contract;
+    if (!c || !contractOpen(this.station?.merchant, now)) return null;
+    return { ...c.contract, secondsLeft: Math.max(0, (c.acceptedAt + MERCHANTS.contractMs - now) / 1000), from: merchantVisit(c.visit, 1).name };
+  }
+
+  /** Stan kupców bieżącej wizyty (nowa wizyta — czyste oferty, przyjęte zamówienie zostaje). */
+  private merchantSave(now: number) {
+    const index = merchantAt(now).index;
+    const m = this.station?.merchant;
+    return m?.visit === index ? m : { visit: index, used: [] as number[], ...(m?.contract ? { contract: m.contract } : {}) };
+  }
+
+  private creditsChange(delta: number, stock?: Resources): void {
+    const s = this.station!;
+    this.station = { ...s, credits: Math.max(0, (s.credits ?? 0) + delta), ...(stock ? { stock } : {}) };
+  }
+
+  private tradeCtx(now: number) {
+    const s = this.station!;
+    return { level: dockLevel(s, now), stock: s.stock, wallet: this.economy.antimatter, credits: s.credits ?? 0, capacity: stationCapacity(s, now, this.balance), antimatterTrade: this.stationDone('st-antimatter-trade'), ratesResearch: this.stationDone('st-rates'), at: now };
+  }
+
+  private tradeDone(text: string, now: number): ActionMessage {
     this.log('empire', text, now);
     this.save();
     this.emit();
     return { ok: true, message: text };
+  }
+
+  /** Sprzedaż na rynku doku za kredyty (krok 3b). */
+  sellForCredits(good: TradeGood, amount: number, now = Date.now()): ActionMessage {
+    this.tick(now);
+    if (!this.station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
+    const r = marketSell(this.tradeCtx(now), good, amount);
+    if (!r.ok) return r;
+    const stock = { ...this.station.stock };
+    if (good === 'antimatter') this.economy = { ...this.economy, antimatter: this.economy.antimatter - amount };
+    else stock[good] -= amount;
+    this.creditsChange(r.credits, stock);
+    const names: Record<TradeGood, string> = { metal: 'metalu', crystal: 'kryształów', antimatter: 'antymaterii' };
+    return this.tradeDone(`Dok handlowy: sprzedano ${formatAmount(amount)} ${names[good]} za ${r.credits} kredytów.`, now);
+  }
+
+  /** Kupno metalu / kryształów za kredyty (krok 3b). */
+  buyWithCredits(good: 'metal' | 'crystal', amount: number, now = Date.now()): ActionMessage {
+    this.tick(now);
+    if (!this.station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
+    const r = marketBuy(this.tradeCtx(now), good, amount);
+    if (!r.ok) return r;
+    const stock = { ...this.station.stock, [good]: this.station.stock[good] + amount };
+    this.creditsChange(-r.credits, stock);
+    return this.tradeDone(`Dok handlowy: kupiono ${formatAmount(amount)} ${good === 'metal' ? 'metalu' : 'kryształów'} za ${r.credits} kredytów.`, now);
+  }
+
+  private merchantReady(now: number): string | null {
+    if (!this.station || dockLevel(this.station, now) <= 0) return 'Kupcy przylatują do doku handlowego — najpierw go zbuduj.';
+    if (!merchantAt(now).present) return 'Kupca nie ma przy doku — poczekaj na następną wizytę.';
+    return null;
+  }
+
+  /** Przyjęcie oferty kupca (każda raz na wizytę). */
+  merchantDeal(index: number, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const why = this.merchantReady(now);
+    if (why) return { ok: false, message: why };
+    const visit = merchantVisit(merchantAt(now).index, dockLevel(this.station, now));
+    const offer = visit.offers[index];
+    const m = this.merchantSave(now);
+    if (!offer) return { ok: false, message: 'Nie ma takiej oferty.' };
+    if (m.used.includes(index)) return { ok: false, message: 'Ta oferta jest już wykorzystana.' };
+    const s = this.station!;
+    const ctx = this.tradeCtx(now);
+    const names: Record<TradeGood, string> = { metal: 'metalu', crystal: 'kryształów', antimatter: 'antymaterii' };
+    const stock = { ...s.stock };
+    if (offer.kind === 'sell') {
+      const have = offer.good === 'antimatter' ? ctx.wallet : stock[offer.good];
+      if (have < offer.amount) return { ok: false, message: `Kupiec chce ${formatAmount(offer.amount)} ${names[offer.good]} — ${offer.good === 'antimatter' ? 'masz' : 'w magazynie stacji jest'} ${formatAmount(have)}.` };
+      if (offer.good === 'antimatter') this.economy = { ...this.economy, antimatter: this.economy.antimatter - offer.amount };
+      else stock[offer.good] -= offer.amount;
+      this.creditsChange(offer.credits, stock);
+    } else {
+      if (ctx.credits < offer.credits) return { ok: false, message: `Potrzeba ${offer.credits} kredytów, na stacji jest ${Math.floor(ctx.credits)}.` };
+      if (offer.good === 'antimatter') this.economy = { ...this.economy, antimatter: this.economy.antimatter + offer.amount };
+      else {
+        if (stock[offer.good] + offer.amount > ctx.capacity) return { ok: false, message: 'Magazyn stacji tego nie zmieści.' };
+        stock[offer.good] += offer.amount;
+      }
+      this.creditsChange(-offer.credits, stock);
+    }
+    this.station = { ...this.station!, merchant: { ...m, used: [...m.used, index] } };
+    return this.tradeDone(
+      `${visit.name}: ${offer.kind === 'sell' ? 'sprzedano' : 'kupiono'} ${formatAmount(offer.amount)} ${names[offer.good]} za ${offer.credits} kredytów.`,
+      now,
+    );
+  }
+
+  /** Kupno statku od kupca za kredyty (raz na wizytę). */
+  merchantShip(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const why = this.merchantReady(now);
+    if (why) return { ok: false, message: why };
+    const visit = merchantVisit(merchantAt(now).index, dockLevel(this.station, now));
+    const m = this.merchantSave(now);
+    if (!visit.ship) return { ok: false, message: 'Ten kupiec nie sprzedaje statków.' };
+    if (m.shipSold) return { ok: false, message: 'Statek już kupiony.' };
+    if ((this.station!.credits ?? 0) < visit.ship.credits) return { ok: false, message: `Potrzeba ${visit.ship.credits} kredytów.` };
+    this.creditsChange(-visit.ship.credits);
+    this.station = { ...this.station!, merchant: { ...m, shipSold: true } };
+    this.fleet = { ...this.fleet, docked: { ...this.fleet.docked, [visit.ship.type]: this.fleet.docked[visit.ship.type] + 1 } };
+    return this.tradeDone(`${visit.name}: kupiono statek „${findShip(visit.ship.type)?.name ?? visit.ship.type}” za ${visit.ship.credits} kredytów — jest we flocie.`, now);
+  }
+
+  /** Przyjęcie zamówienia kupca (jedno naraz, 12 h na wykonanie). */
+  acceptContract(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const why = this.merchantReady(now);
+    if (why) return { ok: false, message: why };
+    const m = this.merchantSave(now);
+    if (contractOpen(m, now)) return { ok: false, message: 'Najpierw wykonaj przyjęte zamówienie (albo poczekaj, aż wygaśnie).' };
+    const index = merchantAt(now).index;
+    const visit = merchantVisit(index, dockLevel(this.station, now));
+    this.station = { ...this.station!, merchant: { ...m, contract: { visit: index, acceptedAt: now, contract: visit.contract } } };
+    const c = visit.contract;
+    return this.tradeDone(`${visit.name}: przyjęto zamówienie — ${formatAmount(c.amount)} ${c.want === 'metal' ? 'metalu' : 'kryształów'} z magazynu stacji w ciągu 12 h.`, now);
+  }
+
+  /** Oddanie towaru z magazynu stacji na zamówienie — nagroda. */
+  deliverContract(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const s = this.station;
+    const m = s?.merchant;
+    if (!s || !m?.contract || !contractOpen(m, now)) return { ok: false, message: 'Nie ma przyjętego zamówienia.' };
+    const c = m.contract.contract;
+    if (s.stock[c.want] < c.amount) return { ok: false, message: `W magazynie stacji brakuje ${formatAmount(c.amount - s.stock[c.want])} ${c.want === 'metal' ? 'metalu' : 'kryształów'}.` };
+    const parts = [`${c.reward.credits} kredytów`, `${c.reward.antimatter} antymaterii`];
+    this.creditsChange(c.reward.credits, { ...s.stock, [c.want]: s.stock[c.want] - c.amount });
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter + c.reward.antimatter };
+    if (c.reward.bonus === 'speedup') {
+      const r = this.station!.research;
+      if (r?.current) {
+        const cut = 2 * 3600 * 1000;
+        this.station = { ...this.station!, research: { ...r, current: { ...r.current, readyAt: Math.max(now, r.current.readyAt - cut) } } };
+        parts.push('badanie stacji szybciej o 2 h');
+      } else {
+        this.creditsChange(Math.round(c.reward.credits * 0.25));
+        parts.push(`${Math.round(c.reward.credits * 0.25)} kredytów zamiast przyspieszenia (brak badania stacji w toku)`);
+      }
+    } else if (c.reward.bonus === 'find') {
+      const options = FIND_DEFS.filter((f) => (this.finds.items[f.id] ?? 0) < f.max);
+      const pick = options[Math.floor(((m.contract.visit * 2654435761) >>> 0) % Math.max(1, options.length))];
+      if (pick) {
+        this.finds = { ...this.finds, items: { ...this.finds.items, [pick.id]: (this.finds.items[pick.id] ?? 0) + 1 } };
+        parts.push(`znalezisko „${pick.name}”`);
+      }
+    }
+    const { contract: _done, ...rest } = this.station!.merchant!;
+    this.station = { ...this.station!, merchant: rest };
+    return this.tradeDone(`Zamówienie wykonane: ${parts.join(', ')}.`, now);
+  }
+
+  /** Opłaty za premię stacji (kredyty) i wygasanie zamówień — w takcie. */
+  private processStationFees(now: number): string[] {
+    const s = this.station;
+    if (!s || !stationReady(s, now)) return [];
+    const texts: string[] = [];
+    const from = s.feesAt ?? now;
+    if (now > from) {
+      const shares = this.slots.map((slot) => this.auraShareFor(slot.address, now));
+      this.station = { ...s, credits: (s.credits ?? 0) + auraFees(shares, now - from), feesAt: now };
+    } else if (s.feesAt === undefined) this.station = { ...s, feesAt: now };
+    const m = this.station!.merchant;
+    if (m?.contract && !contractOpen(m, now)) {
+      const { contract: _gone, ...rest } = m;
+      this.station = { ...this.station!, merchant: rest };
+      const text = 'Zamówienie kupca wygasło — nie dostarczono towaru na czas.';
+      this.log('empire', text, now);
+      texts.push(text);
+    }
+    return texts;
   }
 
   /** Rozbudowa rdzenia stacji (krok 2d-1): po badaniu, płaci magazyn stacji. */
@@ -5011,4 +5209,10 @@ const PL_NUMBER = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 1 });
 function galaxyPlanet(target: SystemPlanet): Planet {
   const definition = findDefinition(target.definitionId) ?? STARTER.definition;
   return { ...generatePlanet(definition, target.address), displayName: target.name };
+}
+
+/** Ilość do komunikatów: liczba całkowita z odstępami tysięcy (antymateria z jednym miejscem po przecinku). */
+function formatAmount(v: number): string {
+  const r = Math.abs(v - Math.round(v)) < 1e-9 ? Math.round(v) : Math.floor(v * 10) / 10;
+  return r.toLocaleString('pl-PL').replace(/ /g, ' ');
 }

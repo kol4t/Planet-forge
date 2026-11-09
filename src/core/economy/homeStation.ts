@@ -7,6 +7,7 @@ import { parseStationResearch } from '../station/stationResearch.ts';
 import { stationCoreLevel } from '../station/stationScreen.ts';
 import { STATION_CORE } from '../../data/stationModules.ts';
 import { parseStationAuto } from '../station/stationAuto.ts';
+import { parseMerchantSave } from '../station/merchants.ts';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
@@ -131,6 +132,9 @@ export function parseHomeStation(raw: any): HomeStation | null {
     ...(lab ? { lab } : {}),
     ...extra,
     ...(parseStationAuto(raw.auto) ? { auto: parseStationAuto(raw.auto)! } : {}),
+    ...(isNum(raw.credits) && raw.credits > 0 ? { credits: raw.credits } : {}),
+    ...(isNum(raw.feesAt) ? { feesAt: raw.feesAt } : {}),
+    ...(parseMerchantSave(raw.merchant) ? { merchant: parseMerchantSave(raw.merchant)! } : {}),
     ...(research && (research.done.length > 0 || research.current) ? { research } : {}),
     stock: { metal: amount(raw.stock?.metal), crystal: amount(raw.stock?.crystal) },
   };

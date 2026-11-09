@@ -742,13 +742,18 @@ export class PlanetScene extends Phaser.Scene {
     }
   }
 
-  /** Okno „Dok handlowy” (etap 3a): stały rynek stacji. */
+  /** Okno „Dok handlowy” (etap 3a, krok 3b): kredyty, rynek, kupcy i zamówienia. */
   private openTrade(): void {
     const c = this.deps.controller;
     this.closeAsteroid?.();
     this.closeAsteroid = openTradePanel({
       view: () => c.tradeView(),
-      trade: (give, amount, take) => c.trade(give, amount, take),
+      sell: (good, amount) => c.sellForCredits(good, amount),
+      buy: (good, amount) => c.buyWithCredits(good, amount),
+      deal: (index) => c.merchantDeal(index),
+      ship: () => c.merchantShip(),
+      accept: () => c.acceptContract(),
+      deliver: () => c.deliverContract(),
       onDone: (message) => this.showToast(message, 'ok', 2600),
     });
   }
