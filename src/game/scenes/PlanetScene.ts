@@ -149,6 +149,9 @@ function depositLine(id: ResourceId, d: DepositInfo): string {
   return `${name}: zostało ${formatAmount(d.left)} z ${formatAmount(d.total)} (${share}%)${remnant}${when}`;
 }
 
+/** Procent ze znakiem, bez zbędnych zer (premia stacji). */
+const formatPct = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v * 10) / 10}%`;
+
 const YIELD_NAMES: Record<YieldId, string> = { metal: 'metal', crystal: 'kryształy', energy: 'energia' };
 
 const DOCK_LABELS: Record<DockItemId, string> = {
@@ -428,6 +431,7 @@ export class PlanetScene extends Phaser.Scene {
           own,
           active: p.address === c.address,
           ...(own && p.address === c.stationAddress && c.stationScreen() ? { station: true } : {}),
+          ...(own && c.auraShareFor(p.address) > 0 ? { aura: c.auraShareFor(p.address) } : {}),
           ...(p.address === c.address ? { yaw: this.deps.display.orientation().yaw } : {}),
           ...(gas ? { gas: { bands: p.gas!.bands, rings: p.gas!.rings } } : { planet: this.planetFor(p.address, p.definitionId) }),
         };
@@ -666,7 +670,10 @@ export class PlanetScene extends Phaser.Scene {
     if (card.state === 'soon') return `Wkrótce — etap ${card.stage} planu stacji`;
     if (card.state === 'building') return `${card.level === 0 ? 'Budowa' : `Rozbudowa do poz. ${card.upgrading}`} · ${formatDuration(card.secondsLeft)}`;
     if (card.state === 'empty') return card.id === 'shipyard' ? 'Puste gniazdo — zbuduj stocznię' : 'Puste gniazdo — zbuduj moduł';
-    if (card.id === 'core') return 'Działa · rozbudowa rdzenia w kolejnych etapach';
+    if (card.id === 'core') {
+      const aura = this.deps.controller.stationAuraView();
+      return aura.reach > 0 ? `Działa · premia stacji: ${formatPct(aura.output)} wydobycia, ${formatPct(aura.buildTime)} budowy — zasięg: ${aura.reachName}` : 'Działa · premia stacji po badaniu „Premia stacji: planeta”';
+    }
     return 'Działa';
   }
 
@@ -1550,6 +1557,16 @@ export class PlanetScene extends Phaser.Scene {
     };
     const empty = deposits.metal.left <= 0 || deposits.crystal.left <= 0;
     this.text(box.x + pad, y, `Złoża: metal ${share('metal')} · kryształy ${share('crystal')}`, 12, empty ? COLORS.danger : COLORS.stone, { fixedWidth: this.px(w) });
+    // Premia stacji macierzystej (etap 2b planu stacji) dla tej planety.
+    y += this.s(18);
+    const aura = c.stationAuraView();
+    const part = c.auraShareFor(c.address);
+    const auraText = part > 0
+      ? `Premia stacji ${Math.round(part * 100)}%: ${formatPct(aura.output * part)} wydobycia, ${formatPct(aura.buildTime * part)} czasu budowy`
+      : aura.reach > 0
+        ? `Poza zasięgiem premii stacji (${aura.reachName})`
+        : 'Premia stacji: zbadaj „Premia stacji: planeta” (Badania stacji)';
+    this.text(box.x + pad, y, auraText, 11, part > 0 ? COLORS.teal : COLORS.muted, { fixedWidth: this.px(w) });
     const by = box.y + box.h - TOUCH;
     const half = (box.w - gap) / 2;
     this.addButton(box.x, by, half, TOUCH, 'Szczegóły', 'secondary', () => this.setPlanetDetail(true), 13);

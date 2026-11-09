@@ -91,7 +91,7 @@ export const PLANET_SCREEN_SHARE = 0.3;
 export const PLANET_ROW_H = 58;
 export const PLANET_ROW_GAP = 6;
 /** Skrót aktywnej planety pod listą w panelu „Planeta” (nazwa, pola, złoża — pt × u; v0.71). */
-export const PLANET_SUMMARY_H = 58;
+export const PLANET_SUMMARY_H = 76;
 /** Przyciski pod listą planet: Ustawienia + przyciski paska, które się nie zmieściły — po dwa w wierszu. */
 export const planetFooterRows = (hidden: number) => Math.ceil((hidden + 1) / 2);
 /** Nagłówek panelu. */
