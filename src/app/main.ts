@@ -125,6 +125,8 @@ function withSpace(display: PlanetDisplay, space: SpaceBackground, controller: G
     setPaused: (paused) => display.setPaused(paused),
     setOrbital: (level) => display.setOrbital(level),
     setHomeStation: (look) => display.setHomeStation(look),
+    setStationScreen: (model) => display.setStationScreen(model),
+    pickStationModule: (x, y) => display.pickStationModule(x, y),
     setOrbitalConstructs: (count) => display.setOrbitalConstructs(count),
     orientation: () => display.orientation(),
     setOrientation: (yaw, pitch) => display.setOrientation(yaw, pitch),

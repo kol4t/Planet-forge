@@ -48,7 +48,10 @@ import {
 import { loadGuideCollapsed, saveGuideCollapsed, loadPanels, savePanels, FOCUS_ZOOMS, loadAutoSpin, loadFocusZoom, loadGridVisible, saveAutoSpin, saveFocusZoom, saveGridVisible } from '../ui/uiPrefs.ts';
 import { approach, BUILD_FLASH_MS, PANEL_IN_MS, PANEL_IN_OFFSET, prefersReducedMotion } from '../ui/motion.ts';
 import { COLORS, FONTS, formatAmount, formatDuration, formatInt, formatRate, formatSpan } from '../ui/theme.ts';
-import { OPEN_SYSTEM, OVERLAY_CLOSED } from './OverlayScene.ts';
+import { OPEN_STATION, OPEN_SYSTEM, OVERLAY_CLOSED } from './OverlayScene.ts';
+import type { StationModuleCard } from '../../app/GameController.ts';
+import type { StationModuleId } from '../../data/stationModules.ts';
+import { stationScreenKey } from '../../core/station/stationScreen.ts';
 import { geologyLines } from '../ui/geologyText.ts';
 import { compareGeology } from '../../core/economy/geology.ts';
 import { fuelLabel } from '../../core/economy/fuel.ts';
@@ -162,6 +165,8 @@ const PANEL_TITLES: Record<PanelId, string> = { production: 'PRODUKCJA', planet:
 /** HUD gry. Współrzędne liczone w punktach CSS, rysowane w pikselach urządzenia (px()). */
 /** Krok przybliżania przyciskiem / klawiszem. */
 const ZOOM_STEP = 1.4;
+/** Przybliżenie na wejściu na ekran stacji (etap 1 planu stacji). */
+const STATION_ZOOM = 1.6;
 
 export class PlanetScene extends Phaser.Scene {
   private readonly deps: SceneDeps;
@@ -291,6 +296,7 @@ export class PlanetScene extends Phaser.Scene {
     });
     // Mapa galaktyki → widok układu (etap E): Mapa się zamyka, ekran główny wlatuje do wskazanego układu.
     this.game.events.on(OPEN_SYSTEM, (index: number) => this.time.delayedCall(0, () => this.enterSystem(index)));
+    this.game.events.on(OPEN_STATION, () => this.time.delayedCall(0, () => this.enterStation()));
     this.game.events.on(OVERLAY_CLOSED, (message?: string) => {
       this.screenOpen = false;
       this.input.enabled = true;
@@ -421,6 +427,7 @@ export class PlanetScene extends Phaser.Scene {
           zoneColor: zone[p.zone] ?? '#8f9b98',
           own,
           active: p.address === c.address,
+          ...(own && p.address === c.stationAddress && c.stationScreen() ? { station: true } : {}),
           ...(p.address === c.address ? { yaw: this.deps.display.orientation().yaw } : {}),
           ...(gas ? { gas: { bands: p.gas!.bands, rings: p.gas!.rings } } : { planet: this.planetFor(p.address, p.definitionId) }),
         };
@@ -456,6 +463,7 @@ export class PlanetScene extends Phaser.Scene {
     if (this.systemMode && !fromGalaxy) return;
     const scene = this.systemScene(target);
     if (!scene) return;
+    if (this.stationMode) this.setStationMode(false, false);
     if (this.gestures.cancel().length > 0) this.deps.display.endDrag();
     this.systemMode = true;
     this.viewSystem = target;
@@ -500,7 +508,7 @@ export class PlanetScene extends Phaser.Scene {
   }
 
   /** Przybliżenie do własnej planety: lot kamery, planeta pojawia się na miejscu miniatury. */
-  private enterPlanet(address: string): void {
+  private enterPlanet(address: string, station = false): void {
     const view = this.deps.system;
     const c = this.deps.controller;
     const result = c.selectObject(address);
@@ -521,6 +529,7 @@ export class PlanetScene extends Phaser.Scene {
       this.deps.display.setZoom(1, true);
       setPlanetVisible(true);
       view?.hide();
+      if (station) this.setStationMode(true);
       this.refreshValues();
     };
     const spot = this.layoutState?.planet;
@@ -536,10 +545,199 @@ export class PlanetScene extends Phaser.Scene {
     else finish();
   }
 
+  // ——— ekran stacji (etap 1 planu stacji) ———
+
+  /** Ekran stacji: renderer pokazuje stację macierzystą zamiast planety; panel „Produkcja” → „Moduły”. */
+  private stationMode = false;
+  /** Moduł stacji wybrany dotknięciem (złota ramka karty w „Modułach”). */
+  private selectedModule: StationModuleId | null = null;
+  /** Obrót planety sprzed wejścia na stację (powrót bez przeskoku). */
+  private planetTurn: { yaw: number; pitch: number } | null = null;
+  /** Odliczania na kartach modułów (odświeżane w refreshValues). */
+  private moduleRows: { id: StationModuleId; state: Phaser.GameObjects.Text }[] = [];
+
+  /**
+   * Wejście na ekran stacji (z widoku układu, listy „Planeta” albo Imperium): aktywną staje się planeta, nad którą
+   * krąży stacja (ona płaci za moduły), a renderer pokazuje stację.
+   */
+  private enterStation(): void {
+    const c = this.deps.controller;
+    const address = c.stationAddress;
+    if (!address || !c.stationScreen()) {
+      this.showToast('Stacji macierzystej jeszcze nie ma — zbudujesz ją w Imperium (karta „Stacja macierzysta”).', 'info', 3200);
+      return;
+    }
+    if (this.systemMode) {
+      this.enterPlanet(address, true);
+      return;
+    }
+    if (c.address !== address) {
+      const result = c.switchPlanet(c.slotAt(address));
+      if (!result.ok) {
+        this.showToast(result.message, 'error', 2600);
+        return;
+      }
+    }
+    this.setStationMode(true);
+  }
+
+  /** Włącza / wyłącza ekran stacji (`relayout` — przebudowa HUD; przy wejściu w układ robi ją układ). */
+  private setStationMode(on: boolean, relayout = true): void {
+    if (on === this.stationMode) return;
+    const display = this.deps.display;
+    this.stationMode = on;
+    this.selected = null;
+    this.placing = null;
+    this.selectedModule = null;
+    if (this.gestures.cancel().length > 0) display.endDrag();
+    if (on) {
+      this.planetTurn = display.orientation();
+      display.setStationScreen(this.deps.controller.stationScreen());
+      display.setOrientation(0.6, 0);
+      // Stacja jest „ażurowa” — na start bliżej niż planeta, żeby moduły były czytelne.
+      this.gestures.setZoom(STATION_ZOOM);
+      display.setZoom(STATION_ZOOM, true);
+    } else {
+      display.setStationScreen(null);
+      this.gestures.setZoom(1);
+      display.setZoom(1, true);
+      if (this.planetTurn) display.setOrientation(this.planetTurn.yaw, this.planetTurn.pitch);
+      this.planetTurn = null;
+    }
+    this.navKey = '';
+    if (relayout) this.relayout(true);
+  }
+
+  /** Dotknięcie stacji: trafiony moduł — złota ramka jego karty (otwiera „Moduły”); obok — odznaczenie. */
+  private onStationTap(x: number, y: number): void {
+    const id = this.deps.display.pickStationModule(x / this.dpr, y / this.dpr);
+    if (id === this.selectedModule) return;
+    this.selectedModule = id;
+    if (id && this.panels.open !== 'production') {
+      this.panels = { open: 'production' };
+      savePanels(this.panels);
+    }
+    if (id) this.showToast(this.deps.controller.stationModuleCards().find((m) => m.id === id)?.name ?? '', 'info', 1400);
+    this.relayout();
+  }
+
+  /** Panel „Moduły”: karty modułów stacji (rdzeń, działające, „wkrótce”) w siatce kart „Produkcji”. */
+  private buildStationModules(cards: Rect[]): void {
+    this.deps.controller.stationModuleCards().forEach((card, i) => {
+      const rect = cards[i];
+      if (rect) this.addModuleCard(card, rect);
+    });
+  }
+
+  private addModuleCard(card: StationModuleCard, rect: Rect): void {
+    this.subPanel(rect);
+    if (card.id === this.selectedModule) {
+      const g = this.add.graphics();
+      g.lineStyle(this.px(2), COLORS.goldHex, 0.95).strokeRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), this.px(this.s(10)));
+      this.ui!.add(g);
+    }
+    const pad = this.s(10);
+    const w = rect.w - 2 * pad;
+    const soon = card.state === 'soon';
+    const levelW = card.level > 0 ? this.s(44) : 0;
+    const name = this.text(rect.x + pad, rect.y + pad, card.name, 13, soon ? COLORS.muted : COLORS.text, { fontStyle: '600', wordWrap: { width: this.px(w - levelW) } });
+    if (card.level > 0) this.text(rect.x + rect.w - pad - levelW, rect.y + pad + this.s(1), `poz. ${card.level}`, 11, COLORS.gold, { fontStyle: '600', fixedWidth: this.px(levelW), align: 'right' });
+    let y = rect.y + pad + name.height / this.dpr + this.s(4);
+    const state = this.text(rect.x + pad, y, this.moduleState(card), 11, soon ? COLORS.faint : card.state === 'building' ? COLORS.gold : COLORS.teal, { wordWrap: { width: this.px(w) } });
+    this.moduleRows.push({ id: card.id, state });
+    y += state.height / this.dpr + this.s(4);
+    const canUpgrade = !!card.action && card.state !== 'building';
+    // Opis tylko, gdy zmieści się nad kosztem i przyciskiem.
+    const bottom = rect.y + rect.h - pad - (canUpgrade ? TOUCH + this.s(20) : 0);
+    const desc = this.text(rect.x + pad, y, card.description, 10.5, COLORS.muted, { wordWrap: { width: this.px(w) }, lineSpacing: this.px(1) });
+    if (y + desc.height / this.dpr > bottom) desc.setVisible(false);
+    if (canUpgrade) {
+      const cost = card.nextCost!;
+      this.text(rect.x + pad, rect.y + rect.h - pad - TOUCH - this.s(17), `Koszt: ${formatInt(cost.metal)} · ${formatInt(cost.crystal)}`, 10.5, COLORS.stone, { fixedWidth: this.px(w) });
+      this.addButton(rect.x + pad, rect.y + rect.h - pad - TOUCH, w, TOUCH, card.level === 0 ? 'Zbuduj' : `Ulepsz do ${card.level + 1}`, 'primary', () => this.upgradeModule(card.action!), 13);
+    }
+  }
+
+  private moduleState(card: StationModuleCard): string {
+    if (card.state === 'soon') return `Wkrótce — etap ${card.stage} planu stacji`;
+    if (card.state === 'building') return `${card.level === 0 ? 'Budowa' : `Rozbudowa do poz. ${card.upgrading}`} · ${formatDuration(card.secondsLeft)}`;
+    if (card.state === 'empty') return card.id === 'shipyard' ? 'Puste gniazdo — zbuduj stocznię' : 'Puste gniazdo — zbuduj moduł';
+    if (card.id === 'core') return 'Działa · rozbudowa rdzenia w kolejnych etapach';
+    return 'Działa';
+  }
+
+  private upgradeModule(action: 'storage' | 'shipyard'): void {
+    const c = this.deps.controller;
+    const result = action === 'storage' ? c.upgradeStationStorage() : c.upgradeShipyard();
+    this.showToast(result.message, result.ok ? 'ok' : 'error', 3000);
+    this.relayout();
+  }
+
+  private stationRefreshKey = '';
+  private stationRefreshAt = 0;
+
+  /** Ekran stacji: model do renderera, przebudowa kart przy zmianie stanu modułów, odliczania co sekundę. */
+  private refreshStation(now: number): void {
+    const c = this.deps.controller;
+    const model = c.stationScreen(now);
+    if (!model) {
+      this.setStationMode(false);
+      return;
+    }
+    this.deps.display.setStationScreen(model);
+    const key = stationScreenKey(model);
+    if (key !== this.stationRefreshKey) {
+      const first = this.stationRefreshKey === '';
+      this.stationRefreshKey = key;
+      if (!first) {
+        this.relayout();
+        return;
+      }
+    }
+    if (this.moduleRows.length === 0 || now - this.stationRefreshAt < 1000) return;
+    this.stationRefreshAt = now;
+    const cards = c.stationModuleCards(now);
+    for (const row of this.moduleRows) {
+      const card = cards.find((x) => x.id === row.id);
+      if (card) row.state.setText(this.moduleState(card));
+    }
+  }
+
+  /** Wiersz stacji macierzystej na liście w panelu „Planeta”. */
+  private stationRow(rect: Rect): void {
+    const g = this.add.graphics();
+    const radius = this.px(this.s(10));
+    const active = this.stationMode;
+    g.fillStyle(COLORS.buttonIdle, active ? 0.9 : 0.45).fillRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), radius);
+    g.lineStyle(this.px(1), active ? COLORS.goldHex : COLORS.panelBorder, active ? 0.8 : 1).strokeRoundedRect(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h), radius);
+    // Znaczek: pierścień z osią.
+    const pad = this.s(8);
+    const d = rect.h - 2 * pad;
+    const cx = this.px(rect.x + pad + d / 2);
+    const cy = this.px(rect.y + rect.h / 2);
+    g.lineStyle(this.px(2), 0x5ff2e0, 1).strokeEllipse(cx, cy, this.px(d * 0.9), this.px(d * 0.42));
+    g.fillStyle(0xd6b25e, 1).fillRect(cx - this.px(d * 0.04), cy - this.px(d * 0.45), this.px(d * 0.08), this.px(d * 0.9));
+    this.ui!.add(g);
+    const c = this.deps.controller;
+    const tx = rect.x + pad + d + this.s(10);
+    const tw = rect.x + rect.w - pad - tx;
+    const where = c.planets().find((p) => p.address === c.stationAddress)?.name ?? c.stationAddress ?? '';
+    this.text(tx, rect.y + this.s(8), 'Stacja macierzysta', 14, active ? COLORS.gold : COLORS.text, { fontStyle: '600', fixedWidth: this.px(tw) });
+    this.text(tx, rect.y + this.s(27), `${active ? 'Tu jesteś · ' : ''}orbita: ${where}`, 10.5, COLORS.muted, { fixedWidth: this.px(tw) });
+    if (active) return;
+    const zone = this.add.zone(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h)).setOrigin(0).setInteractive({ useHandCursor: true });
+    zone.on('pointerup', () => this.enterStation());
+    this.ui!.add(zone);
+  }
+
   /** Dotknięcie w widoku układu: własna planeta — wejście; inny obiekt — lot i okienko z danymi. */
   private onSystemTap(x: number, y: number): void {
     const view = this.deps.system;
     if (!view) return;
+    if (view.pickStation(x / this.dpr, y / this.dpr)) {
+      this.enterStation();
+      return;
+    }
     const address = view.pick(x / this.dpr, y / this.dpr);
     if (!address) {
       // Etap E: gwiazda i pas asteroid — okienko z danymi, które gra już ma.
@@ -655,7 +853,7 @@ export class PlanetScene extends Phaser.Scene {
     }
     this.updateGuide(layout);
     const c = this.deps.controller;
-    const key = `${this.systemMode}|${this.viewSystem}|${c.address}|${layout.stage.x}|${layout.stage.y}|${layout.stage.w}`;
+    const key = `${this.systemMode}|${this.stationMode}|${this.viewSystem}|${c.address}|${layout.stage.x}|${layout.stage.y}|${layout.stage.w}`;
     if (key === this.navKey) return;
     this.navKey = key;
     const index = this.systemMode ? this.viewSystem : (parseAddress(c.address)?.system ?? c.homeSystem);
@@ -664,7 +862,8 @@ export class PlanetScene extends Phaser.Scene {
       { label: 'Galaktyka', onTap: () => this.openMap() },
       { label: systemName, onTap: this.systemMode ? null : () => this.enterSystem() },
     ];
-    if (!this.systemMode) crumbs.push({ label: c.planet.displayName, onTap: null });
+    if (!this.systemMode) crumbs.push({ label: c.planet.displayName, onTap: this.stationMode ? () => this.setStationMode(false) : null });
+    if (this.stationMode) crumbs.push({ label: 'Stacja', onTap: null });
     this.systemNav.show(crumbs, this.systemMode ? () => this.enterPlanet(c.address) : null, layout.stage.x + 8, layout.stage.y + 8, layout.stage.w - 16);
   }
 
@@ -723,6 +922,7 @@ export class PlanetScene extends Phaser.Scene {
       else if (e.type === 'drag') display.drag(e.dx / this.dpr, e.dy / this.dpr);
       else if (e.type === 'drag-end') display.endDrag();
       else if (e.type === 'zoom') display.setZoom(e.zoom);
+      else if (this.stationMode) this.onStationTap(e.x, e.y);
       else this.onPlanetTap(e.x, e.y);
     }
   }
@@ -840,7 +1040,10 @@ export class PlanetScene extends Phaser.Scene {
     const viewport = this.deps.getViewport();
     this.dpr = viewport.dpr;
     this.gestures.tapSlop = 12 * viewport.dpr;
-    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, BALANCE.buildings.length, this.panels, this.deps.controller.aiUnlocked ? AI_RULES.length : 0, this.deps.controller.slotInfo.used);
+    const c = this.deps.controller;
+    const cardCount = this.stationMode ? c.stationModuleCards().length : BALANCE.buildings.length;
+    const planetRows = c.slotInfo.used + (c.stationScreen() ? 1 : 0);
+    const layout = computeLayout(viewport.width, viewport.height, viewport.safe, cardCount, this.panels, c.aiUnlocked ? AI_RULES.length : 0, planetRows);
     this.layoutState = layout;
     this.deps.display.resize(viewport.width, viewport.height);
     this.deps.system?.setRect(layout.stage, viewport.dpr);
@@ -850,6 +1053,7 @@ export class PlanetScene extends Phaser.Scene {
     this.ui = this.add.container(0, 0);
     this.cards = [];
     this.planetStatus = [];
+    this.moduleRows = [];
     this.depositRows = [];
     this.beltRow = null;
     this.energyWarning = null;
@@ -1236,8 +1440,9 @@ export class PlanetScene extends Phaser.Scene {
     const open = this.panels.open;
     for (const { id, rect: r } of items) {
       const active = open === id;
-      this.addButton(r.x, r.y, r.w, r.h, DOCK_LABELS[id], active ? 'primary' : 'secondary', () => this.openDockItem(id), r.w < this.s(96) ? 12 : 13);
-      if (id === 'production' && !active) {
+      const label = id === 'production' && this.stationMode ? 'Moduły' : DOCK_LABELS[id];
+      this.addButton(r.x, r.y, r.w, r.h, label, active ? 'primary' : 'secondary', () => this.openDockItem(id), r.w < this.s(96) ? 12 : 13);
+      if (id === 'production' && !active && !this.stationMode) {
         const progress = this.add.graphics();
         this.ui!.add(progress);
         this.dockProgress = { progress, bar: { x: r.x + this.s(10), y: r.y + r.h - this.s(7), w: r.w - this.s(20) } };
@@ -1251,12 +1456,14 @@ export class PlanetScene extends Phaser.Scene {
     if (!panel) return;
     this.panel(panel.rect, panel.id === 'planet');
     const detail = panel.id === 'planet' && this.panels.detail === true;
-    this.text(panel.rect.x + this.s(14), panel.rect.y + this.s(13), detail ? 'PLANETA · SZCZEGÓŁY' : PANEL_TITLES[panel.id], 11, panel.id === 'ai' ? COLORS.antimatter : COLORS.teal, {
+    const title = detail ? 'PLANETA · SZCZEGÓŁY' : panel.id === 'production' && this.stationMode ? 'MODUŁY STACJI' : PANEL_TITLES[panel.id];
+    this.text(panel.rect.x + this.s(14), panel.rect.y + this.s(13), title, 11, panel.id === 'ai' ? COLORS.antimatter : COLORS.teal, {
       fontStyle: '600',
       letterSpacing: 1.5,
     });
     this.iconButton(panel.close, 'close', () => this.togglePanel(panel.id));
-    if (panel.id === 'production') {
+    if (panel.id === 'production' && this.stationMode) this.buildStationModules(layout.cards);
+    else if (panel.id === 'production') {
       // Niedobór energii widoczny tam, gdzie się buduje — z wyjaśnieniem po dotknięciu.
       const x = panel.rect.x + this.s(110);
       const zone = this.add
@@ -1308,11 +1515,17 @@ export class PlanetScene extends Phaser.Scene {
     const summaryTop = box.y + box.h - TOUCH - this.s(PLANET_SUMMARY_H);
     // Ile wierszy się mieści; reszta — w „Imperium”.
     const fit = Math.max(1, Math.floor((summaryTop - box.y + this.s(PLANET_ROW_GAP)) / step));
-    const shown = planets.length > fit ? planets.slice(0, fit - 1) : planets;
+    // Stacja macierzysta na końcu listy (etap 1 planu stacji) — zawsze widoczna, gdy istnieje.
+    const station = c.stationScreen() ? 1 : 0;
+    const room = Math.max(1, fit - station);
+    const shown = planets.length > room ? planets.slice(0, room - 1) : planets;
     shown.forEach((p, i) => this.planetRow(p, { x: box.x, y: box.y + i * step, w: box.w, h: rowH }));
+    let rows = shown.length;
     if (shown.length < planets.length) {
-      this.text(box.x + this.s(6), box.y + shown.length * step + this.s(8), `…i jeszcze ${planets.length - shown.length} — wszystkie w „Imperium”.`, 12, COLORS.muted);
+      this.text(box.x + this.s(6), box.y + rows * step + this.s(8), `…i jeszcze ${planets.length - shown.length} — wszystkie w „Imperium”.`, 12, COLORS.muted);
+      rows++;
     }
+    if (station) this.stationRow({ x: box.x, y: box.y + rows * step, w: box.w, h: rowH });
     const pad = this.s(6);
     const w = box.w - 2 * pad;
     let y = summaryTop + this.s(6);
@@ -1383,11 +1596,17 @@ export class PlanetScene extends Phaser.Scene {
     const status = this.text(tx, rect.y + this.s(27), '', 10.5, COLORS.muted, { fixedWidth: this.px(tw) });
     this.planetStatus.push({ index: p.index, text: status });
     this.setPlanetStatus(status, p);
-    if (p.active) return;
+    if (p.active && !this.stationMode) return;
     const zone = this.add.zone(this.px(rect.x), this.px(rect.y), this.px(rect.w), this.px(rect.h)).setOrigin(0).setInteractive({ useHandCursor: true });
     zone.on('pointerup', () => {
+      // Na ekranie stacji: powrót na planetę (aktywną od razu, inną — po przełączeniu).
+      if (p.active) {
+        this.setStationMode(false);
+        return;
+      }
       const result = this.deps.controller.switchPlanet(p.index);
       this.showToast(result.message, result.ok ? 'ok' : 'error', 2600);
+      if (result.ok) this.setStationMode(false);
     });
     this.ui!.add(zone);
   }
@@ -1870,6 +2089,7 @@ export class PlanetScene extends Phaser.Scene {
     // Stacja macierzysta (v0.55) — pierścień na orbicie planety, nad którą krąży.
     // Megakonstrukt wyrzucony z tej planety, czekający na orbicie (krok 3b).
     this.deps.display.setOrbitalConstructs(controller.constructsInOrbitHere(now));
+    if (this.stationMode) this.refreshStation(now);
     const station = controller.stationHere(now);
     // Stacja kolonii (etap 9) — mały pierścień nad kolonią (stacja macierzysta i kolonii nie krążą nad tą samą planetą).
     const relay = station ? null : controller.colonyStationHere(now);

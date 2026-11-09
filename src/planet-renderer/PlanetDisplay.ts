@@ -4,6 +4,8 @@ import type { Plots } from '../core/colony/plots.ts';
 import type { Complex } from '../core/colony/complexes.ts';
 import type { StructureHit } from './pick.ts';
 import type { MetalComplexSave } from '../core/colony/complexLayout.ts';
+import type { StationScreenModel } from '../core/station/stationScreen.ts';
+import type { StationModuleId } from '../data/stationModules.ts';
 
 /** Wygląd stacji macierzystej na orbicie (v0.55). */
 export interface HomeStationLook {
@@ -71,6 +73,13 @@ export interface PlanetDisplay {
   setOrbitalConstructs(count: number): void;
   /** Stacja macierzysta na orbicie tej planety (v0.55): null — brak (albo krąży nad inną planetą). */
   setHomeStation(look: HomeStationLook | null): void;
+  /**
+   * Ekran stacji (etap 1 planu stacji): zamiast planety duża stacja macierzysta z modułami — obracana palcem
+   * i przybliżana jak planeta. null — z powrotem planeta. Wywołuj śmiało co odświeżenie (porównuje zmiany).
+   */
+  setStationScreen(model: StationScreenModel | null): void;
+  /** Moduł stacji pod palcem (x, y w pikselach CSS) albo null — tylko na ekranie stacji. */
+  pickStationModule(x: number, y: number): StationModuleId | null;
   /**
    * Obrys pól: zajętość wybranej budowli (`footprint`, turkus, jeden kontur) albo pola do wyboru miejsca
    * budowy (`choice`, złote obrysy każdego pola, v0.38.2); null — bez obrysu.

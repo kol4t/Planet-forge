@@ -2,6 +2,18 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.72.0 — stacja kosmiczna, etap 1: ekran stacji — robocza
+
+Plan `docs/plan-stacji.md` (decyzje właściciela 2026-11-09: pierścień z osią, kolory jak interfejs, 2D i 3D od razu,
+wejścia z widoku układu, listy „Planeta” i Imperium):
+- Ekran stacji macierzystej zamiast planety: rdzeń SI Matki z osią i skrzydłami paneli, pierścień na 6 szprychach,
+  moduły w 6 gniazdach (magazyn — kontenery rosnące z poziomem, stocznia — dok z kadłubem, budowa — złote rusztowanie,
+  przyszłe moduły — blady szkielet). 2D pikselowo (`stationSprite.ts`), 3D low-poly (`stationScreenMesh.ts`), obrót
+  palcem, przybliżenie, wybór modułu dotykiem (`stationScreenLayout.ts`).
+- Panel „Moduły” zamiast „Produkcji”: rdzeń, magazyn orbitalny i stocznia (ulepszanie), laboratorium, dok handlowy,
+  moduł mieszkalny i nasłuch „wkrótce” (etapy 2–6).
+- Model modułów `core/station/stationScreen.ts`, dane `data/stationModules.ts` (robocze); zapis bez zmian.
+
 ## v0.71.0 — porządki w interfejsie (po MVP) — 2026-11-09
 
 Zgłoszenie właściciela ze zrzutami (7 punktów):

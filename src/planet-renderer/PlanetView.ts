@@ -29,6 +29,10 @@ import { ZoomSmoother } from './input/zoom.ts';
 import { AdaptiveResolution } from './adaptiveResolution.ts';
 import { pickCell, pickComplex, type PickTarget, type StructureHit } from './pick.ts';
 import { facingAngles, focusLift, type BuildSite, type HomeStationLook, type PlanetDisplay } from './PlanetDisplay.ts';
+import { stationScreenKey, type StationScreenModel } from '../core/station/stationScreen.ts';
+import type { StationModuleId } from '../data/stationModules.ts';
+import { createStationScreenMesh, type StationScreenMesh } from './stationScreenMesh.ts';
+import { pickStationModule } from './stationScreenLayout.ts';
 import { buildLowPolyLand, facetNormals, shapedRadius } from './lowPoly.ts';
 import { createLavaVeins, createSurfaceSampler, lavaColors, type SurfaceSampler } from './surface.ts';
 
@@ -285,6 +289,7 @@ export class PlanetView implements PlanetDisplay {
     group.add(new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 4), new THREE.MeshBasicMaterial({ color: '#bff6ff', toneMapped: false })));
     group.children[group.children.length - 1]!.position.y = 0.024;
     this.orbital = group;
+    group.visible = !this.stationScreen;
     this.scene.add(group);
   }
 
@@ -301,6 +306,7 @@ export class PlanetView implements PlanetDisplay {
     const group = createOrbitalConstruct();
     group.scale.setScalar(0.13);
     this.orbitalConstruct = group;
+    group.visible = !this.stationScreen;
     this.scene.add(group);
   }
 
@@ -316,7 +322,43 @@ export class PlanetView implements PlanetDisplay {
     }
     if (!look) return;
     this.homeStation = createStationMesh(look);
+    this.homeStation.group.visible = !this.stationScreen;
     this.scene.add(this.homeStation.group);
+  }
+
+  /** Ekran stacji (etap 1 planu stacji): stacja zamiast planety; null — planeta. */
+  private stationScreen: StationScreenMesh | null = null;
+  private stationScreenKey = '';
+  private stationModel: StationScreenModel | null = null;
+
+  setStationScreen(model: StationScreenModel | null): void {
+    this.stationModel = model;
+    const key = stationScreenKey(model);
+    if (key === this.stationScreenKey) return;
+    this.stationScreenKey = key;
+    if (this.stationScreen) {
+      this.scene.remove(this.stationScreen.group);
+      this.stationScreen.dispose();
+      this.stationScreen = null;
+    }
+    if (model) {
+      this.stationScreen = createStationScreenMesh(model);
+      this.scene.add(this.stationScreen.group);
+    }
+    // Planeta i to, co krąży wokół niej, chowają się na czas ekranu stacji.
+    const planet = !model;
+    this.tiltGroup.visible = planet;
+    if (this.orbital) this.orbital.visible = planet;
+    if (this.orbitalConstruct) this.orbitalConstruct.visible = planet;
+    if (this.homeStation) this.homeStation.group.visible = planet;
+    this.drawn.at = -Infinity;
+  }
+
+  pickStationModule(x: number, y: number): StationModuleId | null {
+    if (!this.stationModel) return null;
+    const f = this.height / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));
+    const view = { cx: this.focus.cx, cy: this.focus.cy, r: 0, perspective: { f, d: this.camera.position.z } };
+    return pickStationModule(this.stationModel.modules, this.rotator.yaw, this.rotator.pitch, view, x, y, Math.max(30, this.focus.r * this.zoom * 0.16));
   }
 
   /** Obrót sam z siebie (domyślnie wyłączony — decyzja właściciela, widok układu). */
@@ -1214,6 +1256,10 @@ export class PlanetView implements PlanetDisplay {
       if (!this.still) this.orbitalConstruct.rotation.set(0.6, this.time * 0.15, 0.3);
     }
     this.craterRig?.update(dt, this.still);
+    if (this.stationScreen) {
+      this.stationScreen.setOrientation(this.rotator.yaw, this.rotator.pitch);
+      this.stationScreen.update(dt, this.still);
+    }
     if (this.homeStation) {
       const [x, y, z] = stationOrbit(this.time, this.still);
       this.homeStation.group.position.set(x, y, z);
@@ -1254,6 +1300,7 @@ export class PlanetView implements PlanetDisplay {
     if (this.outlines) disposeObject(this.outlines.object);
     if (this.orbital) disposeObject(this.orbital);
     if (this.homeStation) disposeObject(this.homeStation.group);
+    this.stationScreen?.dispose();
     if (this.orbitalConstruct) disposeObject(this.orbitalConstruct);
     if (this.drill) disposeObject(this.drill);
     if (this.cables) disposeObject(this.cables.object);
