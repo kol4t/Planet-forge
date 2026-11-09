@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.82.0 — stacja kosmiczna, krok 4a: statek konstrukcyjny i stacja górnicza — robocza
+## v0.82.0 — stacja kosmiczna, krok 4a: statek konstrukcyjny i stacja górnicza — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 4; kolejność 4a statek + górnicza → 4b gazowa →
 4c przeniesienie stacji macierzystej):
