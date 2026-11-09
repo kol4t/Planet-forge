@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.79.0 — stacja kosmiczna, krok 3a: dok handlowy i stały rynek — robocza
+## v0.79.0 — stacja kosmiczna, krok 3a: dok handlowy i stały rynek — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 3):
 - Moduł **Dok handlowy** (gniazdo 3): po badaniu stacji „Dok handlowy”, poz. 1–5, płaci magazyn stacji; wyższy poziom —
