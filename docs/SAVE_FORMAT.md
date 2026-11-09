@@ -75,12 +75,14 @@ Kopiuj zapis / Wczytaj zapis).
     "shipyard": { "level": 1, "readyAt": 0 },   //   stocznia (od v0.58, opcjonalna)
     "lab": { "level": 2, "readyAt": 0 },        //   Laboratorium orbitalne (od v0.73, opcjonalne; błędne pomijane)
     "coreUpgrade": { "level": 2, "readyAt": 0 }, //   rozbudowa rdzenia do poz. 2/3 (od v0.76, opcjonalna)
+    "auto": { "supply": 0.75, "night": "production" }, // automatyka SI stacji (od v0.78): próg dostaw, kategoria SI nocnej
     "storage2": { … }, "shipyard2": { … }, "lab2": { … },   // drugie egzemplarze modułów (od v0.76, pierścień 2)
     "storage3": { … }, "shipyard3": { … }, "lab3": { … },   // trzecie egzemplarze (od v0.76, pierścień 3)
     "research": {                               //   badania stacji (od v0.73, opcjonalne; nieznane id pomijane)
       "done": ["st-power"],
       "current": { "id": "st-ai-node", "startedAt": 0, "readyAt": 0 },  // badanie w toku albo null
-      "more": [ { "id": "…", "startedAt": 0, "readyAt": 0 } ]          // w drugim / trzecim laboratorium (od v0.76)
+      "more": [ { "id": "…", "startedAt": 0, "readyAt": 0 } ]          // w drugim / trzecim laboratorium (od v0.76),
+      "queued": "st-ai-node"                                              // kolejka stacji (od v0.78)
     },
     "stock": { "metal": 1200, "crystal": 0 }    //   zapasy na stacji (ujemne → 0)
   },

@@ -18,8 +18,9 @@ import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAn
 import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeCore, upgradeStationStorage } from '../core/economy/homeStation.ts';
 import { stationCoreLevel, stationScreen, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
 import { STATION_CORE, stationModuleDef } from '../data/stationModules.ts';
-import { completeStationResearch, EMPTY_STATION_RESEARCH, labLanes, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
+import { activeResearch, completeStationResearch, EMPTY_STATION_RESEARCH, labLanes, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
 import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect, type StationStat } from '../data/stationResearch.ts';
+import { AUTO_RULES, categoryNeedsLab, pickNightResearch, supplyCargo, type SupplyThreshold } from '../core/station/stationAuto.ts';
 import { auraEffects, auraReachName, auraShare, auraStats, STATION_AURA, type AuraStats } from '../core/station/stationAura.ts';
 import {
   advance,
@@ -521,6 +522,16 @@ function describeStationEffect(e: StationResearchEffect): string {
 /** Ekran „Badania stacji” (etap 2a planu stacji). */
 export interface StationResearchView {
   built: boolean;
+  /** Automatyka SI stacji (krok 2d-3). */
+  auto: {
+    supplyUnlocked: boolean;
+    supply: SupplyThreshold | null;
+    nightUnlocked: boolean;
+    night: StationCategoryId | null;
+    queueUnlocked: boolean;
+    queued: { id: string; name: string } | null;
+    autonomy: boolean;
+  };
   lab: number;
   /** Do końca rozbudowy laboratorium (s), 0 — nic się nie buduje. */
   labUpgrading: number;
@@ -728,7 +739,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -1100,7 +1111,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     const guided = this.processGuide(now);
@@ -2012,6 +2023,141 @@ export class GameController {
     });
   }
 
+  // ——— automatyka SI stacji (krok 2d-3) ———
+
+  /** Ostatnia automatyczna dostawa z planety (adres → ms; w pamięci — po wczytaniu gry od zera). */
+  private autoSupplyAt = new Map<string, number>();
+
+  /** Kolejka stacji, SI nocna, autonomia i automatyczne dostawy — wywoływane w każdym takcie. */
+  private processStationAuto(now: number): string[] {
+    const s = this.station;
+    if (!s || !stationReady(s, now)) return [];
+    const texts: string[] = [];
+    const start = (id: string, why: string) => {
+      const st = this.station!;
+      const r = startStationResearch(st.research ?? EMPTY_STATION_RESEARCH, st, id, now);
+      if (!r.ok) return false;
+      this.station = { ...r.station, research: { ...r.research, ...(st.research?.queued && st.research.queued !== id ? { queued: st.research.queued } : {}) } };
+      if (this.station.research?.queued === id) this.station = { ...this.station, research: { ...this.station.research!, queued: undefined } };
+      const text = `${why}: rozpoczęto badanie stacji „${findStationResearch(id)?.name ?? id}”.`;
+      this.log('research', text, now);
+      texts.push(text);
+      return true;
+    };
+    const lanes = () => labLanes(this.station, now);
+    const busy = () => activeResearch(this.station!.research ?? EMPTY_STATION_RESEARCH).length >= Math.max(1, lanes());
+    // Kolejka stacji: zlecone badanie startuje, gdy zwolni się laboratorium.
+    const queued = this.station!.research?.queued;
+    if (queued && this.stationDone('st-ai-queue') && !busy()) {
+      if (!start(queued, 'Kolejka stacji')) {
+        const r = this.station!.research!;
+        const node = findStationResearch(queued);
+        // Zbadane albo niemożliwe — z kolejki znika; brak surowców — czeka.
+        if (r.done.includes(queued) || !node) this.station = { ...this.station!, research: { ...r, queued: undefined } };
+      }
+    }
+    // SI nocna: najtańsze dostępne badanie wybranej kategorii.
+    const night = this.station!.auto?.night;
+    if (night && this.stationDone('st-ai-night')) {
+      while (!busy()) {
+        const st = this.station!;
+        const id = pickNightResearch(st.research ?? EMPTY_STATION_RESEARCH, night, labLevel(st, now), lanes(), st.stock);
+        if (!id || !start(id, 'SI nocna')) break;
+      }
+    }
+    // Autonomia: magazyn orbitalny prawie pełny → rozbudowa; laboratorium blokuje kategorię SI nocnej → rozbudowa.
+    if (this.stationDone('st-ai-autonomy')) {
+      const st = this.station!;
+      const cap = stationCapacity(st, now, this.balance);
+      const storage = st.storage;
+      const next = (storage?.level ?? 0) + 1;
+      if (cap > 0 && Math.max(st.stock.metal, st.stock.crystal) >= cap * AUTO_RULES.storageFull && (!storage || now >= storage.readyAt) && next <= this.balance.homeStation.storageMaxLevel) {
+        const cost = storageModuleCost(next, this.balance);
+        if (st.stock.metal >= cost.metal && st.stock.crystal >= cost.crystal) {
+          const seconds = this.balance.homeStation.storageSecondsPerLevel * next;
+          this.station = { ...st, stock: { metal: st.stock.metal - cost.metal, crystal: st.stock.crystal - cost.crystal }, storage: { level: next, readyAt: now + seconds * 1000 } };
+          const text = `Autonomia stacji: rozbudowa magazynu orbitalnego do poz. ${next} (z magazynu stacji).`;
+          this.log('build', text, now);
+          texts.push(text);
+        }
+      }
+      const st2 = this.station!;
+      if (night && categoryNeedsLab(st2.research ?? EMPTY_STATION_RESEARCH, night, labLevel(st2, now))) {
+        const r = upgradeLab(st2, now);
+        if (r.ok) {
+          this.station = r.station;
+          const text = `Autonomia stacji: rozbudowa Laboratorium orbitalnego do poz. ${r.station.lab!.level}.`;
+          this.log('build', text, now);
+          texts.push(text);
+        }
+      }
+    }
+    // Automatyczne dostawy: nadwyżka ponad próg magazynu planety leci na stację wolnym transportowcem.
+    const supply = this.station!.auto?.supply;
+    if (supply && this.stationDone('st-auto-supply')) texts.push(...this.autoSupply(supply, now));
+    return texts;
+  }
+
+  private autoSupply(threshold: number, now: number): string[] {
+    const texts: string[] = [];
+    this.slots.forEach((slot, index) => {
+      const st = this.station;
+      if (!st || slot.address === undefined) return;
+      if (now - (this.autoSupplyAt.get(slot.address) ?? -Infinity) < AUTO_RULES.supplyEveryMs) return;
+      if (this.fleet.docked.transport <= 0) return;
+      const economy = index === this.active || slot.economy.lastUpdate >= now ? slot.economy : this.advanceSlot(slot, slot.economy, now, catchUpBalance);
+      slot.economy = economy;
+      const view = this.stationView(now);
+      const room = { metal: view.capacity - view.stock.metal - view.incoming.metal, crystal: view.capacity - view.stock.crystal - view.incoming.crystal };
+      const cargo = supplyCargo(economy.stock, storageCapacity(economy, this.balanceFor(slot)), threshold, this.transportBalance().transport.capacity, room);
+      if (!cargo) return;
+      const fuel = this.stationFuel(slot.address, now);
+      if (this.economy.antimatter < fuel) return;
+      const seconds = this.stationSeconds(slot.address, now);
+      slot.economy = { ...slot.economy, stock: { metal: slot.economy.stock.metal - cargo.metal, crystal: slot.economy.stock.crystal - cargo.crystal } };
+      this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
+      this.takeShips('transport', 1);
+      const incident = this.incidentFor(slot.address, st.address, 'cargo', now, seconds, 0);
+      this.shipments.push({ from: slot.address, to: st.address, departedAt: now, arrivesAt: now + seconds * 1000, cargo, station: 'to', ship: true, ...(incident ? { incident } : {}) });
+      this.autoSupplyAt.set(slot.address, now);
+      const text = `SI: automatyczna dostawa z ${slot.planet.displayName} na stację — ${Math.floor(cargo.metal)} metalu, ${Math.floor(cargo.crystal)} kryształów.`;
+      this.log('ship', text, now);
+      texts.push(text);
+    });
+    return texts;
+  }
+
+  /** Próg automatycznych dostaw (null — wyłączone). */
+  setStationSupply(threshold: SupplyThreshold | null): ActionMessage {
+    if (!this.station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
+    if (!this.stationDone('st-auto-supply')) return { ok: false, message: 'Najpierw zbadaj „Automatyczne dostawy” (Badania stacji → SI).' };
+    this.station = { ...this.station, auto: { ...this.station.auto, supply: threshold ?? undefined } };
+    this.save();
+    this.emit();
+    return { ok: true, message: threshold ? `Automatyczne dostawy: nadwyżka ponad ${Math.round(threshold * 100)}% magazynu planety leci na stację.` : 'Automatyczne dostawy wyłączone.' };
+  }
+
+  /** Kategoria SI nocnej (null — wyłączona). */
+  setStationNight(category: StationCategoryId | null): ActionMessage {
+    if (!this.station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
+    if (!this.stationDone('st-ai-night')) return { ok: false, message: 'Najpierw zbadaj „SI nocna” (Badania stacji → SI).' };
+    this.station = { ...this.station, auto: { ...this.station.auto, night: category ?? undefined } };
+    this.save();
+    this.emit();
+    return { ok: true, message: category ? `SI nocna bada kategorię „${STATION_CATEGORIES.find((c) => c.id === category)!.name}”.` : 'SI nocna wyłączona.' };
+  }
+
+  /** Kolejka stacji: badanie „po” bieżącym (krok 2d-3). */
+  queueStationResearch(id: string | null): ActionMessage {
+    if (!this.station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
+    if (!this.stationDone('st-ai-queue')) return { ok: false, message: 'Najpierw zbadaj „Kolejka stacji” (Badania stacji → SI).' };
+    const r = this.station.research ?? EMPTY_STATION_RESEARCH;
+    this.station = { ...this.station, research: { ...r, queued: id ?? undefined } };
+    this.save();
+    this.emit();
+    return { ok: true, message: id ? `W kolejce stacji: „${findStationResearch(id)?.name ?? id}”.` : 'Kolejka stacji wyczyszczona.' };
+  }
+
   /** Widok ekranu „Badania stacji”: laboratorium, magazyn stacji, kategorie i badania z ich stanem. */
   stationResearchView(now = Date.now()): StationResearchView {
     const s = this.station;
@@ -2020,6 +2166,15 @@ export class GameController {
     const nextLab = (s?.lab?.level ?? 0) + 1;
     return {
       built: !!s,
+      auto: {
+        supplyUnlocked: this.stationDone('st-auto-supply'),
+        supply: s?.auto?.supply ?? null,
+        nightUnlocked: this.stationDone('st-ai-night'),
+        night: s?.auto?.night ?? null,
+        queueUnlocked: this.stationDone('st-ai-queue'),
+        queued: state.queued ? { id: state.queued, name: findStationResearch(state.queued)?.name ?? state.queued } : null,
+        autonomy: this.stationDone('st-ai-autonomy'),
+      },
       lab,
       labUpgrading: s?.lab && now < s.lab.readyAt ? Math.max(0, (s.lab.readyAt - now) / 1000) : 0,
       nextLabCost: nextLab <= STATION_RESEARCH_RULES.lab.maxLevel ? labCost(nextLab) : null,
