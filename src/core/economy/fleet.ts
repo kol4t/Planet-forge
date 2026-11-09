@@ -3,6 +3,7 @@
 // nowej kolonii), eskorta leci z transportem albo megakonstruktem. Czysta logika: stocznia, kolejka budowy, odczyt.
 import type { Balance, Fleet, HomeStation, Resources, ShipOrder, ShipType } from '../types.ts';
 import { stationLevelAt } from './asteroids.ts';
+import { copyBlocked, copyKey, type ModuleCopy } from './homeStation.ts';
 
 const TYPES: readonly ShipType[] = ['transport', 'colonyShip', 'tug', 'escort'];
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -14,6 +15,12 @@ export const starterFleet = (balance: Balance): Fleet => ({ docked: { ...balance
 export function shipyardLevel(station: HomeStation | null, at: number): number {
   if (!station || at < station.core.readyAt) return 0;
   return stationLevelAt(station.shipyard, at);
+}
+
+/** Ile stoczni pracuje (druga i trzecia — krok 2d-1): tyle statków buduje się naraz. */
+export function shipyardLanes(station: HomeStation | null, at: number): number {
+  if (!station || at < station.core.readyAt) return 0;
+  return [station.shipyard, station.shipyard2, station.shipyard3].filter((y) => stationLevelAt(y, at) > 0).length;
 }
 
 export function shipyardCost(level: number, balance: Balance): Resources {
@@ -36,32 +43,41 @@ const missingText = (cost: Resources, stock: Resources) =>
 export type ShipyardResult = { ok: true; station: HomeStation; cost: Resources; seconds: number } | { ok: false; message: string };
 
 /** Budowa albo rozbudowa stoczni o poziom (płaci aktywna planeta). */
-export function upgradeShipyard(station: HomeStation | null, ctx: { stock: Resources; now: number }, balance: Balance): ShipyardResult {
+export function upgradeShipyard(station: HomeStation | null, ctx: { stock: Resources; now: number }, balance: Balance, copy: ModuleCopy = 1): ShipyardResult {
   if (!station) return { ok: false, message: 'Stocznia jest modułem stacji macierzystej — najpierw zbuduj stację (Imperium).' };
   if (ctx.now < station.core.readyAt) return { ok: false, message: 'Rdzeń stacji jest jeszcze w budowie.' };
-  const current = station.shipyard;
+  const blocked = copyBlocked(station, copy, ctx.now);
+  if (blocked) return { ok: false, message: blocked };
+  const key = copyKey('shipyard', copy);
+  const current = station[key];
   if (current && ctx.now < current.readyAt) return { ok: false, message: 'Stocznia jest właśnie rozbudowywana.' };
   const level = (current?.level ?? 0) + 1;
   const f = balance.fleet;
+  // Druga i trzecia stocznia: jeden poziom — szybkość budowy wyznacza pierwsza (krok 2d-1).
+  if (copy > 1 && level > 1) return { ok: false, message: 'Ta stocznia już działa — szybkość budowy wyznacza pierwsza stocznia.' };
   if (level > f.shipyardMaxLevel) return { ok: false, message: `Stocznia ma już najwyższy poziom (${f.shipyardMaxLevel}).` };
   const cost = shipyardCost(level, balance);
   const missing = missingText(cost, ctx.stock);
   if (missing) return { ok: false, message: `Stocznia poz. ${level} — brakuje: ${missing}.` };
   const seconds = f.shipyardSecondsPerLevel * level;
-  return { ok: true, station: { ...station, shipyard: { level, readyAt: ctx.now + seconds * 1000 } }, cost, seconds };
+  return { ok: true, station: { ...station, [key]: { level, readyAt: ctx.now + seconds * 1000 } }, cost, seconds };
 }
 
 export type OrderResult = { ok: true; fleet: Fleet; order: ShipOrder } | { ok: false; message: string };
 
 /** Zamówienie statku: stocznia działa, miejsce w kolejce, surowce (płaci aktywna planeta); startuje po poprzednim. */
-export function orderShip(fleet: Fleet, type: ShipType, ctx: { shipyard: number; stock: Resources; now: number }, balance: Balance): OrderResult {
+export function orderShip(fleet: Fleet, type: ShipType, ctx: { shipyard: number; stock: Resources; now: number; lanes?: number }, balance: Balance): OrderResult {
   if (ctx.shipyard <= 0) return { ok: false, message: 'Najpierw zbuduj stocznię na stacji macierzystej (Imperium → Flota).' };
   if (fleet.queue.length >= balance.fleet.queue) return { ok: false, message: `Kolejka stoczni jest pełna (${balance.fleet.queue} statków).` };
   const cost = balance.fleet.ships[type].cost;
   const missing = missingText(cost, ctx.stock);
   if (missing) return { ok: false, message: `Brakuje: ${missing}.` };
-  const last = fleet.queue[fleet.queue.length - 1];
-  const startsAt = Math.max(ctx.now, last?.readyAt ?? 0);
+  // Kilka stoczni (krok 2d-1): statek startuje, gdy zwolni się najwcześniej któraś z nich — końce ostatnich budów
+  // każdej stoczni to `lanes` najpóźniejszych końców w kolejce.
+  const lanes = Math.max(1, ctx.lanes ?? 1);
+  const ends = fleet.queue.map((o) => o.readyAt).sort((a, b) => b - a);
+  const free = ends.length < lanes ? 0 : ends[lanes - 1]!;
+  const startsAt = Math.max(ctx.now, free);
   const order: ShipOrder = { type, startsAt, readyAt: startsAt + shipSeconds(type, ctx.shipyard, balance) * 1000, cost };
   return { ok: true, fleet: { ...fleet, queue: [...fleet.queue, order] }, order };
 }

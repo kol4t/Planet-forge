@@ -84,7 +84,8 @@ Szkic badań z kroku 2a (zastąpiony w kroku 2c pełną listą — `docs/badania
 | Handel | Rejestr kupców · Dok handlowy (etap 3) · Kursy wymiany · Kontrakty długie | Produkcja, Flota |
 | Eksploracja | Teleskop stacji · Wydobycie z kosmosu (etap 4) · Moduł mieszkalny (etap 5) · Nasłuch (etap 6) | Flota, SI, Planetologia |
 
-- **2d** (następny) — nowe rzeczy z badań: poziomy rdzenia (drugi i trzeci pierścień gniazd), nowe statki (Kurier,
+- **2d** — nowe rzeczy z badań (2d-1 zrobione w v0.76.0: rdzeń poz. 2–3, pierścienie z drugimi egzemplarzami magazynu,
+  stoczni i laboratorium; dalej 2d-2 statki, 2d-3 automatyka SI): poziomy rdzenia (drugi i trzeci pierścień gniazd), nowe statki (Kurier,
   Ciężki transportowiec, Konwoje), automatyka SI (dostawy, SI nocna, autonomia), kolejka stacji.
 
 ### Etap 3 — Dok handlowy

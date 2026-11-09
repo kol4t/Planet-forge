@@ -4,6 +4,8 @@
 import type { AsteroidStation, Balance, HomeStation, Resources } from '../types.ts';
 import { stationLevelAt } from './asteroids.ts';
 import { parseStationResearch } from '../station/stationResearch.ts';
+import { stationCoreLevel } from '../station/stationScreen.ts';
+import { STATION_CORE } from '../../data/stationModules.ts';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
@@ -13,10 +15,45 @@ export const stationReady = (station: HomeStation | null, at: number) => !!stati
 /** Pojemność magazynu orbitalnego (metal i kryształy osobno) w chwili `at`; 0 — bez modułu. */
 export function stationCapacity(station: HomeStation | null, at: number, balance: Balance): number {
   if (!stationReady(station, at)) return 0;
-  const level = stationLevelAt(station!.storage, at);
-  if (level <= 0) return 0;
+  // Drugi i trzeci magazyn (krok 2d-1) — pojemności się sumują.
   const h = balance.homeStation;
-  return Math.floor(h.storageBase * h.storageGrowth ** (level - 1));
+  let total = 0;
+  for (const part of [station!.storage, station!.storage2, station!.storage3]) {
+    const level = stationLevelAt(part, at);
+    if (level > 0) total += Math.floor(h.storageBase * h.storageGrowth ** (level - 1));
+  }
+  return total;
+}
+
+/** Egzemplarz modułu: pierwszy (pierścień 1), drugi albo trzeci (pierścienie 2 i 3 — wymagają rdzenia poz. 2 / 3). */
+export type ModuleCopy = 1 | 2 | 3;
+const COPY_NAME = ['', '', ' II', ' III'];
+export const copyKey = <T extends 'storage' | 'shipyard' | 'lab'>(base: T, copy: ModuleCopy) => (copy === 1 ? base : `${base}${copy}`) as T | `${T}2` | `${T}3`;
+
+/** Czy pierścień egzemplarza `copy` już jest (rdzeń rozbudowany); null — tak, inaczej komunikat. */
+export function copyBlocked(station: HomeStation, copy: ModuleCopy, at: number): string | null {
+  if (copy === 1) return null;
+  return stationCoreLevel(station, at) >= copy ? null : `To gniazdo jest w ${copy === 2 ? 'drugim' : 'trzecim'} pierścieniu — najpierw rozbuduj rdzeń do poz. ${copy}.`;
+}
+
+/**
+ * Rozbudowa rdzenia o poziom (krok 2d-1): wymaga badania „Rdzeń drugiej / trzeciej generacji”, płaci magazyn stacji,
+ * w trakcie rdzeń działa na dotychczasowym poziomie.
+ */
+export function upgradeCore(station: HomeStation | null, done: readonly string[], now: number): HomeStationResult {
+  if (!station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
+  if (!stationReady(station, now)) return { ok: false, message: 'Rdzeń stacji jest jeszcze w budowie.' };
+  const up = station.coreUpgrade;
+  if (up && now < up.readyAt) return { ok: false, message: 'Rdzeń jest właśnie rozbudowywany.' };
+  const level = stationCoreLevel(station, now) + 1;
+  if (level > STATION_CORE.maxLevel) return { ok: false, message: `Rdzeń ma już najwyższy poziom (${STATION_CORE.maxLevel}).` };
+  const need = STATION_CORE.research[level]!;
+  if (!done.includes(need)) return { ok: false, message: `Najpierw zbadaj „Rdzeń ${level === 2 ? 'drugiej' : 'trzeciej'} generacji” (Badania stacji → SI).` };
+  const cost = STATION_CORE.cost[level]!;
+  const missing = missingText(cost, station.stock);
+  if (missing) return { ok: false, message: `Rdzeń poz. ${level} — w magazynie stacji brakuje: ${missing}. Dowieź surowce transportowcem („Na stację”).` };
+  const seconds = STATION_CORE.seconds[level]!;
+  return { ok: true, station: { ...station, stock: { metal: station.stock.metal - cost.metal, crystal: station.stock.crystal - cost.crystal }, coreUpgrade: { level, readyAt: now + seconds * 1000 } }, cost, seconds };
 }
 
 export function storageModuleCost(level: number, balance: Balance): Resources {
@@ -50,19 +87,22 @@ export function buildHomeStation(
 }
 
 /** Rozbudowa magazynu orbitalnego o jeden poziom (płaci aktywna planeta). */
-export function upgradeStationStorage(station: HomeStation | null, ctx: { stock: Resources; now: number }, balance: Balance): HomeStationResult {
+export function upgradeStationStorage(station: HomeStation | null, ctx: { stock: Resources; now: number }, balance: Balance, copy: ModuleCopy = 1): HomeStationResult {
   if (!station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
   if (!stationReady(station, ctx.now)) return { ok: false, message: 'Rdzeń stacji jest jeszcze w budowie.' };
-  const current = station.storage;
-  if (current && ctx.now < current.readyAt) return { ok: false, message: 'Magazyn orbitalny jest właśnie rozbudowywany.' };
+  const blocked = copyBlocked(station, copy, ctx.now);
+  if (blocked) return { ok: false, message: blocked };
+  const key = copyKey('storage', copy);
+  const current = station[key];
+  if (current && ctx.now < current.readyAt) return { ok: false, message: `Magazyn orbitalny${COPY_NAME[copy]} jest właśnie rozbudowywany.` };
   const level = (current?.level ?? 0) + 1;
   const h = balance.homeStation;
   if (level > h.storageMaxLevel) return { ok: false, message: `Magazyn orbitalny ma już najwyższy poziom (${h.storageMaxLevel}).` };
   const cost = storageModuleCost(level, balance);
   const missing = missingText(cost, ctx.stock);
-  if (missing) return { ok: false, message: `Magazyn orbitalny poz. ${level} — brakuje: ${missing}.` };
+  if (missing) return { ok: false, message: `Magazyn orbitalny${COPY_NAME[copy]} poz. ${level} — brakuje: ${missing}.` };
   const seconds = h.storageSecondsPerLevel * level;
-  return { ok: true, station: { ...station, storage: { level, readyAt: ctx.now + seconds * 1000 } }, cost, seconds };
+  return { ok: true, station: { ...station, [key]: { level, readyAt: ctx.now + seconds * 1000 } }, cost, seconds };
 }
 
 const ADDRESS = /^\d{1,3}:\d{1,4}:\d{1,2}$/;
@@ -77,6 +117,9 @@ export function parseHomeStation(raw: any): HomeStation | null {
   const storage = parseLevel(raw.storage);
   const shipyard = parseLevel(raw.shipyard);
   const lab = parseLevel(raw.lab);
+  const extra = Object.fromEntries(
+    (['coreUpgrade', 'storage2', 'shipyard2', 'lab2', 'storage3', 'shipyard3', 'lab3'] as const).map((k) => [k, parseLevel(raw[k])] as const).filter(([, v]) => v),
+  );
   const research = raw.research ? parseStationResearch(raw.research) : null;
   const amount = (v: unknown) => (isNum(v) && v > 0 ? v : 0);
   return {
@@ -85,6 +128,7 @@ export function parseHomeStation(raw: any): HomeStation | null {
     ...(storage ? { storage } : {}),
     ...(shipyard ? { shipyard } : {}),
     ...(lab ? { lab } : {}),
+    ...extra,
     ...(research && (research.done.length > 0 || research.current) ? { research } : {}),
     stock: { metal: amount(raw.stock?.metal), crystal: amount(raw.stock?.crystal) },
   };

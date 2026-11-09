@@ -6,7 +6,7 @@ import { COMPLEX_STAGE, complexCandidate, MEGA_STAGE, megaCandidate, validComple
 import { COMPLEX_FAMILIES, complexMode, findFamily, MEGA_RULES, type ComplexFamily } from '../data/complexes.ts';
 import { INDUSTRY_STAGES } from '../data/industry.ts';
 import { fuelCost, fuelLabel, fuelShortage } from '../core/economy/fuel.ts';
-import { addRepair, cancelOrder, completeOrders, completeRepairs, orderShip, shipSeconds, shipyardCost, shipyardLevel, starterFleet, upgradeShipyard } from '../core/economy/fleet.ts';
+import { addRepair, cancelOrder, completeOrders, completeRepairs, orderShip, shipSeconds, shipyardCost, shipyardLanes, shipyardLevel, starterFleet, upgradeShipyard } from '../core/economy/fleet.ts';
 import { findShip, SHIP_TYPES } from '../data/fleet.ts';
 import { buildColonyStation, colonyStationReady, relayFuel, relaySeconds } from '../core/economy/colonyStation.ts';
 import { GUIDE_STEPS } from '../data/guide.ts';
@@ -14,10 +14,10 @@ import { firstOpenStep, goalProgress, type GuideSnapshot, type GuideState } from
 import { back as viewBack, focusObject, focusSystem, resetView, startView, zoomBy, type ViewState } from '../core/view/viewState.ts';
 import { cargoAfter, pirateNests, riskLabel, rollIncident, routeRisk, type IncidentKind, type MapPoint, type RouteRisk } from '../core/economy/missionRisk.ts';
 import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAnywhere } from '../core/economy/constructTransfer.ts';
-import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeStationStorage } from '../core/economy/homeStation.ts';
-import { stationScreen, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
-import { stationModuleDef } from '../data/stationModules.ts';
-import { completeStationResearch, EMPTY_STATION_RESEARCH, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
+import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeCore, upgradeStationStorage } from '../core/economy/homeStation.ts';
+import { stationCoreLevel, stationScreen, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
+import { STATION_CORE, stationModuleDef } from '../data/stationModules.ts';
+import { completeStationResearch, EMPTY_STATION_RESEARCH, labLanes, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
 import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect, type StationStat } from '../data/stationResearch.ts';
 import { auraEffects, auraReachName, auraShare, auraStats, STATION_AURA, type AuraStats } from '../core/station/stationAura.ts';
 import {
@@ -549,8 +549,12 @@ export interface StationModuleCard extends StationModuleView {
   secondsLeft: number;
   /** Koszt następnego poziomu (null — najwyższy albo moduł bez rozbudowy). */
   nextCost: Resources | null;
-  /** Akcja przycisku „Ulepsz” (null — brak). */
-  action: 'storage' | 'shipyard' | 'lab' | null;
+  /** Akcja przycisku „Ulepsz” (id modułu; null — brak). */
+  action: 'core' | 'storage' | 'shipyard' | 'lab' | 'storage2' | 'shipyard2' | 'lab2' | 'storage3' | 'shipyard3' | 'lab3' | null;
+  /** Kto płaci: planeta pod stacją albo magazyn stacji. */
+  payer: 'planet' | 'station';
+  /** Czego brakuje do rozbudowy (np. badanie) — zamiast przycisku. */
+  needs?: string;
 }
 
 export interface HomeStationView {
@@ -1867,32 +1871,64 @@ export class GameController {
   /** Karty modułów do panelu „Moduły” na ekranie stacji (etap 1). */
   stationModuleCards(now = Date.now()): StationModuleCard[] {
     const model = stationScreen(this.station, now);
-    if (!model) return [];
+    const s = this.station;
+    if (!model || !s) return [];
     const view = this.stationView(now);
-    const yard = this.fleetView(now).shipyard;
+    const left = (part: { readyAt: number } | undefined) => (part ? Math.max(0, (part.readyAt - now) / 1000) : 0);
+    const done = s.research?.done ?? [];
     return model.modules.map((m) => {
       const def = stationModuleDef(m.id);
-      const card: StationModuleCard = { ...m, name: def.name, description: def.description, secondsLeft: 0, nextCost: null, action: null };
-      if (m.id === 'core') card.secondsLeft = view.coreSecondsLeft;
-      if (m.id === 'storage') {
-        card.secondsLeft = view.storageSecondsLeft;
-        card.nextCost = view.nextStorageCost;
-        card.action = model.ready && view.nextStorageCost ? 'storage' : null;
+      const card: StationModuleCard = { ...m, name: def.name, description: def.description, secondsLeft: 0, nextCost: null, action: null, payer: 'planet' };
+      if (m.state === 'soon' || m.state === 'locked') return card;
+      if (m.id === 'core') {
+        // Rdzeń (krok 2d-1): rozbudowa do poz. 2 / 3 po badaniu, płaci magazyn stacji.
+        card.secondsLeft = model.ready ? left(s.coreUpgrade) : view.coreSecondsLeft;
+        const next = model.coreLevel + 1;
+        card.payer = 'station';
+        if (model.ready && next <= STATION_CORE.maxLevel) {
+          card.nextCost = STATION_CORE.cost[next]!;
+          card.action = done.includes(STATION_CORE.research[next]!) ? 'core' : null;
+          card.needs = done.includes(STATION_CORE.research[next]!) ? undefined : `badanie „Rdzeń ${next === 2 ? 'drugiej' : 'trzeciej'} generacji”`;
+        }
+        return card;
       }
-      if (m.id === 'lab') {
-        const lab = this.station?.lab;
-        card.secondsLeft = lab ? Math.max(0, (lab.readyAt - now) / 1000) : 0;
-        const next = (lab?.level ?? 0) + 1;
-        card.nextCost = next <= STATION_RESEARCH_RULES.lab.maxLevel ? labCost(next) : null;
-        card.action = model.ready && card.nextCost ? 'lab' : null;
+      const base = def.copyOf ?? (m.id as 'storage' | 'shipyard' | 'lab');
+      const part = s[m.id as 'storage' | 'shipyard' | 'lab'];
+      const next = (part?.level ?? 0) + 1;
+      card.secondsLeft = left(part);
+      if (base === 'storage') {
+        card.nextCost = next <= this.balance.homeStation.storageMaxLevel ? storageModuleCost(next, this.balance) : null;
+      } else if (base === 'shipyard') {
+        card.nextCost = next <= (def.copyOf ? 1 : this.balance.fleet.shipyardMaxLevel) ? shipyardCost(next, this.balance) : null;
+      } else if (base === 'lab') {
+        card.payer = 'station';
+        card.nextCost = next <= (def.copyOf ? 1 : STATION_RESEARCH_RULES.lab.maxLevel) ? labCost(next) : null;
       }
-      if (m.id === 'shipyard') {
-        card.secondsLeft = yard.secondsLeft;
-        card.nextCost = yard.nextCost;
-        card.action = model.ready && yard.nextCost ? 'shipyard' : null;
-      }
+      card.action = model.ready && card.nextCost ? (m.id as StationModuleCard['action']) : null;
       return card;
     });
+  }
+
+  /** Rozbudowa modułu stacji z karty w „Modułach” (rdzeń, magazyny, stocznie, laboratoria — także drugie i trzecie). */
+  upgradeStationModule(id: NonNullable<StationModuleCard['action']>, now = Date.now()): ActionMessage {
+    if (id === 'core') return this.upgradeStationCore(now);
+    const copy = (id.endsWith('3') ? 3 : id.endsWith('2') ? 2 : 1) as 1 | 2 | 3;
+    if (id.startsWith('storage')) return this.upgradeStationStorage(now, copy);
+    if (id.startsWith('shipyard')) return this.upgradeShipyard(now, copy);
+    return this.upgradeStationLab(now, copy);
+  }
+
+  /** Rozbudowa rdzenia stacji (krok 2d-1): po badaniu, płaci magazyn stacji. */
+  upgradeStationCore(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const result = upgradeCore(this.station, this.station?.research?.done ?? [], now);
+    if (!result.ok) return result;
+    this.station = result.station;
+    const level = result.station.coreUpgrade!.level;
+    this.log('build', `Stacja macierzysta: rozbudowa rdzenia do poz. ${level} — ${level === 2 ? 'drugi' : 'trzeci'} pierścień gniazd.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Rdzeń poz. ${level} — gotowy za ${formatFlight(result.seconds)}.` };
   }
 
   /** Stacja nad aktywną planetą (do wyglądu orbity, tanie — co klatkę); null — brak albo krąży nad inną. */
@@ -1916,13 +1952,13 @@ export class GameController {
   }
 
   /** Rozbudowa magazynu orbitalnego o poziom (płaci aktywna planeta). */
-  upgradeStationStorage(now = Date.now()): ActionMessage {
+  upgradeStationStorage(now = Date.now(), copy: 1 | 2 | 3 = 1): ActionMessage {
     this.tick(now);
-    const result = upgradeStationStorage(this.station, { stock: this.economy.stock, now }, this.balance);
+    const result = upgradeStationStorage(this.station, { stock: this.economy.stock, now }, this.balance, copy);
     if (!result.ok) return result;
     this.pay(result.cost);
     this.station = result.station;
-    const level = result.station.storage!.level;
+    const level = result.station[copy === 1 ? 'storage' : copy === 2 ? 'storage2' : 'storage3']!.level;
     this.log('build', `Magazyn orbitalny stacji macierzystej — rozbudowa do poz. ${level}.`, now);
     this.save();
     this.emit();
@@ -1932,12 +1968,12 @@ export class GameController {
   // ——— badania stacji (etap 2a planu stacji) ———
 
   /** Laboratorium orbitalne: budowa / rozbudowa o poziom — płaci magazyn stacji. */
-  upgradeStationLab(now = Date.now()): ActionMessage {
+  upgradeStationLab(now = Date.now(), copy: 1 | 2 | 3 = 1): ActionMessage {
     this.tick(now);
-    const result = upgradeLab(this.station, now);
+    const result = upgradeLab(this.station, now, copy);
     if (!result.ok) return result;
     this.station = result.station;
-    const level = result.station.lab!.level;
+    const level = result.station[copy === 1 ? 'lab' : copy === 2 ? 'lab2' : 'lab3']!.level;
     this.log('build', `Laboratorium orbitalne stacji macierzystej — ${level === 1 ? 'budowa' : `rozbudowa do poz. ${level}`}.`, now);
     this.save();
     this.emit();
@@ -1962,11 +1998,13 @@ export class GameController {
     const s = this.station;
     if (!s?.research?.current) return [];
     const r = completeStationResearch(s.research, now);
-    if (!r.completed) return [];
+    if (r.completed.length === 0) return [];
     this.station = { ...s, research: r.research };
-    const name = findStationResearch(r.completed)?.name ?? r.completed;
-    this.log('research', `Stacja: zbadano „${name}”.`, now);
-    return [`Stacja: zbadano „${name}”.`];
+    return r.completed.map((id) => {
+      const text = `Stacja: zbadano „${findStationResearch(id)?.name ?? id}”.`;
+      this.log('research', text, now);
+      return text;
+    });
   }
 
   /** Widok ekranu „Badania stacji”: laboratorium, magazyn stacji, kategorie i badania z ich stanem. */
@@ -1993,7 +2031,7 @@ export class GameController {
         description: n.description,
         requires: n.requires.map((r) => ({ id: r, name: findStationResearch(r)?.name ?? r, category: findStationResearch(r)?.category ?? n.category })),
         effects: n.effects.map((e) => describeStationEffect(e)),
-        status: stationResearchStatus(n, state, lab),
+        status: stationResearchStatus(n, state, lab, Math.max(1, labLanes(s, now))),
         cost: stationResearchCost(n),
         seconds: stationResearchSeconds(n, Math.max(1, lab), state.done),
         labNeeded: STATION_RESEARCH_RULES.labLevelForRing[Math.min(n.ring, STATION_RESEARCH_RULES.labLevelForRing.length) - 1]!,
@@ -2097,7 +2135,7 @@ export class GameController {
   stationAura(now = Date.now()): AuraStats {
     const s = this.station;
     if (!s || !stationReady(s, now)) return auraStats([], 1) as AuraStats;
-    return auraStats(s.research?.done ?? [], s.core.level);
+    return auraStats(s.research?.done ?? [], stationCoreLevel(s, now));
   }
 
   /** Udział planety `address` w premii stacji (0–1): planeta pod stacją 100%, układ 50%, sąsiednie układy 25%. */
@@ -2950,13 +2988,13 @@ export class GameController {
   }
 
   /** Budowa albo rozbudowa stoczni (moduł stacji; płaci aktywna planeta). */
-  upgradeShipyard(now = Date.now()): ActionMessage {
+  upgradeShipyard(now = Date.now(), copy: 1 | 2 | 3 = 1): ActionMessage {
     this.tick(now);
-    const result = upgradeShipyard(this.station, { stock: this.economy.stock, now }, this.balance);
+    const result = upgradeShipyard(this.station, { stock: this.economy.stock, now }, this.balance, copy);
     if (!result.ok) return result;
     this.pay(result.cost);
     this.station = result.station;
-    const level = result.station.shipyard!.level;
+    const level = result.station[copy === 1 ? 'shipyard' : copy === 2 ? 'shipyard2' : 'shipyard3']!.level;
     this.log('build', level === 1 ? 'Stacja macierzysta: budowa stoczni.' : `Stacja macierzysta: rozbudowa stoczni do poz. ${level}.`, now);
     this.save();
     this.emit();
@@ -2966,7 +3004,7 @@ export class GameController {
   /** Zamówienie statku w stoczni (płaci aktywna planeta, statek dołącza do floty po budowie). */
   orderShip(type: ShipType, now = Date.now()): ActionMessage {
     this.tick(now);
-    const result = orderShip(this.fleet, type, { shipyard: shipyardLevel(this.station, now), stock: this.economy.stock, now }, this.balance);
+    const result = orderShip(this.fleet, type, { shipyard: shipyardLevel(this.station, now), stock: this.economy.stock, now, lanes: shipyardLanes(this.station, now) }, this.balance);
     if (!result.ok) return { ok: false, message: `${findShip(type).name}: ${result.message}` };
     this.pay(result.order.cost);
     this.fleet = result.fleet;

@@ -792,8 +792,17 @@ export interface HomeStation {
   shipyard?: AsteroidStation;
   /** Laboratorium orbitalne (etap 2a planu stacji) — badania stacji. */
   lab?: AsteroidStation;
+  /** Rozbudowa rdzenia do poz. 2 / 3 (krok 2d-1; `core` zostaje pierwszym poziomem — budową stacji). */
+  coreUpgrade?: AsteroidStation;
+  /** Drugie i trzecie egzemplarze modułów w pierścieniach 2 i 3 (krok 2d-1; wymagają rdzenia poz. 2 / 3). */
+  storage2?: AsteroidStation;
+  shipyard2?: AsteroidStation;
+  lab2?: AsteroidStation;
+  storage3?: AsteroidStation;
+  shipyard3?: AsteroidStation;
+  lab3?: AsteroidStation;
   /** Badania stacji (etap 2a): zbadane i badanie w toku. */
-  research?: { done: string[]; current: { id: string; startedAt: number; readyAt: number } | null };
+  research?: { done: string[]; current: { id: string; startedAt: number; readyAt: number } | null; more?: { id: string; startedAt: number; readyAt: number }[] };
   stock: Resources;
 }
 

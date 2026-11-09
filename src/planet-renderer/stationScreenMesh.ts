@@ -5,7 +5,7 @@
 // Low-poly, płaskie cieniowanie, kilkanaście rysowań.
 import * as THREE from 'three';
 import { socketAngle, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
-import { STATION_SCREEN as S } from './stationScreenLayout.ts';
+import { ringRadius, socketOut, STATION_SCREEN as S } from './stationScreenLayout.ts';
 import { AXIS_SOCKET } from '../data/stationModules.ts';
 
 export interface StationScreenMesh {
@@ -68,6 +68,21 @@ export function createStationScreenMesh(model: StationScreenModel): StationScree
     spokes.setMatrixAt(i, m);
   }
   spin.add(spokes);
+  // Drugi i trzeci pierścień (krok 2d-1) z łącznikami od poprzedniego pierścienia przy gniazdach.
+  for (let r = 2; r <= model.coreLevel; r++) {
+    const R = ringRadius(r);
+    const outer = new THREE.Mesh(new THREE.TorusGeometry(R, S.tube * 0.85, 6, 64), steel);
+    outer.rotation.x = Math.PI / 2;
+    spin.add(outer);
+    const prev = ringRadius(r - 1);
+    for (let k = 0; k < 3; k++) {
+      const a = socketAngle(6 + (r - 2) * 3 + k);
+      const link = new THREE.Mesh(new THREE.BoxGeometry(R - prev, 0.018, 0.018), stone);
+      link.position.set(Math.cos(a) * (R + prev) / 2, 0, -Math.sin(a) * (R + prev) / 2);
+      link.rotation.y = a;
+      spin.add(link);
+    }
+  }
 
   // Moduły w gniazdach.
   const scaffold = new THREE.MeshBasicMaterial({ color: S.gold, wireframe: true });
@@ -75,7 +90,7 @@ export function createStationScreenMesh(model: StationScreenModel): StationScree
   const plate = flat('#1d2726');
   const containers = flat(S.container);
   for (const module of model.modules) {
-    if (module.socket === null) continue;
+    if (module.socket === null || module.state === 'locked') continue;
     if (module.socket === AXIS_SOCKET) {
       // Dok megakonstruktów (wkrótce): trzy stanowiska wokół osi pod rdzeniem.
       const dock = new THREE.Group();
@@ -92,7 +107,7 @@ export function createStationScreenMesh(model: StationScreenModel): StationScree
     }
     const holder = new THREE.Group();
     const a = socketAngle(module.socket);
-    holder.position.set(Math.cos(a) * S.moduleOut, 0, -Math.sin(a) * S.moduleOut);
+    holder.position.set(Math.cos(a) * socketOut(module.socket), 0, -Math.sin(a) * socketOut(module.socket));
     holder.rotation.y = a;
     holder.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.16), plate));
     addModule(holder, module, { stone, steel, gold, containers, scaffold, ghost, lightMaterial });
@@ -149,7 +164,7 @@ function addModule(holder: THREE.Group, module: StationModuleView, mat: Material
     holder.add(lamp);
     return;
   }
-  if (module.id === 'storage') {
+  if (module.id.startsWith('storage')) {
     // Kontenery: 2 + poziom/2, maks. 8, w dwóch rzędach i piętrach.
     const count = Math.min(8, 1 + Math.ceil(module.level * 0.7));
     const boxes = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, 0.045, 0.07), mat.containers, count);
@@ -162,7 +177,7 @@ function addModule(holder: THREE.Group, module: StationModuleView, mat: Material
       boxes.setMatrixAt(i, m);
     }
     holder.add(boxes);
-  } else if (module.id === 'shipyard') {
+  } else if (module.id.startsWith('shipyard')) {
     const frame = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.12), mat.scaffold);
     frame.position.x = 0.06;
     const hull = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.15, 5), mat.steel);

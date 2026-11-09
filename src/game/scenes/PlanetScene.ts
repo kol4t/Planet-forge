@@ -149,6 +149,9 @@ function depositLine(id: ResourceId, d: DepositInfo): string {
   return `${name}: zostało ${formatAmount(d.left)} z ${formatAmount(d.total)} (${share}%)${remnant}${when}`;
 }
 
+/** Karty modułów stacji w panelu „Moduły”: bez „wkrótce” i zablokowanych pierścieni (te — w karcie zbiorczej). */
+const visibleModules = <T extends { state: string }>(cards: T[]) => cards.filter((m) => m.state !== 'soon' && m.state !== 'locked');
+
 /** Procent ze znakiem, bez zbędnych zer (premia stacji). */
 const formatPct = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v * 10) / 10}%`;
 
@@ -598,9 +601,12 @@ export class PlanetScene extends Phaser.Scene {
       this.planetTurn = display.orientation();
       display.setStationScreen(this.deps.controller.stationScreen());
       display.setOrientation(0.6, 0);
-      // Stacja jest „ażurowa” — na start bliżej niż planeta, żeby moduły były czytelne.
-      this.gestures.setZoom(STATION_ZOOM);
-      display.setZoom(STATION_ZOOM, true);
+      // Stacja jest „ażurowa” — na start bliżej niż planeta, żeby moduły były czytelne; z kolejnymi pierścieniami
+      // (krok 2d-1) stacja jest większa, więc kamera startuje dalej.
+      const rings = this.deps.controller.stationScreen()?.coreLevel ?? 1;
+      const zoom = STATION_ZOOM / [1, 1, 1.3, 1.65][Math.min(3, Math.max(1, rings))]!;
+      this.gestures.setZoom(zoom);
+      display.setZoom(zoom, true);
     } else {
       display.setStationScreen(null);
       this.gestures.setZoom(1);
@@ -627,10 +633,26 @@ export class PlanetScene extends Phaser.Scene {
 
   /** Panel „Moduły”: karty modułów stacji (rdzeń, działające, „wkrótce”) w siatce kart „Produkcji”. */
   private buildStationModules(cards: Rect[]): void {
-    this.deps.controller.stationModuleCards().forEach((card, i) => {
+    const all = this.deps.controller.stationModuleCards();
+    const shown = visibleModules(all);
+    shown.forEach((card, i) => {
       const rect = cards[i];
       if (rect) this.addModuleCard(card, rect);
     });
+    // Moduły „wkrótce” i gniazda kolejnych pierścieni — jedna karta zbiorcza (mniej, czytelniejszych kart).
+    const rest = cards[shown.length];
+    if (!rest) return;
+    this.subPanel(rest);
+    const pad = this.s(10);
+    const w = rest.w - 2 * pad;
+    const locked = all.filter((m) => m.state === 'locked');
+    const soon = all.filter((m) => m.state === 'soon');
+    const t = this.text(rest.x + pad, rest.y + pad, 'Kolejne moduły', 13, COLORS.muted, { fontStyle: '600' });
+    const lines = [
+      ...(locked.length > 0 ? [`Pierścień ${locked[0]!.ring}: ${locked.filter((m) => m.ring === locked[0]!.ring).map((m) => m.name).join(', ')} — po rozbudowie rdzenia.`] : []),
+      ...soon.map((m) => `${m.name} — etap ${m.stage}`),
+    ];
+    this.text(rest.x + pad, rest.y + pad + t.height / this.dpr + this.s(6), lines.join('\n'), 10.5, COLORS.faint, { wordWrap: { width: this.px(w) }, lineSpacing: this.px(2) });
   }
 
   private addModuleCard(card: StationModuleCard, rect: Rect): void {
@@ -660,7 +682,7 @@ export class PlanetScene extends Phaser.Scene {
     const half = research && canUpgrade ? (w - this.s(6)) / 2 : w;
     if (canUpgrade) {
       const cost = card.nextCost!;
-      this.text(rect.x + pad, rect.y + rect.h - pad - TOUCH - this.s(17), `${card.id === 'lab' ? 'Magazyn stacji' : 'Koszt'}: ${formatInt(cost.metal)} · ${formatInt(cost.crystal)}`, 10.5, COLORS.stone, { fixedWidth: this.px(w) });
+      this.text(rect.x + pad, rect.y + rect.h - pad - TOUCH - this.s(17), `${card.payer === 'station' ? 'Magazyn stacji' : 'Koszt'}: ${formatInt(cost.metal)} · ${formatInt(cost.crystal)}`, 10.5, COLORS.stone, { fixedWidth: this.px(w) });
       this.addButton(rect.x + pad, rect.y + rect.h - pad - TOUCH, half, TOUCH, card.level === 0 ? 'Zbuduj' : research ? `Poz. ${card.level + 1}` : `Ulepsz do ${card.level + 1}`, 'primary', () => this.upgradeModule(card.action!), 13);
     }
     if (research) this.addButton(rect.x + rect.w - pad - half, rect.y + rect.h - pad - TOUCH, half, TOUCH, 'Badania', 'secondary', () => this.openScreen('stationResearch'), 13);
@@ -668,7 +690,9 @@ export class PlanetScene extends Phaser.Scene {
 
   private moduleState(card: StationModuleCard): string {
     if (card.state === 'soon') return `Wkrótce — etap ${card.stage} planu stacji`;
+    if (card.state === 'locked') return `Pierścień ${card.ring} — najpierw rozbuduj rdzeń do poz. ${card.ring}`;
     if (card.state === 'building') return `${card.level === 0 ? 'Budowa' : `Rozbudowa do poz. ${card.upgrading}`} · ${formatDuration(card.secondsLeft)}`;
+    if (card.needs) return `Działa · poz. ${card.level} — rozbudowa po: ${card.needs}`;
     if (card.state === 'empty') return card.id === 'shipyard' ? 'Puste gniazdo — zbuduj stocznię' : 'Puste gniazdo — zbuduj moduł';
     if (card.id === 'core') {
       const aura = this.deps.controller.stationAuraView();
@@ -677,9 +701,8 @@ export class PlanetScene extends Phaser.Scene {
     return 'Działa';
   }
 
-  private upgradeModule(action: 'storage' | 'shipyard' | 'lab'): void {
-    const c = this.deps.controller;
-    const result = action === 'storage' ? c.upgradeStationStorage() : action === 'lab' ? c.upgradeStationLab() : c.upgradeShipyard();
+  private upgradeModule(action: NonNullable<StationModuleCard['action']>): void {
+    const result = this.deps.controller.upgradeStationModule(action);
     this.showToast(result.message, result.ok ? 'ok' : 'error', 3000);
     this.relayout();
   }
@@ -1052,7 +1075,7 @@ export class PlanetScene extends Phaser.Scene {
     this.dpr = viewport.dpr;
     this.gestures.tapSlop = 12 * viewport.dpr;
     const c = this.deps.controller;
-    const cardCount = this.stationMode ? c.stationModuleCards().length : BALANCE.buildings.length;
+    const cardCount = this.stationMode ? visibleModules(c.stationModuleCards()).length + 1 : BALANCE.buildings.length;
     const planetRows = c.slotInfo.used + (c.stationScreen() ? 1 : 0);
     const layout = computeLayout(viewport.width, viewport.height, viewport.safe, cardCount, this.panels, c.aiUnlocked ? AI_RULES.length : 0, planetRows);
     this.layoutState = layout;

@@ -2,7 +2,7 @@
 // (`stationScreenLayout.ts`). Każda część to garść „pikseli” (kwadratów wyrównanych do siatki) w przestrzeni stacji;
 // po obrocie i rzucie rysowane od najdalszych (malarz) — tył pierścienia przyciemniony.
 import { socketAngle, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
-import { rotateStation, STATION_SCREEN as S, type Vec3 } from './stationScreenLayout.ts';
+import { ringRadius, rotateStation, socketOut, STATION_SCREEN as S, type Vec3 } from './stationScreenLayout.ts';
 import { AXIS_SOCKET } from '../data/stationModules.ts';
 
 interface Dot {
@@ -50,7 +50,25 @@ export function stationDots(model: StationScreenModel): Dot[] {
       add([Math.cos(a) * S.hub, y, -Math.sin(a) * S.hub], 0.07, h === 0 ? S.light : S.stone);
     }
   }
+  // Drugi i trzeci pierścień (krok 2d-1) z łącznikami przy gniazdach.
+  for (let r = 2; r <= model.coreLevel; r++) {
+    const R = ringRadius(r);
+    const n = Math.round(96 * (R / S.ring));
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      add([Math.cos(a) * R, 0, -Math.sin(a) * R], S.tube * 1.7, i % 10 === 5 ? S.light : S.steel);
+    }
+    const prev = ringRadius(r - 1);
+    for (let k = 0; k < 3; k++) {
+      const a = socketAngle(6 + (r - 2) * 3 + k);
+      for (let j = 1; j < 6; j++) {
+        const d = prev + ((R - prev) * j) / 6;
+        add([Math.cos(a) * d, 0, -Math.sin(a) * d], 0.03, S.stone);
+      }
+    }
+  }
   for (const m of model.modules) {
+    if (m.state === 'locked') continue;
     if (m.socket === AXIS_SOCKET) dockDots(add);
     else if (m.socket !== null) moduleDots(m, add);
   }
@@ -75,8 +93,9 @@ function moduleDots(m: StationModuleView, add: (p: Vec3, size: number, color: st
   const a = socketAngle(m.socket!);
   const ca = Math.cos(a);
   const sa = Math.sin(a);
+  const out = socketOut(m.socket!);
   const put = (x: number, y: number, z: number, size: number, color: string) =>
-    add([ca * (S.moduleOut + x) + sa * z, y, -sa * (S.moduleOut + x) + ca * z], size, color);
+    add([ca * (out + x) + sa * z, y, -sa * (out + x) + ca * z], size, color);
   // Płyta gniazda.
   for (let i = -1; i <= 1; i++) for (let j = -2; j <= 2; j++) put(i * 0.035, -0.02, j * 0.035, 0.045, '#1d2726');
   const frame = (w: number, h: number, d: number, color: string) => {
@@ -89,7 +108,7 @@ function moduleDots(m: StationModuleView, add: (p: Vec3, size: number, color: st
   if (m.state === 'soon') return frame(0.16, 0.12, 0.18, 'rgba(95, 242, 224, 0.35)');
   if (m.level === 0 && m.state === 'building') return frame(0.16, 0.14, 0.18, S.gold);
   if (m.level === 0) return put(0, 0.04, 0, 0.05, S.light);
-  if (m.id === 'storage') {
+  if (m.id.startsWith('storage')) {
     const count = Math.min(8, 1 + Math.ceil(m.level * 0.7));
     for (let i = 0; i < count; i++) {
       const x = 0.02 + (i % 2) * 0.065;
@@ -97,7 +116,7 @@ function moduleDots(m: StationModuleView, add: (p: Vec3, size: number, color: st
       const y = 0.04 + Math.floor(i / 4) * 0.05;
       put(x, y, z, 0.06, i % 3 === 0 ? '#a08c62' : S.container);
     }
-  } else if (m.id === 'shipyard') {
+  } else if (m.id.startsWith('shipyard')) {
     frame(0.2, 0.1, 0.12, S.gold);
     for (let k = 0; k < 5; k++) put(0.0 + k * 0.03, 0.05, 0, 0.045 - k * 0.006, '#d8dcd6');
   } else put(0, 0.05, 0, 0.1, S.stone);

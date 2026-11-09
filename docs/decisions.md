@@ -1121,3 +1121,11 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
 - 90 badań (6 × 15, 6 pierścieni). Efekty liczbowe spoza `ResearchEffect` jako `stationModifier` → `withStationResearch`
   zmienia balans (paliwo przez nowe `BALANCE.fuelFactor`, stocznia, eskorta, naprawy, straty, magazyn stacji, resztki).
   Badania „🔓” (`stationUnlock`) można zbadać przed wejściem mechaniki — efekt zadziała, gdy mechanika powstanie (2d).
+
+## 2026-11-09 — Stacja, krok 2d-1: rdzeń i pierścienie (decyzje właściciela)
+
+- Badanie odblokowuje rozbudowę rdzenia (płaci magazyn stacji); rozbudowa w osobnym polu `coreUpgrade`, żeby `core`
+  (budowa stacji) i `stationReady` się nie zmieniały. Poziom rdzenia: `stationCoreLevel`.
+- W pierścieniach 2 i 3 drugie / trzecie egzemplarze magazynu, stoczni i laboratorium (pola `storage2`…`lab3`).
+  Stocznie równolegle: start statku = najwcześniejszy koniec spośród `lanes` ostatnich budów. Laboratoria równolegle:
+  `research.more`. Kopie stoczni i laboratorium mają jeden poziom.

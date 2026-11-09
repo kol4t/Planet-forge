@@ -3,12 +3,24 @@
 // nowy stan albo czytelny błąd; odczyt z zapisu.
 import { findStationResearch, STATION_RESEARCH, STATION_RESEARCH_RULES as R, type StationResearchEffect, type StationResearchNode, type StationStat } from '../../data/stationResearch.ts';
 import { stationLevelAt } from '../economy/asteroids.ts';
+import { copyBlocked, copyKey, type ModuleCopy } from '../economy/homeStation.ts';
 import type { AsteroidStation, Balance, HomeStation, ResearchEffect, Resources } from '../types.ts';
 
 export interface StationResearchState {
   done: string[];
   /** Badanie w toku: id, start i koniec (ms). */
   current: { id: string; startedAt: number; readyAt: number } | null;
+  /** Badania w drugim i trzecim laboratorium (krok 2d-1). */
+  more?: { id: string; startedAt: number; readyAt: number }[];
+}
+
+/** Wszystkie badania w toku (pierwsze laboratorium i kolejne). */
+export const activeResearch = (state: StationResearchState) => [...(state.current ? [state.current] : []), ...(state.more ?? [])];
+
+/** Ile laboratoriów pracuje — tyle badań stacji naraz (krok 2d-1). */
+export function labLanes(station: HomeStation | null, at: number): number {
+  if (!station || at < station.core.readyAt) return 0;
+  return [station.lab, station.lab2, station.lab3].filter((l) => stationLevelAt(l, at) > 0).length;
 }
 
 export const EMPTY_STATION_RESEARCH: StationResearchState = { done: [], current: null };
@@ -32,20 +44,25 @@ export function labCost(level: number): Resources {
 export type StationResult = { ok: true; station: HomeStation; cost: Resources; seconds: number } | { ok: false; message: string };
 
 /** Budowa / rozbudowa Laboratorium orbitalnego o poziom — płaci magazyn stacji. */
-export function upgradeLab(station: HomeStation | null, now: number): StationResult {
+export function upgradeLab(station: HomeStation | null, now: number, copy: ModuleCopy = 1): StationResult {
   if (!station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
   if (now < station.core.readyAt) return { ok: false, message: 'Rdzeń stacji jest jeszcze w budowie.' };
-  const current: AsteroidStation | undefined = station.lab;
+  const blocked = copyBlocked(station, copy, now);
+  if (blocked) return { ok: false, message: blocked };
+  const key = copyKey('lab', copy);
+  const current: AsteroidStation | undefined = station[key];
   if (current && now < current.readyAt) return { ok: false, message: 'Laboratorium orbitalne jest właśnie rozbudowywane.' };
   const level = (current?.level ?? 0) + 1;
-  if (level > R.lab.maxLevel) return { ok: false, message: `Laboratorium orbitalne ma już najwyższy poziom (${R.lab.maxLevel}).` };
+  // Drugie i trzecie laboratorium dają kolejne badanie naraz — jeden poziom (pierścienie liczy pierwsze).
+  const max = copy === 1 ? R.lab.maxLevel : 1;
+  if (level > max) return { ok: false, message: copy === 1 ? `Laboratorium orbitalne ma już najwyższy poziom (${max}).` : 'To laboratorium już działa — pierścienie badań wyznacza pierwsze laboratorium.' };
   const cost = labCost(level);
   const missing = missingText(cost, station.stock);
   if (missing) return { ok: false, message: `Laboratorium orbitalne poz. ${level} — w magazynie stacji brakuje: ${missing}. Dowieź surowce transportowcem („Na stację”).` };
   const seconds = R.lab.secondsPerLevel * level;
   return {
     ok: true,
-    station: { ...station, stock: { metal: station.stock.metal - cost.metal, crystal: station.stock.crystal - cost.crystal }, lab: { level, readyAt: now + seconds * 1000 } },
+    station: { ...station, stock: { metal: station.stock.metal - cost.metal, crystal: station.stock.crystal - cost.crystal }, [key]: { level, readyAt: now + seconds * 1000 } },
     cost,
     seconds,
   };
@@ -73,12 +90,13 @@ export function stationResearchSeconds(node: StationResearchNode, lab: number, d
 
 export const labLevelForRing = (ring: number) => R.labLevelForRing[Math.min(ring, R.labLevelForRing.length) - 1]!;
 
-export function stationResearchStatus(node: StationResearchNode, state: StationResearchState, lab: number): StationResearchStatus {
+export function stationResearchStatus(node: StationResearchNode, state: StationResearchState, lab: number, lanes = 1): StationResearchStatus {
   if (state.done.includes(node.id)) return 'done';
-  if (state.current?.id === node.id) return 'researching';
+  const active = activeResearch(state);
+  if (active.some((a) => a.id === node.id)) return 'researching';
   if (!node.requires.every((id) => state.done.includes(id))) return 'needs-research';
   if (lab < labLevelForRing(node.ring)) return 'needs-lab';
-  if (state.current) return 'busy';
+  if (active.length >= Math.max(1, lanes)) return 'busy';
   return 'available';
 }
 
@@ -91,7 +109,8 @@ export function startStationResearch(state: StationResearchState, station: HomeS
   if (!station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
   const lab = labLevel(station, now);
   if (lab <= 0) return { ok: false, message: 'Najpierw zbuduj Laboratorium orbitalne (Moduły stacji).' };
-  const status = stationResearchStatus(node, state, lab);
+  const lanes = labLanes(station, now);
+  const status = stationResearchStatus(node, state, lab, lanes);
   if (status === 'done') return { ok: false, message: `„${node.name}” już zbadane.` };
   if (status === 'researching') return { ok: false, message: `„${node.name}” jest właśnie badane.` };
   if (status === 'needs-research') {
@@ -99,25 +118,31 @@ export function startStationResearch(state: StationResearchState, station: HomeS
     return { ok: false, message: `Najpierw zbadaj: ${missing.join(', ')}.` };
   }
   if (status === 'needs-lab') return { ok: false, message: `To badanie wymaga Laboratorium orbitalnego poz. ${labLevelForRing(node.ring)}.` };
-  if (status === 'busy') return { ok: false, message: 'Laboratorium orbitalne prowadzi już badanie — stacja bada jedno naraz.' };
+  if (status === 'busy') return { ok: false, message: lanes > 1 ? `Wszystkie laboratoria (${lanes}) prowadzą już badania.` : 'Laboratorium orbitalne prowadzi już badanie — stacja bada jedno naraz (drugie laboratorium — po rozbudowie rdzenia).' };
   const cost = stationResearchCost(node);
   const missing = missingText(cost, station.stock);
   if (missing) return { ok: false, message: `„${node.name}” — w magazynie stacji brakuje: ${missing}. Dowieź surowce transportowcem („Na stację”).` };
   const seconds = stationResearchSeconds(node, lab, state.done);
   return {
     ok: true,
-    research: { done: state.done, current: { id, startedAt: now, readyAt: now + seconds * 1000 } },
+    research: state.current
+      ? { ...state, more: [...(state.more ?? []), { id, startedAt: now, readyAt: now + seconds * 1000 }] }
+      : { ...state, current: { id, startedAt: now, readyAt: now + seconds * 1000 } },
     station: { ...station, stock: { metal: station.stock.metal - cost.metal, crystal: station.stock.crystal - cost.crystal } },
     cost,
     seconds,
   };
 }
 
-/** Ukończenie badania w toku (gdy minął czas). */
-export function completeStationResearch(state: StationResearchState, now: number): { research: StationResearchState; completed: string | null } {
-  const c = state.current;
-  if (!c || now < c.readyAt) return { research: state, completed: null };
-  return { research: { done: [...state.done, c.id], current: null }, completed: c.id };
+/** Ukończenie badań w toku, którym minął czas (wszystkie laboratoria). */
+export function completeStationResearch(state: StationResearchState, now: number): { research: StationResearchState; completed: string[] } {
+  const active = activeResearch(state);
+  const finished = active.filter((a) => now >= a.readyAt);
+  if (finished.length === 0) return { research: state, completed: [] };
+  const left = active.filter((a) => now < a.readyAt);
+  const done = [...state.done, ...finished.map((f) => f.id)];
+  const research: StationResearchState = { done, current: left[0] ?? null, ...(left.length > 1 ? { more: left.slice(1) } : {}) };
+  return { research, completed: finished.map((f) => f.id) };
 }
 
 export function stationResearchProgress(state: StationResearchState, now: number): number {
@@ -172,5 +197,9 @@ export function parseStationResearch(raw: any): StationResearchState {
   const done = Array.isArray(raw.done) ? [...new Set((raw.done as unknown[]).filter((x): x is string => typeof x === 'string' && known.has(x)))] : [];
   const c = raw.current;
   const ok = c && typeof c.id === 'string' && known.has(c.id) && !done.includes(c.id) && Number.isFinite(c.startedAt) && Number.isFinite(c.readyAt) && c.readyAt >= c.startedAt;
-  return { done, current: ok ? { id: c.id, startedAt: c.startedAt, readyAt: c.readyAt } : null };
+  const current = ok ? { id: c.id, startedAt: c.startedAt, readyAt: c.readyAt } : null;
+  const more = Array.isArray(raw.more)
+    ? (raw.more as any[]).filter((m) => m && typeof m.id === 'string' && known.has(m.id) && !done.includes(m.id) && m.id !== current?.id && Number.isFinite(m.startedAt) && Number.isFinite(m.readyAt) && m.readyAt >= m.startedAt).slice(0, 2).map((m) => ({ id: m.id as string, startedAt: m.startedAt as number, readyAt: m.readyAt as number }))
+    : [];
+  return { done, current, ...(more.length > 0 ? { more } : {}) };
 }
