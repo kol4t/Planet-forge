@@ -3,7 +3,7 @@
 // Czysta matematyka, testowalna bez renderowania. Układ stacji: oś pionowa Y, pierścień w płaszczyźnie XZ,
 // promień całości ok. 1 (jak promień planety).
 import { AXIS_SOCKET, type StationModuleId } from '../data/stationModules.ts';
-import { socketAngle, type StationModuleView } from '../core/station/stationScreen.ts';
+import { socketAngle, socketRing, type StationModuleView } from '../core/station/stationScreen.ts';
 
 export type Vec3 = [number, number, number];
 
@@ -27,12 +27,18 @@ export const STATION_SCREEN = {
   container: '#8c7b58',
 } as const;
 
+/** Promień pierścienia 1–3 (krok 2d-1: drugi i trzeci pierścień po rozbudowie rdzenia). */
+export const ringRadius = (ring: number) => [0, STATION_SCREEN.ring, 0.92, 1.18][ring] ?? STATION_SCREEN.ring;
+/** Odległość środka modułu gniazda od osi (na zewnątrz jego pierścienia). */
+export const socketOut = (socket: number) => ringRadius(socketRing(socket)) + (STATION_SCREEN.moduleOut - STATION_SCREEN.ring);
+
 /** Punkt zaczepienia modułu (środek stacji dla rdzenia). */
 export function moduleAnchor(m: Pick<StationModuleView, 'socket'>): Vec3 {
   if (m.socket === null) return [0, 0, 0];
   if (m.socket === AXIS_SOCKET) return [0, -STATION_SCREEN.axisDock, 0];
   const a = socketAngle(m.socket);
-  return [Math.cos(a) * STATION_SCREEN.moduleOut, 0, -Math.sin(a) * STATION_SCREEN.moduleOut];
+  const out = socketOut(m.socket);
+  return [Math.cos(a) * out, 0, -Math.sin(a) * out];
 }
 
 /** Obrót jak w scenie 3D: najpierw wokół osi stacji (yaw), potem pochylenie (stałe + pitch palca). */

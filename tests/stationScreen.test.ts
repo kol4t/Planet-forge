@@ -10,8 +10,9 @@ const base: HomeStation = { address: '1:4:6', core: { level: 1, readyAt: 1000 },
 test('moduły stacji: każde gniazdo zajęte przez jeden moduł, rdzeń w środku', () => {
   const sockets = STATION_MODULES.filter((m) => m.socket !== null && m.socket >= 0).map((m) => m.socket);
   assert.equal(new Set(sockets).size, sockets.length);
-  assert.equal(sockets.length, STATION_SOCKETS);
-  assert.ok(sockets.every((s) => s! >= 0 && s! < STATION_SOCKETS));
+  // Pierścień 1: 6 gniazd; pierścienie 2 i 3 (krok 2d-1): po 3.
+  assert.equal(sockets.length, STATION_SOCKETS + 6);
+  assert.ok(sockets.every((s) => s! >= 0 && s! < STATION_SOCKETS + 6));
   assert.equal(STATION_MODULES.filter((m) => m.socket === null).map((m) => m.id).join(), 'core');
 });
 

@@ -2,6 +2,19 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.76.0 — stacja kosmiczna, krok 2d-1: rdzeń i nowe pierścienie — robocza
+
+Decyzje właściciela 2026-11-09:
+- **Rozbudowa rdzenia** do poz. 2 i 3 w „Modułach” — po badaniach „Rdzeń drugiej / trzeciej generacji”; płaci
+  **magazyn stacji** (robocze: 150 tys. / 200 tys. i 600 tys. / 800 tys., 2 h i 6 h). W trakcie stacja działa.
+  Premia stacji rośnie z poziomem rdzenia (×1,25 / ×1,5).
+- **Drugi i trzeci pierścień gniazd** (widać na stacji w 2D i 3D) z **drugimi i trzecimi egzemplarzami modułów**:
+  magazyn II / III (pojemności się sumują), stocznia II / III (statki budują się naraz), laboratorium II / III
+  (badania stacji naraz). Stocznie i laboratoria II / III mają jeden poziom — szybkość i pierścienie badań
+  wyznaczają pierwsze.
+- Panel „Moduły”: moduły „wkrótce” i gniazda nierozbudowanych pierścieni w jednej karcie „Kolejne moduły”.
+- Zapis: `station.coreUpgrade`, `storage2/3`, `shipyard2/3`, `lab2/3`, `research.more` (opcjonalne).
+
 ## v0.75.0 — stacja kosmiczna, krok 2c: pełne drzewko badań stacji — 2026-11-09
 
 Lista zaakceptowana przez właściciela 2026-11-09 (`docs/badania-stacji.md`):

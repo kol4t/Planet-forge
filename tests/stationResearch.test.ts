@@ -49,9 +49,9 @@ test('badanie stacji: wymaga laboratorium, płaci magazyn stacji, jedno naraz, k
   assert.ok(!second.ok && /jedno naraz/.test(second.message));
   assert.equal(stationResearchStatus(findStationResearch('st-aura-planet')!, r.research, 1), 'needs-research');
   const early = completeStationResearch(r.research, 10);
-  assert.equal(early.completed, null);
+  assert.deepEqual(early.completed, []);
   const done = completeStationResearch(r.research, r.research.current!.readyAt);
-  assert.equal(done.completed, 'st-power');
+  assert.deepEqual(done.completed, ['st-power']);
   assert.ok(done.research.done.includes('st-power'));
   // Pierścień 3 wymaga wyższego laboratorium.
   const deep = findStationResearch('st-aura-system')!;
