@@ -31,7 +31,8 @@ export function openOutpostPanel(options: OutpostPanelOptions): () => void {
       : `Stacje: ${v.list.length} z ${v.limit} (kolejne miejsca z badań Eksploracji) · statki konstrukcyjne na stanie: ${v.ships}. ` +
         (v.miningUnlocked
           ? 'Nową stację górniczą zakładasz w widoku układu: stuknij pas asteroid → „Wyślij statek konstrukcyjny”. Urobek trafia do magazynu stacji macierzystej.'
-          : 'Stację górniczą odblokowuje badanie „Stacja górnicza na pasie”.');
+          : 'Stację górniczą odblokowuje badanie „Stacja górnicza na pasie”.') +
+        (v.gasUnlocked ? ' Stację gazową (antymateria) — stuknij gazowego olbrzyma w widoku układu.' : ' Stację gazową odblokowuje badanie „Czerpanie gazu”.');
     root.querySelector('.op-list')!.innerHTML =
       v.list.length === 0
         ? '<p class="tp-hint">Nie masz jeszcze żadnej stacji wyspecjalizowanej.</p>'
@@ -39,7 +40,8 @@ export function openOutpostPanel(options: OutpostPanelOptions): () => void {
             .map((o) => {
               const state = o.flying
                 ? `statek leci — przylot za ${formatDuration(o.secondsLeft)}`
-                : `poz. ${o.level}${o.upgrading ? ` → ${o.level + 1} za ${formatDuration(o.secondsLeft)}` : ''} · +${formatInt(o.output.metal)} metalu, +${formatInt(o.output.crystal)} kryształów na godzinę`;
+                : `poz. ${o.level}${o.upgrading ? ` → ${o.level + 1} za ${formatDuration(o.secondsLeft)}` : ''} · ` +
+                  (o.kind === 'gas' ? `+${o.output.antimatter.toFixed(2).replace('.', ',')} antymaterii na godzinę` : `+${formatInt(o.output.metal)} metalu, +${formatInt(o.output.crystal)} kryształów na godzinę`);
               const button =
                 !o.flying && !o.upgrading && o.nextCost
                   ? `<button type="button" data-up="${o.site}" ${ROW_BTN}>Poz. ${o.level + 1}</button>`

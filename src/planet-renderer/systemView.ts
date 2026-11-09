@@ -25,6 +25,8 @@ export interface SystemBody {
   gas?: { bands: readonly string[]; rings: boolean };
   /** Nad planetą krąży stacja macierzysta (etap 1 planu stacji) — znaczek obok, dotknięcie = ekran stacji. */
   station?: boolean;
+  /** Przy gazowym olbrzymie stoi stacja gazowa gracza (krok 4b) — znaczek obok. */
+  outpost?: boolean;
   /** Planeta w zasięgu premii stacji (etap 2b): udział 0–1 — przerywany turkusowy pierścień. */
   aura?: number;
 }
@@ -341,6 +343,22 @@ export class SystemView {
       const r = radius * (1 + 0.1 * p.depth) * (b.gas ? 1.45 : 1);
       if (s.x < -this.rect.w || s.x > this.rect.w || s.y < -this.rect.h || s.y > this.rect.h) continue;
       if (b.gas) this.drawGas(s.x, s.y, r, b.gas);
+      if (b.outpost) {
+        // Stacja gazowa: mały złoty romb z turkusowym środkiem po lewej u góry olbrzyma.
+        const x = s.x - r * 1.35;
+        const y = s.y - r * 1.05;
+        const m = Math.max(5, r * 0.4);
+        ctx.fillStyle = '#d6b25e';
+        ctx.beginPath();
+        ctx.moveTo(x, y - m);
+        ctx.lineTo(x + m, y);
+        ctx.lineTo(x, y + m);
+        ctx.lineTo(x - m, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#5ff2e0';
+        ctx.fillRect(x - m * 0.3, y - m * 0.3, m * 0.6, m * 0.6);
+      }
       else if (b.planet) {
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(this.thumb(b.address, b.planet, b.yaw ?? 0.6), s.x - r, s.y - r, 2 * r, 2 * r);
