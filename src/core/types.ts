@@ -801,6 +801,12 @@ export interface HomeStation {
   lab?: AsteroidStation;
   /** Dok handlowy (etap 3a planu stacji). */
   dock?: AsteroidStation;
+  /** Kredyty (krok 3b, nazwa robocza) — waluta-przedmiot w magazynie stacji. */
+  credits?: number;
+  /** Ostatnie naliczenie opłat za premię stacji (ms). */
+  feesAt?: number;
+  /** Kupcy: zużyte oferty bieżącej wizyty, sprzedany statek, przyjęte zamówienie (krok 3b). */
+  merchant?: { visit: number; used: number[]; shipSold?: boolean; contract?: { visit: number; acceptedAt: number; contract: { want: 'metal' | 'crystal'; amount: number; reward: { credits: number; antimatter: number; bonus: 'speedup' | 'find' | null } } } };
   /** Rozbudowa rdzenia do poz. 2 / 3 (krok 2d-1; `core` zostaje pierwszym poziomem — budową stacji). */
   coreUpgrade?: AsteroidStation;
   /** Drugie i trzecie egzemplarze modułów w pierścieniach 2 i 3 (krok 2d-1; wymagają rdzenia poz. 2 / 3). */

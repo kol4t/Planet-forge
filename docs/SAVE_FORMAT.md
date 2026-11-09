@@ -75,6 +75,11 @@ Kopiuj zapis / Wczytaj zapis).
     "shipyard": { "level": 1, "readyAt": 0 },   //   stocznia (od v0.58, opcjonalna)
     "lab": { "level": 2, "readyAt": 0 },        //   Laboratorium orbitalne (od v0.73, opcjonalne; błędne pomijane)
     "dock": { "level": 1, "readyAt": 0 },       //   dok handlowy (od v0.79, opcjonalny)
+    "credits": 1200,                            //   kredyty — waluta-przedmiot w magazynie stacji (od v0.80, opcjonalne, > 0)
+    "feesAt": 0,                                //   ostatnie naliczenie opłat za premię stacji, ms (od v0.80, opcjonalne)
+    "merchant": { "visit": 412, "used": [0], "shipSold": true,   // kupcy (od v0.80, opcjonalne): numer wizyty, zużyte oferty,
+      "contract": { "visit": 411, "acceptedAt": 0,               //   przyjęte zamówienie (towar, ilość, nagroda); błędne pomijane
+        "contract": { "want": "metal", "amount": 60000, "reward": { "credits": 7800, "antimatter": 9, "bonus": "find" } } } },
     "coreUpgrade": { "level": 2, "readyAt": 0 }, //   rozbudowa rdzenia do poz. 2/3 (od v0.76, opcjonalna)
     "auto": { "supply": 0.75, "night": "production" }, // automatyka SI stacji (od v0.78): próg dostaw, kategoria SI nocnej
     "storage2": { … }, "shipyard2": { … }, "lab2": { … },   // drugie egzemplarze modułów (od v0.76, pierścień 2)

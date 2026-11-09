@@ -1,7 +1,7 @@
 // Dok handlowy (etap 3a planu stacji, decyzje właściciela 2026-11-09): moduł stacji (po badaniu „Dok handlowy”)
 // i stały rynek — wymiana metalu i kryształów z magazynu stacji oraz sprzedaż antymaterii (po badaniu „Handel
 // antymaterią”). Kurs = wartości towarów × wahania (co 6 h, z czasu świata — takie same dla wszystkich) × (1 − marża);
-// marża maleje z poziomem doku i po badaniu „Kursy wymiany”. Kupcy z lepszymi ofertami — krok 3b. Czysta logika.
+// marża maleje z poziomem doku i po badaniu „Kursy wymiany”. Od kroku 3b wymiana idzie przez kredyty (`merchants.ts`). Czysta logika.
 import { stationLevelAt } from '../economy/asteroids.ts';
 import type { HomeStation, Resources } from '../types.ts';
 
@@ -42,36 +42,4 @@ export function driftFactor(good: TradeGood, at: number): number {
 export function marketSpread(level: number, ratesResearch: boolean): number {
   const s = TRADE.spread;
   return Math.max(s.min, s.base - s.perLevel * Math.max(0, level - 1) - (ratesResearch ? s.research : 0));
-}
-
-/** Ile `take` za 1 `give` na stałym rynku w chwili `at`. */
-export function marketRate(give: TradeGood, take: TradeGood, at: number, level: number, ratesResearch: boolean): number {
-  const worth = (g: TradeGood) => TRADE.value[g] * driftFactor(g, at);
-  return (worth(give) / worth(take)) * (1 - marketSpread(level, ratesResearch));
-}
-
-export type TradeResult = { ok: true; received: number; rate: number } | { ok: false; message: string };
-
-/**
- * Wymiana na rynku: dok działa, towar do sprzedania jest (metal i kryształy — w magazynie stacji, antymateria —
- * w portfelu `wallet`), antymateria tylko po badaniu, odbiór tylko metal / kryształy i mieści się w magazynie stacji.
- */
-export function marketTrade(
-  ctx: { level: number; stock: Resources; wallet: number; capacity: number; antimatterTrade: boolean; ratesResearch: boolean; at: number },
-  give: TradeGood,
-  amount: number,
-  take: 'metal' | 'crystal',
-): TradeResult {
-  if (ctx.level <= 0) return { ok: false, message: 'Najpierw zbuduj dok handlowy (Moduły stacji).' };
-  if (give === take) return { ok: false, message: 'Wybierz dwa różne towary.' };
-  if (!(amount > 0)) return { ok: false, message: 'Podaj ilość do wymiany.' };
-  if (give === 'antimatter' && !ctx.antimatterTrade) return { ok: false, message: 'Sprzedaż antymaterii odblokowuje badanie „Handel antymaterią” (Badania stacji → Handel).' };
-  const have = give === 'antimatter' ? ctx.wallet : ctx.stock[give];
-  if (amount > have + 1e-9) return { ok: false, message: give === 'antimatter' ? `Masz tylko ${Math.floor(have * 10) / 10} antymaterii.` : `W magazynie stacji jest tylko ${Math.floor(have)} ${give === 'metal' ? 'metalu' : 'kryształów'}.` };
-  const rate = marketRate(give, take, ctx.at, ctx.level, ctx.ratesResearch);
-  const received = Math.floor(amount * rate);
-  if (received <= 0) return { ok: false, message: 'Za mało, żeby kupiec coś za to dał.' };
-  const room = ctx.capacity - ctx.stock[take] + (give === take ? amount : 0);
-  if (received > room) return { ok: false, message: `Magazyn stacji zmieści jeszcze tylko ${Math.max(0, Math.floor(room))} ${take === 'metal' ? 'metalu' : 'kryształów'}.` };
-  return { ok: true, received, rate };
 }

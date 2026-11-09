@@ -1141,3 +1141,13 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
 - Rynek stały (gorszy kurs) + kupcy (lepsze oferty, statki, zamówienia z nagrodami: antymateria i surowce,
   przyspieszenie, rzadkie rzeczy). Sprzedaż antymaterii; wzmocnienia budowli za antymaterię z ryzykiem (awaria,
   utrata poziomów, zniszczenie — zawsze adekwatna nagroda). Eksplozja i odnowa planet (obca cywilizacja) — osobny etap.
+
+## 2026-11-09 — Stacja, krok 3b: kredyty (decyzje właściciela)
+
+- Waluta **Kredyty** (robocza) to przedmiot, nie stan konta: leży w magazynie stacji; planety jej nie używają.
+- Źródła: sprzedaż na rynku doku (wymiana surowiec ↔ surowiec idzie przez kredyty), zamówienia kupców, opłaty za premię
+  stacji od planet w zasięgu.
+- Kupcy co ok. 6 h, zostają 4 h — wizyty wyliczane z czasu świata (deterministycznie, bez zapisu harmonogramu), także pod
+  nieobecność gracza. Zapis trzyma tylko zużyte oferty bieżącej wizyty i przyjęte zamówienie.
+- Na razie jedna stacja = jeden magazyn kredytów. Przewóz kredytów statkami (z ryzykiem piratów) i kredyty kolejnych
+  stacji — **do zrobienia później** (właściciel: „rozwinąć bardziej ten temat”).
