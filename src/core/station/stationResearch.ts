@@ -135,7 +135,8 @@ export function stationEmpireEffects(done: readonly string[]): ResearchEffect[] 
   return out;
 }
 
-const isEmpireEffect = (e: StationResearchEffect): e is ResearchEffect => e.kind !== 'stationResearchTime' && e.kind !== 'prepares';
+const isEmpireEffect = (e: StationResearchEffect): e is ResearchEffect =>
+  e.kind !== 'stationResearchTime' && e.kind !== 'prepares' && e.kind !== 'stationLaunchTime' && e.kind !== 'stationAura';
 
 /** Odczyt z zapisu: nieznane i powtórzone badania pomijane, błędne „w toku” — bez badania. */
 export function parseStationResearch(raw: any): StationResearchState {

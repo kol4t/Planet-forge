@@ -27,6 +27,10 @@ export type StationResearchEffect =
   | ResearchEffect
   /** Szybsze badania stacji (procent czasu). */
   | { kind: 'stationResearchTime'; percent: number }
+  /** Lot ze stacji macierzystej: procent czasu (etap 2b — start od razu z pełną prędkością). */
+  | { kind: 'stationLaunchTime'; percent: number }
+  /** Premia stacji dla otoczenia: zasięg (planeta → układ → sąsiednie układy; etap 2b). */
+  | { kind: 'stationAura'; reach: 1 | 2 | 3 }
   /** Przygotowanie kolejnego etapu planu stacji (bez efektu w grze, do czasu tego etapu). */
   | { kind: 'prepares'; stage: number; what: string };
 
@@ -60,14 +64,14 @@ const n = (
 export const STATION_RESEARCH: readonly StationResearchNode[] = [
   // Produkcja
   n('st-power', 'production', 1, 0, 'Sieć zasilania stacji', 'Uporządkowane zasilanie modułów — podstawa dalszych badań stacji.', [], [{ kind: 'stationResearchTime', percent: -5 }]),
-  n('st-aura-planet', 'production', 2, -1, 'Premia stacji: planeta', 'Stacja wspiera planetę, nad którą krąży (premia — krok 2b).', ['st-power'], [{ kind: 'prepares', stage: 2, what: 'premia stacji dla planety pod nią (krok 2b)' }]),
+  n('st-aura-planet', 'production', 2, -1, 'Premia stacji: planeta', 'Stacja wspiera planetę, nad którą krąży: więcej wydobycia, szybsza budowa, tańsze paliwo lotów na stację.', ['st-power'], [{ kind: 'stationAura', reach: 1 }]),
   n('st-empire-mining', 'production', 2, 1, 'Wydobycie imperium', 'Koordynacja wydobycia z orbity: wszystkie planety wydobywają więcej.', ['st-power'], [{ kind: 'output', resource: 'metal', percent: 3 }, { kind: 'output', resource: 'crystal', percent: 3 }]),
-  n('st-aura-system', 'production', 3, -1, 'Zasięg premii: układ', 'Premia stacji obejmuje cały układ (krok 2b).', ['st-aura-planet'], [{ kind: 'prepares', stage: 2, what: 'zasięg premii stacji: cały układ (krok 2b)' }]),
+  n('st-aura-system', 'production', 3, -1, 'Zasięg premii: układ', 'Premia stacji obejmuje cały układ (pozostałe planety — połowa premii).', ['st-aura-planet'], [{ kind: 'stationAura', reach: 2 }]),
   n('st-refinery', 'production', 3, 1, 'Rafinacja orbitalna', 'Rafinacja na orbicie — kolejny wzrost wydobycia imperium.', ['st-empire-mining', 'st-ai-logistics'], [{ kind: 'output', resource: 'metal', percent: 4 }, { kind: 'output', resource: 'crystal', percent: 4 }]),
-  n('st-aura-near', 'production', 4, 0, 'Zasięg premii: sąsiednie układy', 'Premia stacji sięga sąsiednich układów (krok 2b).', ['st-aura-system', 'st-scope'], [{ kind: 'prepares', stage: 2, what: 'zasięg premii stacji: sąsiednie układy (krok 2b)' }]),
+  n('st-aura-near', 'production', 4, 0, 'Zasięg premii: sąsiednie układy', 'Premia stacji sięga sąsiednich układów (ćwierć premii).', ['st-aura-system', 'st-scope'], [{ kind: 'stationAura', reach: 3 }]),
   // Flota
   n('st-repair-dock', 'fleet', 1, 0, 'Dok remontowy', 'Szybsze naprawy i przeglądy statków przy stacji.', [], [{ kind: 'travelTime', percent: -5 }]),
-  n('st-fuel-recovery', 'fleet', 2, -1, 'Paliwo z odzysku', 'Odzysk paliwa z silników — loty imperium taniej (krok 2b — paliwo).', ['st-repair-dock'], [{ kind: 'prepares', stage: 2, what: 'tańsze paliwo lotów' }]),
+  n('st-fuel-recovery', 'fleet', 2, -1, 'Start ze stacji', 'Statki startują ze stacji od razu z pełną prędkością — loty ze stacji krótsze.', ['st-repair-dock'], [{ kind: 'stationLaunchTime', percent: -25 }]),
   n('st-drive', 'fleet', 2, 1, 'Napęd stacyjny', 'Silniki serwisowane na stacji — szybsze loty.', ['st-repair-dock'], [{ kind: 'travelTime', percent: -10 }]),
   n('st-holds', 'fleet', 3, 0, 'Ładownie modułowe', 'Transportowce zabierają więcej.', ['st-drive', 'st-merchants'], [{ kind: 'transportCapacity', percent: 20 }]),
   n('st-builder-ship', 'fleet', 4, 0, 'Statek konstrukcyjny', 'Zalążki nowych stacji w kosmosie (etap 4).', ['st-holds'], [{ kind: 'prepares', stage: 4, what: 'statek konstrukcyjny i nowe stacje' }]),

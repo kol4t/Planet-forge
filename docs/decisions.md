@@ -1108,3 +1108,10 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
   niezależny od badań planet (inne pierścienie, koszt z magazynu stacji, jedna kolejka). Efekty zwykłego rodzaju
   (`ResearchEffect`) trafiają do balansu każdej planety jako dodatkowe (`balanceFor`), efekty samej stacji
   (`stationResearchTime`) i „przygotowania” etapów — tylko w stacji. Lista badań to szkic do zastąpienia (krok 2c).
+
+## 2026-11-09 — Stacja, krok 2b: premia stacji (decyzje właściciela)
+
+- Premia: wydobycie i szybsza budowa (efekty `output` / `buildTime` doliczane w `balanceFor` z udziałem planety),
+  tańsze paliwo lotów na stację (`stationFuel(…, 'to')`), loty ze stacji krótsze po badaniu „Start ze stacji”
+  (`stationSeconds(…, 'from')`). Słabnięcie 100 / 50 / 25%, sąsiednie układy ≤ 20 jedn. mapy (średnio ok. 4).
+  Zasięg i siła tylko z badań stacji i poziomu rdzenia (rdzeń rośnie w kolejnych etapach).

@@ -2,6 +2,18 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.74.0 — stacja kosmiczna, krok 2b: premia stacji — robocza
+
+Decyzje właściciela 2026-11-09:
+- **Premia stacji macierzystej** dla jej otoczenia: +5% wydobycia metalu i kryształów, −5% czasu budowy, −30% paliwa
+  lotów **na stację**; loty **ze stacji** — zwykłe paliwo.
+- **Zasięg** z badań stacji (Produkcja): „Premia stacji: planeta” → „Zasięg premii: układ” → „Zasięg premii: sąsiednie
+  układy” (do 20 jednostek mapy). Premia słabnie: planeta pod stacją 100%, reszta układu 50%, sąsiednie układy 25%;
+  siła rośnie z poziomem rdzenia.
+- Badanie Floty „Start ze stacji”: loty ze stacji −25% czasu (statki startują od razu z pełną prędkością).
+- Widać: panel „Planeta” (wiersz premii), karta rdzenia w „Modułach”, przerywany turkusowy pierścień przy planetach
+  w zasięgu w widoku układu. Logika `core/station/stationAura.ts` (liczby robocze `STATION_AURA`); zapis bez zmian.
+
 ## v0.73.0 — stacja kosmiczna, etap 2a: badania stacji — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 2):

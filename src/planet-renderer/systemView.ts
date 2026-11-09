@@ -25,6 +25,8 @@ export interface SystemBody {
   gas?: { bands: readonly string[]; rings: boolean };
   /** Nad planetą krąży stacja macierzysta (etap 1 planu stacji) — znaczek obok, dotknięcie = ekran stacji. */
   station?: boolean;
+  /** Planeta w zasięgu premii stacji (etap 2b): udział 0–1 — przerywany turkusowy pierścień. */
+  aura?: number;
 }
 
 /** Przesunięcie znaczka stacji względem środka planety (× promień rysunku). */
@@ -330,6 +332,16 @@ export class SystemView {
         ctx.beginPath();
         ctx.arc(s.x, s.y, r + 4, 0, Math.PI * 2);
         ctx.stroke();
+      }
+      if (b.aura) {
+        ctx.save();
+        ctx.setLineDash([3, 4]);
+        ctx.strokeStyle = `rgba(95, 242, 224, ${0.35 + 0.5 * b.aura})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r + 9, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
       }
       if (b.station) this.drawStationMark(s.x + r * STATION_OFFSET.x, s.y + r * STATION_OFFSET.y, Math.max(7, r * 0.55));
       ctx.fillStyle = b.own ? '#e8dcc0' : '#8ea6a0';

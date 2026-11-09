@@ -18,7 +18,8 @@ import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upg
 import { stationScreen, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
 import { stationModuleDef } from '../data/stationModules.ts';
 import { completeStationResearch, EMPTY_STATION_RESEARCH, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
-import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId } from '../data/stationResearch.ts';
+import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect } from '../data/stationResearch.ts';
+import { auraEffects, auraReachName, auraShare, auraStats, STATION_AURA, type AuraStats } from '../core/station/stationAura.ts';
 import {
   advance,
   antimatterAmount,
@@ -485,6 +486,18 @@ export interface TransferView {
 }
 
 /** Stacja macierzysta do karty w Imperium (v0.55). */
+/** Opis efektu badania stacji (ekran „Badania stacji”). */
+function describeStationEffect(e: StationResearchEffect): string {
+  if (e.kind === 'prepares') return `Przygotowuje: ${e.what} (etap ${e.stage}).`;
+  if (e.kind === 'stationResearchTime') return `Badania stacji ${e.percent}% czasu.`;
+  if (e.kind === 'stationLaunchTime') return `Loty ze stacji macierzystej ${e.percent}% czasu.`;
+  if (e.kind === 'stationAura') {
+    const a = STATION_AURA;
+    return `Premia stacji: +${a.output}% wydobycia, ${a.buildTime}% czasu budowy, ${a.fuelToStation}% paliwa lotów na stację — zasięg: ${auraReachName(e.reach)} (planeta pod stacją 100%, reszta układu 50%, sąsiednie układy 25%).`;
+  }
+  return `Imperium: ${describeEffectList([e])}.`;
+}
+
 /** Ekran „Badania stacji” (etap 2a planu stacji). */
 export interface StationResearchView {
   built: boolean;
@@ -744,12 +757,15 @@ export class GameController {
     const found = this.findEffectsCached();
     // Badania stacji (etap 2a planu stacji) — efekty dla każdej planety imperium.
     const stationDone = this.station?.research?.done ?? [];
-    const effects = [...own, ...rare.effects, ...found.effects, ...stationEmpireEffects(stationDone)];
+    // Premia stacji (etap 2b) — tylko planety w zasięgu, słabsza dalej od stacji.
+    const auraShareNow = this.auraShareFor(slot.address, at);
+    const aura = auraEffects(this.stationAura(at), auraShareNow);
+    const effects = [...own, ...rare.effects, ...found.effects, ...stationEmpireEffects(stationDone), ...aura];
     // Stacja na pasie asteroid (v0.37): urobek doliczony do przyrostu podstawowego planety.
     const station = stationLevelAt(slot.asteroid, at);
     // Energia gwiazdy (v0.44): kolektory wszystkich planet gracza w tym układzie.
     const star = Math.round(this.starEnergyAt(slot, at) * 1000) / 1000;
-    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}|s${star}|r${stationDone.length}`;
+    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}|s${star}|r${stationDone.length}|au${auraShareNow}:${this.stationAura(at).output}`;
     const hit = this.balanceCache.get(slot);
     if (hit && hit.done === slot.research.done && hit.spec === spec) return hit.balance;
     const balance = withStarEnergy(withStation(applyResearch(BALANCE, slot.research.done, effects), station), star);
@@ -1961,7 +1977,7 @@ export class GameController {
         name: n.name,
         description: n.description,
         requires: n.requires.map((r) => ({ id: r, name: findStationResearch(r)?.name ?? r, category: findStationResearch(r)?.category ?? n.category })),
-        effects: n.effects.map((e) => (e.kind === 'prepares' ? `Przygotowuje: ${e.what} (etap ${e.stage}).` : e.kind === 'stationResearchTime' ? `Badania stacji ${e.percent}% czasu.` : `Imperium: ${describeEffectList([e])}.`)),
+        effects: n.effects.map((e) => describeStationEffect(e)),
         status: stationResearchStatus(n, state, lab),
         cost: stationResearchCost(n),
         seconds: stationResearchSeconds(n, Math.max(1, lab), state.done),
@@ -2020,10 +2036,10 @@ export class GameController {
     const ships = this.shipsMissing(escort);
     if (ships) return { ok: false, message: ships };
     const load = check.cargo;
-    const fuel = this.stationFuel(to, now);
+    const fuel = this.stationFuel(to, now, 'from');
     const short = fuelShortage(fuel, this.economy.antimatter);
     if (short) return { ok: false, message: short };
-    const seconds = this.stationSeconds(to, now);
+    const seconds = this.stationSeconds(to, now, 'from');
     this.station = { ...s, stock: { metal: s.stock.metal - load.metal, crystal: s.stock.crystal - load.crystal } };
     this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
     this.launchTransport(escort);
@@ -2038,19 +2054,59 @@ export class GameController {
   }
 
   /** Paliwo lotu między planetą `address` a stacją macierzystą (przez stację kolonii — taniej; etap 9). */
-  private stationFuel(address: string, now = Date.now()): number {
+  private stationFuel(address: string, now = Date.now(), dir: 'to' | 'from' = 'to'): number {
     const s = this.station;
     if (!s) return 0;
     const fuel = fuelCost('transport', this.distanceBetween(address, s.address), this.balance);
-    return colonyStationReady(this.colonyStations, address, now) ? relayFuel(fuel, this.balance) : fuel;
+    const relayed = colonyStationReady(this.colonyStations, address, now) ? relayFuel(fuel, this.balance) : fuel;
+    // Premia stacji (etap 2b): lot NA stację z planety w zasięgu taniej; ze stacji — zwykła cena paliwa.
+    if (dir === 'from') return relayed;
+    const cut = (this.stationAura(now).fuelToStation / 100) * this.auraShareFor(address, now);
+    return Math.max(0, Math.round(relayed * (1 + cut) * 10) / 10);
   }
 
   /** Czas lotu (s) między planetą `address` a stacją macierzystą (przez stację kolonii — szybciej; etap 9). */
-  private stationSeconds(address: string, now = Date.now()): number {
+  private stationSeconds(address: string, now = Date.now(), dir: 'to' | 'from' = 'to'): number {
     const s = this.station;
     if (!s) return 0;
     const seconds = transportSeconds(this.distanceBetween(address, s.address), this.transportBalance());
-    return colonyStationReady(this.colonyStations, address, now) ? relaySeconds(seconds, this.balance) : seconds;
+    const relayed = colonyStationReady(this.colonyStations, address, now) ? relaySeconds(seconds, this.balance) : seconds;
+    // Badanie „Start ze stacji” (etap 2b): loty ZE stacji krótsze.
+    if (dir === 'to') return relayed;
+    return Math.max(1, Math.round(relayed * Math.max(0.3, 1 + this.stationAura(now).fromStationTime / 100)));
+  }
+
+  // ——— premia stacji (etap 2b planu stacji) ———
+
+  /** Premia stacji macierzystej z jej badań i poziomu rdzenia (bez gotowej stacji — brak). */
+  stationAura(now = Date.now()): AuraStats {
+    const s = this.station;
+    if (!s || !stationReady(s, now)) return auraStats([], 1) as AuraStats;
+    return auraStats(s.research?.done ?? [], s.core.level);
+  }
+
+  /** Udział planety `address` w premii stacji (0–1): planeta pod stacją 100%, układ 50%, sąsiednie układy 25%. */
+  auraShareFor(address: string, now = Date.now()): number {
+    const s = this.station;
+    if (!s || !stationReady(s, now)) return 0;
+    const reach = this.stationAura(now).reach;
+    if (reach === 0) return 0;
+    const sameSystem = parseAddress(address)?.system === parseAddress(s.address)?.system;
+    return auraShare(reach, address === s.address, sameSystem, this.distanceBetween(address, s.address));
+  }
+
+  /** Premia stacji dla interfejsu: zasięg, siła i planety imperium w zasięgu (z udziałem). */
+  stationAuraView(now = Date.now()): { reach: number; reachName: string; output: number; buildTime: number; fuelToStation: number; fromStationTime: number; planets: { address: string; name: string; share: number }[] } {
+    const a = this.stationAura(now);
+    return {
+      reach: a.reach,
+      reachName: auraReachName(a.reach),
+      output: a.output,
+      buildTime: a.buildTime,
+      fuelToStation: a.fuelToStation,
+      fromStationTime: a.fromStationTime,
+      planets: this.slots.map((slot) => ({ address: slot.address, name: slot.planet.displayName, share: this.auraShareFor(slot.address, now) })).filter((p) => p.share > 0),
+    };
   }
 
   // ——— stacje kolonii (etap 9) ———
@@ -2132,8 +2188,8 @@ export class GameController {
     return this.slots.map((slot) => ({
       address: slot.address,
       name: slot.planet.displayName,
-      seconds: this.stationSeconds(slot.address),
-      fuel: this.stationFuel(slot.address),
+      seconds: this.stationSeconds(slot.address, Date.now(), 'from'),
+      fuel: this.stationFuel(slot.address, Date.now(), 'from'),
       relay: colonyStationReady(this.colonyStations, slot.address, Date.now()),
     }));
   }
