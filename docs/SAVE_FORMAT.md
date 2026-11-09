@@ -213,7 +213,9 @@ Błędne wpisy pomijane. Rozstrzygnięte i naliczone przez planetę wpisy znikaj
 "outposts": [
   { "site": "pas:12", "kind": "mining", "system": 12,     // jedna stacja na miejsce (pas układu)
     "arrivesAt": 3600000, "level": 2, "readyAt": 9000000,  // przylot statku konstrukcyjnego, poziom docelowy i jego gotowość
-    "collectedAt": 9500000 }                               // ostatnie naliczenie urobku do magazynu stacji macierzystej
+    "collectedAt": 9500000 },                              // ostatnie naliczenie urobku do magazynu stacji macierzystej
+  { "site": "gaz:1:12:5", "kind": "gas", "system": 12, "target": "1:12:5",   // stacja gazowa (od v0.83): adres olbrzyma
+    "arrivesAt": 0, "level": 1, "readyAt": 0, "collectedAt": 0 }             //   antymateria → wspólny zapas imperium
 ]
 ```
 Błędne wpisy pomijane. Flota: `fleet.docked.constructionShip` (od v0.82; brak = 0).

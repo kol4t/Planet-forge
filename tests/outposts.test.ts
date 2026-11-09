@@ -25,7 +25,7 @@ test('stacje wyspecjalizowane: wysyłka — stacja, badania, pas, jedna na pas, 
 test('stacje wyspecjalizowane: urobek od przylotu, rozbudowa z podziałem w chwili końca, zapis', () => {
   const o = (sendConstructionShip([], ctx) as { outpost: any }).outpost;
   assert.equal(outpostLevel(o, 0), 0);
-  assert.deepEqual(outpostYield(o, h), { metal: 0, crystal: 0 }, 'statek leci');
+  assert.deepEqual(outpostYield(o, h), { metal: 0, crystal: 0, antimatter: 0 }, 'statek leci');
   assert.equal(outpostYield(o, 3 * h).metal, 2 * OUTPOSTS.kinds.mining.perHour.metal);
   assert.match((upgradeOutpost(o, { metal: 1e9, crystal: 1e9 }, 0) as { message: string }).message, /leci/);
   assert.match((upgradeOutpost(o, { metal: 0, crystal: 0 }, h) as { message: string }).message, /brakuje/);
@@ -61,4 +61,40 @@ test('stacje wyspecjalizowane w grze: statek ze stoczni po badaniu, lot, urobek 
   const stock = c.tradeView(arrive + 2 * h).stock;
   assert.ok(Math.abs(stock.metal - 2 * OUTPOSTS.kinds.mining.perHour.metal) < 1, `urobek metalu ${stock.metal}`);
   assert.equal(c.fleetView(arrive + 2 * h).ships.find((s) => s.type === 'constructionShip')!.flying, 0, 'statek zużyty');
+});
+
+test('stacja gazowa (4b): przy olbrzymie, po badaniu „Czerpanie gazu”, antymateria do wspólnego zapasu', () => {
+  const gctx = { ...ctx, kind: 'gas' as const, target: '1:7:5', done: ['st-space-mining', 'st-gas-harvest'] };
+  assert.match((sendConstructionShip([], { ...gctx, done: ['st-space-mining'] }) as { message: string }).message, /Czerpanie gazu/);
+  assert.match((sendConstructionShip([], { ...gctx, hasSite: false }) as { message: string }).message, /gazowym olbrzymie/);
+  const ok = sendConstructionShip([], gctx);
+  assert.ok(ok.ok);
+  assert.equal(ok.outpost.site, 'gaz:1:7:5');
+  assert.match((sendConstructionShip([ok.outpost], gctx) as { message: string }).message, /olbrzymie już/);
+  assert.ok(sendConstructionShip([ok.outpost], { ...gctx, target: '1:7:6' }).ok, 'drugi olbrzym w tym samym układzie');
+  const y = outpostYield(ok.outpost, 3 * h);
+  assert.equal(y.metal, 0);
+  assert.ok(Math.abs(y.antimatter - 2 * OUTPOSTS.kinds.gas.antimatterPerHour) < 1e-9);
+  assert.deepEqual(parseOutposts([ok.outpost, { ...ok.outpost, site: 'gaz:x', target: 5 }]), [ok.outpost]);
+
+  const c = new GameController(0);
+  let giant: string | null = null;
+  for (let i = 1; i <= 100 && !giant; i++) giant = c.system(i)?.planets.find((p) => p.body === 'gas-giant')?.address ?? null;
+  (c as unknown as { station: unknown }).station = { address: c.address, core: { level: 1, readyAt: 0 }, storage: { level: 10, readyAt: 0 }, stock: { metal: 0, crystal: 0 }, research: { done: ['st-space-mining', 'st-gas-harvest'], current: null } };
+  (c as unknown as { fleet: { docked: Record<string, number> } }).fleet.docked.constructionShip = 1;
+  c.economy = { ...c.economy, antimatter: 500 };
+  assert.match(c.sendGasOutpost(c.address, 0).message, /gazowym olbrzymie/, 'zwykła planeta to nie olbrzym');
+  const r = c.sendGasOutpost(giant!, 0);
+  assert.ok(r.ok, r.message);
+  const info = c.gasOutpostInfo(giant!, 0);
+  assert.ok(info.built?.flying);
+  const arrive = info.built!.secondsLeft * 1000;
+  c.tick(arrive);
+  const before = c.economy.antimatter;
+  const own = c.rates.antimatterPerHour;
+  c.tick(arrive + 5 * h);
+  // Przyrost = własny (pasywny i kolektory) + stacja gazowa.
+  const gain = c.economy.antimatter - before;
+  assert.ok(Math.abs(gain - 5 * (own + OUTPOSTS.kinds.gas.antimatterPerHour)) < 0.01, `przyrost ${gain}`);
+  assert.equal(c.outpostsView(null, arrive + 5 * h).list[0]!.kind, 'gas');
 });

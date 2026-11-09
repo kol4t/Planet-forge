@@ -2,6 +2,16 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.83.0 — stacja kosmiczna, krok 4b: stacja gazowa — robocza
+
+Decyzja właściciela 2026-11-09 (gaz → antymateria, bez nowego zasobu):
+- **Stacja gazowa** przy gazowym olbrzymie (po badaniu stacji „Czerpanie gazu”): widok układu → stuknij olbrzyma →
+  „Wyślij statek konstrukcyjny”. Wytwarza antymaterię: 0,6 na godzinę na poz. 1 (×1,25 na poziom, poz. 1–10) — do
+  wspólnego zapasu antymaterii imperium.
+- Jedna stacja na olbrzyma (kilka olbrzymów w układzie — kilka stacji), wspólny limit stacji wyspecjalizowanych z badań.
+- Znaczek stacji przy olbrzymie w widoku układu; okno „Placówki” pokazuje antymaterię na godzinę.
+- `core/station/outposts.ts` (rodzaj `gas`, pole `target` w zapisie `outposts`).
+
 ## v0.82.0 — stacja kosmiczna, krok 4a: statek konstrukcyjny i stacja górnicza — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 4; kolejność 4a statek + górnicza → 4b gazowa →

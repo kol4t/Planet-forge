@@ -570,7 +570,8 @@ export interface OutpostsView {
   ships: number;
   stationReady: boolean;
   target: { system: number; name: string; hasBelt: boolean; taken: boolean; seconds: number; fuel: number } | null;
-  list: { site: string; name: string; system: number; level: number; flying: boolean; upgrading: boolean; secondsLeft: number; output: Resources; nextCost: Resources | null }[];
+  list: { site: string; kind: 'mining' | 'gas'; name: string; system: number; target: string | null; level: number; flying: boolean; upgrading: boolean; secondsLeft: number; output: Resources & { antimatter: number }; nextCost: Resources | null }[];
+  gasUnlocked: boolean;
 }
 
 /** Wzmocnienia budowli (krok 3c). */
@@ -2260,6 +2261,7 @@ export class GameController {
     return {
       unlocked: done.includes('st-space-mining'),
       miningUnlocked: done.includes(OUTPOSTS.kinds.mining.research),
+      gasUnlocked: done.includes(OUTPOSTS.kinds.gas.research),
       limit: outpostLimit(done),
       ships: this.fleet.docked.constructionShip,
       stationReady: stationReady(this.station, now),
@@ -2272,7 +2274,9 @@ export class GameController {
         const next = o.level < OUTPOSTS.upgrade.maxLevel ? outpostUpgradeCost(o.level + 1) : null;
         return {
           site: o.site,
-          name: `${OUTPOSTS.kinds[o.kind].name} — ${this.system(o.system)?.name ?? `układ ${o.system}`}`,
+          kind: o.kind,
+          name: `${OUTPOSTS.kinds[o.kind].name} — ${o.kind === 'gas' && o.target ? (this.system(o.system)?.planets[(parseAddress(o.target)?.position ?? 1) - 1]?.name ?? o.target) : (this.system(o.system)?.name ?? `układ ${o.system}`)}`,
+          target: o.target ?? null,
           system: o.system,
           level,
           flying: now < o.arrivesAt,
@@ -2285,15 +2289,39 @@ export class GameController {
     };
   }
 
-  /** Wysyłka statku konstrukcyjnego na pas asteroid układu `system` (zalążek stacji górniczej). */
-  sendOutpost(system: number, now = Date.now()): ActionMessage {
+  /** Stacja gazowa przy gazowym olbrzymie `address` (krok 4b): stan, lot, paliwo. */
+  gasOutpostInfo(address: string, now = Date.now()): { unlocked: boolean; built: OutpostsView['list'][number] | null; seconds: number; fuel: number; ships: number; used: number; limit: number } {
+    const v = this.outpostsView(null, now);
+    const where = parseAddress(address);
+    const flight = this.outpostFlight(where?.system ?? 1);
+    return {
+      unlocked: (this.station?.research?.done ?? []).includes(OUTPOSTS.kinds.gas.research),
+      built: v.list.find((o) => o.site === siteKey('gas', where?.system ?? 0, address)) ?? null,
+      seconds: flight.seconds,
+      fuel: flight.fuel,
+      ships: v.ships,
+      used: v.list.length,
+      limit: v.limit,
+    };
+  }
+
+  /** Wysyłka statku konstrukcyjnego do gazowego olbrzyma `address` (zalążek stacji gazowej, krok 4b). */
+  sendGasOutpost(address: string, now = Date.now()): ActionMessage {
+    const where = parseAddress(address);
+    const p = where ? this.system(where.system)?.planets[where.position - 1] : undefined;
+    return this.sendOutpost(where?.system ?? 0, now, 'gas', p?.body === 'gas-giant' ? address : undefined);
+  }
+
+  /** Wysyłka statku konstrukcyjnego na pas asteroid układu `system` (zalążek stacji górniczej) albo do olbrzyma. */
+  sendOutpost(system: number, now = Date.now(), kind: 'mining' | 'gas' = 'mining', target?: string): ActionMessage {
     this.tick(now);
     const sys = this.system(system);
     const flight = this.outpostFlight(system);
     const r = sendConstructionShip(this.outposts, {
-      kind: 'mining',
+      kind,
       system,
-      hasSite: !!sys?.belt,
+      ...(target ? { target } : {}),
+      hasSite: kind === 'gas' ? !!target : !!sys?.belt,
       done: this.station?.research?.done ?? [],
       ships: this.fleet.docked.constructionShip,
       stationReady: stationReady(this.station, now),
@@ -2306,7 +2334,10 @@ export class GameController {
     this.economy = { ...this.economy, antimatter: this.economy.antimatter - flight.fuel };
     this.fleet = { ...this.fleet, docked: { ...this.fleet.docked, constructionShip: this.fleet.docked.constructionShip - 1 } };
     this.outposts = [...this.outposts, r.outpost];
-    const text = `Statek konstrukcyjny wyleciał na pas asteroid (${sys?.name ?? system}) — stacja górnicza za ${formatFlight(flight.seconds)}, ${fuelLabel(flight.fuel)}.`;
+    const text =
+      kind === 'gas'
+        ? `Statek konstrukcyjny wyleciał do gazowego olbrzyma (${sys?.name ?? system}) — stacja gazowa za ${formatFlight(flight.seconds)}, ${fuelLabel(flight.fuel)}.`
+        : `Statek konstrukcyjny wyleciał na pas asteroid (${sys?.name ?? system}) — stacja górnicza za ${formatFlight(flight.seconds)}, ${fuelLabel(flight.fuel)}.`;
     this.log('ship', text, now);
     this.save();
     this.emit();
@@ -2342,11 +2373,15 @@ export class GameController {
       if (now <= o.arrivesAt) return o;
       // Pierwsze naliczenie po przylocie (collectedAt wciąż = przylot) — wpis w dzienniku.
       if (o.collectedAt === o.arrivesAt) {
-        const text = `${OUTPOSTS.kinds[o.kind].name} rozłożona na pasie asteroid (${this.system(o.system)?.name ?? o.system}) — urobek trafia do magazynu stacji macierzystej.`;
+        const text =
+          o.kind === 'gas'
+            ? `Stacja gazowa rozłożona przy gazowym olbrzymie (${this.system(o.system)?.name ?? o.system}) — antymateria trafia do wspólnego zapasu.`
+            : `${OUTPOSTS.kinds[o.kind].name} rozłożona na pasie asteroid (${this.system(o.system)?.name ?? o.system}) — urobek trafia do magazynu stacji macierzystej.`;
         this.log('build', text, o.arrivesAt);
         texts.push(text);
       }
       const got = outpostYield(o, now);
+      if (got.antimatter > 0) this.economy = { ...this.economy, antimatter: this.economy.antimatter + got.antimatter };
       if (stock) {
         stock.metal = add(stock.metal, got.metal);
         stock.crystal = add(stock.crystal, got.crystal);

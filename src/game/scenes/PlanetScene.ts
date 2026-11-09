@@ -420,11 +420,12 @@ export class PlanetScene extends Phaser.Scene {
     const c = this.deps.controller;
     const system = c.system(index);
     if (!system) return null;
+    const outposts = c.outpostsView().list;
     const zone: Record<string, string> = { hot: '#e0785a', warm: '#d8b463', temperate: '#72c4b6', cold: '#8fb0d8', frozen: '#c8d8ec' };
     return {
       starColor: findStar(system.star).color,
       beltAfter: system.belt ? system.belt.after - 1 : null,
-      ...(c.outpostsView().list.some((o) => o.system === index && !o.flying) ? { beltOutpost: true } : {}),
+      ...(outposts.some((o) => o.kind === 'mining' && o.system === index && !o.flying) ? { beltOutpost: true } : {}),
       bodies: system.planets.map((p) => {
         const slot = c.slotAt(p.address);
         const own = slot >= 0;
@@ -438,6 +439,7 @@ export class PlanetScene extends Phaser.Scene {
           own,
           active: p.address === c.address,
           ...(own && p.address === c.stationAddress && c.stationScreen() ? { station: true } : {}),
+          ...(outposts.some((o) => o.target === p.address && !o.flying) ? { outpost: true } : {}),
           ...(own && c.auraShareFor(p.address) > 0 ? { aura: c.auraShareFor(p.address) } : {}),
           ...(p.address === c.address ? { yaw: this.deps.display.orientation().yaw } : {}),
           ...(gas ? { gas: { bands: p.gas!.bands, rings: p.gas!.rings } } : { planet: this.planetFor(p.address, p.definitionId) }),
@@ -912,6 +914,17 @@ export class PlanetScene extends Phaser.Scene {
         lines.push(`Statek kolonizacyjny z floty (na stanie: ${ships}) · ${fuelLabel(c.colonyFuelTo(p.address))} · lot ${formatDuration(c.flightSeconds(where!.system))}` + (own ? '' : ` · ${c.riskText(c.address, p.address)}`));
         actions.push({ label: 'Wyślij statek', primary: true, run: () => this.afterInfoAction(own ? c.colonize(p.address) : c.sendColonyShip(p.address)) });
       } else lines.push('Do innych układów poleci statek kolonizacyjny — najpierw badanie „Napęd międzygwiezdny” (Eksploracja).');
+    }
+    // Stacja gazowa (krok 4b): statek konstrukcyjny ze stacji macierzystej; antymateria do wspólnego zapasu.
+    if (gas) {
+      const g = c.gasOutpostInfo(p.address);
+      if (g.built) {
+        lines.push(g.built.flying ? `Stacja gazowa: statek leci — przylot za ${formatDuration(g.built.secondsLeft)}.` : `Twoja stacja gazowa: poz. ${g.built.level} · +${g.built.output.antimatter.toFixed(2).replace('.', ',')} antymaterii na godzinę.`);
+        actions.push({ label: 'Stacje wyspecjalizowane', primary: true, run: () => this.openOutposts() });
+      } else if (g.unlocked) {
+        lines.push(`Stacja gazowa (antymateria): lot ${formatDuration(g.seconds)}, paliwo ${g.fuel} · statki konstrukcyjne: ${g.ships} · stacje ${g.used}/${g.limit}.`);
+        actions.push({ label: 'Wyślij statek konstrukcyjny', primary: true, run: () => this.afterInfoAction(c.sendGasOutpost(p.address)) });
+      } else if (c.outpostsView().unlocked) lines.push('Stację gazową odblokowuje badanie stacji „Czerpanie gazu” (Eksploracja).');
     }
     actions.push({ label: 'Tabela układu', run: () => this.openMap(where!.system) });
     this.closeInfo?.();
