@@ -1115,3 +1115,9 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
   tańsze paliwo lotów na stację (`stationFuel(…, 'to')`), loty ze stacji krótsze po badaniu „Start ze stacji”
   (`stationSeconds(…, 'from')`). Słabnięcie 100 / 50 / 25%, sąsiednie układy ≤ 20 jedn. mapy (średnio ok. 4).
   Zasięg i siła tylko z badań stacji i poziomu rdzenia (rdzeń rośnie w kolejnych etapach).
+
+## 2026-11-09 — Stacja, krok 2c: pełne drzewko badań (akceptacja właściciela)
+
+- 90 badań (6 × 15, 6 pierścieni). Efekty liczbowe spoza `ResearchEffect` jako `stationModifier` → `withStationResearch`
+  zmienia balans (paliwo przez nowe `BALANCE.fuelFactor`, stocznia, eskorta, naprawy, straty, magazyn stacji, resztki).
+  Badania „🔓” (`stationUnlock`) można zbadać przed wejściem mechaniki — efekt zadziała, gdy mechanika powstanie (2d).

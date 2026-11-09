@@ -26,7 +26,7 @@ const STATUS_TEXT: Record<Node['status'], string> = {
 
 /** Promień pierścienia galaktyki kategorii (× rozmiar mapy) i rozstaw gałęzi (rad). */
 const RING_STEP = 0.2;
-const LANE_SPREAD = 0.62;
+const LANE_SPREAD = 0.75;
 
 export class StationResearchScene extends OverlayScene {
   private category: StationCategoryId | null = null;
@@ -131,9 +131,11 @@ export class StationResearchScene extends OverlayScene {
 
   // ——— mapa: galaktyka kategorii ———
 
+  /** Gwiazda badania: pierścień = odległość od jądra, gałąź = kąt (odstęp ok. 120 pt po łuku, niezależnie od pierścienia). */
   private nodeSpot(n: Node, R: number): { x: number; y: number } {
-    const a = -Math.PI / 2 + n.lane * LANE_SPREAD / Math.max(1, n.ring * 0.75);
     const d = R * RING_STEP * (n.ring + 0.6);
+    const step = Math.min(LANE_SPREAD, Math.max(0.12, this.s(120) / d));
+    const a = -Math.PI / 2 + (n.lane / 1.25) * step;
     return { x: Math.cos(a) * d, y: Math.sin(a) * d };
   }
 
@@ -160,8 +162,8 @@ export class StationResearchScene extends OverlayScene {
     // Jądro kategorii.
     g.fillStyle(cat.color, 0.25).fillCircle(this.px(cx), this.px(cy + oy), this.px(R * 0.06));
     // Połączenia w kategorii i mosty do innych.
-    let bridgeIndex = 0;
     for (const n of nodes) {
+      let bridgeIndex = 0;
       const p = at.get(n.id)!;
       if (n.requires.length === 0) {
         g.lineStyle(this.px(2), cat.color, 0.35).lineBetween(this.px(cx), this.px(cy + oy), this.px(cx + p.x), this.px(cy + p.y));
@@ -175,14 +177,17 @@ export class StationResearchScene extends OverlayScene {
         }
         // Most: znacznik innej kategorii z boku gwiazdy, dotknięcie — przejście do tamtej kategorii.
         const other = view.categories.find((c) => c.id === r.category)!;
-        const side = bridgeIndex++ % 2 === 0 ? 1 : -1;
-        const bx = p.x + side * this.s(78);
-        const by = p.y - this.s(30);
+        // Na zewnątrz galaktyki (strona gałęzi), kolejne mosty tej samej gwiazdy — niżej.
+        const side = n.lane > 0 ? 1 : n.lane < 0 ? -1 : bridgeIndex % 2 === 0 ? 1 : -1;
+        const bx = p.x + side * this.s(70);
+        const by = p.y - this.s(14) + bridgeIndex * this.s(26);
+        bridgeIndex++;
+        const bw = this.s(92);
         g.lineStyle(this.px(1.5), other.color, 0.8);
         g.lineBetween(this.px(cx + bx), this.px(cy + by), this.px(cx + p.x), this.px(cy + p.y));
-        g.fillStyle(0x0b1416, 0.95).fillRoundedRect(this.px(cx + bx - this.s(52)), this.px(cy + by - this.s(13)), this.px(this.s(104)), this.px(this.s(26)), this.px(this.s(13)));
-        g.lineStyle(this.px(1.5), other.color, 0.9).strokeRoundedRect(this.px(cx + bx - this.s(52)), this.px(cy + by - this.s(13)), this.px(this.s(104)), this.px(this.s(26)), this.px(this.s(13)));
-        const label = this.text(cx + bx, cy + by, `most · ${other.name}`, 10, COLORS.text, {}, false).setOrigin(0.5);
+        g.fillStyle(0x0b1416, 0.95).fillRoundedRect(this.px(cx + bx - bw / 2), this.px(cy + by - this.s(11)), this.px(bw), this.px(this.s(22)), this.px(this.s(11)));
+        g.lineStyle(this.px(1.5), other.color, 0.9).strokeRoundedRect(this.px(cx + bx - bw / 2), this.px(cy + by - this.s(11)), this.px(bw), this.px(this.s(22)), this.px(this.s(11)));
+        const label = this.text(cx + bx, cy + by, `most · ${other.name}`, 9.5, COLORS.text, {}, false).setOrigin(0.5);
         this.map!.add(label);
         this.spots.push({ id: r.id, x: bx, y: by, r: this.s(30), category: r.category });
       }

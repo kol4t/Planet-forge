@@ -37,3 +37,4 @@ Do poprawienia w Projekcie lore (pliki w `docs/lore/` są kopią — nie poprawi
 
 | Moduły stacji: Rdzeń SI Matki, Magazyn orbitalny, Stocznia, Laboratorium orbitalne, Dok handlowy, Moduł mieszkalny, Nasłuch (robocze, etap 1 planu stacji) | `src/data/stationModules.ts` | — |
 | Kategorie i badania stacji (Produkcja, Flota, SI, Planetologia, Handel, Eksploracja; 27 badań — szkic roboczy, etap 2a) | `src/data/stationResearch.ts` | — |
+| Pełna lista 90 badań stacji (krok 2c, robocze nazwy) | `src/data/stationResearch.ts`, `docs/badania-stacji.md` | — |

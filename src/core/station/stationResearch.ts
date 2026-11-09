@@ -1,9 +1,9 @@
 // Badania stacji (etap 2a planu stacji): Laboratorium orbitalne i osobne drzewko badań — płaci magazyn stacji,
 // kolejka osobna od planet (jedno badanie naraz), efekty dla całego imperium. Czysta logika: warunki → koszt →
 // nowy stan albo czytelny błąd; odczyt z zapisu.
-import { findStationResearch, STATION_RESEARCH, STATION_RESEARCH_RULES as R, type StationResearchEffect, type StationResearchNode } from '../../data/stationResearch.ts';
+import { findStationResearch, STATION_RESEARCH, STATION_RESEARCH_RULES as R, type StationResearchEffect, type StationResearchNode, type StationStat } from '../../data/stationResearch.ts';
 import { stationLevelAt } from '../economy/asteroids.ts';
-import type { AsteroidStation, HomeStation, ResearchEffect, Resources } from '../types.ts';
+import type { AsteroidStation, Balance, HomeStation, ResearchEffect, Resources } from '../types.ts';
 
 export interface StationResearchState {
   done: string[];
@@ -135,8 +135,35 @@ export function stationEmpireEffects(done: readonly string[]): ResearchEffect[] 
   return out;
 }
 
-const isEmpireEffect = (e: StationResearchEffect): e is ResearchEffect =>
-  e.kind !== 'stationResearchTime' && e.kind !== 'prepares' && e.kind !== 'stationLaunchTime' && e.kind !== 'stationAura';
+const STATION_ONLY = new Set(['stationResearchTime', 'prepares', 'stationLaunchTime', 'stationAura', 'stationAuraStrength', 'stationModifier', 'stationUnlock']);
+const isEmpireEffect = (e: StationResearchEffect): e is ResearchEffect => !STATION_ONLY.has(e.kind);
+
+/**
+ * Liczby gry zmienione badaniami stacji (krok 2c): paliwo lotów, stocznia, eskorta, naprawy, straty ładunku,
+ * magazyn stacji, wydobycie resztek złoża — dla całego imperium (balans każdej planety).
+ */
+export function withStationResearch(balance: Balance, done: readonly string[]): Balance {
+  const sum: Partial<Record<StationStat, number>> = {};
+  for (const id of done) for (const e of findStationResearch(id)?.effects ?? []) if (e.kind === 'stationModifier') sum[e.stat] = (sum[e.stat] ?? 0) + e.value;
+  if (Object.keys(sum).length === 0) return balance;
+  const pct = (stat: StationStat) => Math.max(0.1, 1 + (sum[stat] ?? 0) / 100);
+  const fleet = balance.fleet;
+  const ships = Object.fromEntries(Object.entries(fleet.ships).map(([k, v]) => [k, { ...v, seconds: Math.max(30, Math.round(v.seconds * pct('shipTime'))) }])) as typeof fleet.ships;
+  const risk = balance.missionRisk;
+  return {
+    ...balance,
+    fuelFactor: (balance.fuelFactor ?? 1) * pct('fuel'),
+    fleet: { ...fleet, ships, queue: fleet.queue + Math.round(sum.shipQueue ?? 0) },
+    missionRisk: {
+      ...risk,
+      escortCut: Math.min(0.9, risk.escortCut + (sum.escortCut ?? 0)),
+      repairSeconds: Math.round(risk.repairSeconds * pct('repairTime')),
+      lossShare: { min: risk.lossShare.min * pct('pirateLoss'), max: risk.lossShare.max * pct('pirateLoss') },
+    },
+    homeStation: { ...balance.homeStation, storageBase: Math.round(balance.homeStation.storageBase * pct('stationStorage')) },
+    exploitation: { ...balance.exploitation, remnantOutput: Math.min(1, balance.exploitation.remnantOutput * pct('remnantOutput')) },
+  };
+}
 
 /** Odczyt z zapisu: nieznane i powtórzone badania pomijane, błędne „w toku” — bez badania. */
 export function parseStationResearch(raw: any): StationResearchState {

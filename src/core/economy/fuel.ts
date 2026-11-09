@@ -6,8 +6,9 @@ import { antimatterAmount } from './economy.ts';
 /** Antymateria za lot rodzaju `kind` na odległość `distance` (jednostki mapy; 0 = ten sam układ). */
 export function fuelCost(kind: FuelKind, distance: number, balance: Balance): number {
   const rule = balance.fuel[kind];
-  if (!(distance > 0)) return rule.inSystem;
-  return rule.base + Math.ceil(distance / rule.unitsPerOne);
+  const raw = distance > 0 ? rule.base + Math.ceil(distance / rule.unitsPerOne) : rule.inSystem;
+  const f = balance.fuelFactor ?? 1;
+  return f === 1 ? raw : Math.round(raw * f * 10) / 10;
 }
 
 /** Komunikat, gdy w portfelu brakuje paliwa (null — wystarczy). */
