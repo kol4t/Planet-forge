@@ -17,6 +17,8 @@ import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAn
 import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeStationStorage } from '../core/economy/homeStation.ts';
 import { stationScreen, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
 import { stationModuleDef } from '../data/stationModules.ts';
+import { completeStationResearch, EMPTY_STATION_RESEARCH, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
+import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId } from '../data/stationResearch.ts';
 import {
   advance,
   antimatterAmount,
@@ -483,6 +485,34 @@ export interface TransferView {
 }
 
 /** Stacja macierzysta do karty w Imperium (v0.55). */
+/** Ekran „Badania stacji” (etap 2a planu stacji). */
+export interface StationResearchView {
+  built: boolean;
+  lab: number;
+  /** Do końca rozbudowy laboratorium (s), 0 — nic się nie buduje. */
+  labUpgrading: number;
+  nextLabCost: Resources | null;
+  /** Magazyn stacji — z niego płaci się za badania. */
+  stock: Resources;
+  current: { id: string; name: string; progress: number; secondsLeft: number } | null;
+  done: number;
+  categories: { id: StationCategoryId; name: string; description: string; color: number; done: number; total: number }[];
+  nodes: {
+    id: string;
+    category: StationCategoryId;
+    ring: number;
+    lane: number;
+    name: string;
+    description: string;
+    requires: { id: string; name: string; category: StationCategoryId }[];
+    effects: string[];
+    status: StationResearchStatus;
+    cost: Resources;
+    seconds: number;
+    labNeeded: number;
+  }[];
+}
+
 /** Karta modułu stacji w panelu „Moduły” (etap 1 planu stacji). */
 export interface StationModuleCard extends StationModuleView {
   name: string;
@@ -492,7 +522,7 @@ export interface StationModuleCard extends StationModuleView {
   /** Koszt następnego poziomu (null — najwyższy albo moduł bez rozbudowy). */
   nextCost: Resources | null;
   /** Akcja przycisku „Ulepsz” (null — brak). */
-  action: 'storage' | 'shipyard' | null;
+  action: 'storage' | 'shipyard' | 'lab' | null;
 }
 
 export interface HomeStationView {
@@ -661,7 +691,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -712,12 +742,14 @@ export class GameController {
     const rare = this.rareEffects();
     // Znaleziska megakompleksów (v0.43.1) — też dla każdej planety imperium.
     const found = this.findEffectsCached();
-    const effects = [...own, ...rare.effects, ...found.effects];
+    // Badania stacji (etap 2a planu stacji) — efekty dla każdej planety imperium.
+    const stationDone = this.station?.research?.done ?? [];
+    const effects = [...own, ...rare.effects, ...found.effects, ...stationEmpireEffects(stationDone)];
     // Stacja na pasie asteroid (v0.37): urobek doliczony do przyrostu podstawowego planety.
     const station = stationLevelAt(slot.asteroid, at);
     // Energia gwiazdy (v0.44): kolektory wszystkich planet gracza w tym układzie.
     const star = Math.round(this.starEnergyAt(slot, at) * 1000) / 1000;
-    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}|s${star}`;
+    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}|s${star}|r${stationDone.length}`;
     const hit = this.balanceCache.get(slot);
     if (hit && hit.done === slot.research.done && hit.spec === spec) return hit.balance;
     const balance = withStarEnergy(withStation(applyResearch(BALANCE, slot.research.done, effects), station), star);
@@ -1816,6 +1848,13 @@ export class GameController {
         card.nextCost = view.nextStorageCost;
         card.action = model.ready && view.nextStorageCost ? 'storage' : null;
       }
+      if (m.id === 'lab') {
+        const lab = this.station?.lab;
+        card.secondsLeft = lab ? Math.max(0, (lab.readyAt - now) / 1000) : 0;
+        const next = (lab?.level ?? 0) + 1;
+        card.nextCost = next <= STATION_RESEARCH_RULES.lab.maxLevel ? labCost(next) : null;
+        card.action = model.ready && card.nextCost ? 'lab' : null;
+      }
       if (m.id === 'shipyard') {
         card.secondsLeft = yard.secondsLeft;
         card.nextCost = yard.nextCost;
@@ -1857,6 +1896,78 @@ export class GameController {
     this.save();
     this.emit();
     return { ok: true, message: `Magazyn orbitalny poz. ${level} — gotowy za ${formatFlight(result.seconds)}.` };
+  }
+
+  // ——— badania stacji (etap 2a planu stacji) ———
+
+  /** Laboratorium orbitalne: budowa / rozbudowa o poziom — płaci magazyn stacji. */
+  upgradeStationLab(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const result = upgradeLab(this.station, now);
+    if (!result.ok) return result;
+    this.station = result.station;
+    const level = result.station.lab!.level;
+    this.log('build', `Laboratorium orbitalne stacji macierzystej — ${level === 1 ? 'budowa' : `rozbudowa do poz. ${level}`}.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Laboratorium orbitalne poz. ${level} — gotowe za ${formatFlight(result.seconds)}.` };
+  }
+
+  /** Start badania stacji (płaci magazyn stacji, kolejka osobna od planet). */
+  startStationResearch(id: string, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const result = startStationResearch(this.station?.research ?? EMPTY_STATION_RESEARCH, this.station, id, now);
+    if (!result.ok) return result;
+    this.station = { ...result.station, research: result.research };
+    const name = findStationResearch(id)!.name;
+    this.log('research', `Stacja: rozpoczęto badanie „${name}”.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Badanie stacji „${name}” — gotowe za ${formatFlight(result.seconds)}.` };
+  }
+
+  /** Ukończone badanie stacji → dziennik i komunikat. */
+  private processStationResearch(now: number): string[] {
+    const s = this.station;
+    if (!s?.research?.current) return [];
+    const r = completeStationResearch(s.research, now);
+    if (!r.completed) return [];
+    this.station = { ...s, research: r.research };
+    const name = findStationResearch(r.completed)?.name ?? r.completed;
+    this.log('research', `Stacja: zbadano „${name}”.`, now);
+    return [`Stacja: zbadano „${name}”.`];
+  }
+
+  /** Widok ekranu „Badania stacji”: laboratorium, magazyn stacji, kategorie i badania z ich stanem. */
+  stationResearchView(now = Date.now()): StationResearchView {
+    const s = this.station;
+    const state = s?.research ?? EMPTY_STATION_RESEARCH;
+    const lab = labLevel(s, now);
+    const nextLab = (s?.lab?.level ?? 0) + 1;
+    return {
+      built: !!s,
+      lab,
+      labUpgrading: s?.lab && now < s.lab.readyAt ? Math.max(0, (s.lab.readyAt - now) / 1000) : 0,
+      nextLabCost: nextLab <= STATION_RESEARCH_RULES.lab.maxLevel ? labCost(nextLab) : null,
+      stock: s?.stock ?? { metal: 0, crystal: 0 },
+      current: state.current ? { id: state.current.id, name: findStationResearch(state.current.id)?.name ?? '', progress: stationResearchProgress(state, now), secondsLeft: Math.max(0, (state.current.readyAt - now) / 1000) } : null,
+      done: state.done.length,
+      categories: STATION_CATEGORIES.map((c) => ({ id: c.id, name: c.name, description: c.description, color: c.color, done: STATION_RESEARCH.filter((n) => n.category === c.id && state.done.includes(n.id)).length, total: STATION_RESEARCH.filter((n) => n.category === c.id).length })),
+      nodes: STATION_RESEARCH.map((n) => ({
+        id: n.id,
+        category: n.category,
+        ring: n.ring,
+        lane: n.lane,
+        name: n.name,
+        description: n.description,
+        requires: n.requires.map((r) => ({ id: r, name: findStationResearch(r)?.name ?? r, category: findStationResearch(r)?.category ?? n.category })),
+        effects: n.effects.map((e) => (e.kind === 'prepares' ? `Przygotowuje: ${e.what} (etap ${e.stage}).` : e.kind === 'stationResearchTime' ? `Badania stacji ${e.percent}% czasu.` : `Imperium: ${describeEffectList([e])}.`)),
+        status: stationResearchStatus(n, state, lab),
+        cost: stationResearchCost(n),
+        seconds: stationResearchSeconds(n, Math.max(1, lab), state.done),
+        labNeeded: STATION_RESEARCH_RULES.labLevelForRing[Math.min(n.ring, STATION_RESEARCH_RULES.labLevelForRing.length) - 1]!,
+      })),
+    };
   }
 
   /** Transportowiec z aktywnej planety na stację (paliwo jak lot do planety stacji; miejsce liczone z ładunkami w drodze). */

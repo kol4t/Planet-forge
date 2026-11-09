@@ -648,14 +648,18 @@ export class PlanetScene extends Phaser.Scene {
     y += state.height / this.dpr + this.s(4);
     const canUpgrade = !!card.action && card.state !== 'building';
     // Opis tylko, gdy zmieści się nad kosztem i przyciskiem.
-    const bottom = rect.y + rect.h - pad - (canUpgrade ? TOUCH + this.s(20) : 0);
+    const bottom = rect.y + rect.h - pad - (canUpgrade || (card.id === 'lab' && card.level > 0) ? TOUCH + this.s(20) : 0);
     const desc = this.text(rect.x + pad, y, card.description, 10.5, COLORS.muted, { wordWrap: { width: this.px(w) }, lineSpacing: this.px(1) });
     if (y + desc.height / this.dpr > bottom) desc.setVisible(false);
+    // Laboratorium orbitalne (etap 2a): obok „Ulepsz” wejście do badań stacji; płaci magazyn stacji.
+    const research = card.id === 'lab' && card.level > 0;
+    const half = research && canUpgrade ? (w - this.s(6)) / 2 : w;
     if (canUpgrade) {
       const cost = card.nextCost!;
-      this.text(rect.x + pad, rect.y + rect.h - pad - TOUCH - this.s(17), `Koszt: ${formatInt(cost.metal)} · ${formatInt(cost.crystal)}`, 10.5, COLORS.stone, { fixedWidth: this.px(w) });
-      this.addButton(rect.x + pad, rect.y + rect.h - pad - TOUCH, w, TOUCH, card.level === 0 ? 'Zbuduj' : `Ulepsz do ${card.level + 1}`, 'primary', () => this.upgradeModule(card.action!), 13);
+      this.text(rect.x + pad, rect.y + rect.h - pad - TOUCH - this.s(17), `${card.id === 'lab' ? 'Magazyn stacji' : 'Koszt'}: ${formatInt(cost.metal)} · ${formatInt(cost.crystal)}`, 10.5, COLORS.stone, { fixedWidth: this.px(w) });
+      this.addButton(rect.x + pad, rect.y + rect.h - pad - TOUCH, half, TOUCH, card.level === 0 ? 'Zbuduj' : research ? `Poz. ${card.level + 1}` : `Ulepsz do ${card.level + 1}`, 'primary', () => this.upgradeModule(card.action!), 13);
     }
+    if (research) this.addButton(rect.x + rect.w - pad - half, rect.y + rect.h - pad - TOUCH, half, TOUCH, 'Badania', 'secondary', () => this.openScreen('stationResearch'), 13);
   }
 
   private moduleState(card: StationModuleCard): string {
@@ -666,9 +670,9 @@ export class PlanetScene extends Phaser.Scene {
     return 'Działa';
   }
 
-  private upgradeModule(action: 'storage' | 'shipyard'): void {
+  private upgradeModule(action: 'storage' | 'shipyard' | 'lab'): void {
     const c = this.deps.controller;
-    const result = action === 'storage' ? c.upgradeStationStorage() : c.upgradeShipyard();
+    const result = action === 'storage' ? c.upgradeStationStorage() : action === 'lab' ? c.upgradeStationLab() : c.upgradeShipyard();
     this.showToast(result.message, result.ok ? 'ok' : 'error', 3000);
     this.relayout();
   }
@@ -888,7 +892,7 @@ export class PlanetScene extends Phaser.Scene {
     this.openScreen('map', system ? { system } : {});
   }
 
-  private openScreen(key: 'research' | 'map' | 'empire', data: object = {}): void {
+  private openScreen(key: 'research' | 'map' | 'empire' | 'stationResearch', data: object = {}): void {
     if (this.screenOpen) return;
     this.closeOverlay();
     this.screenOpen = true;
@@ -1181,6 +1185,7 @@ export class PlanetScene extends Phaser.Scene {
   /** Przycisk dolnego paska albo pozycja menu. */
   private openDockItem(id: DockItemId): void {
     if (DOCK_PANELS.has(id)) this.togglePanel(id as PanelId);
+    else if (id === 'research' && this.stationMode) this.openScreen('stationResearch');
     else if (id === 'research') this.openResearch();
     else if (id === 'map') this.openMap();
     else this.openScreen('empire');

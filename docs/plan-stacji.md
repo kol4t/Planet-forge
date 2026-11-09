@@ -68,7 +68,7 @@ Antymaterii w megakonstruktach na razie nie ruszamy (decyzja właściciela).
   etapów (dok handlowy, stacje w kosmosie, załoga, nasłuch, dok megakonstruktów), zasięg premii stacji.
 
 Podział na kroki (każdy do sprawdzenia na iPadzie):
-- **2a** — Laboratorium orbitalne (budowa z magazynu stacji), silnik badań stacji (osobny stan, kolejka, koszt
+- **2a** (zrobione — v0.73.0, szkic badań) — Laboratorium orbitalne (budowa z magazynu stacji), silnik badań stacji (osobny stan, kolejka, koszt
   z magazynu stacji), ekran „Badania stacji”: wybór 6 kategorii, galaktyka kategorii z mostami — na szkicu badań.
 - **2b** — premia stacji i jej zasięg (planeta → układ → sąsiednie układy), widoczna w widoku układu i w Imperium.
 - **2c** — docelowa lista badań (uzgodniona z właścicielem) w miejsce szkicu.

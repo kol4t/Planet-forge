@@ -5,6 +5,7 @@ import { PlanetScene, type Viewport } from '../game/scenes/PlanetScene.ts';
 import { EmpireScene } from '../game/scenes/EmpireScene.ts';
 import { MapScene } from '../game/scenes/MapScene.ts';
 import { ResearchScene } from '../game/scenes/ResearchScene.ts';
+import { StationResearchScene } from '../game/scenes/StationResearchScene.ts';
 import { CanvasPlanetFallback } from '../planet-renderer/CanvasPlanetFallback.ts';
 import type { PlanetDisplay } from '../planet-renderer/PlanetDisplay.ts';
 import { hasWebGL, PlanetView } from '../planet-renderer/PlanetView.ts';
@@ -274,8 +275,9 @@ function start(boot: BootGuard): void {
   const research = new ResearchScene({ controller, getViewport });
   const map = new MapScene({ controller, getViewport });
   const empire = new EmpireScene({ controller, getViewport });
+  const stationResearch = new StationResearchScene({ controller, getViewport });
   // Osłona pętli scen (v0.69.2): błąd w odświeżaniu paneli trafia do diagnostyki i daje komunikat zamiast cichego zatrzymania.
-  guardScenes({ planeta: scene, badania: research, mapa: map, imperium: empire } as never, (message, where, first) => {
+  guardScenes({ planeta: scene, badania: research, mapa: map, imperium: empire, badaniaStacji: stationResearch } as never, (message, where, first) => {
     if (first) errors.record(message, where);
     showSceneError();
   });
@@ -292,7 +294,7 @@ function start(boot: BootGuard): void {
     // jedno z 3 miejsc na palce i po trzech gra przestawała reagować (zamrożony ekran u właściciela).
     input: { activePointers: 3, windowEvents: false },
     banner: false,
-    scene: [scene, research, map, empire],
+    scene: [scene, research, map, empire, stationResearch],
   });
   // Osłona całej klatki Phasera (v0.69.3, zgłoszenie właściciela: „klikałem 15 s i się zablokowało”): wyjątek w klatce
   // (np. w opóźnionym wywołaniu, animacji, tworzeniu ekranu) zatrzymywał pętlę paneli na zawsze — panele zamarzały,
