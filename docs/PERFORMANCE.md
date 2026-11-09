@@ -138,3 +138,11 @@ Zmierzone w przeglądarce bezgłowej (podgląd dev, 2D, komputer): gotowa gra po
 planety z IndexedDB), pierwsze wejście na inną planetę **300–600 ms → 1–7 ms** (gdy jej siatka jest już zapamiętana).
 Odczyt spakowanej siatki 8–30 ms zamiast liczenia 300–700 ms (`docs/decisions.md`, 2026-11-04). Na iPadzie do
 sprawdzenia: przycięcie przy zmianie planety i przy przejściu 2D↔3D powinno zniknąć od drugiego uruchomienia gry.
+
+## v0.70.1 — płynność 2D na planecie lawowej (zgłoszenie właściciela)
+
+- Przyczyna: teren planety wulkanicznej liczy się ok. 2× dłużej (wysokość), a żyły i strumienie lawy liczone były
+  dwa razy na piksel (kolor i świecenie). Tarcza 2D przy obrocie rysowana jest od nowa w każdej klatce.
+- Poprawka: pamięć ostatniego punktu w `surface.ts` (`lastPoint`) i dynamiczna rozdzielczość w `CanvasPlanetFallback`
+  — gdy pełna tarcza rysuje się dłużej niż 9 ms, w ruchu powstaje w 2/3 rozdzielczości, po zatrzymaniu od razu w pełnej.
+- Pomiar (przeglądarka bezgłowa, przeciąganie przy przybliżeniu 2,5×): planeta lawowa 31 → 34–40 kl./s, tarcza 31 → 17 ms.

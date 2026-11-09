@@ -267,7 +267,7 @@ function start(boot: BootGuard): void {
     },
   });
   // Tylko podgląd (`npm run dev`, bez PWA): dostęp dla skryptów pomiarowych (scripts/perf.ts). W grze — nie istnieje.
-  if (!__PWA__) (window as unknown as { __planetForge?: unknown }).__planetForge = { controller, display, fps, scene };
+  if (!__PWA__) (window as unknown as { __planetForge?: unknown }).__planetForge = { controller, display, renderer, fps, scene };
   const research = new ResearchScene({ controller, getViewport });
   const map = new MapScene({ controller, getViewport });
   const empire = new EmpireScene({ controller, getViewport });

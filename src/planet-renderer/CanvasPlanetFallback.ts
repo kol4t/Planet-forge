@@ -25,6 +25,9 @@ import type { RGB, SurfaceSampler } from './surface.ts';
 const BUFFER = 180;
 /** Przy przybliżeniu rozdzielczość rośnie maks. do BUFFER × 1,6 (koszt rysowania ~2,6×). */
 const MAX_BUFFER_SCALE = 1.6;
+/** Tarcza rysowana dłużej (ms, pełna rozdzielczość) — w ruchu obniżona rozdzielczość `LOW_RES` (v0.70.1). */
+const SLOW_DISC_MS = 9;
+const LOW_RES = 2 / 3;
 const BUILDING_IDS: readonly BuildingId[] = BALANCE.buildings.map((b) => b.id);
 /** Wyrastanie kompleksu po wzroście (ms). */
 const GROW_MS = 1400;
@@ -58,6 +61,9 @@ export class CanvasPlanetFallback implements PlanetDisplay {
   private raf = 0;
   private last = performance.now();
   private lastDrawn = { yaw: NaN, pitch: NaN };
+  /** Średni czas rysowania tarczy (ms) i czy ostatnia tarcza jest w obniżonej rozdzielczości (obrót, v0.70.1). */
+  private discMs = 0;
+  private lowRes = false;
   private disposed = false;
   private readonly zoomer = new ZoomSmoother();
   private grid: FieldGrid | null = null;
@@ -456,7 +462,6 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     const size = Math.round((BUFFER * Math.min(this.zoom, MAX_BUFFER_SCALE)) / 12) * 12;
     if (size !== this.size) {
       this.size = size;
-      this.buffer.width = this.buffer.height = size;
       this.lastDrawn = { yaw: NaN, pitch: NaN };
     }
   }
@@ -632,9 +637,18 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  private renderDisc(): void {
+  /**
+   * Rysuje tarczę. `moving` — planeta się obraca: gdy pełna tarcza rysuje się dłużej niż ok. pół klatki (wolne
+   * urządzenie, drogi teren — np. planeta lawowa), w ruchu rysowana jest w 2/3 rozdzielczości, a po zatrzymaniu
+   * od razu w pełnej (v0.70.1).
+   */
+  private renderDisc(moving = false): void {
     if (!this.look) return;
-    const image = this.bctx.createImageData(this.size, this.size);
+    const low = moving && this.discMs > SLOW_DISC_MS;
+    const size = low ? Math.max(48, Math.round((this.size * LOW_RES) / 4) * 4) : this.size;
+    if (this.buffer.width !== size) this.buffer.width = this.buffer.height = size;
+    const started = performance.now();
+    const image = this.bctx.createImageData(size, size);
     const { yaw, pitch } = this.rotator;
     const colony = this.colony;
     const lookup = this.lookup;
@@ -659,9 +673,13 @@ export class CanvasPlanetFallback implements PlanetDisplay {
             return complexGround(c, [x, y, z], c.building === 'crystalMine' ? this.openPit : null);
           }
         : undefined;
-    renderDisc(image.data, this.size, this.look, yaw, pitch, overlay);
+    renderDisc(image.data, size, this.look, yaw, pitch, overlay);
     this.bctx.putImageData(image, 0, 0);
     this.lastDrawn = { yaw, pitch };
+    // Czas przeliczony na pełną rozdzielczość (koszt rośnie z liczbą pikseli).
+    const ms = (performance.now() - started) * (low ? 1 / (LOW_RES * LOW_RES) : 1);
+    this.discMs = this.discMs === 0 ? ms : this.discMs * 0.8 + ms * 0.2;
+    this.lowRes = low;
   }
 
   /**
@@ -1069,13 +1087,11 @@ export class CanvasPlanetFallback implements PlanetDisplay {
     if (zoomed) this.resizeBuffer();
     const growing = [...this.grownAt.values()].some((t) => performance.now() - t < GROW_MS + 100);
     let redrawn = false;
-    if (
-      growing ||
-      Number.isNaN(this.lastDrawn.yaw) ||
-      Math.abs(this.rotator.yaw - this.lastDrawn.yaw) > 0.01 ||
-      Math.abs(this.rotator.pitch - this.lastDrawn.pitch) > 0.01
-    ) {
-      this.renderDisc();
+    const turning =
+      !Number.isNaN(this.lastDrawn.yaw) &&
+      (Math.abs(this.rotator.yaw - this.lastDrawn.yaw) > 0.01 || Math.abs(this.rotator.pitch - this.lastDrawn.pitch) > 0.01);
+    if (growing || turning || this.lowRes || Number.isNaN(this.lastDrawn.yaw) || this.buffer.width !== this.size) {
+      this.renderDisc(turning);
       redrawn = true;
     }
     // Etap F (widok układu): gdy nic się nie zmienia, składanie klatki (poświata, orbity, stacja) najwyżej ~20 kl./s.
