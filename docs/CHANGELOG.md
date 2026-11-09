@@ -2,6 +2,12 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.70.0 — strojenie ekonomii przed MVP — 2026-11-09
+
+- Wyższe poziomy budynków budują się coraz dłużej (poz. 20 ok. 1 h, poz. 40 ok. 4,7 h) — rozbudowa planety ok. tygodnia
+  zamiast 2 dni; cała pętla ok. miesiąca.
+- Megakonstrukt pracuje ok. 6 dni; okno megakonstruktu metalu ostrzega przy wyczerpanym złożu.
+
 ## v0.69.5 — hotfix: przyczyna zamrożonego ekranu — 2026-11-05
 
 - Stuknięcia w oknach (Zgłoś, Kompleks, Ustawienia…) nie „zużywają” już dotyku gry — po kilku takich stuknięciach gra
