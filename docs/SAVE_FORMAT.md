@@ -77,7 +77,7 @@ Kopiuj zapis / Wczytaj zapis).
     "dock": { "level": 1, "readyAt": 0 },       //   dok handlowy (od v0.79, opcjonalny)
     "credits": 1200,                            //   kredyty — waluta-przedmiot w magazynie stacji (od v0.80, opcjonalne, > 0)
     "feesAt": 0,                                //   ostatnie naliczenie opłat za premię stacji, ms (od v0.80, opcjonalne)
-    "merchant": { "visit": 412, "used": [0], "shipSold": true,   // kupcy (od v0.80, opcjonalne): numer wizyty, zużyte oferty,
+    "merchant": { "visit": 412, "used": [0], "shipSold": true, "boostSold": true,   // kupcy (od v0.80, opcjonalne): numer wizyty, zużyte oferty,
       "contract": { "visit": 411, "acceptedAt": 0,               //   przyjęte zamówienie (towar, ilość, nagroda); błędne pomijane
         "contract": { "want": "metal", "amount": 60000, "reward": { "credits": 7800, "antimatter": 9, "bonus": "find" } } } },
     "coreUpgrade": { "level": 2, "readyAt": 0 }, //   rozbudowa rdzenia do poz. 2/3 (od v0.76, opcjonalna)
@@ -193,3 +193,16 @@ Zasada: **nie podbijamy `GENERATOR_VERSION`** (zmieniłby planety w zapisach). N
   Błędy po polsku: niepełny tekst, nieznany typ planety, inna wersja generatora.
 - Czas od eksportu nalicza się jak nieobecność (maks. 8 h). Import zastępuje całe imperium.
 - Rozmiar: ok. 3 KB JSON / 4,4 KB tekstu `PF2:` dla 5 planet (pomiar w `docs/PERFORMANCE.md`).
+
+### Wzmocnienia budowli (`boosts`, od v0.81 — opcjonalne)
+
+```jsonc
+"boosts": [
+  { "def": "critical", "name": "Rozruch krytyczny", "address": "1:4:6", "building": "metalMine",  // null — cała planeta
+    "startsAt": 0, "endsAt": 7200000, "factor": 3,
+    "risk": { "chance": 0.12, "kind": "levels", "amount": 3 },   // outage | levels | destroy | deplete; null — bez ryzyka
+    "roll": 0.53, "target": "metalMine", "resolved": true },     // los z zakupu; skutek po końcu, gdy roll < chance
+  { "def": "outage", "name": "Awaria", "address": "1:4:6", "building": "metalMine", "startsAt": 7200000, "endsAt": 21600000, "factor": 0, "risk": null, "roll": 1, "target": null }
+]
+```
+Błędne wpisy pomijane. Rozstrzygnięte i naliczone przez planetę wpisy znikają same.

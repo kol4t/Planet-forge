@@ -21,6 +21,7 @@ import { STATION_CORE, stationModuleDef } from '../data/stationModules.ts';
 import { activeResearch, completeStationResearch, EMPTY_STATION_RESEARCH, labLanes, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
 import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect, type StationStat } from '../data/stationResearch.ts';
 import { dockCost, dockLevel, marketSpread, TRADE, type TradeGood } from '../core/station/trade.ts';
+import { BOOST_RULES, BOOSTABLE, BOOSTS, betterBoost, boostFactor, boostOutcome, boostSplits, buyBoost, findBoost, outageBoost, type ActiveBoost, type BoostDef } from '../core/station/boosts.ts';
 import { auraFees, buyPrice, contractOpen, marketBuy, marketSell, merchantAt, merchantVisit, MERCHANTS, sellPrice, type MerchantContract, type MerchantOffer } from '../core/station/merchants.ts';
 import { AUTO_RULES, categoryNeedsLab, pickNightResearch, supplyCargo, type SupplyThreshold } from '../core/station/stationAuto.ts';
 import { auraEffects, auraReachName, auraShare, auraStats, STATION_AURA, type AuraStats } from '../core/station/stationAura.ts';
@@ -32,6 +33,7 @@ import {
   minedShare,
   depositsLeft,
   depositTotal,
+  getBuilding,
   fitsInStorage,
   cancelConstruction,
   constructionProgress,
@@ -559,6 +561,17 @@ export interface StationResearchView {
   }[];
 }
 
+/** Wzmocnienia budowli (krok 3c). */
+export interface BoostsView {
+  dock: boolean;
+  antimatter: number;
+  credits: number;
+  defs: BoostDef[];
+  merchant: { def: BoostDef; credits: number; sold: boolean } | null;
+  planets: { address: string; name: string; levels: BuildingLevels }[];
+  active: { name: string; planet: string; building: string | null; factor: number; secondsLeft: number; started: boolean; outage: boolean; risky: boolean }[];
+}
+
 /** Stały rynek doku handlowego (etap 3a). */
 export interface TradeView {
   level: number;
@@ -697,6 +710,8 @@ export class GameController {
   private stellar: StellarEmpire | null = null;
   /** Stacje kolonii (etap 9): przekaźniki transportu na orbitach kolonii. */
   private colonyStations: ColonyStation[] = [];
+  /** Wzmocnienia budowli i awarie (krok 3c). */
+  private boosts: ActiveBoost[] = [];
   /** Widok (plan „widok układu”, etap B): poziom, układ, obiekt, przybliżenie; null — start na aktywnej planecie. */
   private viewSaved: ViewState | null = null;
   /** Przewodnik SI Matki (etap 11): bieżący krok, wyłącznik; null — ustalany przy pierwszym naliczeniu. */
@@ -757,6 +772,7 @@ export class GameController {
       this.orbiting = saved.orbiting ?? [];
       this.stellar = saved.stellar ?? null;
       this.colonyStations = saved.colonyStations ?? [];
+      this.boosts = saved.boosts ?? [];
       this.viewSaved = saved.view ?? null;
       this.guide = saved.guide ?? null;
       this.transfers = saved.transfers ?? [];
@@ -774,7 +790,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -835,10 +851,17 @@ export class GameController {
     const station = stationLevelAt(slot.asteroid, at);
     // Energia gwiazdy (v0.44): kolektory wszystkich planet gracza w tym układzie.
     const star = Math.round(this.starEnergyAt(slot, at) * 1000) / 1000;
-    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}|s${star}|r${stationDone.length}|au${auraShareNow}:${this.stationAura(at).output}`;
+    // Wzmocnienia budowli i awarie (krok 3c) — mnożnik wydobycia budynku w chwili `at`.
+    const boost = Object.fromEntries(BOOSTABLE.map((id) => [id, boostFactor(this.boosts, slot.address, id, at)])) as Record<BuildingId, number>;
+    const boostKey = BOOSTABLE.map((id) => boost[id]).join(',');
+    const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}|s${star}|r${stationDone.length}|au${auraShareNow}:${this.stationAura(at).output}|b${boostKey}`;
     const hit = this.balanceCache.get(slot);
     if (hit && hit.done === slot.research.done && hit.spec === spec) return hit.balance;
-    const balance = withStationResearch(withStarEnergy(withStation(applyResearch(BALANCE, slot.research.done, effects), station), star), stationDone);
+    const base = withStationResearch(withStarEnergy(withStation(applyResearch(BALANCE, slot.research.done, effects), station), star), stationDone);
+    const boosted = BOOSTABLE.some((id) => boost[id] !== 1);
+    const balance = boosted
+      ? { ...base, buildings: base.buildings.map((d) => (boost[d.id] !== undefined && boost[d.id] !== 1 ? { ...d, baseOutput: d.baseOutput * boost[d.id]!, baseEnergyUse: boost[d.id] === 0 ? 0 : d.baseEnergyUse } : d)) }
+      : base;
     this.balanceCache.set(slot, { done: slot.research.done, spec, balance });
     return balance;
   }
@@ -861,7 +884,7 @@ export class GameController {
    */
   private advanceSlot(slot: Slot, economy: EconomyState, now: number, adjust: (b: Balance) => Balance = (b) => b): EconomyState {
     let e = economy;
-    const splits = [slot.specialization?.readyAt, slot.asteroid?.readyAt, ...this.systemSlots(slot).map((s) => s.collector?.readyAt)]
+    const splits = [slot.specialization?.readyAt, slot.asteroid?.readyAt, ...this.systemSlots(slot).map((s) => s.collector?.readyAt), ...boostSplits(this.boosts, slot.address)]
       .filter((t): t is number => t !== undefined && t > e.lastUpdate && t <= now)
       .sort((a, b) => a - b);
     // Limit nieobecności (8 h) liczy się dla całego naliczenia, nie dla każdego odcinka osobno (audyt v0.46).
@@ -1146,7 +1169,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     const guided = this.processGuide(now);
@@ -2202,6 +2225,132 @@ export class GameController {
     const { contract: _done, ...rest } = this.station!.merchant!;
     this.station = { ...this.station!, merchant: rest };
     return this.tradeDone(`Zamówienie wykonane: ${parts.join(', ')}.`, now);
+  }
+
+  // ——— wzmocnienia budowli (krok 3c) ———
+
+  /** Wzmocnienia do kupienia w doku, wzmocnienie u kupca i działające wzmocnienia / awarie imperium. */
+  boostsView(now = Date.now()): BoostsView {
+    const merchant = this.merchantBoost(now);
+    return {
+      dock: dockLevel(this.station, now) > 0,
+      antimatter: this.economy.antimatter,
+      credits: this.station?.credits ?? 0,
+      defs: BOOSTS.map((d) => ({ ...d })),
+      merchant: merchant ? { def: merchant.def, credits: merchant.credits, sold: merchant.sold } : null,
+      planets: this.slots.map((slot) => ({ address: slot.address, name: slot.planet.displayName, levels: { ...slot.economy.levels } })),
+      active: this.boosts
+        .filter((b) => b.endsAt > now)
+        .map((b) => ({ name: b.name, planet: this.slotName(b.address), building: b.building ? (getBuilding(b.building)?.name ?? b.building) : null, factor: b.factor, secondsLeft: Math.max(0, (b.endsAt - now) / 1000), started: now >= b.startsAt, outage: b.def === 'outage', risky: !!b.risk })),
+    };
+  }
+
+  /** Wzmocnienie u bieżącego kupca (lepsza wersja, bez ryzyka) — null, gdy go nie ma. */
+  private merchantBoost(now: number): { def: BoostDef; credits: number; sold: boolean } | null {
+    const at = merchantAt(now);
+    if (!at.present || dockLevel(this.station, now) <= 0) return null;
+    const visit = merchantVisit(at.index, dockLevel(this.station, now));
+    const base = visit.boost ? findBoost(visit.boost) : undefined;
+    if (!base) return null;
+    const def = betterBoost(base);
+    const m = this.station?.merchant;
+    return { def, credits: def.antimatter * BOOST_RULES.creditsPerAntimatter, sold: m?.visit === at.index && m.boostSold === true };
+  }
+
+  /**
+   * Kupno wzmocnienia (dok handlowy): `building` — budynek planety `address` (null — cała planeta).
+   * `from: 'merchant'` — wersja od kupca (bez ryzyka), płatna antymaterią albo kredytami (`pay`).
+   */
+  buyBoost(defId: string, address: string, building: BuildingId | null, now = Date.now(), from: 'dock' | 'merchant' = 'dock', pay: 'antimatter' | 'credits' = 'antimatter'): ActionMessage {
+    this.tick(now);
+    if (dockLevel(this.station, now) <= 0) return { ok: false, message: 'Wzmocnienia sprzedaje dok handlowy — najpierw go zbuduj.' };
+    const index = this.slotAt(address);
+    const slot = this.slots[index];
+    if (!slot) return { ok: false, message: 'Wybierz swoją planetę.' };
+    let def = findBoost(defId);
+    let creditsPrice = 0;
+    if (from === 'merchant') {
+      const m = this.merchantBoost(now);
+      if (!m || m.def.id !== defId) return { ok: false, message: 'Kupiec nie ma teraz tego wzmocnienia.' };
+      if (m.sold) return { ok: false, message: 'To wzmocnienie już kupione.' };
+      def = m.def;
+      if (pay === 'credits') creditsPrice = m.credits;
+    }
+    if (!def) return { ok: false, message: 'Nie ma takiego wzmocnienia.' };
+    if (creditsPrice > (this.station?.credits ?? 0)) return { ok: false, message: `Potrzeba ${creditsPrice} kredytów, na stacji jest ${Math.floor(this.station?.credits ?? 0)}.` };
+    // Naliczenie planety do teraz — wzmocnienie działa od tej chwili.
+    if (index !== this.active) slot.economy = this.advanceSlot(slot, slot.economy, now);
+    const r = buyBoost(def, { address, building, levels: slot.economy.levels, antimatter: creditsPrice > 0 ? Infinity : this.economy.antimatter, now, roll: Math.random(), pick: Math.random() });
+    if (!r.ok) return r;
+    if (creditsPrice > 0) this.creditsChange(-creditsPrice);
+    else this.economy = { ...this.economy, antimatter: this.economy.antimatter - def.antimatter };
+    if (from === 'merchant') this.station = { ...this.station!, merchant: { ...this.merchantSave(now), boostSold: true } };
+    this.boosts = [...this.boosts, r.boost];
+    this.balanceCache.delete(slot);
+    const where = building ? `${getBuilding(building)?.name ?? building} (${slot.planet.displayName})` : `cała planeta ${slot.planet.displayName}`;
+    const risk = def.risk ? ` Ryzyko: ${Math.round(def.risk.chance * 100)}%.` : '';
+    return this.tradeDone(`Wzmocnienie „${def.name}”: ${where} — wydobycie ×${String(def.factor).replace('.', ',')} przez ${def.hours} h.${risk}`, now);
+  }
+
+  /** Koniec wzmocnień: skutek ryzyka (awaria, utrata poziomów, zniszczenie, złoże) i sprzątanie starych wpisów. */
+  private processBoosts(now: number): string[] {
+    const texts: string[] = [];
+    let changed = false;
+    for (const b of this.boosts) {
+      if (b.resolved || b.endsAt > now) continue;
+      b.resolved = true;
+      changed = true;
+      const out = boostOutcome(b);
+      if (out.kind === 'none' || !out.building) continue;
+      const index = this.slotAt(b.address);
+      const slot = this.slots[index];
+      if (!slot) continue;
+      const name = getBuilding(out.building)?.name ?? out.building;
+      const where = `${slot.planet.displayName}, ${name}`;
+      let text = '';
+      if (out.kind === 'outage') {
+        this.boosts.push(outageBoost(b.address, out.building, b.endsAt, out.amount));
+        text = `„${b.name}” się zemściło: awaria — ${where} stoi ${out.amount} h.`;
+      } else if (out.kind === 'deplete') {
+        const res = out.building === 'metalMine' ? 'metal' : out.building === 'crystalMine' ? 'crystal' : null;
+        if (res) {
+          const total = depositTotal(slot.planet, this.balanceFor(slot))[res];
+          const mined = slot.economy.mined ?? { metal: 0, crystal: 0 };
+          slot.economy = { ...slot.economy, mined: { ...mined, [res]: Math.min(total, mined[res] + total * out.amount) } };
+          text = `„${b.name}”: część złoża przepadła — ${where}: −${Math.round(out.amount * 100)}% złoża.`;
+        }
+      } else {
+        const level = slot.economy.levels[out.building] ?? 0;
+        const busy = slot.economy.construction?.building === out.building || (slot.economy.queue ?? []).includes(out.building) || slot.packing === out.building;
+        const mega =
+          slot.complexes?.some((c) => c.building === out.building && c.mega) ||
+          (out.building === 'metalMine' && (slot.metalComplex?.phase === 'konstrukt' || !!slot.metalComplex?.build)) ||
+          (out.building === 'crystalMine' && (slot.crystalComplex?.phase === 'konstrukt' || slot.crystalComplex?.phase === 'budowa'));
+        if (busy || mega) {
+          this.boosts.push(outageBoost(b.address, out.building, b.endsAt, BOOST_RULES.shieldOutageHours));
+          text = `„${b.name}”: ${where} — ${mega ? 'megakonstrukcja przetrwała' : 'budowa w toku osłoniła budynek'}, ale stoi ${BOOST_RULES.shieldOutageHours} h (awaria).`;
+        } else {
+          const next = out.kind === 'destroy' ? 0 : Math.max(0, level - out.amount);
+          slot.economy = { ...slot.economy, levels: { ...slot.economy.levels, [out.building]: next } };
+          syncPlots(slot, this.buildRules);
+          if (index === this.active) for (const listener of this.demolishListeners) listener(out.building);
+          text = out.kind === 'destroy' ? `„${b.name}”: wybuch — ${where} zniszczony (poz. ${level} → 0).` : `„${b.name}”: ${where} traci ${level - next} poz. (${level} → ${next}).`;
+        }
+      }
+      if (text) {
+        this.balanceCache.delete(slot);
+        this.log('build', text, now);
+        texts.push(text);
+      }
+    }
+    // Sprzątanie: rozstrzygnięte i naliczone już przez planetę (albo planety już nie ma).
+    const before = this.boosts.length;
+    this.boosts = this.boosts.filter((b) => {
+      const slot = this.slots[this.slotAt(b.address)];
+      return slot ? !(b.resolved || b.def === 'outage') || b.endsAt > slot.economy.lastUpdate || b.endsAt > now : false;
+    });
+    if (changed || before !== this.boosts.length) this.save();
+    return texts;
   }
 
   /** Opłaty za premię stacji (kredyty) i wygasanie zamówień — w takcie. */
@@ -4455,6 +4604,7 @@ export class GameController {
     this.slots.splice(index, 1);
     // Stacja kolonii opuszczonej planety znika razem z nią (etap 9).
     this.colonyStations = this.colonyStations.filter((s) => s.address !== slot.address);
+    this.boosts = this.boosts.filter((b) => b.address !== slot.address);
     // Widok na opuszczonej planecie — z powrotem na aktywną.
     if (this.viewSaved?.object === slot.address) this.viewSaved = null;
     if (index < this.active) this.active--;
@@ -4512,6 +4662,7 @@ export class GameController {
     this.orbiting = result.data.orbiting ?? [];
     this.stellar = result.data.stellar ?? null;
     this.colonyStations = result.data.colonyStations ?? [];
+    this.boosts = result.data.boosts ?? [];
     this.viewSaved = result.data.view ?? null;
     this.guide = result.data.guide ?? null;
     this.transfers = result.data.transfers ?? [];
@@ -4565,6 +4716,7 @@ export class GameController {
       ...(this.orbiting.length > 0 ? { orbiting: this.orbiting } : {}),
       ...(this.stellar ? { stellar: this.stellar } : {}),
       ...(this.colonyStations.length > 0 ? { colonyStations: this.colonyStations } : {}),
+      ...(this.boosts.length > 0 ? { boosts: this.boosts } : {}),
       ...(this.viewSaved ? { view: this.viewSaved } : {}),
       ...(this.guide ? { guide: this.guide } : {}),
       journal: this.journal,

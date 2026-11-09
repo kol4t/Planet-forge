@@ -2,6 +2,21 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.81.0 — stacja kosmiczna, krok 3c: wzmocnienia budowli — robocza
+
+Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 3):
+- **Wzmocnienia za antymaterię** w doku handlowym (Handel → „Wzmocnienia budowli”): na jeden budynek wydobycia
+  (kopalnia, Ekstraktor, elektrownia, kolektor) albo na całą planetę; bez limitu — mnożniki się mnożą.
+- 7 wzmocnień (robocze): Stabilny wzmacniacz ×1,25 bez ryzyka; Przeciążenie ×1,8 (10% awarii na 4 h); Głębokie
+  wydobycie ×2,5 (15%: −5% złoża); Rozruch krytyczny ×3 (12%: utrata 1–3 poz.); Zapłon antymaterii ×5 (8%:
+  zniszczenie budynku); Fala wydobycia — planeta ×1,4 (10% awarii jednego budynku); Burza produkcyjna — planeta ×2
+  (12%: jeden budynek traci 1–2 poz.). Im większe ryzyko, tym większa nagroda.
+- Ryzyko losowane przy zakupie, skutek **po końcu działania** (nagroda zawsze zostaje). Budynek w budowie albo
+  z megakonstruktem / megakompleksem — zamiast utraty poziomów lub zniszczenia awaria na 6 h.
+- **Kupcy** czasem przywożą wersję lepszą (+20%) i bez skutków ubocznych — za antymaterię (×1,5) albo kredyty.
+- `core/station/boosts.ts`, okno `game/ui/boostPanel.ts`, mnożnik w `balanceFor` (naliczanie dzielone na początku
+  i końcu wzmocnienia), zapis `boosts` (opcjonalny), `station.merchant.boostSold`.
+
 ## v0.80.0 — stacja kosmiczna, krok 3b: kredyty i kupcy — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 3):
