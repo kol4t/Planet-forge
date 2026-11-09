@@ -256,6 +256,8 @@ html, body {
   background: rgba(9, 20, 22, 0.9); color: var(--text); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
   font: 14px "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
 }
+/* Okno HTML (Kompleks, Fabryka, Pas…) na wierzchu — karta budowli chowa się, żeby okna nie nachodziły na siebie (v0.71). */
+body:has(#text-panel) #building-card { display: none; }
 #building-card header { display: flex; justify-content: space-between; gap: 8px; }
 #building-card h2 { margin: 0; font: 400 22px Georgia, "Times New Roman", serif; color: var(--gold); }
 #building-card .bc-level { margin: 2px 0 0; font-weight: 600; color: #5ff2e0; }

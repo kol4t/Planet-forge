@@ -840,7 +840,7 @@ export class MapScene extends OverlayScene {
     const closeW = 104 * this.u;
     const controller = this.deps.controller;
     const galaxy = controller.galaxy;
-    const title = this.mode === 'galaxy' ? `MAPA · ${galaxy.name.toUpperCase()}` : `UKŁAD ${this.system?.name ?? ''}`;
+    const title = this.mode === 'galaxy' ? galaxy.name.toUpperCase() : `UKŁAD ${this.system?.name ?? ''}`;
     const sub =
       this.mode === 'galaxy'
         ? `Znane układy: ${controller.knownSystems} z ${galaxy.systems.length} · Twój: ${galaxy.systems[controller.homeSystem - 1]?.name ?? ''}`

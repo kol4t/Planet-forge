@@ -32,9 +32,9 @@ import { openTextPanel } from '../ui/textPanel.ts';
 import { openFeedbackPanel } from '../ui/feedbackPanel.ts';
 import {
   computeLayout,
-  planetFooterRows,
   PLANET_ROW_GAP,
   PLANET_ROW_H,
+  PLANET_SUMMARY_H,
   DOCK_PANELS,
   TOUCH,
   cardHeight,
@@ -151,7 +151,7 @@ const YIELD_NAMES: Record<YieldId, string> = { metal: 'metal', crystal: 'kryszta
 const DOCK_LABELS: Record<DockItemId, string> = {
   production: 'Produkcja',
   research: 'Badania',
-  map: 'Mapa',
+  map: 'Galaktyka',
   empire: 'Imperium',
   planet: 'Planeta',
   ai: 'SI',
@@ -460,13 +460,17 @@ export class PlanetScene extends Phaser.Scene {
     this.systemMode = true;
     this.viewSystem = target;
     this.navKey = '';
+    // Wybrany budynek (okienko „Budynek”, karta budowli, podświetlenie) zamyka się razem z planetą (v0.71).
+    const hadSelection = this.selected !== null || this.placing !== null;
     this.selected = null;
+    this.placing = null;
     c.selectSystem(target);
     const spot = this.layoutState?.planet;
     const inside = parseAddress(c.address)?.system === target;
     view.show(scene, fromGalaxy || !inside ? 'galaxy' : { address: c.address, radiusPt: spot?.r ?? 120, ...(spot ? { at: { x: spot.cx, y: spot.cy } } : {}) });
     this.systemGestures.setZoom(1);
     setPlanetVisible(false);
+    if (hadSelection) this.relayout();
     // Planeta niewidoczna — po przenikaniu renderer stoi (oszczędność baterii; etap D).
     this.time.delayedCall(400, () => {
       if (this.systemMode) this.deps.display.setPaused(true);
@@ -963,6 +967,13 @@ export class PlanetScene extends Phaser.Scene {
     this.relayout(true);
   }
 
+  /** Panel „Planeta”: skrót z listą planet ↔ szczegóły aktywnej planety (v0.71). */
+  private setPlanetDetail(detail: boolean): void {
+    this.panels = detail ? { open: 'planet', detail: true } : { open: 'planet' };
+    savePanels(this.panels);
+    this.relayout(true);
+  }
+
   /** Przycisk dolnego paska albo pozycja menu. */
   private openDockItem(id: DockItemId): void {
     if (DOCK_PANELS.has(id)) this.togglePanel(id as PanelId);
@@ -1213,7 +1224,9 @@ export class PlanetScene extends Phaser.Scene {
   private buildDock(layout: Layout): void {
     const { rect, menu, items } = layout.dock;
     this.panel(rect);
-    this.iconButton(menu, 'menu', () => this.togglePanel('planets'));
+    // ☰ = Ustawienia (v0.71, decyzja właściciela); lista planet jest w „Planeta”. Na wąskim ekranie (telefon)
+    // ☰ otwiera najpierw małe menu z przyciskami paska, które się nie zmieściły.
+    this.iconButton(menu, 'menu', () => (layout.dock.hidden.length > 0 ? this.togglePanel('planets') : this.openSettings()));
     if (this.panels.open === 'planets') {
       // Otwarta lista planet: złota obwódka przycisku ☰.
       const ring = this.add.graphics().lineStyle(this.px(2), COLORS.goldHex, 1);
@@ -1237,7 +1250,8 @@ export class PlanetScene extends Phaser.Scene {
     const panel = layout.panel;
     if (!panel) return;
     this.panel(panel.rect, panel.id === 'planet');
-    this.text(panel.rect.x + this.s(14), panel.rect.y + this.s(13), PANEL_TITLES[panel.id], 11, panel.id === 'ai' ? COLORS.antimatter : COLORS.teal, {
+    const detail = panel.id === 'planet' && this.panels.detail === true;
+    this.text(panel.rect.x + this.s(14), panel.rect.y + this.s(13), detail ? 'PLANETA · SZCZEGÓŁY' : PANEL_TITLES[panel.id], 11, panel.id === 'ai' ? COLORS.antimatter : COLORS.teal, {
       fontStyle: '600',
       letterSpacing: 1.5,
     });
@@ -1257,35 +1271,78 @@ export class PlanetScene extends Phaser.Scene {
       });
       this.buildProduction(layout.cards);
     }
-    else if (panel.id === 'planet') this.buildPlanetInfo(panel.body);
+    else if (panel.id === 'planet') {
+      if (detail) {
+        const backW = this.s(84);
+        this.addButton(panel.close.x - backW - this.s(6), panel.rect.y + this.s(4), backW, TOUCH - this.s(8), '‹ Planety', 'secondary', () => this.setPlanetDetail(false), 12);
+        this.buildPlanetInfo(panel.body);
+      } else this.buildPlanetSummary(panel.body);
+    }
     else if (panel.id === 'planets') this.buildPlanetsPanel(panel.body, layout);
     else this.buildAiPanel(panel.body);
   }
 
-  /** Panel „Planety” (z przycisku ☰): lista planet imperium — dotknięcie przełącza; pod spodem Ustawienia. */
+  /** Menu ☰ na wąskim ekranie (v0.71): przyciski paska, które się nie zmieściły, i Ustawienia. */
   private buildPlanetsPanel(box: Rect, layout: Layout): void {
+    const gap = this.s(10);
+    const footer = [...layout.dock.hidden, 'settings' as const];
+    const half = (box.w - gap) / 2;
+    footer.forEach((id, i) => {
+      const x = box.x + (i % 2) * (half + gap);
+      const y = box.y + Math.floor(i / 2) * (TOUCH + gap);
+      if (id === 'settings') this.addButton(x, y, half, TOUCH, 'Ustawienia', 'secondary', () => this.openSettings(), 13);
+      else this.addButton(x, y, half, TOUCH, DOCK_LABELS[id], 'secondary', () => this.openDockItem(id), 13);
+    });
+  }
+
+  /**
+   * Panel „Planeta” (v0.71, decyzja właściciela): lista planet imperium (dotknięcie przełącza), pod nią skrót aktywnej
+   * planety — nazwa, pola, złoża — i przyciski „Szczegóły” (pełny opis, specjalizacja, środowisko) i „Kosmos”.
+   */
+  private buildPlanetSummary(box: Rect): void {
     const c = this.deps.controller;
     const planets = c.overview();
     const gap = this.s(10);
-    const footer = [...layout.dock.hidden, 'settings' as const];
-    const footerRows = planetFooterRows(layout.dock.hidden.length);
-    const footerTop = box.y + box.h - footerRows * TOUCH - (footerRows - 1) * gap;
     const rowH = this.s(PLANET_ROW_H);
     const step = rowH + this.s(PLANET_ROW_GAP);
+    const summaryTop = box.y + box.h - TOUCH - this.s(PLANET_SUMMARY_H);
     // Ile wierszy się mieści; reszta — w „Imperium”.
-    const fit = Math.max(1, Math.floor((footerTop - gap - box.y + this.s(PLANET_ROW_GAP)) / step));
+    const fit = Math.max(1, Math.floor((summaryTop - box.y + this.s(PLANET_ROW_GAP)) / step));
     const shown = planets.length > fit ? planets.slice(0, fit - 1) : planets;
     shown.forEach((p, i) => this.planetRow(p, { x: box.x, y: box.y + i * step, w: box.w, h: rowH }));
     if (shown.length < planets.length) {
       this.text(box.x + this.s(6), box.y + shown.length * step + this.s(8), `…i jeszcze ${planets.length - shown.length} — wszystkie w „Imperium”.`, 12, COLORS.muted);
     }
-    const half = (box.w - gap) / 2;
-    footer.forEach((id, i) => {
-      const x = box.x + (i % 2) * (half + gap);
-      const y = footerTop + Math.floor(i / 2) * (TOUCH + gap);
-      if (id === 'settings') this.addButton(x, y, half, TOUCH, 'Ustawienia', 'secondary', () => this.openSettings(), 13);
-      else this.addButton(x, y, half, TOUCH, DOCK_LABELS[id], 'secondary', () => this.openDockItem(id), 13);
+    const pad = this.s(6);
+    const w = box.w - 2 * pad;
+    let y = summaryTop + this.s(6);
+    const f = c.fields;
+    const full = f.used >= f.buildable;
+    this.text(box.x + pad, y, c.planet.displayName, 17, COLORS.gold, { fontFamily: FONTS.serif, fixedWidth: this.px(w * 0.6) });
+    this.text(box.x + pad + w * 0.6, y + this.s(4), `pola ${f.used}/${f.buildable}`, 12, full ? COLORS.danger : COLORS.teal, {
+      fontStyle: '600',
+      fixedWidth: this.px(w * 0.4),
+      align: 'right',
     });
+    y += this.s(26);
+    const deposits = c.deposits;
+    const share = (id: ResourceId) => {
+      const d = deposits[id];
+      return d.left <= 0 ? 'wyczerpane' : `${Math.ceil((d.left / Math.max(1, d.total)) * 100)}%`;
+    };
+    const empty = deposits.metal.left <= 0 || deposits.crystal.left <= 0;
+    this.text(box.x + pad, y, `Złoża: metal ${share('metal')} · kryształy ${share('crystal')}`, 12, empty ? COLORS.danger : COLORS.stone, { fixedWidth: this.px(w) });
+    const by = box.y + box.h - TOUCH;
+    const half = (box.w - gap) / 2;
+    this.addButton(box.x, by, half, TOUCH, 'Szczegóły', 'secondary', () => this.setPlanetDetail(true), 13);
+    this.addButton(box.x + half + gap, by, half, TOUCH, 'Kosmos', this.spaceAttention() ? 'primary' : 'secondary', () => this.openAsteroid(), 13);
+  }
+
+  /** „Kosmos” wymaga uwagi: można postawić stację na pasie, kolektor albo wysłać holownik. */
+  private spaceAttention(): boolean {
+    const c = this.deps.controller;
+    const belt = c.asteroidView();
+    return (c.collectorView().unlocked && c.collectorView().target === 0) || (belt.hasBelt && belt.unlocked && belt.target === 0 && !belt.takenBy) || (c.cometView().unlocked && !c.cometView().flying);
   }
 
   /** Stan planety w wierszu listy: budowa z odliczaniem albo zapasy. */
@@ -1383,7 +1440,7 @@ export class PlanetScene extends Phaser.Scene {
     const specW = this.s(96);
     this.text(x0 + pad, y + this.s(4), 'SPECJALIZACJA', 9.5, COLORS.muted, { fontStyle: '600' });
     this.text(x0 + pad, y + this.s(18), specText, 13, spec.current ? COLORS.text : COLORS.gold, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
-    this.addButton(x0 + pad + w - specW, y, specW, TOUCH, spec.current ? 'Szczegóły' : 'Wybierz', spec.current ? 'secondary' : 'primary', () => {
+    this.addButton(x0 + pad + w - specW, y, specW, TOUCH, spec.current ? 'Zmień' : 'Wybierz', spec.current ? 'secondary' : 'primary', () => {
       this.specArmed = null;
       this.openSpecialization();
     }, 12.5);
@@ -1392,7 +1449,7 @@ export class PlanetScene extends Phaser.Scene {
     const belt = this.deps.controller.asteroidView();
     this.text(x0 + pad, y + this.s(4), 'KOSMOS', 9.5, COLORS.muted, { fontStyle: '600' });
     this.beltRow = this.text(x0 + pad, y + this.s(18), this.beltText(), 13, belt.target > 0 ? COLORS.text : COLORS.stone, { fontStyle: '600', wordWrap: { width: this.px(w - specW - this.s(8)) } });
-    this.addButton(x0 + pad + w - specW, y, specW, TOUCH, 'Kosmos', (this.deps.controller.collectorView().unlocked && this.deps.controller.collectorView().target === 0) || (belt.hasBelt && belt.unlocked && belt.target === 0 && !belt.takenBy) || (this.deps.controller.cometView().unlocked && !this.deps.controller.cometView().flying) ? 'primary' : 'secondary', () => this.openAsteroid(), 12.5);
+    this.addButton(x0 + pad + w - specW, y, specW, TOUCH, 'Kosmos', this.spaceAttention() ? 'primary' : 'secondary', () => this.openAsteroid(), 12.5);
     y += TOUCH + this.s(10);
     if (twoCols) {
       x0 = box.x + w + 2 * pad + colGap;

@@ -103,10 +103,12 @@ test('UI skalowane do ekranu', () => {
   assert.equal(computeLayout(2560, 1440).u, 1.1, 'duży monitor: maksimum');
 });
 
-test('panel „Planety” mieści listę planet i przyciski pod nią (do 5 planet na tablecie)', () => {
+test('panel „Planeta” mieści listę planet, skrót i przyciski pod nią (do 5 planet na tablecie; v0.71)', () => {
   for (const [w, h] of [[1080, 810], [810, 1080], [1920, 1080]] as const) {
-    const one = computeLayout(w, h, undefined, 6, { open: 'planets' }, 4, 1);
-    const five = computeLayout(w, h, undefined, 6, { open: 'planets' }, 4, 5);
+    const one = computeLayout(w, h, undefined, 6, { open: 'planet' }, 4, 1);
+    const five = computeLayout(w, h, undefined, 6, { open: 'planet' }, 4, 5);
+    const detail = computeLayout(w, h, undefined, 6, { open: 'planet', detail: true }, 4, 1);
+    assert.ok(one.panel!.rect.h < detail.panel!.rect.h, `${w}×${h}: skrót z jedną planetą niższy niż szczegóły`);
     assert.ok(five.panel!.rect.h > one.panel!.rect.h, `${w}×${h}: więcej planet = wyższy panel`);
     assert.ok(five.panel!.rect.h < five.dock.rect.y - five.topBar.y - five.topBar.h, `${w}×${h}: 5 planet bez przycinania`);
   }

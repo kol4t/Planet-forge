@@ -2,6 +2,17 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.71.0 — porządki w interfejsie (po MVP) — robocza
+
+Zgłoszenie właściciela ze zrzutami (7 punktów):
+- Okno „Kompleks” (i inne okna HTML) chowa kartę budowli — okna nie nachodzą na siebie.
+- Wejście w widok układu zamyka wybrany budynek (okienko „Budynek”, kartę, podświetlenie).
+- Bez sąsiednich planet w tle widoku planety.
+- „Mapa” → „Galaktyka” (przycisk i tytuł ekranu).
+- Panel „Planeta”: lista planet imperium + krótki skrót aktywnej (pola, złoża) i „Szczegóły” / „Kosmos”; pełny opis
+  po „Szczegóły”. ☰ otwiera od razu Ustawienia.
+- SI Matka bez przycisku na dolnym pasku — ustawienia w Imperium → SI.
+
 ## MVP — 2026-11-09
 
 - **MVP ogłoszone na v0.70.1** (decyzja właściciela). Podsumowanie: `docs/mvp.md` — pętla gry, tempo (ok. 30 / 37 dni),
