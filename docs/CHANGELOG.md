@@ -12,6 +12,8 @@ wejścia z widoku układu, listy „Planeta” i Imperium):
   palcem, przybliżenie, wybór modułu dotykiem (`stationScreenLayout.ts`).
 - Panel „Moduły” zamiast „Produkcji”: rdzeń, magazyn orbitalny i stocznia (ulepszanie), laboratorium, dok handlowy,
   moduł mieszkalny i nasłuch „wkrótce” (etapy 2–6).
+- Dok megakonstruktów (decyzja właściciela: osobny moduł, maks. 3 — metal, kryształy, 1 na przyszłość) jako „wkrótce”
+  na osi pod rdzeniem; wchodzi w ostatnim etapie wątku stacji (etap 7).
 - Model modułów `core/station/stationScreen.ts`, dane `data/stationModules.ts` (robocze); zapis bez zmian.
 
 ## v0.71.0 — porządki w interfejsie (po MVP) — 2026-11-09

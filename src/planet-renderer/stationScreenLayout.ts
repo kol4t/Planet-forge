@@ -2,7 +2,7 @@
 // palcem (yaw wokół osi stacji, pitch — pochylenie ku widzowi) i rzut na ekran (do wyboru modułu dotykiem).
 // Czysta matematyka, testowalna bez renderowania. Układ stacji: oś pionowa Y, pierścień w płaszczyźnie XZ,
 // promień całości ok. 1 (jak promień planety).
-import type { StationModuleId } from '../data/stationModules.ts';
+import { AXIS_SOCKET, type StationModuleId } from '../data/stationModules.ts';
 import { socketAngle, type StationModuleView } from '../core/station/stationScreen.ts';
 
 export type Vec3 = [number, number, number];
@@ -16,6 +16,8 @@ export const STATION_SCREEN = {
   mast: 0.82,
   /** Odległość środka modułu od osi (moduły przyczepione na zewnątrz pierścienia). */
   moduleOut: 0.8,
+  /** Dok megakonstruktów: odległość pod rdzeniem na osi. */
+  axisDock: 0.45,
   /** Stałe pochylenie stacji ku widzowi (rad) — pierścień widać jako elipsę. */
   tilt: 0.5,
   stone: '#2b3735',
@@ -28,6 +30,7 @@ export const STATION_SCREEN = {
 /** Punkt zaczepienia modułu (środek stacji dla rdzenia). */
 export function moduleAnchor(m: Pick<StationModuleView, 'socket'>): Vec3 {
   if (m.socket === null) return [0, 0, 0];
+  if (m.socket === AXIS_SOCKET) return [0, -STATION_SCREEN.axisDock, 0];
   const a = socketAngle(m.socket);
   return [Math.cos(a) * STATION_SCREEN.moduleOut, 0, -Math.sin(a) * STATION_SCREEN.moduleOut];
 }

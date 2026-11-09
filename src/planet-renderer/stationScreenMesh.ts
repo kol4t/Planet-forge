@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { socketAngle, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
 import { STATION_SCREEN as S } from './stationScreenLayout.ts';
+import { AXIS_SOCKET } from '../data/stationModules.ts';
 
 export interface StationScreenMesh {
   /** Obiekt do sceny: zewnętrzna grupa — pochylenie (stałe + pitch), wewnętrzna — obrót wokół osi (yaw). */
@@ -75,6 +76,20 @@ export function createStationScreenMesh(model: StationScreenModel): StationScree
   const containers = flat(S.container);
   for (const module of model.modules) {
     if (module.socket === null) continue;
+    if (module.socket === AXIS_SOCKET) {
+      // Dok megakonstruktów (wkrótce): trzy stanowiska wokół osi pod rdzeniem.
+      const dock = new THREE.Group();
+      dock.position.y = -S.axisDock;
+      for (let k = 0; k < 3; k++) {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.16), module.state === 'soon' ? ghost : scaffold);
+        const a = (k / 3) * Math.PI * 2 + Math.PI / 6;
+        b.position.set(Math.cos(a) * 0.2, 0, -Math.sin(a) * 0.2);
+        b.rotation.y = a;
+        dock.add(b);
+      }
+      spin.add(dock);
+      continue;
+    }
     const holder = new THREE.Group();
     const a = socketAngle(module.socket);
     holder.position.set(Math.cos(a) * S.moduleOut, 0, -Math.sin(a) * S.moduleOut);

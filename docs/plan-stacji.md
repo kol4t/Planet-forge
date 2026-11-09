@@ -15,7 +15,7 @@ Antymaterii w megakonstruktach na razie nie ruszamy (decyzja właściciela).
 | Załoga | **Nowy zasób** — ludzie z planet, przewożeni na stację; moduły potrzebują załogi, załoga — miejsca i zapasów; morale wpływa na wydajność |
 | Obcy | **Sygnały i spotkania** — stacja nasłuchuje kosmosu; sygnały, wraki, dryfujące maszyny, żywe istoty; każde spotkanie to krótki wpis z wyborem i skutkiem |
 | Nowe stacje | **Do wyboru gracza:** statek konstrukcyjny (zalążek nowej stacji w wybranym miejscu) **albo** przeniesienie całej stacji macierzystej |
-| Kolejność | 1) ekran i moduły, 2) stacja badawcza, 3) dok handlowy, 4) wydobycie z kosmosu i nowe stacje, 5) załoga, 6) kontakt z obcymi |
+| Kolejność | 1) ekran i moduły, 2) stacja badawcza, 3) dok handlowy, 4) wydobycie z kosmosu i nowe stacje, 5) załoga, 6) kontakt z obcymi, 7) dok megakonstruktów (maks. 3: metal, kryształy, 1 na przyszłość) |
 
 ## 2. Co już jest (punkt wyjścia)
 
@@ -88,6 +88,13 @@ Antymaterii w megakonstruktach na razie nie ruszamy (decyzja właściciela).
   dawnej cywilizacji. Skutki: znaleziska, wiedza do badań, surowce, czasem strata (półmrok — K-003), rzadko zagrożenie.
 - Wszystkie treści **robocze** — przed etapem uzgodnienie z Projektem lore (K-001 pkt 8 „placówki orbitalne”, K-005
   „konflikt zbrojny rzadki”, K-008 „wiele głosów w ramie dziennika”, K-011 filtr: przewaga z wiedzy, nie z siły).
+
+### Etap 7 — Dok megakonstruktów (ostatni etap wątku stacji; decyzja właściciela 2026-11-09)
+- Osobny moduł na osi stacji pod rdzeniem: **maks. 3 miejsca cumowania** — megakonstrukt metalu, megakonstrukt
+  kryształów (wiertnica) i jedno miejsce na przyszły megakonstrukt.
+- Megakonstrukty, które dziś czekają „na orbicie” (krok 3b, v0.61 / v0.69), cumują w doku stacji; stamtąd lecą na
+  wybraną planetę. Szczegóły (premia w doku, koszt cumowania, przeniesienie razem ze stacją) — pytania przed etapem.
+- Od v0.72.0 dok widać na stacji jako „wkrótce” (trzy blade stanowiska pod rdzeniem).
 
 ## 5. Ryzyka i ograniczenia
 

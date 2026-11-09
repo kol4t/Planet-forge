@@ -3,6 +3,7 @@
 // po obrocie i rzucie rysowane od najdalszych (malarz) — tył pierścienia przyciemniony.
 import { socketAngle, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
 import { rotateStation, STATION_SCREEN as S, type Vec3 } from './stationScreenLayout.ts';
+import { AXIS_SOCKET } from '../data/stationModules.ts';
 
 interface Dot {
   p: Vec3;
@@ -49,8 +50,24 @@ export function stationDots(model: StationScreenModel): Dot[] {
       add([Math.cos(a) * S.hub, y, -Math.sin(a) * S.hub], 0.07, h === 0 ? S.light : S.stone);
     }
   }
-  for (const m of model.modules) if (m.socket !== null) moduleDots(m, add);
+  for (const m of model.modules) {
+    if (m.socket === AXIS_SOCKET) dockDots(add);
+    else if (m.socket !== null) moduleDots(m, add);
+  }
   return dots;
+}
+
+/** Dok megakonstruktów (wkrótce): trzy blade stanowiska wokół osi pod rdzeniem. */
+function dockDots(add: (p: Vec3, size: number, color: string) => void): void {
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + Math.PI / 6;
+    const x = Math.cos(a) * 0.2;
+    const z = -Math.sin(a) * 0.2;
+    for (let i = -2; i <= 2; i++) {
+      add([x + i * 0.035, -S.axisDock + 0.05, z], 0.025, 'rgba(95, 242, 224, 0.35)');
+      add([x + i * 0.035, -S.axisDock - 0.05, z], 0.025, 'rgba(95, 242, 224, 0.35)');
+    }
+  }
 }
 
 /** Punkty modułu w gnieździe: lokalnie x — na zewnątrz pierścienia, y — w górę, z — w bok. */

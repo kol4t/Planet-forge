@@ -8,7 +8,7 @@ import type { HomeStation } from '../src/core/types.ts';
 const base: HomeStation = { address: '1:4:6', core: { level: 1, readyAt: 1000 }, stock: { metal: 0, crystal: 0 } };
 
 test('moduły stacji: każde gniazdo zajęte przez jeden moduł, rdzeń w środku', () => {
-  const sockets = STATION_MODULES.filter((m) => m.socket !== null).map((m) => m.socket);
+  const sockets = STATION_MODULES.filter((m) => m.socket !== null && m.socket >= 0).map((m) => m.socket);
   assert.equal(new Set(sockets).size, sockets.length);
   assert.equal(sockets.length, STATION_SOCKETS);
   assert.ok(sockets.every((s) => s! >= 0 && s! < STATION_SOCKETS));
