@@ -64,6 +64,21 @@ export function lavaColors(planet: Planet): { crust: RGB; glow: RGB; hot: RGB } 
   };
 }
 
+/** Funkcja punktu sfery z pamięcią ostatniego wywołania (ten sam punkt — bez ponownego liczenia szumu). */
+function lastPoint(f: (x: number, y: number, z: number) => number): (x: number, y: number, z: number) => number {
+  let lx = NaN;
+  let ly = NaN;
+  let lz = NaN;
+  let last = 0;
+  return (x, y, z) => {
+    if (x === lx && y === ly && z === lz) return last;
+    lx = x;
+    ly = y;
+    lz = z;
+    return (last = f(x, y, z));
+  };
+}
+
 /** Kolor lądu z pasm materiałów profilu: płynne przejście (±`BAND_BLEND`) na granicy pasm. */
 const BAND_BLEND = 0.05;
 
@@ -82,9 +97,17 @@ export function createSurfaceSampler(planet: Planet, options: { inland?: boolean
   };
   const bands = v.bands.map((band) => ({ upTo: band.upTo, color: hexToRgb(band.color) }));
   const sea = field.seaLevel;
-  const inland = options.inland === false ? undefined : field.inland;
+  const field0 = options.inland === false ? undefined : field.inland;
+  // `color` i `glow` pytają o ten sam punkt jeden po drugim (tarcza 2D, piksel po pikselu): ostatni wynik szumu
+  // zapamiętany — planeta lawowa liczyła żyły i strumienie lawy dwa razy na piksel (v0.70.1).
+  const inland = field0 && {
+    ...field0,
+    lava: lastPoint((x, y, z) => field0.lava(x, y, z)),
+    lakeLevel: lastPoint((x, y, z) => field0.lakeLevel(x, y, z)),
+    river: lastPoint((x, y, z) => field0.river(x, y, z)),
+  };
   const lavaSea = v.hydrology.liquid === 'lava';
-  const veins = lavaSea ? createLavaVeins(v.noiseSeed) : () => 0;
+  const veins = lavaSea ? lastPoint(createLavaVeins(v.noiseSeed)) : () => 0;
   const lava = lavaColors(planet);
   const lakeLevel = inland ? inland.lakeLevel : () => -1;
   /** Skorupa z żyłami żaru; `heat` 1 = strumień przy źródle (prawie cały żarzy się). */
