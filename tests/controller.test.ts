@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { buildSeconds } from '../src/core/economy/economy.ts';
 import { GameController, type CompletedBuild } from '../src/app/GameController.ts';
 import { isColonizable } from '../src/core/galaxy/galaxy.ts';
 import { EMPIRE_KEY } from '../src/core/save/empire.ts';
@@ -37,12 +38,13 @@ test('budowa: start → ukończenie zgłoszone raz, z zapisem', () => {
     const done: CompletedBuild[] = [];
     game.onBuildComplete((d) => done.push(d));
     assert.ok(game.upgrade('powerPlant', 0).ok);
-    assert.equal(game.buildSecondsLeft(30_000), 30);
-    assert.equal(game.buildProgress(30_000), 0.5);
-    game.tick(59_000);
+    const total = buildSeconds(2) * 1000;
+    assert.equal(game.buildSecondsLeft(total / 2), Math.ceil(total / 2000));
+    assert.equal(game.buildProgress(total / 2), 0.5);
+    game.tick(total - 1000);
     assert.equal(done.length, 0);
-    game.tick(60_000);
-    game.tick(61_000);
+    game.tick(total);
+    game.tick(total + 1000);
     assert.deepEqual(done, [{ building: 'powerPlant', level: 2 }]);
     assert.equal(JSON.parse(localStorage.getItem(EMPIRE_KEY)!).slots[0].economy.levels.powerPlant, 2);
   });

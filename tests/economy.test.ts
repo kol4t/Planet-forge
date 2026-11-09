@@ -70,7 +70,7 @@ test('ulepszenie: pobiera koszt i rozpoczyna budowę, poziom rośnie dopiero po 
     finishesAt: 1000 + buildSeconds(2) * 1000,
     cost: upgradeCost('powerPlant', 1),
   });
-  assert.equal(buildSeconds(2), 60, '30 s × poziom');
+  assert.equal(buildSeconds(2), Math.round(30 * 2 * 1.07), '30 s × poziom × 1,07^(poziom − 1)');
   assert.equal(e.levels.powerPlant, 1, 'stan wejściowy niezmieniony');
   assert.equal(e.construction, null);
 });
@@ -216,8 +216,8 @@ function level6Build(antimatter: number) {
 
 test('powyżej poz. 5: 1 antymateria za każde rozpoczęte 15 minut', () => {
   const s = level6Build(10);
-  assert.equal(buildSeconds(6), 180);
-  assert.equal(finishCost(s, 0), 1, '3 min → 1');
+  assert.ok(buildSeconds(6) < 15 * 60);
+  assert.equal(finishCost(s, 0), 1, 'poniżej 15 min → 1');
   const long = { ...s, construction: { ...s.construction!, finishesAt: 40 * 60_000 } };
   assert.equal(finishCost(long, 0), 3, '40 min → 3');
   assert.equal(finishCost(long, 25 * 60_000), 1, 'zostało 15 min → 1');
@@ -258,4 +258,10 @@ test('odmiana: antymateria / antymaterie / antymaterii', () => {
   assert.equal(antimatterAmount(5), '5 antymaterii');
   assert.equal(antimatterAmount(12), '12 antymaterii');
   assert.equal(antimatterAmount(22), '22 antymaterie');
+});
+
+test('czas budowy: wyższe poziomy coraz dłużej (strojenie przed MVP) — poz. 40 ok. 4,7 h, bez przyrostu liniowo', () => {
+  assert.ok(buildSeconds(40) > 4 * 3600 && buildSeconds(40) < 5.5 * 3600, `${buildSeconds(40)} s`);
+  for (let l = 2; l <= 40; l++) assert.ok(buildSeconds(l) > buildSeconds(l - 1));
+  assert.equal(buildSeconds(10, { ...BALANCE, buildTimeGrowth: undefined }), 300);
 });

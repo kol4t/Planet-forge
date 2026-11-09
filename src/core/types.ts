@@ -268,8 +268,13 @@ export interface Balance {
   startingLevels: BuildingLevels;
   maxLevel: number;
   maxOfflineSeconds: number;
-  /** Czas budowy = ta liczba sekund × docelowy poziom. */
+  /** Czas budowy = ta liczba sekund × docelowy poziom × `buildTimeGrowth`^(poziom − 1). */
   buildSecondsPerLevel: number;
+  /**
+   * Przyrost czasu budowy z poziomem (strojenie przed MVP, 2026-11-09): 1 — czas rośnie liniowo (do v0.69), więcej —
+   * wyższe poziomy budują się coraz dłużej (wolniejszy start, poz. 40 po kilku dniach). Brak = 1.
+   */
+  buildTimeGrowth?: number;
   /** Do tego poziomu włącznie budowę można ukończyć natychmiast za darmo. */
   freeFinishMaxLevel: number;
   /** Pojemność magazynu (osobno metal i kryształy) = base × growth^(poziom − 1). */

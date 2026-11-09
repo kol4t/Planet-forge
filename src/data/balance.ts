@@ -10,6 +10,8 @@ export const BALANCE: Balance = {
   maxLevel: 40,
   maxOfflineSeconds: 8 * 60 * 60,
   buildSecondsPerLevel: 30,
+  // Strojenie przed MVP (2026-11-09, decyzja właściciela: pętla ok. miesiąc, wolniejszy start): poz. 40 ok. 4,7 h, cała rozbudowa planety ok. 6 dni.
+  buildTimeGrowth: 1.07,
   freeFinishMaxLevel: 5,
   storage: { base: 1000, growth: 1.6 },
   planetSlots: { base: 5, max: 10 },
@@ -21,7 +23,7 @@ export const BALANCE: Balance = {
   deposits: {
     perHundredFields: { metal: 2_000_000, crystal: 1_200_000 },
     buildup: { metal: 28_000_000, crystal: 5_000_000 },
-    konstruktDays: 7,
+    konstruktDays: 6,
     kindRatio: 1.2,
     balancedShare: 0.6,
   },
