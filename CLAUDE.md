@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.71.0 — **MVP ogłoszone 2026-11-09 na v0.70.1** (`docs/mvp.md`); opublikowana: porządki w interfejsie (panel Planeta z listą planet, ☰ = Ustawienia, Galaktyka zamiast Mapy, SI w Imperium, bez planet w tle); płynniejsze 2D na planecie lawowej (rozdzielczość tarczy w ruchu); strojenie ekonomii przed MVP (czas budowy ×1,07 na poziom, megakonstrukt 6 dni); przyczyna zamrożonego ekranu usunięta (Phaser `windowEvents: false`); zawieszone palce, osłona pętli; siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
+## Stan obecny (v0.72.0 — **MVP ogłoszone 2026-11-09 na v0.70.1** (`docs/mvp.md`); opublikowana: stacja kosmiczna, etap 1 — ekran stacji macierzystej z modułami (plan `docs/plan-stacji.md`); porządki w interfejsie (panel Planeta z listą planet, ☰ = Ustawienia, Galaktyka zamiast Mapy, SI w Imperium, bez planet w tle); płynniejsze 2D na planecie lawowej (rozdzielczość tarczy w ruchu); strojenie ekonomii przed MVP (czas budowy ×1,07 na poziom, megakonstrukt 6 dni); przyczyna zamrożonego ekranu usunięta (Phaser `windowEvents: false`); zawieszone palce, osłona pętli; siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -131,6 +131,12 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   (`body:has(#text-panel)` w `index.html`), widok układu zamyka wybrany budynek, bez sąsiednich planet w tle
   (`skyFor` w `main.ts`), „Mapa” → „Galaktyka”, panel Planeta = lista planet + skrót („Szczegóły” — `PanelState.detail`),
   ☰ = Ustawienia (na telefonie menu ukrytych przycisków), SI bez przycisku na pasku (Imperium → SI).
+- **v0.72 — stacja kosmiczna, etap 1** (plan `docs/plan-stacji.md`, 7 etapów, decyzje właściciela 2026-11-09):
+  ekran stacji macierzystej zamiast planety (2D `stationSprite.ts`, 3D `stationScreenMesh.ts`, wspólna matematyka
+  `stationScreenLayout.ts`, `PlanetDisplay.setStationScreen` / `pickStationModule`; jeden kontekst WebGL), „Pierścień
+  z osią”, 6 gniazd + dok megakonstruktów na osi (`data/stationModules.ts`, `core/station/stationScreen.ts`),
+  panel „Moduły” zamiast „Produkcji”, ścieżka „… › Planeta › Stacja”, wejścia: znaczek w widoku układu, lista
+  „Planeta”, Imperium „Pokaż stację”. Zapis bez zmian. Dalej: etap 2 — stacja badawcza.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
@@ -160,7 +166,7 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
   migracje starych zapisów; uszkodzony zapis → kopia `planet-forge.empire.broken` + komunikat; nieudany zapis → komunikat (v0.46).
 - **PWA**: manifest, ikony, service worker (offline, pasek „Dostępna aktualizacja”). **Zgłoszenia**: Ustawienia → „Zgłoś /
   diagnostyka” (GitHub Issue, diagnostyka z płynnością i — w 3D — liczbą rysowań i tekstur).
-- **Testy**: 412 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
+- **Testy**: 418 (node:test) + skrypty audytu (symulacja losowa, zrzuty, pomiary) — `docs/TESTING.md`.
 - **Wydajność** (symulacja, nie iPad): siatka pól ~190 ms na komputerze (najdroższa część zmiany planety), 3D ~43 rysowania /
   105 tys. trójkątów, brak wycieków przy zmianie planety — `docs/PERFORMANCE.md`. Ostatni pomiar na iPadzie: v0.46 (2D 54 / najsłabsza s. 24 kl./s, 3D 56 / 15 kl./s).
 

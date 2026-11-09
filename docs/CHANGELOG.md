@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.72.0 — stacja kosmiczna, etap 1: ekran stacji — robocza
+## v0.72.0 — stacja kosmiczna, etap 1: ekran stacji — 2026-11-09
 
 Plan `docs/plan-stacji.md` (decyzje właściciela 2026-11-09: pierścień z osią, kolory jak interfejs, 2D i 3D od razu,
 wejścia z widoku układu, listy „Planeta” i Imperium):
