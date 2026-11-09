@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.78.0 — stacja kosmiczna, krok 2d-3: automatyka SI — robocza
+## v0.78.0 — stacja kosmiczna, krok 2d-3: automatyka SI — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (przełączniki w „Badania stacji”, gdy nie jest wybrane badanie):
 - **Automatyczne dostawy** (badanie „Automatyczne dostawy”): próg ustawiany przez gracza — 50 / 75 / 90% magazynu
