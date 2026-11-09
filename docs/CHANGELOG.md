@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.80.0 — stacja kosmiczna, krok 3b: kredyty i kupcy — robocza
+## v0.80.0 — stacja kosmiczna, krok 3b: kredyty i kupcy — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 3):
 - **Kredyty** (nazwa robocza) — waluta-przedmiot, nie konto: leżą w magazynie stacji, używają ich tylko stacje i kupcy
