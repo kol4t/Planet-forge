@@ -14,6 +14,8 @@ export interface TradePanelOptions {
   accept: () => ActionMessage;
   deliver: () => ActionMessage;
   onDone: (message: string) => void;
+  /** Otwiera okno „Wzmocnienia budowli” (krok 3c). */
+  boosts?: () => void;
 }
 
 /** Wybrany przycisk — złote tło (przyciski wyboru w oknach HTML mają wspólny styl). */
@@ -33,6 +35,7 @@ export function openTradePanel(options: TradePanelOptions): () => void {
     <div class="tp-box fb-box tr-box" role="dialog" aria-modal="true" aria-labelledby="td-title">
       <h2 id="td-title">Dok handlowy</h2>
       <p class="tp-hint td-info"></p>
+      <div class="tp-actions"><button type="button" class="tp-secondary td-boosts">Wzmocnienia budowli (za antymaterię)</button></div>
       <h3 ${H3}>Rynek</h3>
       <div class="fb-kinds td-side"></div>
       <div class="fb-kinds td-good"></div>
@@ -135,11 +138,15 @@ export function openTradePanel(options: TradePanelOptions): () => void {
     root.querySelector('.td-preview')!.textContent = side === 'sell' ? `Dostaniesz ${formatInt(credits)} kredytów (${per}).` : `Zapłacisz ${formatInt(credits)} kredytów (${per}).`;
   };
   slider.addEventListener('input', preview);
+  root.querySelector('.td-boosts')!.addEventListener('click', () => {
+    close();
+    options.boosts?.();
+  });
   root.querySelector('.td-go')!.addEventListener('click', () => {
     const amount = Number(slider.value);
     act(side === 'sell' ? options.sell(good, amount) : options.buy(good as 'metal' | 'crystal', amount));
   });
-  root.querySelector('.tp-secondary')!.addEventListener('click', close);
+  root.querySelector('.tp-actions:last-child .tp-secondary')!.addEventListener('click', close);
   root.addEventListener('click', (event) => {
     if (event.target === root) close();
   });

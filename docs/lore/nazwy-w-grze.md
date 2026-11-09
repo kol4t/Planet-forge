@@ -35,6 +35,7 @@ Do poprawienia w Projekcie lore (pliki w `docs/lore/` są kopią — nie poprawi
 - **O-301** — gra ma już galaktykę ze 100 układami, gwiazdy, boty i formy obce (wszystko robocze).
 - **O-206** — w `CLAUDE.md` zostało „w klimacie OGame” z dopiskiem o K-005; zmiana samego sformułowania czeka na decyzję właściciela.
 
+| Wzmocnienia budowli: Stabilny wzmacniacz, Przeciążenie, Głębokie wydobycie, Rozruch krytyczny, Zapłon antymaterii, Fala wydobycia, Burza produkcyjna — robocze, krok 3c | `src/core/station/boosts.ts` | — |
 | Kredyty (waluta stacji i kupców), nazwy kupców („Karawana „Szary Szlak””, „Kupiec z Pasa Ruin” itd.) — robocze, krok 3b | `src/core/station/merchants.ts` | — |
 | Moduły stacji: Rdzeń SI Matki, Magazyn orbitalny, Stocznia, Laboratorium orbitalne, Dok handlowy, Moduł mieszkalny, Nasłuch (robocze, etap 1 planu stacji) | `src/data/stationModules.ts` | — |
 | Kategorie i badania stacji (Produkcja, Flota, SI, Planetologia, Handel, Eksploracja; 27 badań — szkic roboczy, etap 2a) | `src/data/stationResearch.ts` | — |

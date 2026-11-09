@@ -13,6 +13,7 @@ import { openAsteroidPanel } from '../ui/asteroidPanel.ts';
 import { openConstructTransferPanel } from '../ui/constructTransferPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
 import { openTradePanel } from '../ui/tradePanel.ts';
+import { openBoostPanel } from '../ui/boostPanel.ts';
 import { openFindsPanel } from '../ui/findsPanel.ts';
 import { openFactoryPanel } from '../ui/factoryPanel.ts';
 import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
@@ -754,6 +755,19 @@ export class PlanetScene extends Phaser.Scene {
       ship: () => c.merchantShip(),
       accept: () => c.acceptContract(),
       deliver: () => c.deliverContract(),
+      boosts: () => this.openBoosts(),
+      onDone: (message) => this.showToast(message, 'ok', 2600),
+    });
+  }
+
+  /** Okno „Wzmocnienia budowli” (krok 3c) — z doku handlowego. */
+  private openBoosts(): void {
+    const c = this.deps.controller;
+    this.closeAsteroid?.();
+    this.closeAsteroid = openBoostPanel({
+      view: () => c.boostsView(),
+      buy: (defId, address, building, from, pay) => c.buyBoost(defId, address, building, Date.now(), from, pay),
+      initialAddress: c.address,
       onDone: (message) => this.showToast(message, 'ok', 2600),
     });
   }

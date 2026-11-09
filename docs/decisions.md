@@ -1151,3 +1151,11 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
   nieobecność gracza. Zapis trzyma tylko zużyte oferty bieżącej wizyty i przyjęte zamówienie.
 - Na razie jedna stacja = jeden magazyn kredytów. Przewóz kredytów statkami (z ryzykiem piratów) i kredyty kolejnych
   stacji — **do zrobienia później** (właściciel: „rozwinąć bardziej ten temat”).
+
+## 2026-11-09 — Stacja, krok 3c: wzmocnienia budowli (decyzje właściciela)
+
+- Wzmocnienia na budynek i na całą planetę, bez limitu (mnożą się). Skutki uboczne: awaria, utrata 1–3 poziomów,
+  zniszczenie budynku, szybsze wyczerpanie złoża — zawsze z większą nagrodą niż bezpieczne wzmocnienie.
+- Dok sprzedaje za antymaterię; kupcy — lepsze i bez skutków ubocznych (antymateria albo kredyty).
+- Ryzyko losowane przy zakupie (zapisane), skutek po końcu działania; osłona budynków w budowie i megakonstruktów
+  (awaria zamiast utraty poziomów) — żeby nie psuć stanu budowy i układu osad. Eksplozja planety — osobny etap (lore).

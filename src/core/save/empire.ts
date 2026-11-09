@@ -17,6 +17,7 @@ import { parseFleet } from '../economy/fleet.ts';
 import { parseOrbiting } from '../economy/orbitalConstruct.ts';
 import type { AsteroidStation, BuildingId, CometHaul, ConstructTransfer, Fleet, OrbitalConstruct, HomeStation, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, JournalKind, PlanetSpecialization, ResearchState, StellarEmpire, ColonyStation } from '../types.ts';
 import { parseColonyStations } from '../economy/colonyStation.ts';
+import { parseBoosts, type ActiveBoost } from '../station/boosts.ts';
 import { parseView, type ViewState } from '../view/viewState.ts';
 import { parseGuide, type GuideState } from '../guide/guide.ts';
 import { GUIDE_STEPS } from '../../data/guide.ts';
@@ -124,6 +125,8 @@ export interface EmpireSave {
   stellar?: StellarEmpire;
   /** Stacje kolonii (etap 9, od v0.64 — opcjonalne): przekaźniki na orbitach kolonii. */
   colonyStations?: ColonyStation[];
+  /** Wzmocnienia budowli i awarie (krok 3c planu stacji, od v0.81 — opcjonalne). */
+  boosts?: ActiveBoost[];
   /** Ostatni widok (plan „widok układu”, etap B; opcjonalne): brak albo błędny = start na aktywnej planecie. */
   view?: ViewState;
   /** Przewodnik SI Matki (etap 11, od v0.67 — opcjonalne): bieżący krok, wyłącznik; brak = start od niewykonanego kroku. */
@@ -266,6 +269,7 @@ export function deserializeEmpire(raw: string | null): EmpireSave | null {
     ...(parseOrbiting(data.orbiting).length > 0 ? { orbiting: parseOrbiting(data.orbiting) } : {}),
     ...(parseStellar(data.stellar) ? { stellar: parseStellar(data.stellar)! } : {}),
     ...(parseColonyStations(data.colonyStations).length > 0 ? { colonyStations: parseColonyStations(data.colonyStations) } : {}),
+    ...(parseBoosts(data.boosts).length > 0 ? { boosts: parseBoosts(data.boosts) } : {}),
     ...(parseView(data.view) ? { view: parseView(data.view)! } : {}),
     ...(parseGuide(data.guide, GUIDE_STEPS.length) ? { guide: parseGuide(data.guide, GUIDE_STEPS.length)! } : {}),
   };

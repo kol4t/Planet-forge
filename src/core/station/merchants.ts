@@ -6,6 +6,7 @@
 // z 2–3 lepszymi ofertami, czasem statkiem na sprzedaż i jednym zamówieniem z nagrodą. Czysta logika, liczby robocze.
 import { createRng } from '../random/rng.ts';
 import type { Resources, ShipType } from '../types.ts';
+import { BOOSTS } from './boosts.ts';
 import { driftFactor, marketSpread, TRADE, type TradeGood } from './trade.ts';
 
 export const MERCHANTS = {
@@ -26,6 +27,7 @@ export const MERCHANTS = {
 const NAMES = ['Karawana „Szary Szlak”', 'Kupiec z Pasa Ruin', 'Barka „Długi Rejs”', 'Kompania Odzysku', 'Wędrowny skład „Echo”', 'Handlarz z Dalekiej Orbity'];
 
 const credit = MERCHANTS.creditValue;
+const BOOST_IDS = BOOSTS.map((b) => b.id);
 
 /** Kredyty za 1 jednostkę towaru na rynku (sprzedaż). */
 export function sellPrice(good: TradeGood, at: number, level: number, ratesResearch: boolean): number {
@@ -63,6 +65,8 @@ export interface MerchantVisit {
   offers: MerchantOffer[];
   ship: { type: ShipType; credits: number } | null;
   contract: MerchantContract;
+  /** Wzmocnienie na sprzedaż (id definicji; wersja kupiecka — lepsza, bez ryzyka; krok 3c). */
+  boost: string | null;
 }
 
 /** Numer wizyty i czy kupiec jest teraz przy doku. */
@@ -101,7 +105,10 @@ export function merchantVisit(index: number, dockLevel: number): MerchantVisit {
     amount,
     reward: { credits: Math.round(worth * 1.3), antimatter: 5 + Math.floor(rng.next() * 10), bonus: bonusRoll < 0.35 ? 'speedup' : bonusRoll < 0.6 ? 'find' : null },
   };
-  return { index, name: NAMES[Math.floor(rng.next() * NAMES.length)]!, arrivesAt: at, leavesAt: at + MERCHANTS.stayMs, offers, ship, contract };
+  const name = NAMES[Math.floor(rng.next() * NAMES.length)]!;
+  // Nowe losowania na końcu strumienia (wcześniejsze wizyty bez zmian).
+  const boost = rng.next() < 0.5 ? BOOST_IDS[Math.floor(rng.next() * BOOST_IDS.length)]! : null;
+  return { index, name, arrivesAt: at, leavesAt: at + MERCHANTS.stayMs, offers, ship, contract, boost };
 }
 
 /** Stan kupców w zapisie stacji: zużyte oferty bieżącej wizyty i przyjęte zamówienie. */
@@ -109,6 +116,7 @@ export interface MerchantSave {
   visit: number;
   used: number[];
   shipSold?: boolean;
+  boostSold?: boolean;
   contract?: { visit: number; acceptedAt: number; contract: MerchantContract };
 }
 
@@ -124,6 +132,7 @@ export function parseMerchantSave(raw: unknown): MerchantSave | null {
     visit: r.visit,
     used,
     ...(r.shipSold === true ? { shipSold: true } : {}),
+    ...(r.boostSold === true ? { boostSold: true } : {}),
     ...(okContract
       ? {
           contract: {
