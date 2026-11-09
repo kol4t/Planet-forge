@@ -14,6 +14,7 @@ import { openConstructTransferPanel } from '../ui/constructTransferPanel.ts';
 import { openComplexPanel } from '../ui/complexPanel.ts';
 import { openTradePanel } from '../ui/tradePanel.ts';
 import { openBoostPanel } from '../ui/boostPanel.ts';
+import { openOutpostPanel } from '../ui/outpostPanel.ts';
 import { openFindsPanel } from '../ui/findsPanel.ts';
 import { openFactoryPanel } from '../ui/factoryPanel.ts';
 import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
@@ -423,6 +424,7 @@ export class PlanetScene extends Phaser.Scene {
     return {
       starColor: findStar(system.star).color,
       beltAfter: system.belt ? system.belt.after - 1 : null,
+      ...(c.outpostsView().list.some((o) => o.system === index && !o.flying) ? { beltOutpost: true } : {}),
       bodies: system.planets.map((p) => {
         const slot = c.slotAt(p.address);
         const own = slot >= 0;
@@ -676,12 +678,13 @@ export class PlanetScene extends Phaser.Scene {
     y += state.height / this.dpr + this.s(4);
     const canUpgrade = !!card.action && card.state !== 'building';
     // Opis tylko, gdy zmieści się nad kosztem i przyciskiem.
-    const bottom = rect.y + rect.h - pad - (canUpgrade || ((card.id === 'lab' || card.id === 'dock') && card.level > 0) ? TOUCH + this.s(20) : 0);
+    const extra = ((card.id === 'lab' || card.id === 'dock') && card.level > 0) || (card.id === 'core' && card.level > 0 && this.deps.controller.outpostsView().unlocked);
+    const bottom = rect.y + rect.h - pad - (canUpgrade || extra ? TOUCH + this.s(20) : 0);
     const desc = this.text(rect.x + pad, y, card.description, 10.5, COLORS.muted, { wordWrap: { width: this.px(w) }, lineSpacing: this.px(1) });
     if (y + desc.height / this.dpr > bottom) desc.setVisible(false);
     // Laboratorium orbitalne (etap 2a): obok „Ulepsz” wejście do badań stacji; płaci magazyn stacji.
     // Laboratorium — „Badania”, dok handlowy — „Handel” (etap 3a) obok przycisku rozbudowy.
-    const research = (card.id === 'lab' || card.id === 'dock') && card.level > 0;
+    const research = extra;
     const half = research && canUpgrade ? (w - this.s(6)) / 2 : w;
     if (canUpgrade) {
       const cost = card.nextCost!;
@@ -689,8 +692,8 @@ export class PlanetScene extends Phaser.Scene {
       this.addButton(rect.x + pad, rect.y + rect.h - pad - TOUCH, half, TOUCH, card.level === 0 ? 'Zbuduj' : research ? `Poz. ${card.level + 1}` : `Ulepsz do ${card.level + 1}`, 'primary', () => this.upgradeModule(card.action!), 13);
     }
     if (research) {
-      const label = card.id === 'dock' ? 'Handel' : 'Badania';
-      this.addButton(rect.x + rect.w - pad - half, rect.y + rect.h - pad - TOUCH, half, TOUCH, label, 'secondary', () => (card.id === 'dock' ? this.openTrade() : this.openScreen('stationResearch')), 13);
+      const label = card.id === 'dock' ? 'Handel' : card.id === 'core' ? 'Placówki' : 'Badania';
+      this.addButton(rect.x + rect.w - pad - half, rect.y + rect.h - pad - TOUCH, half, TOUCH, label, 'secondary', () => (card.id === 'dock' ? this.openTrade() : card.id === 'core' ? this.openOutposts() : this.openScreen('stationResearch')), 13);
     }
   }
 
@@ -756,6 +759,17 @@ export class PlanetScene extends Phaser.Scene {
       accept: () => c.acceptContract(),
       deliver: () => c.deliverContract(),
       boosts: () => this.openBoosts(),
+      onDone: (message) => this.showToast(message, 'ok', 2600),
+    });
+  }
+
+  /** Okno „Stacje wyspecjalizowane” (etap 4a). */
+  private openOutposts(): void {
+    const c = this.deps.controller;
+    this.closeAsteroid?.();
+    this.closeAsteroid = openOutpostPanel({
+      view: () => c.outpostsView(),
+      upgrade: (site) => c.upgradeOutpostAt(site),
       onDone: (message) => this.showToast(message, 'ok', 2600),
     });
   }
@@ -841,10 +855,27 @@ export class PlanetScene extends Phaser.Scene {
             `${star.label} · planet: ${system.planetCount}`,
             `Gazowe olbrzymy: ${system.planets.filter((p) => p.body === 'gas-giant').length} · pas asteroid: ${system.belt ? 'tak' : 'nie'}`,
           ]
-        : [`Pas asteroid za ${system.belt?.after ?? '?'}. orbitą.`, 'Stację wydobywczą na pasie buduje się w oknie „Planeta” (Kosmos wokół planety), gdy Twoja planeta jest w tym układzie.'];
+        : [`Pas asteroid za ${system.belt?.after ?? '?'}. orbitą.`, 'Stację wydobywczą planety buduje się w oknie „Planeta” (Kosmos wokół planety), gdy Twoja planeta jest w tym układzie.'];
+    const actions: { label: string; primary?: boolean; run: () => void }[] = [{ label: 'Tabela układu', primary: false, run: () => this.openMap(this.viewSystem) }];
+    if (kind === 'belt') {
+      // Stacja górnicza (etap 4a): statek konstrukcyjny ze stacji macierzystej.
+      const o = c.outpostsView(this.viewSystem);
+      const here = o.list.find((x) => x.system === this.viewSystem);
+      if (here) {
+        lines.push(here.flying ? `Stacja górnicza: statek leci — przylot za ${formatDuration(here.secondsLeft)}.` : `Twoja stacja górnicza: poz. ${here.level} · +${formatInt(here.output.metal)} metalu, +${formatInt(here.output.crystal)} kryształów na godzinę (do magazynu stacji macierzystej).`);
+        actions.unshift({ label: 'Stacje wyspecjalizowane', primary: true, run: () => this.openOutposts() });
+      } else if (o.unlocked && o.target) {
+        lines.push(
+          o.miningUnlocked
+            ? `Stacja górnicza: lot ${formatDuration(o.target.seconds)}, paliwo ${o.target.fuel} · statki konstrukcyjne: ${o.ships} · stacje ${o.list.length}/${o.limit}.`
+            : 'Stację górniczą odblokowuje badanie stacji „Stacja górnicza na pasie” (Eksploracja).',
+        );
+        if (o.miningUnlocked) actions.unshift({ label: 'Wyślij statek konstrukcyjny', primary: true, run: () => this.afterInfoAction(c.sendOutpost(this.viewSystem)) });
+      }
+    }
     this.closeInfo?.();
     this.closeInfo = openObjectInfo(
-      { title: kind === 'star' ? system.name : `Pas asteroid — ${system.name}`, lines, actions: [{ label: 'Tabela układu', primary: false, run: () => this.openMap(this.viewSystem) }] },
+      { title: kind === 'star' ? system.name : `Pas asteroid — ${system.name}`, lines, actions },
       () => (this.closeInfo = null),
     );
   }

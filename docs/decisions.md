@@ -1159,3 +1159,10 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
 - Dok sprzedaje za antymaterię; kupcy — lepsze i bez skutków ubocznych (antymateria albo kredyty).
 - Ryzyko losowane przy zakupie (zapisane), skutek po końcu działania; osłona budynków w budowie i megakonstruktów
   (awaria zamiast utraty poziomów) — żeby nie psuć stanu budowy i układu osad. Eksplozja planety — osobny etap (lore).
+
+## 2026-11-09 — Stacja, etap 4: stacje wyspecjalizowane (decyzje właściciela)
+
+- Stacja gazowa → antymateria (bez nowego zasobu). Stara „stacja na pasie” planety zostaje; stacja górnicza osobno.
+- Limit stacji wyspecjalizowanych z badań stacji (każde z 4 badań Eksploracji = 1 miejsce), jedna stacja na obiekt.
+- Urobek stacji górniczej idzie do magazynu stacji macierzystej (stacje gospodarują własnymi surowcami, jak przy
+  kredytach). Kolejność: 4a górnicza, 4b gazowa, 4c przeniesienie stacji macierzystej.

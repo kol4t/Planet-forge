@@ -37,6 +37,8 @@ export interface SystemScene {
   bodies: SystemBody[];
   /** Pas asteroid za obiektem o tym indeksie (null — brak). */
   beltAfter: number | null;
+  /** Na pasie stoi stacja górnicza gracza (etap 4a planu stacji) — znaczek na pasie. */
+  beltOutpost?: boolean;
 }
 
 /** Prostokąt widoku (piksele CSS, względem okna). */
@@ -312,6 +314,24 @@ export class SystemView {
       ctx.ellipse(star.x, star.y, r * cam.scale, r * cam.scale * SYSTEM_TILT, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+      if (scene.beltOutpost) {
+        // Stacja górnicza: znaczek na przedniej części pasa (stały kąt — łatwo ją znaleźć i stuknąć pas).
+        const a = Math.PI * 0.3;
+        const x = star.x + Math.cos(a) * r * cam.scale;
+        const y = star.y + Math.sin(a) * r * cam.scale * SYSTEM_TILT;
+        const s = Math.max(6, this.radius(cam) * 0.6);
+        ctx.fillStyle = '#d6b25e';
+        ctx.beginPath();
+        ctx.moveTo(x, y - s);
+        ctx.lineTo(x + s, y);
+        ctx.lineTo(x, y + s);
+        ctx.lineTo(x - s, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#5ff2e0';
+        ctx.lineWidth = Math.max(1.5, s * 0.22);
+        ctx.strokeRect(x - s * 0.35, y - s * 0.35, s * 0.7, s * 0.7);
+      }
     }
     // Obiekty: najpierw te za gwiazdą (głębia), potem przed nią.
     const radius = this.radius(cam);

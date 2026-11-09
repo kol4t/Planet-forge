@@ -2,6 +2,21 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.82.0 — stacja kosmiczna, krok 4a: statek konstrukcyjny i stacja górnicza — robocza
+
+Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 4; kolejność 4a statek + górnicza → 4b gazowa →
+4c przeniesienie stacji macierzystej):
+- **Statek konstrukcyjny** (stocznia, po badaniu stacji „Wydobycie z kosmosu”; 20 000 / 14 000, 1 h budowy): leci ze
+  stacji macierzystej (2× dłużej niż transport, paliwo jak statek kolonizacyjny) i zużywa się na miejscu.
+- **Stacja górnicza** na pasie asteroid (po badaniu „Stacja górnicza na pasie”): widok układu → stuknij pas →
+  „Wyślij statek konstrukcyjny”. Urobek 600 metalu i 300 kryształów na godzinę na poz. 1 (×1,3 na poziom, poz. 1–10)
+  trafia do **magazynu stacji macierzystej** (do jego pojemności). Rozbudowa płacona z magazynu stacji.
+- **Limit stacji wyspecjalizowanych z badań** (Wydobycie z kosmosu, Stacja górnicza na pasie, Czerpanie gazu,
+  Placówka między układami — po 1 miejscu); najwyżej jedna stacja na pas. Dawna „stacja na pasie” planety zostaje osobno.
+- Okno „Stacje wyspecjalizowane” (Moduły stacji → Rdzeń → „Placówki”), znaczek stacji górniczej na pasie w widoku układu.
+- `core/station/outposts.ts` (`OUTPOSTS`), `game/ui/outpostPanel.ts`, zapis `outposts` (opcjonalny), statek
+  `constructionShip` we flocie (stare zapisy — 0).
+
 ## v0.81.0 — stacja kosmiczna, krok 3c: wzmocnienia budowli — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 3):
