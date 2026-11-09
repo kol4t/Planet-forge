@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.70.1 — opublikowana: płynniejsze 2D na planecie lawowej (rozdzielczość tarczy w ruchu); strojenie ekonomii przed MVP (czas budowy ×1,07 na poziom, megakonstrukt 6 dni); przyczyna zamrożonego ekranu usunięta (Phaser `windowEvents: false`); zawieszone palce, osłona pętli; siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
+## Stan obecny (v0.70.1 — **MVP ogłoszone 2026-11-09** (`docs/mvp.md`); opublikowana: płynniejsze 2D na planecie lawowej (rozdzielczość tarczy w ruchu); strojenie ekonomii przed MVP (czas budowy ×1,07 na poziom, megakonstrukt 6 dni); przyczyna zamrożonego ekranu usunięta (Phaser `windowEvents: false`); zawieszone palce, osłona pętli; siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -227,7 +227,8 @@ Grę testuje kilka osób; błędy i sugestie trafiają jako **GitHub Issues** (`
 
 ## Najbliższe etapy (każdy to osobna sesja, gałąź `claude/…`, akceptacja przed `main`)
 
-**Od 2026-10-28 obowiązuje plan do MVP w `docs/status.md`** (definicja MVP właściciela: pętla planeta → wyczerpanie →
+**MVP ogłoszone 2026-11-09 na v0.70.1** (podsumowanie, odłożone i otwarte decyzje: `docs/mvp.md`). Kolejne etapy
+wybiera właściciel z listy „po MVP” (`docs/mvp.md` pkt 6) i „Do zrobienia później” niżej. Dawny plan do MVP: `docs/status.md` (definicja MVP właściciela: pętla planeta → wyczerpanie →
 transport i przenoszenie megakonstruktów → 80% złóż na 3 planetach → stacja macierzysta / flota / imperium gwiezdne, antymateria jako paliwo). Lista niżej jest starsza.
 
 Ukończone etapy (generator v0.18–v0.25, odnowa ekranów v0.29–v0.33, galaktyka v0.34–v0.34.5, nowe mechaniki v0.35–v0.37.1,

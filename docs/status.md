@@ -162,6 +162,8 @@ i odporność zapisu zostają jako warunki jakości (punkt 5, „ważne”), nie
 
 ---
 
+> **2026-11-09: MVP ogłoszone na v0.70.1** — podsumowanie w `docs/mvp.md`. Ten plik zostaje jako historia planu.
+
 ## 5. Co jeszcze do MVP
 
 ### Blokujące (rdzeń pętli) — kolejność i wersje w punkcie 7

@@ -1,6 +1,6 @@
 # Planet Forge — podsumowanie MVP (v0.70.1)
 
-Stan: 2026-11-09. Opublikowana wersja: **v0.70.1** (`https://kol4t.github.io/Planet-forge/`).
+**MVP ogłoszone 2026-11-09 (decyzja właściciela).** Opublikowana wersja: **v0.70.1** (`https://kol4t.github.io/Planet-forge/`).
 Definicja MVP właściciela (2026-10-28, `docs/status.md`): pętla **planeta → wyczerpanie → transport i przenoszenie
 megakonstruktów → 80% złóż na 3 planetach → stacja macierzysta / flota / imperium gwiezdne**, antymateria jako paliwo.
 

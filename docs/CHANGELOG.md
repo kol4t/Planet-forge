@@ -2,6 +2,11 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## MVP — 2026-11-09
+
+- **MVP ogłoszone na v0.70.1** (decyzja właściciela). Podsumowanie: `docs/mvp.md` — pętla gry, tempo (ok. 30 / 37 dni),
+  płynność na iPadzie, rzeczy odłożone na po MVP i otwarte decyzje. Gra bez zmian.
+
 ## v0.70.1 — płynność 2D na planecie lawowej — 2026-11-09
 
 - Zgłoszenie właściciela: spadek klatek w 2D na planecie lawowej. Podczas obracania tarcza rysuje się w nieco niższej
