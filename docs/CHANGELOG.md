@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.73.0 — stacja kosmiczna, etap 2a: badania stacji — robocza
+## v0.73.0 — stacja kosmiczna, etap 2a: badania stacji — 2026-11-09
 
 Decyzje właściciela 2026-11-09 (`docs/plan-stacji.md`, etap 2):
 - Moduł **Laboratorium orbitalne** (gniazdo 2): budowa i rozbudowa do poz. 10, płaci **magazyn stacji**.
