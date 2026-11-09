@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.74.0 — stacja kosmiczna, krok 2b: premia stacji — robocza
+## v0.74.0 — stacja kosmiczna, krok 2b: premia stacji — 2026-11-09
 
 Decyzje właściciela 2026-11-09:
 - **Premia stacji macierzystej** dla jej otoczenia: +5% wydobycia metalu i kryształów, −5% czasu budowy, −30% paliwa
