@@ -13,16 +13,18 @@ export const STATION_AURA = {
   /** Paliwo lotów na stację z planet w zasięgu (procent, przy 100%). */
   fuelToStation: -30,
   /** Udział premii: planeta pod stacją, reszta układu, sąsiednie układy. */
-  share: { planet: 1, system: 0.5, near: 0.25 },
+  share: { planet: 1, system: 0.5, near: 0.25, far: 0.1 },
   /** Sąsiednie układy: odległość na mapie galaktyki (jednostki mapy; średnio ok. 4 układy). */
   nearDistance: 20,
+  /** Dalekie układy (badanie „Zasięg premii: dalekie układy”, krok 2c). */
+  farDistance: 40,
   /** Siła premii rośnie o tyle na każdy poziom rdzenia ponad pierwszy. */
   perCoreLevel: 0.25,
   status: 'robocza' as const,
 };
 
-/** 0 — brak premii, 1 — planeta pod stacją, 2 — cały układ, 3 — sąsiednie układy. */
-export type AuraReach = 0 | 1 | 2 | 3;
+/** 0 — brak premii, 1 — planeta pod stacją, 2 — cały układ, 3 — sąsiednie układy, 4 — dalekie układy. */
+export type AuraReach = 0 | 1 | 2 | 3 | 4;
 
 export interface AuraStats {
   reach: AuraReach;
@@ -39,13 +41,15 @@ export interface AuraStats {
 export function auraStats(done: readonly string[], coreLevel: number): AuraStats {
   let reach: AuraReach = 0;
   let fromStationTime = 0;
+  let boost = 1;
   for (const id of done) {
     for (const e of findStationResearch(id)?.effects ?? []) {
       if (e.kind === 'stationLaunchTime') fromStationTime += e.percent;
       if (e.kind === 'stationAura') reach = Math.max(reach, e.reach) as AuraReach;
+      if (e.kind === 'stationAuraStrength') boost = Math.max(boost, e.factor);
     }
   }
-  const strength = 1 + STATION_AURA.perCoreLevel * Math.max(0, coreLevel - 1);
+  const strength = (1 + STATION_AURA.perCoreLevel * Math.max(0, coreLevel - 1)) * boost;
   const A = STATION_AURA;
   return {
     reach,
@@ -63,6 +67,7 @@ export function auraShare(reach: AuraReach, samePlanet: boolean, sameSystem: boo
   if (reach >= 1 && samePlanet) return A.planet;
   if (reach >= 2 && sameSystem) return A.system;
   if (reach >= 3 && !sameSystem && systemDistance <= STATION_AURA.nearDistance) return A.near;
+  if (reach >= 4 && !sameSystem && systemDistance <= STATION_AURA.farDistance) return A.far;
   return 0;
 }
 
@@ -78,4 +83,4 @@ export function auraEffects(stats: AuraStats, share: number): ResearchEffect[] {
 }
 
 /** Nazwa zasięgu do interfejsu. */
-export const auraReachName = (reach: AuraReach) => ['brak', 'planeta pod stacją', 'cały układ', 'układ i sąsiednie układy'][reach]!;
+export const auraReachName = (reach: AuraReach) => ['brak', 'planeta pod stacją', 'cały układ', 'układ i sąsiednie układy', 'układ, sąsiednie i dalekie układy'][reach]!;

@@ -2,6 +2,19 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.75.0 — stacja kosmiczna, krok 2c: pełne drzewko badań stacji — robocza
+
+Lista zaakceptowana przez właściciela 2026-11-09 (`docs/badania-stacji.md`):
+- **90 badań stacji** — 6 kategorii po 15, **6 pierścieni** (Laboratorium orbitalne poz. 1 / 2 / 4 / 6 / 8 / 10),
+  mosty między kategoriami; 27 badań ze szkicu z tymi samymi id (zapisy bez zmian).
+- Działają od razu: wydobycie, energia, koszt i czas budowy, loty, ładowność, złoża, środowisko, ekspedycje, kolejka
+  budowy, **paliwo lotów** (`BALANCE.fuelFactor`), **stocznia** (czas, kolejka), **eskorta**, **naprawy**, **straty od
+  piratów**, **magazyn stacji**, **resztki złóż**, **siła premii stacji** (×1,25 / ×1,5), **dalekie układy** (premia do
+  40 jedn., 10%). `withStationResearch` w `core/station/stationResearch.ts`.
+- „🔓” (rdzeń 2. i 3. generacji, Kurier, Ciężki transportowiec, Konwoje, automatyka SI, kolejka stacji) i „→ etap N” —
+  do zbadania, z opisem, co otworzą; mechaniki w kolejnych krokach.
+- Galaktyki kategorii rozłożone po łuku (stały odstęp gwiazd), mosty obok badań.
+
 ## v0.74.0 — stacja kosmiczna, krok 2b: premia stacji — 2026-11-09
 
 Decyzje właściciela 2026-11-09:

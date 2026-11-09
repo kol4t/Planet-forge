@@ -71,9 +71,9 @@ Podział na kroki (każdy do sprawdzenia na iPadzie):
 - **2a** (zrobione — v0.73.0, szkic badań) — Laboratorium orbitalne (budowa z magazynu stacji), silnik badań stacji (osobny stan, kolejka, koszt
   z magazynu stacji), ekran „Badania stacji”: wybór 6 kategorii, galaktyka kategorii z mostami — na szkicu badań.
 - **2b** (zrobione — v0.74.0) — premia stacji i jej zasięg (planeta → układ → sąsiednie układy), widoczna w widoku układu i w Imperium.
-- **2c** — docelowa lista badań (uzgodniona z właścicielem) w miejsce szkicu.
+- **2c** (zrobione — v0.75.0, 90 badań, `docs/badania-stacji.md`) — docelowa lista badań (uzgodniona z właścicielem) w miejsce szkicu.
 
-Szkic badań (ROBOCZY — tylko do pokazania kształtu drzewka; do zmiany z właścicielem):
+Szkic badań z kroku 2a (zastąpiony w kroku 2c pełną listą — `docs/badania-stacji.md`):
 
 | Kategoria | Przykładowe badania (pierścienie 1 → 4) | Most do |
 |---|---|---|
@@ -83,6 +83,9 @@ Szkic badań (ROBOCZY — tylko do pokazania kształtu drzewka; do zmiany z wła
 | Planetologia | Skan orbitalny planet · Mapy złóż układu · Stabilizacja klimatu z orbity · Przygotowanie doku megakonstruktów (etap 7) | Produkcja, Eksploracja |
 | Handel | Rejestr kupców · Dok handlowy (etap 3) · Kursy wymiany · Kontrakty długie | Produkcja, Flota |
 | Eksploracja | Teleskop stacji · Wydobycie z kosmosu (etap 4) · Moduł mieszkalny (etap 5) · Nasłuch (etap 6) | Flota, SI, Planetologia |
+
+- **2d** (następny) — nowe rzeczy z badań: poziomy rdzenia (drugi i trzeci pierścień gniazd), nowe statki (Kurier,
+  Ciężki transportowiec, Konwoje), automatyka SI (dostawy, SI nocna, autonomia), kolejka stacji.
 
 ### Etap 3 — Dok handlowy
 - Moduł **Dok handlowy**: rynek z **kupcami sterowanymi przez grę** (bez innych graczy — zakres MVP): wymiana metalu ↔

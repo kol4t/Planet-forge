@@ -342,6 +342,8 @@ export interface Balance {
    * `inSystem` (ten sam układ) albo `base` + ⌈odległość / `unitsPerOne`⌉ (między układami).
    */
   fuel: Record<FuelKind, FuelRule>;
+  /** Mnożnik paliwa wszystkich lotów (badania stacji, krok 2c; brak = 1). */
+  fuelFactor?: number;
   /**
    * Wyeksploatowanie (v0.54, decyzja właściciela): po wydobyciu `threshold` złoża danego surowca kopalnia wydobywa
    * resztki z wydajnością `remnantOutput` (energia bez zmian); planeta z oboma złożami ≥ `threshold` = „wyeksploatowana”,

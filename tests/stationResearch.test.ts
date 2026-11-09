@@ -75,3 +75,31 @@ test('zapis badań stacji: nieznane pomijane, stary zapis bez pól działa', () 
   assert.equal(old.lab, undefined);
   assert.equal(old.research, undefined);
 });
+
+import { withStationResearch } from '../src/core/station/stationResearch.ts';
+import { BALANCE } from '../src/data/balance.ts';
+import { fuelCost } from '../src/core/economy/fuel.ts';
+
+test('lista właściciela: 90 badań, po 15 w kategorii, 6 pierścieni, bez cykli', () => {
+  assert.equal(STATION_RESEARCH.length, 90);
+  for (const c of STATION_CATEGORIES) assert.equal(STATION_RESEARCH.filter((n) => n.category === c.id).length, 15, c.id);
+  assert.equal(Math.max(...STATION_RESEARCH.map((n) => n.ring)), 6);
+  // Wymaganie zawsze z niższego albo tego samego pierścienia (ścieżka istnieje), bez cykli.
+  const seen = new Set<string>();
+  const visit = (id: string, path: string[]): void => {
+    assert.ok(!path.includes(id), `cykl: ${[...path, id].join(' → ')}`);
+    if (seen.has(id)) return;
+    for (const r of findStationResearch(id)!.requires) visit(r, [...path, id]);
+    seen.add(id);
+  };
+  for (const node of STATION_RESEARCH) visit(node.id, []);
+});
+
+test('badania stacji zmieniają liczby imperium: paliwo, stocznia, magazyn stacji', () => {
+  const b = withStationResearch(BALANCE, ['st-fuel-cells', 'st-serial-docks', 'st-fleet-hangar', 'st-trade-storage']);
+  assert.ok(fuelCost('transport', 100, b) < fuelCost('transport', 100, BALANCE));
+  assert.ok(b.fleet.ships.transport.seconds < BALANCE.fleet.ships.transport.seconds);
+  assert.equal(b.fleet.queue, BALANCE.fleet.queue + 2);
+  assert.ok(b.homeStation.storageBase > BALANCE.homeStation.storageBase);
+  assert.equal(withStationResearch(BALANCE, ['st-power']), BALANCE);
+});

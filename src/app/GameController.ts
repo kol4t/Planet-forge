@@ -17,8 +17,8 @@ import { transferCost, transferFlightSeconds, transferFuel, transferRoom, withAn
 import { buildHomeStation, stationCapacity, stationReady, storageModuleCost, upgradeStationStorage } from '../core/economy/homeStation.ts';
 import { stationScreen, type StationModuleView, type StationScreenModel } from '../core/station/stationScreen.ts';
 import { stationModuleDef } from '../data/stationModules.ts';
-import { completeStationResearch, EMPTY_STATION_RESEARCH, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
-import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect } from '../data/stationResearch.ts';
+import { completeStationResearch, EMPTY_STATION_RESEARCH, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
+import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect, type StationStat } from '../data/stationResearch.ts';
 import { auraEffects, auraReachName, auraShare, auraStats, STATION_AURA, type AuraStats } from '../core/station/stationAura.ts';
 import {
   advance,
@@ -486,11 +486,26 @@ export interface TransferView {
 }
 
 /** Stacja macierzysta do karty w Imperium (v0.55). */
+const signed = (v: number) => `${v > 0 ? '+' : ''}${v}%`;
+const STAT_TEXT: Record<StationStat, (v: number) => string> = {
+  fuel: (v) => `Imperium: paliwo wszystkich lotów ${signed(v)}.`,
+  shipTime: (v) => `Imperium: czas budowy statków ${signed(v)}.`,
+  shipQueue: (v) => `Imperium: kolejka stoczni +${v} miejsca.`,
+  escortCut: (v) => `Imperium: każdy okręt eskorty zdejmuje o ${Math.round(v * 100)} pkt proc. ryzyka więcej.`,
+  repairTime: (v) => `Imperium: naprawy eskorty ${signed(v)} czasu.`,
+  pirateLoss: (v) => `Imperium: straty ładunku od piratów ${signed(v)}.`,
+  stationStorage: (v) => `Magazyn stacji ${signed(v)} pojemności.`,
+  remnantOutput: (v) => `Imperium: wydobycie resztek złoża ${signed(v)}.`,
+};
+
 /** Opis efektu badania stacji (ekran „Badania stacji”). */
 function describeStationEffect(e: StationResearchEffect): string {
   if (e.kind === 'prepares') return `Przygotowuje: ${e.what} (etap ${e.stage}).`;
   if (e.kind === 'stationResearchTime') return `Badania stacji ${e.percent}% czasu.`;
   if (e.kind === 'stationLaunchTime') return `Loty ze stacji macierzystej ${e.percent}% czasu.`;
+  if (e.kind === 'stationAuraStrength') return `Premia stacji ×${String(e.factor).replace('.', ',')}.`;
+  if (e.kind === 'stationUnlock') return `Otwiera: ${e.what} (wchodzi z kolejną wersją stacji).`;
+  if (e.kind === 'stationModifier') return STAT_TEXT[e.stat](e.value);
   if (e.kind === 'stationAura') {
     const a = STATION_AURA;
     return `Premia stacji: +${a.output}% wydobycia, ${a.buildTime}% czasu budowy, ${a.fuelToStation}% paliwa lotów na stację — zasięg: ${auraReachName(e.reach)} (planeta pod stacją 100%, reszta układu 50%, sąsiednie układy 25%).`;
@@ -768,7 +783,7 @@ export class GameController {
     const spec = `${own.length > 0 ? slot.specialization!.id : ''}|${rare.key}|a${station}|f${found.key}|s${star}|r${stationDone.length}|au${auraShareNow}:${this.stationAura(at).output}`;
     const hit = this.balanceCache.get(slot);
     if (hit && hit.done === slot.research.done && hit.spec === spec) return hit.balance;
-    const balance = withStarEnergy(withStation(applyResearch(BALANCE, slot.research.done, effects), station), star);
+    const balance = withStationResearch(withStarEnergy(withStation(applyResearch(BALANCE, slot.research.done, effects), station), star), stationDone);
     this.balanceCache.set(slot, { done: slot.research.done, spec, balance });
     return balance;
   }
