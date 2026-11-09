@@ -15,6 +15,7 @@ Antymaterii w megakonstruktach na razie nie ruszamy (decyzja właściciela).
 | Załoga | **Nowy zasób** — ludzie z planet, przewożeni na stację; moduły potrzebują załogi, załoga — miejsca i zapasów; morale wpływa na wydajność |
 | Obcy | **Sygnały i spotkania** — stacja nasłuchuje kosmosu; sygnały, wraki, dryfujące maszyny, żywe istoty; każde spotkanie to krótki wpis z wyborem i skutkiem |
 | Nowe stacje | **Do wyboru gracza:** statek konstrukcyjny (zalążek nowej stacji w wybranym miejscu) **albo** przeniesienie całej stacji macierzystej |
+| Etap 2 (stacja badawcza) | Osobne, większe drzewko stacji: wybór kategorii Produkcja / Flota / SI / Planetologia / Handel / Eksploracja, kategorie połączone mostami; płaci magazyn stacji; kolejka osobna od planet; premia stacji działa na otoczenie, badania zwiększają zasięg (planeta → układ → dalej); lista badań do ustalenia |
 | Kolejność | 1) ekran i moduły, 2) stacja badawcza, 3) dok handlowy, 4) wydobycie z kosmosu i nowe stacje, 5) załoga, 6) kontakt z obcymi, 7) dok megakonstruktów (maks. 3: metal, kryształy, 1 na przyszłość) |
 
 ## 2. Co już jest (punkt wyjścia)
@@ -54,11 +55,34 @@ Antymaterii w megakonstruktach na razie nie ruszamy (decyzja właściciela).
 - Karta stacji w Imperium zostaje (skrót) i ma przycisk „Pokaż stację”.
 - Zapis: istniejąca stacja przechodzi bez utraty (moduły z dzisiejszych pól `core`, `storage`, `shipyard`).
 
-### Etap 2 — Stacja badawcza
-- Moduł **Laboratorium orbitalne**: **badania dla całego imperium** (dziś każda planeta bada osobno).
-- Nowe, trudniejsze badania tylko na stacji (np. lepsze moduły, dalsze loty, przygotowanie pod obcych) — w ramieniu
-  „Stacja i handel” i nowych gwiazdach ramion; robocze nazwy.
-- Badanie na stacji wymaga kryształów + czasu; poziom laboratorium = jak daleko w pierścieniach.
+### Etap 2 — Stacja badawcza (decyzje właściciela 2026-11-09)
+- **Własne drzewko badań stacji — główne miejsce rozwoju technologii**, większe niż drzewko planety. Ekran „Badania
+  stacji”: najpierw wybór kategorii — **Produkcja, Flota, SI, Planetologia, Handel, Eksploracja** — potem galaktyka
+  tej kategorii; kategorie łączą się **mostami** jak ramiona laboratorium na planecie, ale są mocniej rozbudowane.
+  Konkretne badania — do ustalenia z właścicielem (szkic roboczy niżej). Badania planet zostają bez zmian.
+- **Płaci magazyn stacji** (surowce dowożone transportowcami); **osobna kolejka** — stacja bada równolegle z planetami.
+- Moduł **Laboratorium orbitalne** (gniazdo 2): poziom = jak daleko w pierścieniach galaktyk stacji.
+- **Premia stacji macierzystej** działa na **otoczenie stacji**: najpierw planetę, nad którą krąży, a badania rozwoju
+  stacji zwiększają **zasięg** (planeta → cały układ → sąsiednie układy…).
+- Tematy na start (wybór właściciela): rozbudowa stacji, loty i paliwo, wydobycie imperium, przygotowanie kolejnych
+  etapów (dok handlowy, stacje w kosmosie, załoga, nasłuch, dok megakonstruktów), zasięg premii stacji.
+
+Podział na kroki (każdy do sprawdzenia na iPadzie):
+- **2a** — Laboratorium orbitalne (budowa z magazynu stacji), silnik badań stacji (osobny stan, kolejka, koszt
+  z magazynu stacji), ekran „Badania stacji”: wybór 6 kategorii, galaktyka kategorii z mostami — na szkicu badań.
+- **2b** — premia stacji i jej zasięg (planeta → układ → sąsiednie układy), widoczna w widoku układu i w Imperium.
+- **2c** — docelowa lista badań (uzgodniona z właścicielem) w miejsce szkicu.
+
+Szkic badań (ROBOCZY — tylko do pokazania kształtu drzewka; do zmiany z właścicielem):
+
+| Kategoria | Przykładowe badania (pierścienie 1 → 4) | Most do |
+|---|---|---|
+| Produkcja | Sieć zasilania stacji · Premia stacji: planeta (+5% wydobycia) · Zasięg premii: układ · Wydobycie imperium +3% · Zasięg premii: sąsiednie układy · Rafinacja orbitalna | Planetologia, Handel |
+| Flota | Dok remontowy · Paliwo z odzysku (−10% paliwa lotów) · Napęd stacyjny (−10% czasu lotów) · Ładownie modułowe (+20% ładowności) · Statek konstrukcyjny (etap 4) | Handel, Eksploracja |
+| SI | Węzeł SI Matki (+1 miejsce kolejki stacji) · SI logistyki (automatyczne dostawy na stację) · SI badawcza (−10% czasu badań stacji) · Rdzeń drugiej generacji (rozbudowa rdzenia, drugi pierścień gniazd) | Produkcja, Eksploracja |
+| Planetologia | Skan orbitalny planet · Mapy złóż układu · Stabilizacja klimatu z orbity · Przygotowanie doku megakonstruktów (etap 7) | Produkcja, Eksploracja |
+| Handel | Rejestr kupców · Dok handlowy (etap 3) · Kursy wymiany · Kontrakty długie | Produkcja, Flota |
+| Eksploracja | Teleskop stacji · Wydobycie z kosmosu (etap 4) · Moduł mieszkalny (etap 5) · Nasłuch (etap 6) | Flota, SI, Planetologia |
 
 ### Etap 3 — Dok handlowy
 - Moduł **Dok handlowy**: rynek z **kupcami sterowanymi przez grę** (bez innych graczy — zakres MVP): wymiana metalu ↔
