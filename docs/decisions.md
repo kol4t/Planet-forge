@@ -1092,3 +1092,12 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
   z obcymi (sygnały i spotkania, robocze — do Projektu lore). Nowe stacje: statek konstrukcyjny albo przeniesienie
   stacji macierzystej (wybór gracza). Kolejność etapów: ekran → badania → handel → wydobycie i nowe stacje → załoga → obcy.
 - Antymateria w megakonstruktach odłożona dalej (decyzja właściciela).
+
+## 2026-11-09 — Stacja, etap 1: ekran stacji (decyzje właściciela)
+
+- Kształt „Pierścień z osią”, kolory jak interfejs (kamień, turkus, złoto), 2D i 3D w jednej wersji; wejścia: widok
+  układu (znaczek przy planecie), lista „Planeta”, Imperium („Pokaż stację”).
+- Architektura: ekran stacji to tryb tego samego renderera (`PlanetDisplay.setStationScreen` / `pickStationModule`) —
+  jeden kontekst WebGL, planeta ukryta na czas stacji; wspólna matematyka 2D/3D w `stationScreenLayout.ts`. Model
+  modułów z istniejących pól zapisu stacji (bez nowych pól); 6 gniazd stałych, kolejne moduły w etapach 2–6.
+- Na ekranie stacji aktywna jest planeta, nad którą stacja krąży (ona płaci za moduły, jak dotąd).

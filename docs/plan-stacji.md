@@ -44,7 +44,7 @@ Antymaterii w megakonstruktach na razie nie ruszamy (decyzja właściciela).
 
 ## 4. Etapy (każdy = osobna wersja do sprawdzenia na iPadzie, gałąź `claude/…`, akceptacja przed publikacją)
 
-### Etap 1 — Ekran stacji i moduły widoczne na niej (fundament)
+### Etap 1 — Ekran stacji i moduły widoczne na niej (fundament) — zrobione (v0.72.0, 2D i 3D)
 - Stuknięcie stacji w widoku układu albo na orbicie planety → **ekran stacji** (ścieżka „Galaktyka › Układ › Stacja”).
 - Stacja duża na środku, obracana palcem jak planeta; **2D najpierw** (pikselowo, `Canvas`), 3D jako drugi krok etapu.
 - **Panel „Moduły”** zamiast „Produkcji”: karty istniejących modułów (rdzeń, magazyn orbitalny, stocznia) — ulepszanie
