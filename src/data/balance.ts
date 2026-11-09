@@ -64,8 +64,10 @@ export const BALANCE: Balance = {
       // Krok 2d-2 (decyzje właściciela 2026-11-09): kurier 3× szybszy, 1000 ładunku; ciężki 2× ładunek, 1,5× wolniej.
       courier: { cost: { metal: 1000, crystal: 1200 }, seconds: 600 },
       heavyTransport: { cost: { metal: 4000, crystal: 2500 }, seconds: 1200 },
+      // Etap 4a planu stacji: statek konstrukcyjny (po badaniu „Wydobycie z kosmosu”).
+      constructionShip: { cost: { metal: 20_000, crystal: 14_000 }, seconds: 3600 },
     },
-    starter: { transport: 3, colonyShip: 1, tug: 1, escort: 0, courier: 0, heavyTransport: 0 },
+    starter: { transport: 3, colonyShip: 1, tug: 1, escort: 0, courier: 0, heavyTransport: 0, constructionShip: 0 },
     cargo: {
       ships: {
         transport: { capacity: 1, time: 1, fuel: 1 },

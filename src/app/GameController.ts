@@ -21,6 +21,7 @@ import { STATION_CORE, stationModuleDef } from '../data/stationModules.ts';
 import { activeResearch, completeStationResearch, EMPTY_STATION_RESEARCH, labLanes, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
 import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect, type StationStat } from '../data/stationResearch.ts';
 import { dockCost, dockLevel, marketSpread, TRADE, type TradeGood } from '../core/station/trade.ts';
+import { OUTPOSTS, outpostLevel, outpostLimit, outpostOutput, outpostUpgradeCost, outpostYield, sendConstructionShip, siteKey, upgradeOutpost, type Outpost } from '../core/station/outposts.ts';
 import { BOOST_RULES, BOOSTABLE, BOOSTS, betterBoost, boostFactor, boostOutcome, boostSplits, buyBoost, findBoost, outageBoost, type ActiveBoost, type BoostDef } from '../core/station/boosts.ts';
 import { auraFees, buyPrice, contractOpen, marketBuy, marketSell, merchantAt, merchantVisit, MERCHANTS, sellPrice, type MerchantContract, type MerchantOffer } from '../core/station/merchants.ts';
 import { AUTO_RULES, categoryNeedsLab, pickNightResearch, supplyCargo, type SupplyThreshold } from '../core/station/stationAuto.ts';
@@ -561,6 +562,17 @@ export interface StationResearchView {
   }[];
 }
 
+/** Stacje wyspecjalizowane (etap 4). */
+export interface OutpostsView {
+  unlocked: boolean;
+  miningUnlocked: boolean;
+  limit: number;
+  ships: number;
+  stationReady: boolean;
+  target: { system: number; name: string; hasBelt: boolean; taken: boolean; seconds: number; fuel: number } | null;
+  list: { site: string; name: string; system: number; level: number; flying: boolean; upgrading: boolean; secondsLeft: number; output: Resources; nextCost: Resources | null }[];
+}
+
 /** Wzmocnienia budowli (krok 3c). */
 export interface BoostsView {
   dock: boolean;
@@ -712,6 +724,8 @@ export class GameController {
   private colonyStations: ColonyStation[] = [];
   /** Wzmocnienia budowli i awarie (krok 3c). */
   private boosts: ActiveBoost[] = [];
+  /** Stacje wyspecjalizowane (etap 4). */
+  private outposts: Outpost[] = [];
   /** Widok (plan „widok układu”, etap B): poziom, układ, obiekt, przybliżenie; null — start na aktywnej planecie. */
   private viewSaved: ViewState | null = null;
   /** Przewodnik SI Matki (etap 11): bieżący krok, wyłącznik; null — ustalany przy pierwszym naliczeniu. */
@@ -773,6 +787,7 @@ export class GameController {
       this.stellar = saved.stellar ?? null;
       this.colonyStations = saved.colonyStations ?? [];
       this.boosts = saved.boosts ?? [];
+      this.outposts = saved.outposts ?? [];
       this.viewSaved = saved.view ?? null;
       this.guide = saved.guide ?? null;
       this.transfers = saved.transfers ?? [];
@@ -790,7 +805,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -1169,7 +1184,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     const guided = this.processGuide(now);
@@ -2225,6 +2240,121 @@ export class GameController {
     const { contract: _done, ...rest } = this.station!.merchant!;
     this.station = { ...this.station!, merchant: rest };
     return this.tradeDone(`Zamówienie wykonane: ${parts.join(', ')}.`, now);
+  }
+
+  // ——— stacje wyspecjalizowane (etap 4) ———
+
+  /** Lot statku konstrukcyjnego ze stacji macierzystej do układu `system`: czas (s) i paliwo. */
+  private outpostFlight(system: number): { seconds: number; fuel: number } {
+    const from = this.station?.address ?? this.address;
+    const to = `1:${system}:1`;
+    const distance = this.distanceBetween(from, to);
+    return { seconds: Math.round(transportSeconds(distance, this.transportBalance()) * OUTPOSTS.flightFactor), fuel: fuelCost('colonyShip', distance, this.balance) };
+  }
+
+  /** Stacje wyspecjalizowane: limit, statki konstrukcyjne, lista z urobkiem i rozbudową; `system` — wysyłka na pas. */
+  outpostsView(system: number | null = null, now = Date.now()): OutpostsView {
+    const done = this.station?.research?.done ?? [];
+    const sys = system !== null ? this.system(system) : null;
+    const flight = system !== null ? this.outpostFlight(system) : null;
+    return {
+      unlocked: done.includes('st-space-mining'),
+      miningUnlocked: done.includes(OUTPOSTS.kinds.mining.research),
+      limit: outpostLimit(done),
+      ships: this.fleet.docked.constructionShip,
+      stationReady: stationReady(this.station, now),
+      target:
+        system !== null && sys
+          ? { system, name: sys.name, hasBelt: !!sys.belt, taken: this.outposts.some((o) => o.site === siteKey('mining', system)), seconds: flight!.seconds, fuel: flight!.fuel }
+          : null,
+      list: this.outposts.map((o) => {
+        const level = outpostLevel(o, now);
+        const next = o.level < OUTPOSTS.upgrade.maxLevel ? outpostUpgradeCost(o.level + 1) : null;
+        return {
+          site: o.site,
+          name: `${OUTPOSTS.kinds[o.kind].name} — ${this.system(o.system)?.name ?? `układ ${o.system}`}`,
+          system: o.system,
+          level,
+          flying: now < o.arrivesAt,
+          upgrading: now >= o.arrivesAt && now < o.readyAt,
+          secondsLeft: Math.max(0, ((now < o.arrivesAt ? o.arrivesAt : o.readyAt) - now) / 1000),
+          output: outpostOutput(o.kind, Math.max(1, level)),
+          nextCost: next,
+        };
+      }),
+    };
+  }
+
+  /** Wysyłka statku konstrukcyjnego na pas asteroid układu `system` (zalążek stacji górniczej). */
+  sendOutpost(system: number, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const sys = this.system(system);
+    const flight = this.outpostFlight(system);
+    const r = sendConstructionShip(this.outposts, {
+      kind: 'mining',
+      system,
+      hasSite: !!sys?.belt,
+      done: this.station?.research?.done ?? [],
+      ships: this.fleet.docked.constructionShip,
+      stationReady: stationReady(this.station, now),
+      now,
+      seconds: flight.seconds,
+    });
+    if (!r.ok) return r;
+    const short = fuelShortage(flight.fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter - flight.fuel };
+    this.fleet = { ...this.fleet, docked: { ...this.fleet.docked, constructionShip: this.fleet.docked.constructionShip - 1 } };
+    this.outposts = [...this.outposts, r.outpost];
+    const text = `Statek konstrukcyjny wyleciał na pas asteroid (${sys?.name ?? system}) — stacja górnicza za ${formatFlight(flight.seconds)}, ${fuelLabel(flight.fuel)}.`;
+    this.log('ship', text, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: text };
+  }
+
+  /** Rozbudowa stacji wyspecjalizowanej (płaci magazyn stacji macierzystej). */
+  upgradeOutpostAt(site: string, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const i = this.outposts.findIndex((o) => o.site === site);
+    const s = this.station;
+    if (i < 0 || !s) return { ok: false, message: 'Nie ma takiej stacji.' };
+    const r = upgradeOutpost(this.outposts[i]!, s.stock, now);
+    if (!r.ok) return r;
+    this.station = { ...s, stock: { metal: s.stock.metal - r.cost.metal, crystal: s.stock.crystal - r.cost.crystal } };
+    this.outposts = this.outposts.map((o, k) => (k === i ? r.outpost : o));
+    const text = `${OUTPOSTS.kinds[r.outpost.kind].name} (${this.system(r.outpost.system)?.name ?? ''}): rozbudowa do poz. ${r.outpost.level} — gotowa za ${formatFlight(r.seconds)}.`;
+    this.log('build', text, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: text };
+  }
+
+  /** Urobek stacji wyspecjalizowanych → magazyn stacji macierzystej (do pojemności); przylot statków. */
+  private processOutposts(now: number): string[] {
+    if (this.outposts.length === 0) return [];
+    const texts: string[] = [];
+    let stock = this.station ? { ...this.station.stock } : null;
+    const cap = this.station ? stationCapacity(this.station, now, this.balance) : 0;
+    // Urobek ponad wolne miejsce przepada (magazyn pełny — jak w kopalniach planet).
+    const add = (have: number, got: number) => (have >= cap ? have : Math.min(cap, have + got));
+    this.outposts = this.outposts.map((o) => {
+      if (now <= o.arrivesAt) return o;
+      // Pierwsze naliczenie po przylocie (collectedAt wciąż = przylot) — wpis w dzienniku.
+      if (o.collectedAt === o.arrivesAt) {
+        const text = `${OUTPOSTS.kinds[o.kind].name} rozłożona na pasie asteroid (${this.system(o.system)?.name ?? o.system}) — urobek trafia do magazynu stacji macierzystej.`;
+        this.log('build', text, o.arrivesAt);
+        texts.push(text);
+      }
+      const got = outpostYield(o, now);
+      if (stock) {
+        stock.metal = add(stock.metal, got.metal);
+        stock.crystal = add(stock.crystal, got.crystal);
+      }
+      return { ...o, collectedAt: now };
+    });
+    if (stock && this.station) this.station = { ...this.station, stock };
+    return texts;
   }
 
   // ——— wzmocnienia budowli (krok 3c) ———
@@ -3586,6 +3716,7 @@ export class GameController {
       transport: this.shipments.reduce((n, x) => n + (x.ships ? (x.ships.transport ?? 0) : x.ship ? 1 : 0), 0),
       courier: this.shipments.reduce((n, x) => n + (x.ships?.courier ?? 0), 0),
       heavyTransport: this.shipments.reduce((n, x) => n + (x.ships?.heavyTransport ?? 0), 0),
+      constructionShip: this.outposts.filter((o) => now < o.arrivesAt).length,
       colonyShip: this.missions.filter((m) => m.ship).length,
       tug: this.comets.filter((h) => h.ship).length,
       escort: this.shipments.reduce((n, x) => n + (x.escort ?? 0), 0) + this.transfers.reduce((n, t) => n + (t.escort ?? 0), 0),
@@ -3638,7 +3769,7 @@ export class GameController {
   /** Zamówienie statku w stoczni (płaci aktywna planeta, statek dołącza do floty po budowie). */
   orderShip(type: ShipType, now = Date.now()): ActionMessage {
     this.tick(now);
-    const lockedShip = type === 'courier' && !this.stationDone('st-courier') ? 'Kuriera odblokowuje badanie stacji „Kurier” (Badania stacji → Flota).' : type === 'heavyTransport' && !this.stationDone('st-heavy-transport') ? 'Ciężki transportowiec odblokowuje badanie stacji „Ciężki transportowiec” (Badania stacji → Flota).' : null;
+    const lockedShip = type === 'constructionShip' && !this.stationDone('st-space-mining') ? 'Statek konstrukcyjny odblokowuje badanie stacji „Wydobycie z kosmosu” (Badania stacji → Eksploracja).' : type === 'courier' && !this.stationDone('st-courier') ? 'Kuriera odblokowuje badanie stacji „Kurier” (Badania stacji → Flota).' : type === 'heavyTransport' && !this.stationDone('st-heavy-transport') ? 'Ciężki transportowiec odblokowuje badanie stacji „Ciężki transportowiec” (Badania stacji → Flota).' : null;
     if (lockedShip) return { ok: false, message: lockedShip };
     const result = orderShip(this.fleet, type, { shipyard: shipyardLevel(this.station, now), stock: this.economy.stock, now, lanes: shipyardLanes(this.station, now) }, this.balance);
     if (!result.ok) return { ok: false, message: `${findShip(type).name}: ${result.message}` };
@@ -4663,6 +4794,7 @@ export class GameController {
     this.stellar = result.data.stellar ?? null;
     this.colonyStations = result.data.colonyStations ?? [];
     this.boosts = result.data.boosts ?? [];
+    this.outposts = result.data.outposts ?? [];
     this.viewSaved = result.data.view ?? null;
     this.guide = result.data.guide ?? null;
     this.transfers = result.data.transfers ?? [];
@@ -4717,6 +4849,7 @@ export class GameController {
       ...(this.stellar ? { stellar: this.stellar } : {}),
       ...(this.colonyStations.length > 0 ? { colonyStations: this.colonyStations } : {}),
       ...(this.boosts.length > 0 ? { boosts: this.boosts } : {}),
+      ...(this.outposts.length > 0 ? { outposts: this.outposts } : {}),
       ...(this.viewSaved ? { view: this.viewSaved } : {}),
       ...(this.guide ? { guide: this.guide } : {}),
       journal: this.journal,

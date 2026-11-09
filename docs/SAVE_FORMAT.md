@@ -206,3 +206,14 @@ Zasada: **nie podbijamy `GENERATOR_VERSION`** (zmieniłby planety w zapisach). N
 ]
 ```
 Błędne wpisy pomijane. Rozstrzygnięte i naliczone przez planetę wpisy znikają same.
+
+### Stacje wyspecjalizowane (`outposts`, od v0.82 — opcjonalne)
+
+```jsonc
+"outposts": [
+  { "site": "pas:12", "kind": "mining", "system": 12,     // jedna stacja na miejsce (pas układu)
+    "arrivesAt": 3600000, "level": 2, "readyAt": 9000000,  // przylot statku konstrukcyjnego, poziom docelowy i jego gotowość
+    "collectedAt": 9500000 }                               // ostatnie naliczenie urobku do magazynu stacji macierzystej
+]
+```
+Błędne wpisy pomijane. Flota: `fleet.docked.constructionShip` (od v0.82; brak = 0).

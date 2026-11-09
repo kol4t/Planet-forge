@@ -856,7 +856,7 @@ export interface StellarEmpire {
 }
 
 /** Rodzaje statków floty (v0.58, nazwy robocze). */
-export type ShipType = 'transport' | 'colonyShip' | 'tug' | 'escort' | 'courier' | 'heavyTransport';
+export type ShipType = 'transport' | 'colonyShip' | 'tug' | 'escort' | 'courier' | 'heavyTransport' | 'constructionShip';
 /** Statki wożące ładunek (krok 2d-2): transportowiec, kurier, ciężki transportowiec. */
 export type CargoShip = 'transport' | 'courier' | 'heavyTransport';
 export type CargoFleet = Partial<Record<CargoShip, number>>;

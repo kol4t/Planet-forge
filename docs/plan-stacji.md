@@ -106,6 +106,9 @@ Szkic badań z kroku 2a (zastąpiony w kroku 2c pełną listą — `docs/badania
   planet przez obcą cywilizację (ok. 3 dni, teren wokół niebezpieczny) — wymaga uzgodnienia w Projekcie lore.
 
 ### Etap 4 — Wydobycie z kosmosu i nowe stacje
+- **Decyzje właściciela 2026-11-09:** stacja gazowa daje **antymaterię**; dawna stacja na pasie planety **zostaje osobno**;
+  **limit stacji z badań**; kolejność **4a** statek konstrukcyjny + stacja górnicza (v0.82), **4b** stacja gazowa,
+  **4c** przeniesienie stacji macierzystej. Na razie stacje wyspecjalizowane mają okno (HTML), nie własny ekran 2D/3D.
 - **Statek konstrukcyjny** (stocznia): leci w wybrane miejsce w widoku układu — gazowy olbrzym, pas asteroid, pusty punkt —
   i rozkłada **zalążek stacji wyspecjalizowanej**.
 - **Przeniesienie stacji macierzystej** (wybór gracza): cała stacja rozkłada się, leci (czas, paliwo, ryzyko misji jak

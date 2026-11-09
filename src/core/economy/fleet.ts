@@ -5,7 +5,7 @@ import type { Balance, Fleet, HomeStation, Resources, ShipOrder, ShipType } from
 import { stationLevelAt } from './asteroids.ts';
 import { copyBlocked, copyKey, type ModuleCopy } from './homeStation.ts';
 
-const TYPES: readonly ShipType[] = ['transport', 'colonyShip', 'tug', 'escort', 'courier', 'heavyTransport'];
+const TYPES: readonly ShipType[] = ['transport', 'colonyShip', 'tug', 'escort', 'courier', 'heavyTransport', 'constructionShip'];
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
 /** Flota na start gry (i dla zapisów sprzed v0.58 — tyle, ile dawało się wysłać naraz). */
