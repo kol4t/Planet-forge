@@ -2,6 +2,11 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.70.1 — płynność 2D na planecie lawowej — 2026-11-09
+
+- Zgłoszenie właściciela: spadek klatek w 2D na planecie lawowej. Podczas obracania tarcza rysuje się w nieco niższej
+  rozdzielczości (gdy pełna jest za wolna), po zatrzymaniu od razu ostra; żyły lawy liczone raz na piksel.
+
 ## v0.70.0 — strojenie ekonomii przed MVP — 2026-11-09
 
 - Wyższe poziomy budynków budują się coraz dłużej (poz. 20 ok. 1 h, poz. 40 ok. 4,7 h) — rozbudowa planety ok. tygodnia

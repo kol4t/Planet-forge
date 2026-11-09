@@ -14,7 +14,7 @@ Jest głównym briefem technicznym. Decyzje: `docs/decisions.md`. Plan przebudow
 
 Przeglądarkowa strategia sci-fi w klimacie OGame. Gracz zarządza **planetą w dłoni** (z czasem koloniami): obraca ją palcem (2D domyślnie, 3D opcja), gospodaruje zasobami, ulepsza budynki. Styl: kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i kamień, złote akcenty, spokojna typografia. Interfejs po polsku. (Porównanie z OGame dotyczy gospodarki i budowy; walka flot nie jest sercem gry — K-005, otwarte O-206.)
 
-## Stan obecny (v0.70.0 — opublikowana: strojenie ekonomii przed MVP (czas budowy ×1,07 na poziom, megakonstrukt 6 dni); przyczyna zamrożonego ekranu usunięta (Phaser `windowEvents: false`); zawieszone palce, osłona pętli; siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
+## Stan obecny (v0.70.1 — opublikowana: płynniejsze 2D na planecie lawowej (rozdzielczość tarczy w ruchu); strojenie ekonomii przed MVP (czas budowy ×1,07 na poziom, megakonstrukt 6 dni); przyczyna zamrożonego ekranu usunięta (Phaser `windowEvents: false`); zawieszone palce, osłona pętli; siatki pól z pamięci przeglądarki (bez przycięcia przy zmianie planety), osłona pętli scen; Ekstraktor jako jeden zwarty lej (woda + tama), okna HTML bez przeklikiwania; megakonstrukt kryształów — wiertnica nad lejem do jądra; kandydat MVP (testy zapisów, pętla od zera); przewodnik SI Matki „Pierwsze kroki”; widok układu (galaktyka → układ → planeta); pętla MVP — paliwo, wyeksploatowanie, stacja, transfer, pola morza, flota, ryzyko misji, imperium gwiezdne, stacje kolonii, wstępna ekonomia; kompleks kopalni metalu — osady, megakonstrukt, orbita)
 
 Szczegóły w `docs/`: zasady gry — `MECHANICS.md`, liczby — `BALANCE.md` (generowane), architektura — `ARCHITECTURE.md`,
 renderer — `RENDERING.md`, interfejs — `UI.md`, zapis — `SAVE_FORMAT.md`, testy — `TESTING.md`, wydajność — `PERFORMANCE.md`,
@@ -125,6 +125,8 @@ historia wersji — `CHANGELOG.md`, ograniczenia i „Do decyzji” — `KNOWN_I
 - **v0.70 — strojenie ekonomii przed MVP** (decyzje właściciela, `docs/strojenie-ekonomii.md`): czas budowy rośnie
   ×1,07 na poziom (`BALANCE.buildTimeGrowth`; poz. 40 ok. 4,7 h), praca megakonstruktu 6 dni, ostrzeżenie o wyczerpanym
   złożu także dla metalu; Ekstraktor 50 pól bez zmian. Symulacja: poz. 40 w 6. / 7. dniu, pętla 30 / 37 dni (aktywny / okazjonalny).
+  **v0.70.1:** płynność 2D — tarcza w ruchu w 2/3 rozdzielczości, gdy rysowanie trwa > 9 ms (`CanvasPlanetFallback`),
+  lawa liczona raz na piksel (`lastPoint` w `surface.ts`); planeta lawowa przy obrocie ok. 31 → 17 ms na tarczę.
 - **Planeta**: 2D domyślnie (pikselowa tarcza, `CanvasPlanetFallback` + `discRenderer`), 3D opcja (Three.js, low-poly) w Ustawieniach,
   z bezpiecznikiem startu (`app/bootGuard.ts`). Deterministycznie z seeda (adres `1:układ:orbita`): 6 typów roboczych
   (umiarkowana Kepler-186 f — startowa, pustynna, lodowa, oceaniczna, wulkaniczna, jałowa), 6 profili powierzchni, 4 metody
