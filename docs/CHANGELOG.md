@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.75.0 — stacja kosmiczna, krok 2c: pełne drzewko badań stacji — robocza
+## v0.75.0 — stacja kosmiczna, krok 2c: pełne drzewko badań stacji — 2026-11-09
 
 Lista zaakceptowana przez właściciela 2026-11-09 (`docs/badania-stacji.md`):
 - **90 badań stacji** — 6 kategorii po 15, **6 pierścieni** (Laboratorium orbitalne poz. 1 / 2 / 4 / 6 / 8 / 10),
