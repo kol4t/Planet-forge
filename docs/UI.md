@@ -14,15 +14,18 @@ Styl (C-001): kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i 
 │ Produkcja / Planeta / SI /  │            ◯ planeta         karta budowli →
 │ Planety                     │                              + − ⟲ (kamera)
 └─────────────────────────────┘
-┌ ☰ │ Produkcja │ Badania │ Mapa │ Imperium │ Planeta │ SI ┐  ← dolny pasek, przyciski równej szerokości
+┌ ☰ │ Produkcja │ Badania │ Galaktyka │ Imperium │ Planeta ┐  ← dolny pasek, przyciski równej szerokości
 ```
 
 - **Pasek zasobów**: stan, przyrost (/min, antymateria /h), pasek zapełnienia magazynu i pól. Dopiski, które się nie
   mieszczą w kolumnie, są ukrywane (v0.46). **Dotknięcie ENERGII** wyjaśnia bilans (v0.46).
-- **Dolny pasek**: ☰ (lista planet + Ustawienia + przyciski, które się nie zmieściły), panele (Produkcja, Planeta, SI) i
-  ekrany pełnoekranowe (Badania, Mapa, Imperium). Przyciski dzielą szerokość po równo (v0.46).
-- **Panele**: Produkcja (karty 6 budynków), Planeta (opis, pola, specjalizacja, kosmos, złoża, środowisko), SI (poziomy
-  samodzielności reguł), Planety (lista, Ustawienia).
+- **Dolny pasek** (v0.71, decyzje właściciela): ☰ = Ustawienia (na telefonie najpierw małe menu z przyciskami, które się
+  nie zmieściły), panele (Produkcja, Planeta) i ekrany pełnoekranowe (Badania, Galaktyka — dawna „Mapa”, Imperium).
+  SI Matka nie ma przycisku — jej ustawienia są w Imperium → SI. Przyciski dzielą szerokość po równo (v0.46).
+- **Panele**: Produkcja (karty 6 budynków), Planeta (v0.71: lista planet imperium — dotknięcie przełącza — i skrót
+  aktywnej: nazwa, pola, złoża; „Szczegóły” pokazuje pełny opis: typ, specjalizacja, kosmos, złoża, środowisko,
+  „‹ Planety” wraca; „Kosmos”).
+- **Tło**: gwiazdy i mgławice, bez sąsiednich planet (v0.71 — sąsiadów pokazuje widok układu).
 
 ### Zasada okien (v0.46)
 
@@ -30,7 +33,9 @@ Styl (C-001): kosmiczny dziennik ekspedycji — ciemne tło, stonowany turkus i 
 - Wybrany budynek = **karta budowli** obok planety (HTML) + okienko „Budynek” z kartą i przyciskiem „Ulepsz”.
 - Wyjątek: **Produkcja zostaje obok karty budowli** — wtedy bez okienka „Budynek” (ta sama karta jest w panelu,
   w złotej ramce).
-- Otwarcie Planety / SI / Planet zamyka wybór budynku; wybór budynku zamyka te panele.
+- Otwarcie Planety zamyka wybór budynku; wybór budynku zamyka ten panel. Wejście w widok układu zamyka wybór
+  budynku (v0.71).
+- Okno HTML (kompleks, fabryka, kosmos…) chowa kartę budowli, dopóki jest otwarte — okna nie nachodzą na siebie (v0.71).
 - **Dymek SI** chowa się, gdy wybrany jest budynek i gdy otwarty panel zostawia mało miejsca (telefon).
 - Okna z „Ustawień” i okna HTML (kompleks, fabryka, kosmos, transport, wyszukiwarka, zgłoszenia) leżą nad wszystkim;
   zamyka je „Zamknij” albo dotknięcie tła. Wyższe niż ekran — przewijają się (v0.46).

@@ -10,8 +10,11 @@ export function loadPanels(): PanelState {
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
     if (raw != null) {
-      const open = (JSON.parse(raw) as Partial<PanelState> | null)?.open;
-      return { open: PANELS.includes(open as PanelId) ? (open as PanelId) : null };
+      const saved = JSON.parse(raw) as Partial<PanelState> | null;
+      // v0.71: SI bez przycisku na pasku, lista planet w „Planeta” — stare stany otwierają „Planeta” albo nic.
+      const open = saved?.open === 'planets' ? 'planet' : saved?.open === 'ai' ? null : saved?.open;
+      if (!PANELS.includes(open as PanelId)) return { open: null };
+      return open === 'planet' && saved?.detail === true ? { open, detail: true } : { open: open as PanelId };
     }
     const old = JSON.parse(globalThis.localStorage?.getItem(OLD_KEY) ?? 'null') as { productionOpen?: boolean } | null;
     return { open: old?.productionOpen === false ? null : 'production' };

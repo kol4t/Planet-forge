@@ -23,12 +23,15 @@ export type PanelId = 'production' | 'planet' | 'ai' | 'planets';
 export type DockItemId = Exclude<PanelId, 'planets'> | 'research' | 'map' | 'empire';
 
 /** Kolejność przycisków dolnego paska — gdy brakuje miejsca, ostatnie trafiają tylko do menu. */
-export const DOCK_ORDER: readonly DockItemId[] = ['production', 'research', 'map', 'empire', 'planet', 'ai'];
+// SI Matka nie ma przycisku na pasku (decyzja właściciela 2026-11-09) — ustawienia SI w Imperium → SI.
+export const DOCK_ORDER: readonly DockItemId[] = ['production', 'research', 'map', 'empire', 'planet'];
 export const DOCK_PANELS: ReadonlySet<DockItemId> = new Set<DockItemId>(['production', 'planet', 'ai']);
 
 /** Stan paneli (zapamiętywany na urządzeniu): otwarty jest najwyżej jeden. */
 export interface PanelState {
   open: PanelId | null;
+  /** Panel „Planeta” w trybie „Szczegóły” (pełny opis planety zamiast listy planet i skrótu; v0.71). */
+  detail?: boolean;
 }
 
 export interface Layout {
@@ -87,6 +90,8 @@ export const PLANET_SCREEN_SHARE = 0.3;
 /** Wiersz planety w panelu „Planety” (pt, × u) i odstęp między wierszami. */
 export const PLANET_ROW_H = 58;
 export const PLANET_ROW_GAP = 6;
+/** Skrót aktywnej planety pod listą w panelu „Planeta” (nazwa, pola, złoża — pt × u; v0.71). */
+export const PLANET_SUMMARY_H = 58;
 /** Przyciski pod listą planet: Ustawienia + przyciski paska, które się nie zmieściły — po dwa w wierszu. */
 export const planetFooterRows = (hidden: number) => Math.ceil((hidden + 1) / 2);
 /** Nagłówek panelu. */
@@ -137,9 +142,11 @@ export function computeLayout(
       state.open === 'production'
         ? HEADER_H * u + pad + gridHeight(cardGrid({ x: 0, y: 0, w: w - 2 * pad, h: Infinity }, cardCount, gap, u))
         : state.open === 'planets'
-          ? HEADER_H * u + planetRows * (PLANET_ROW_H + PLANET_ROW_GAP) * u + planetFooterRows(dock.hidden.length) * (TOUCH + gap) + pad
+          ? HEADER_H * u + planetFooterRows(dock.hidden.length) * (TOUCH + gap) + pad
           : state.open === 'planet'
-          ? 390 * u + 2 * TOUCH
+          ? state.detail
+            ? 390 * u + 2 * TOUCH
+            : HEADER_H * u + planetRows * (PLANET_ROW_H + PLANET_ROW_GAP) * u + PLANET_SUMMARY_H * u + TOUCH + 2 * pad
           : HEADER_H * u + (aiRows > 0 ? 50 * u + aiRows * 78 * u + TOUCH + 2 * pad : 110 * u);
     let rect: Rect;
     if (side) {

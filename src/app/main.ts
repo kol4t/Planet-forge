@@ -8,12 +8,10 @@ import { ResearchScene } from '../game/scenes/ResearchScene.ts';
 import { CanvasPlanetFallback } from '../planet-renderer/CanvasPlanetFallback.ts';
 import type { PlanetDisplay } from '../planet-renderer/PlanetDisplay.ts';
 import { hasWebGL, PlanetView } from '../planet-renderer/PlanetView.ts';
-import { distantBodies } from '../planet-renderer/sky.ts';
 import { SpaceBackground, type SkyScene } from '../planet-renderer/spaceBackground.ts';
 import { SystemView } from '../planet-renderer/systemView.ts';
 import { worldNow } from '../core/time/worldClock.ts';
 import { findStar, generateSystem, parseAddress } from '../core/galaxy/galaxy.ts';
-import { PLANET_DEFINITIONS } from '../data/planets.ts';
 import { BootGuard } from './bootGuard.ts';
 import { createErrorLog } from './feedback.ts';
 import { FpsMeter } from './fpsMeter.ts';
@@ -81,14 +79,17 @@ function gpuLine(display: PlanetDisplay): Record<string, string> {
   return s ? { 'grafika 3D': `${s.drawCalls} rysowań, ${s.triangles} trójkątów, ${s.geometries} geometrii, ${s.textures} tekstur` } : {};
 }
 
-/** Niebo aktywnej planety: kolor gwiazdy i sąsiednie ciała jej układu (z mapy galaktyki). */
+/**
+ * Niebo aktywnej planety: kolor gwiazdy jej układu. Bez sąsiednich planet w tle (decyzja właściciela 2026-11-09:
+ * wprowadzały chaos w widoku; sąsiadów pokazuje widok układu).
+ */
 function skyFor(controller: GameController): SkyScene {
   const where = parseAddress(controller.address);
   const system = where ? generateSystem(controller.galaxy, where.system) : null;
   return {
     seed: controller.planet.seed,
     starColor: system ? findStar(system.star).color : '#f2d27a',
-    bodies: distantBodies(system, where?.position ?? 0, PLANET_DEFINITIONS),
+    bodies: [],
   };
 }
 
