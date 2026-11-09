@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.76.0 — stacja kosmiczna, krok 2d-1: rdzeń i nowe pierścienie — robocza
+## v0.76.0 — stacja kosmiczna, krok 2d-1: rdzeń i nowe pierścienie — 2026-11-09
 
 Decyzje właściciela 2026-11-09:
 - **Rozbudowa rdzenia** do poz. 2 i 3 w „Modułach” — po badaniach „Rdzeń drugiej / trzeciej generacji”; płaci
