@@ -61,8 +61,19 @@ export const BALANCE: Balance = {
       colonyShip: { cost: { metal: 2500, crystal: 1800 }, seconds: 900 },
       tug: { cost: { metal: 600, crystal: 400 }, seconds: 600 },
       escort: { cost: { metal: 3000, crystal: 2000 }, seconds: 1200 },
+      // Krok 2d-2 (decyzje właściciela 2026-11-09): kurier 3× szybszy, 1000 ładunku; ciężki 2× ładunek, 1,5× wolniej.
+      courier: { cost: { metal: 1000, crystal: 1200 }, seconds: 600 },
+      heavyTransport: { cost: { metal: 4000, crystal: 2500 }, seconds: 1200 },
     },
-    starter: { transport: 3, colonyShip: 1, tug: 1, escort: 0 },
+    starter: { transport: 3, colonyShip: 1, tug: 1, escort: 0, courier: 0, heavyTransport: 0 },
+    cargo: {
+      ships: {
+        transport: { capacity: 1, time: 1, fuel: 1 },
+        courier: { capacity: 0.2, time: 1 / 3, fuel: 1 },
+        heavyTransport: { capacity: 2, time: 1.5, fuel: 1.5 },
+      },
+      convoyMax: 5,
+    },
   },
   // Stacje kolonii (etap 9, decyzja właściciela: jedna przy każdej kolonii, po stacji macierzystej, przekaźnik
   // transportu; liczby robocze): loty kolonia ↔ stacja macierzysta 2× szybciej i za połowę paliwa.

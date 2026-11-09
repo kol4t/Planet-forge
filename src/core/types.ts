@@ -384,6 +384,11 @@ export interface Balance {
     queue: number;
     ships: Record<ShipType, { cost: Resources; seconds: number }>;
     starter: Record<ShipType, number>;
+    /**
+     * Statki ładunkowe (krok 2d-2, robocze): ładowność (× ładowność transportowca), czas lotu (×), paliwo (×);
+     * konwój — najwięcej statków w jednym locie.
+     */
+    cargo?: { ships: Record<CargoShip, { capacity: number; time: number; fuel: number }>; convoyMax: number };
   };
   /**
    * Ryzyko misji (etap 7, robocze): tylko loty między układami. Ryzyko = odległość × `perUnit` + `perNest` za każde
@@ -748,6 +753,8 @@ export interface Shipment {
   station?: 'to' | 'from';
   /** Transportowiec floty (v0.58) — po przylocie wraca do floty; brak — lot sprzed floty. */
   ship?: boolean;
+  /** Statki ładunkowe w locie (krok 2d-2: kurier, ciężki, konwój); brak przy `ship` — jeden transportowiec. */
+  ships?: CargoFleet;
   /** Okręty eskorty lecące z transportem (v0.58; ochrona przed przechwyceniem — etap 7). */
   escort?: number;
   /** Przechwycenie przez piratów (etap 7). */
@@ -839,7 +846,10 @@ export interface StellarEmpire {
 }
 
 /** Rodzaje statków floty (v0.58, nazwy robocze). */
-export type ShipType = 'transport' | 'colonyShip' | 'tug' | 'escort';
+export type ShipType = 'transport' | 'colonyShip' | 'tug' | 'escort' | 'courier' | 'heavyTransport';
+/** Statki wożące ładunek (krok 2d-2): transportowiec, kurier, ciężki transportowiec. */
+export type CargoShip = 'transport' | 'courier' | 'heavyTransport';
+export type CargoFleet = Partial<Record<CargoShip, number>>;
 
 /** Statek w budowie w stoczni (kolejka: kolejne zaczynają się po poprzednim). */
 export interface ShipOrder {

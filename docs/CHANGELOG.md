@@ -2,6 +2,17 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.77.0 — stacja kosmiczna, krok 2d-2: nowe statki i konwoje — robocza
+
+Decyzje właściciela 2026-11-09:
+- **Kurier** (badanie stacji „Kurier”): 3× szybszy, 1000 ładunku, paliwo jak transportowiec; 1000 metalu / 1200 kryształów.
+- **Ciężki transportowiec** (badanie „Ciężki transportowiec”): 2× ładunek (10 000), lot 1,5× dłuższy, 1,5× paliwa;
+  4000 metalu / 2500 kryształów.
+- **Konwoje** (badanie „Konwoje”): 2–5 statków w jednym locie — ładunek się sumuje, lot w tempie najwolniejszego,
+  ryzyko piratów liczone raz, eskorta chroni cały konwój, paliwo za każdy statek.
+- Okno transportu (planeta → planeta, na stację, ze stacji): wybór statków; stocznia w Imperium → Flota buduje nowe
+  statki po badaniach. `core/economy/cargoShips.ts`, `BALANCE.fleet.cargo`, zapis `shipments[].ships` (opcjonalne).
+
 ## v0.76.0 — stacja kosmiczna, krok 2d-1: rdzeń i nowe pierścienie — 2026-11-09
 
 Decyzje właściciela 2026-11-09:

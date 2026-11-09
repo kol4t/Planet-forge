@@ -6,6 +6,7 @@ import { COMPLEX_STAGE, complexCandidate, MEGA_STAGE, megaCandidate, validComple
 import { COMPLEX_FAMILIES, complexMode, findFamily, MEGA_RULES, type ComplexFamily } from '../data/complexes.ts';
 import { INDUSTRY_STAGES } from '../data/industry.ts';
 import { fuelCost, fuelLabel, fuelShortage } from '../core/economy/fuel.ts';
+import { CARGO_SHIPS, cargoCapacity, cargoFleetProblem, cargoFuelFactor, cargoTimeFactor } from '../core/economy/cargoShips.ts';
 import { addRepair, cancelOrder, completeOrders, completeRepairs, orderShip, shipSeconds, shipyardCost, shipyardLanes, shipyardLevel, starterFleet, upgradeShipyard } from '../core/economy/fleet.ts';
 import { findShip, SHIP_TYPES } from '../data/fleet.ts';
 import { buildColonyStation, colonyStationReady, relayFuel, relaySeconds } from '../core/economy/colonyStation.ts';
@@ -108,7 +109,7 @@ import { landingCheck, landingFuel, landingSeconds, launchCheck, orbitalState } 
 import { checkConstruct, constructProgress, constructSeconds, type ConstructCheck } from '../core/economy/metalConstruct.ts';
 import { checkCrystalConstruct, craterCenter, craterStageFor, crystalBuildProgress, crystalConstructSeconds, crystalLandingReason, crystalLaunchReason, type CraterStage, type CrystalComplexSave, type CrystalConstructCheck } from '../core/economy/crystalConstruct.ts';
 import { ensureMetalComplex, metalComplexFields, metalComplexCells, type MetalComplexCells, type MetalComplexSave } from '../core/colony/complexLayout.ts';
-import type { AsteroidStation, Balance, StellarEmpire, ColonyStation, ConstructTransfer, Fleet, OrbitalConstruct, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
+import type { AsteroidStation, Balance, CargoFleet, CargoShip, StellarEmpire, ColonyStation, ConstructTransfer, Fleet, OrbitalConstruct, ShipType, HomeStation, BuildingId, CometHaul, BuildingLevels, BuildingSettings, ColonyMission, EconomyState, Expedition, Shipment, JournalEntry, ResearchEffect, JournalKind, Planet, PlanetSpecialization, SpecializationId, SpecializationSite, UnlockFeature, ResearchState, ResourceId, Resources } from '../core/types.ts';
 import { BALANCE } from '../data/balance.ts';
 import { findDefinition, STARTER } from '../data/planets.ts';
 import { findResearch } from '../data/research.ts';
@@ -497,6 +498,10 @@ const STAT_TEXT: Record<StationStat, (v: number) => string> = {
   stationStorage: (v) => `Magazyn stacji ${signed(v)} pojemności.`,
   remnantOutput: (v) => `Imperium: wydobycie resztek złoża ${signed(v)}.`,
 };
+
+/** Domyślny skład lotu: jeden transportowiec (jak przed krokiem 2d-2). */
+const ONE_TRANSPORT: CargoFleet = { transport: 1 };
+const isOneTransport = (ships: CargoFleet) => (ships.transport ?? 0) === 1 && !ships.courier && !ships.heavyTransport;
 
 /** Opis efektu badania stacji (ekran „Badania stacji”). */
 function describeStationEffect(e: StationResearchEffect): string {
@@ -2040,35 +2045,35 @@ export class GameController {
   }
 
   /** Transportowiec z aktywnej planety na stację (paliwo jak lot do planety stacji; miejsce liczone z ładunkami w drodze). */
-  sendToStation(cargo: Resources, now = Date.now(), escort = 0): ActionMessage {
+  sendToStation(cargo: Resources, now = Date.now(), escort = 0, ships: CargoFleet = ONE_TRANSPORT): ActionMessage {
     this.tick(now);
     const s = this.station;
     if (!s || !stationReady(s, now)) return { ok: false, message: 'Stacja macierzysta nie jest jeszcze gotowa.' };
     if (!this.unlocked('transport')) return { ok: false, message: 'Najpierw zbadaj „Transportowce” (Badania → Flota).' };
     const view = this.stationView(now);
     if (view.capacity <= 0) return { ok: false, message: 'Na stacji nie ma jeszcze magazynu — rozbuduj magazyn orbitalny.' };
-    const balance = this.transportBalance();
+    const balance = this.cargoBalance(ships);
     const check = checkShipment(cargo, this.economy.stock, 0, balance);
     if (!check.ok) return check;
-    const ships = this.shipsMissing(escort);
-    if (ships) return { ok: false, message: ships };
+    const missing = this.shipsMissing(escort, ships);
+    if (missing) return { ok: false, message: missing };
     const load = check.cargo;
     const free = (id: 'metal' | 'crystal') => view.capacity - view.stock[id] - view.incoming[id];
     if (load.metal > free('metal') || load.crystal > free('crystal')) {
       return { ok: false, message: `Na stacji zmieści się jeszcze ${Math.max(0, Math.floor(free('metal')))} metalu i ${Math.max(0, Math.floor(free('crystal')))} kryształów.` };
     }
-    const fuel = view.fuel;
+    const fuel = this.cargoFuel(view.fuel, ships);
     const short = fuelShortage(fuel, this.economy.antimatter);
     if (short) return { ok: false, message: short };
-    const seconds = this.stationSeconds(this.address, now);
+    const seconds = this.cargoSeconds(this.stationSeconds(this.address, now), ships);
     this.economy = {
       ...this.economy,
       stock: { metal: this.economy.stock.metal - load.metal, crystal: this.economy.stock.crystal - load.crystal },
       antimatter: this.economy.antimatter - fuel,
     };
-    this.launchTransport(escort);
+    this.launchTransport(escort, ships);
     const incident = this.incidentFor(this.address, s.address, 'cargo', now, seconds, escort);
-    this.shipments.push({ from: this.address, to: s.address, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'to', ship: true, ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
+    this.shipments.push({ from: this.address, to: s.address, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'to', ship: true, ...(isOneTransport(ships) ? {} : { ships: { ...ships } }), ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
     this.log('ship', `Transportowiec wyruszył z ${this.planet.displayName} na stację macierzystą: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
     this.markTransport();
     this.save();
@@ -2077,27 +2082,27 @@ export class GameController {
   }
 
   /** Transportowiec ze stacji na planetę `to` (paliwo z portfela, jak lot ze stacji do tej planety). */
-  sendFromStation(to: string, cargo: Resources, now = Date.now(), escort = 0): ActionMessage {
+  sendFromStation(to: string, cargo: Resources, now = Date.now(), escort = 0, ships: CargoFleet = ONE_TRANSPORT): ActionMessage {
     this.tick(now);
     const s = this.station;
     if (!s || !stationReady(s, now)) return { ok: false, message: 'Stacja macierzysta nie jest jeszcze gotowa.' };
     if (!this.unlocked('transport')) return { ok: false, message: 'Najpierw zbadaj „Transportowce” (Badania → Flota).' };
     if (this.slotAt(to) < 0) return { ok: false, message: 'Transportowce latają tylko do Twoich planet.' };
-    const balance = this.transportBalance();
+    const balance = this.cargoBalance(ships);
     const check = checkShipment(cargo, s.stock, 0, balance);
     if (!check.ok) return { ok: false, message: check.message.replace('Na planecie nadawcy', 'Na stacji') };
-    const ships = this.shipsMissing(escort);
-    if (ships) return { ok: false, message: ships };
+    const missing = this.shipsMissing(escort, ships);
+    if (missing) return { ok: false, message: missing };
     const load = check.cargo;
-    const fuel = this.stationFuel(to, now, 'from');
+    const fuel = this.cargoFuel(this.stationFuel(to, now, 'from'), ships);
     const short = fuelShortage(fuel, this.economy.antimatter);
     if (short) return { ok: false, message: short };
-    const seconds = this.stationSeconds(to, now, 'from');
+    const seconds = this.cargoSeconds(this.stationSeconds(to, now, 'from'), ships);
     this.station = { ...s, stock: { metal: s.stock.metal - load.metal, crystal: s.stock.crystal - load.crystal } };
     this.economy = { ...this.economy, antimatter: this.economy.antimatter - fuel };
-    this.launchTransport(escort);
+    this.launchTransport(escort, ships);
     const incident = this.incidentFor(s.address, to, 'cargo', now, seconds, escort);
-    this.shipments.push({ from: s.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'from', ship: true, ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
+    this.shipments.push({ from: s.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, station: 'from', ship: true, ...(isOneTransport(ships) ? {} : { ships: { ...ships } }), ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
     const toName = this.slotName(to);
     this.log('ship', `Transportowiec wyruszył ze stacji macierzystej do ${toName}: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
     this.markTransport();
@@ -2252,18 +2257,18 @@ export class GameController {
   }
 
   /** Wysłanie metalu i kryształów z aktywnej planety do innej planety gracza (ładunek schodzi od razu). */
-  sendResources(to: string, cargo: Resources, now = Date.now(), escort = 0): ActionMessage {
+  sendResources(to: string, cargo: Resources, now = Date.now(), escort = 0, ships: CargoFleet = ONE_TRANSPORT): ActionMessage {
     this.tick(now);
     if (!this.unlocked('transport')) return { ok: false, message: 'Najpierw zbadaj „Transportowce” (Badania → Flota).' };
     if (this.slotAt(to) < 0) return { ok: false, message: 'Transportowce latają tylko między Twoimi planetami.' };
-    const balance = this.transportBalance();
+    const balance = this.cargoBalance(ships);
     const check = checkShipment(cargo, this.economy.stock, 0, balance, to === this.address);
     if (!check.ok) return check;
-    const ships = this.shipsMissing(escort);
-    if (ships) return { ok: false, message: ships };
+    const missing = this.shipsMissing(escort, ships);
+    if (missing) return { ok: false, message: missing };
     const load = check.cargo;
-    const seconds = transportSeconds(this.distanceBetween(this.address, to), balance);
-    const fuel = this.transportFuelTo(to);
+    const seconds = this.cargoSeconds(transportSeconds(this.distanceBetween(this.address, to), this.transportBalance()), ships);
+    const fuel = this.cargoFuel(this.transportFuelTo(to), ships);
     const short = fuelShortage(fuel, this.economy.antimatter);
     if (short) return { ok: false, message: short };
     this.economy = {
@@ -2271,9 +2276,9 @@ export class GameController {
       stock: { metal: this.economy.stock.metal - load.metal, crystal: this.economy.stock.crystal - load.crystal },
       antimatter: this.economy.antimatter - fuel,
     };
-    this.launchTransport(escort);
+    this.launchTransport(escort, ships);
     const incident = this.incidentFor(this.address, to, 'cargo', now, seconds, escort);
-    this.shipments.push({ from: this.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, ship: true, ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
+    this.shipments.push({ from: this.address, to, departedAt: now, arrivesAt: now + seconds * 1000, cargo: load, ship: true, ...(isOneTransport(ships) ? {} : { ships: { ...ships } }), ...(escort > 0 ? { escort } : {}), ...(incident ? { incident } : {}) });
     const toName = this.slotName(to);
     this.log('ship', `Transportowiec wyruszył z ${this.planet.displayName} do ${toName}: ${load.metal} metalu, ${load.crystal} kryształów.`, now);
     this.markTransport();
@@ -2312,7 +2317,8 @@ export class GameController {
       if (shipment.arrivesAt > now) continue;
       this.shipments = this.shipments.filter((s) => s !== shipment);
       // Transportowiec i eskorta wracają do floty (v0.58).
-      if (shipment.ship) this.returnShips('transport', 1);
+      if (shipment.ships) for (const t of CARGO_SHIPS) this.returnShips(t, shipment.ships[t] ?? 0);
+      else if (shipment.ship) this.returnShips('transport', 1);
       if (shipment.escort) this.returnShips('escort', shipment.escort);
       const { metal: m, crystal: c } = shipment.cargo;
       if (shipment.station === 'to' && this.station) {
@@ -2905,21 +2911,52 @@ export class GameController {
     this.fleet = { ...this.fleet, docked: { ...this.fleet.docked, [type]: this.fleet.docked[type] + n } };
   }
 
-  /** Czego brakuje we flocie do lotu transportowca z `escort` okrętami eskorty (null — wszystko jest). */
-  private shipsMissing(escort: number): string | null {
-    if (this.fleet.docked.transport <= 0) {
-      const flying = this.shipments.filter((x) => x.ship).length;
+  /** Czego brakuje we flocie do lotu (statki ładunkowe — krok 2d-2 — i `escort` okrętów eskorty); null — wszystko jest. */
+  private shipsMissing(escort: number, ships: CargoFleet = ONE_TRANSPORT): string | null {
+    if (isOneTransport(ships) && this.fleet.docked.transport <= 0) {
+      const flying = this.shipments.filter((x) => x.ship && !x.ships).length;
       return flying > 0
         ? `Wszystkie transportowce są w drodze (${flying}) — poczekaj, aż któryś wróci, albo zbuduj kolejny (Imperium → Flota).`
         : 'Brak transportowca we flocie — zbuduj go w stoczni (Imperium → Flota).';
     }
+    const problem = cargoFleetProblem(ships, this.fleet, this.balance, this.stationDone('st-convoys'));
+    if (problem) return problem;
     if (escort > this.fleet.docked.escort) return `We flocie jest tylko ${this.fleet.docked.escort} okrętów eskorty.`;
     return null;
   }
 
-  private launchTransport(escort: number): void {
-    this.takeShips('transport', 1);
+  private launchTransport(escort: number, ships: CargoFleet = ONE_TRANSPORT): void {
+    for (const t of CARGO_SHIPS) if ((ships[t] ?? 0) > 0) this.takeShips(t, ships[t]!);
     if (escort > 0) this.takeShips('escort', escort);
+  }
+
+  /** Zbadane badanie stacji (krok 2d — odblokowania). */
+  stationDone(id: string): boolean {
+    return this.station?.research?.done.includes(id) ?? false;
+  }
+
+  /** Balans transportu z ładownością składu (krok 2d-2). */
+  private cargoBalance(ships: CargoFleet): Balance {
+    const b = this.transportBalance();
+    return { ...b, transport: { ...b.transport, capacity: cargoCapacity(ships, b) } };
+  }
+
+  private cargoSeconds(seconds: number, ships: CargoFleet): number {
+    return Math.max(1, Math.round(seconds * cargoTimeFactor(ships, this.balance)));
+  }
+
+  private cargoFuel(fuel: number, ships: CargoFleet): number {
+    return Math.round(fuel * cargoFuelFactor(ships, this.balance) * 10) / 10;
+  }
+
+  /** Statki ładunkowe do wyboru w oknie transportu: na stanie, ładowność, tempo; czy konwoje odblokowane. */
+  cargoView(): { ships: { type: CargoShip; name: string; docked: number; capacity: number; time: number; fuel: number }[]; convoy: boolean; convoyMax: number } {
+    const b = this.transportBalance();
+    return {
+      ships: CARGO_SHIPS.map((type) => ({ type, name: findShip(type).name, docked: this.fleet.docked[type] ?? 0, capacity: cargoCapacity({ [type]: 1 }, b), time: cargoTimeFactor({ [type]: 1 }, b), fuel: cargoFuelFactor({ [type]: 1 }, b) })),
+      convoy: this.stationDone('st-convoys'),
+      convoyMax: b.fleet.cargo?.convoyMax ?? 1,
+    };
   }
 
   /** Statki ukończone w stoczni do `now` trafiają do floty (wpis w dzienniku). */
@@ -2951,7 +2988,9 @@ export class GameController {
     const next = (yard?.level ?? 0) + 1;
     const f = this.balance.fleet;
     const flying: Record<ShipType, number> = {
-      transport: this.shipments.filter((x) => x.ship).length,
+      transport: this.shipments.reduce((n, x) => n + (x.ships ? (x.ships.transport ?? 0) : x.ship ? 1 : 0), 0),
+      courier: this.shipments.reduce((n, x) => n + (x.ships?.courier ?? 0), 0),
+      heavyTransport: this.shipments.reduce((n, x) => n + (x.ships?.heavyTransport ?? 0), 0),
       colonyShip: this.missions.filter((m) => m.ship).length,
       tug: this.comets.filter((h) => h.ship).length,
       escort: this.shipments.reduce((n, x) => n + (x.escort ?? 0), 0) + this.transfers.reduce((n, t) => n + (t.escort ?? 0), 0),
@@ -3004,6 +3043,8 @@ export class GameController {
   /** Zamówienie statku w stoczni (płaci aktywna planeta, statek dołącza do floty po budowie). */
   orderShip(type: ShipType, now = Date.now()): ActionMessage {
     this.tick(now);
+    const lockedShip = type === 'courier' && !this.stationDone('st-courier') ? 'Kuriera odblokowuje badanie stacji „Kurier” (Badania stacji → Flota).' : type === 'heavyTransport' && !this.stationDone('st-heavy-transport') ? 'Ciężki transportowiec odblokowuje badanie stacji „Ciężki transportowiec” (Badania stacji → Flota).' : null;
+    if (lockedShip) return { ok: false, message: lockedShip };
     const result = orderShip(this.fleet, type, { shipyard: shipyardLevel(this.station, now), stock: this.economy.stock, now, lanes: shipyardLanes(this.station, now) }, this.balance);
     if (!result.ok) return { ok: false, message: `${findShip(type).name}: ${result.message}` };
     this.pay(result.order.cost);

@@ -30,7 +30,7 @@ const rich = { metal: 1e6, crystal: 1e6 };
 const core = (now = 0) => (buildHomeStation(null, { unlocked: true, address: '1:1:1', stock: rich, now }, BALANCE) as { station: any }).station;
 
 test('flota (v0.58): stocznia jako moduł stacji — budowa po rdzeniu, poziomy, szybsza budowa statków', () => {
-  assert.deepEqual(starterFleet(BALANCE), { docked: { transport: 3, colonyShip: 1, tug: 1, escort: 0 }, queue: [] });
+  assert.deepEqual(starterFleet(BALANCE), { docked: { transport: 3, colonyShip: 1, tug: 1, escort: 0, courier: 0, heavyTransport: 0 }, queue: [] });
   assert.match((upgradeShipyard(null, { stock: rich, now: 0 }, BALANCE) as { message: string }).message, /stację/);
   const station = core();
   assert.match((upgradeShipyard(station, { stock: rich, now: 0 }, BALANCE) as { message: string }).message, /w budowie/);
@@ -77,9 +77,9 @@ test('flota: odczyt z zapisu z walidacją', () => {
   assert.equal(parseFleet(null), null);
   assert.equal(parseFleet({}), null);
   const ok = { docked: { transport: 2, colonyShip: 0, tug: 1, escort: 4 }, queue: [{ type: 'escort', startsAt: 0, readyAt: 10, cost: { metal: 1, crystal: 2 } }] };
-  assert.deepEqual(parseFleet(ok), ok);
+  assert.deepEqual(parseFleet(ok), { ...ok, docked: { ...ok.docked, courier: 0, heavyTransport: 0 } });
   const bad = parseFleet({ docked: { transport: -1, escort: 2.5, colonyShip: 'x' }, queue: [{ type: 'zamek', startsAt: 0, readyAt: 1 }, { type: 'tug', startsAt: 5, readyAt: 1, cost: { metal: 0, crystal: 0 } }] })!;
-  assert.deepEqual(bad.docked, { transport: 0, colonyShip: 0, tug: 0, escort: 0 });
+  assert.deepEqual(bad.docked, { transport: 0, colonyShip: 0, tug: 0, escort: 0, courier: 0, heavyTransport: 0 });
   assert.deepEqual(bad.queue, []);
 });
 
@@ -146,7 +146,7 @@ test('flota: holownik i statek kolonizacyjny z floty; stary zapis bez floty dost
     const old = new GameController(BALANCE.comet.seconds * 1000 + 2);
     assert.deepEqual(
       old.fleetView().ships.map((s) => s.docked),
-      ['transport', 'colonyShip', 'tug', 'escort'].map((t) => BALANCE.fleet.starter[t as 'tug']),
+      old.fleetView().ships.map((s) => BALANCE.fleet.starter[s.type]),
     );
   });
 });

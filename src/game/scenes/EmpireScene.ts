@@ -708,6 +708,7 @@ export class EmpireScene extends OverlayScene {
     if (direction === 'to') {
       const room = { metal: Math.max(0, v.capacity - v.stock.metal - v.incoming.metal), crystal: Math.max(0, v.capacity - v.stock.crystal - v.incoming.crystal) };
       this.closeTransport = openTransportPanel({
+        cargo: c.cargoView(),
         title: 'Wyślij na stację',
         fromName: c.planet.displayName,
         toName: 'stacja macierzysta',
@@ -716,7 +717,7 @@ export class EmpireScene extends OverlayScene {
         seconds: v.seconds,
         fuel: v.fuel,
         room,
-        send: (cargo, escort) => c.sendToStation(cargo, Date.now(), escort),
+        send: (cargo, escort, ships) => c.sendToStation(cargo, Date.now(), escort, ships),
         risk: (escort) => c.riskText(c.address, c.stationAddress ?? c.address, escort),
         onSent,
       });
@@ -724,6 +725,7 @@ export class EmpireScene extends OverlayScene {
     }
     const routes = c.stationRoutes();
     this.closeTransport = openTransportPanel({
+        cargo: c.cargoView(),
       title: 'Wyślij ze stacji',
       fromName: 'Stacja macierzysta',
       toName: routes[0]?.name ?? '',
@@ -735,7 +737,7 @@ export class EmpireScene extends OverlayScene {
         name: r.name,
         seconds: r.seconds,
         fuel: r.fuel,
-        send: (cargo, escort) => c.sendFromStation(r.address, cargo, Date.now(), escort),
+        send: (cargo, escort, ships) => c.sendFromStation(r.address, cargo, Date.now(), escort, ships),
         risk: (escort) => c.riskText(c.stationAddress ?? r.address, r.address, escort),
       })),
       send: () => ({ ok: false, message: '' }),
@@ -749,13 +751,14 @@ export class EmpireScene extends OverlayScene {
     const address = target.address;
     this.closeTransport?.();
     this.closeTransport = openTransportPanel({
+        cargo: c.cargoView(),
       fromName: c.planet.displayName,
       toName: target.name,
       stock: c.economy.stock,
       transport: c.transportView(),
       seconds: c.transportSecondsTo(address),
       fuel: c.transportFuelTo(address),
-      send: (cargo, escort) => c.sendResources(address, cargo, Date.now(), escort),
+      send: (cargo, escort, ships) => c.sendResources(address, cargo, Date.now(), escort, ships),
       risk: (escort) => c.riskText(c.address, address, escort),
       onSent: (message) => {
         this.closeTransport = null;
