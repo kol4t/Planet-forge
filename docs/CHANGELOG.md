@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.77.0 — stacja kosmiczna, krok 2d-2: nowe statki i konwoje — robocza
+## v0.77.0 — stacja kosmiczna, krok 2d-2: nowe statki i konwoje — 2026-11-09
 
 Decyzje właściciela 2026-11-09:
 - **Kurier** (badanie stacji „Kurier”): 3× szybszy, 1000 ładunku, paliwo jak transportowiec; 1000 metalu / 1200 kryształów.
