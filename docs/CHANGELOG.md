@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.85.0 — stacja kosmiczna, krok 5a: załoga i Moduł mieszkalny — robocza
+## v0.85.0 — stacja kosmiczna, krok 5a: załoga i Moduł mieszkalny — 2026-11-10
 
 Decyzje właściciela 2026-11-10 (etap 5: 5a załoga + moduł mieszkalny, 5b zapasy i morale):
 - **Moduł mieszkalny** (gniazdo 4, po badaniu stacji „Moduł mieszkalny”, poz. 1–10, płaci magazyn stacji): 20 miejsc
