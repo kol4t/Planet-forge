@@ -118,6 +118,9 @@ Szkic badań z kroku 2a (zastąpiony w kroku 2c pełną listą — `docs/badania
 - Stacje wyspecjalizowane widoczne w widoku układu, każda z własnym ekranem.
 
 ### Etap 5 — Załoga i życie stacji
+- **Decyzje właściciela 2026-11-10:** załoga **rośnie sama na stacji** (bez przewożenia); zapasy = **metal i kryształy
+  z magazynu stacji**; skutek **łagodny** (bez załogi jak dotąd, obsada daje premię do +25%); kroki **5a** załoga +
+  moduł mieszkalny (v0.85), **5b** zapasy i morale.
 - **Nowy zasób: załoga** (roboczo „Załoga” / „Koloniści”). Planety z Magazynem/Laboratorium (do decyzji) powoli dają
   ochotników; transportowiec przewozi ich na stację.
 - **Moduł mieszkalny** daje miejsca; **zapasy** (roboczo z metalu i kryształów albo osobny moduł hydroponiki) zużywa
