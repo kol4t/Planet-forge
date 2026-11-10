@@ -15,6 +15,7 @@ import { openComplexPanel } from '../ui/complexPanel.ts';
 import { openTradePanel } from '../ui/tradePanel.ts';
 import { openBoostPanel } from '../ui/boostPanel.ts';
 import { openOutpostPanel } from '../ui/outpostPanel.ts';
+import { openStationMovePanel } from '../ui/stationMovePanel.ts';
 import { openFindsPanel } from '../ui/findsPanel.ts';
 import { openFactoryPanel } from '../ui/factoryPanel.ts';
 import { TERRAIN_NAMES } from '../../core/colony/plots.ts';
@@ -426,6 +427,7 @@ export class PlanetScene extends Phaser.Scene {
       starColor: findStar(system.star).color,
       beltAfter: system.belt ? system.belt.after - 1 : null,
       ...(outposts.some((o) => o.kind === 'mining' && o.system === index && !o.flying) ? { beltOutpost: true } : {}),
+      ...(c.stationAtBelt && parseAddress(c.stationAddress ?? '')?.system === index && c.stationScreen() ? { beltStation: true } : {}),
       bodies: system.planets.map((p) => {
         const slot = c.slotAt(p.address);
         const own = slot >= 0;
@@ -438,7 +440,7 @@ export class PlanetScene extends Phaser.Scene {
           zoneColor: zone[p.zone] ?? '#8f9b98',
           own,
           active: p.address === c.address,
-          ...(own && p.address === c.stationAddress && c.stationScreen() ? { station: true } : {}),
+          ...(p.address === c.stationAddress && !c.stationAtBelt && c.stationScreen() ? { station: true } : {}),
           ...(outposts.some((o) => o.target === p.address && !o.flying) ? { outpost: true } : {}),
           ...(own && c.auraShareFor(p.address) > 0 ? { aura: c.auraShareFor(p.address) } : {}),
           ...(p.address === c.address ? { yaw: this.deps.display.orientation().yaw } : {}),
@@ -580,11 +582,13 @@ export class PlanetScene extends Phaser.Scene {
       this.showToast('Stacji macierzystej jeszcze nie ma — zbudujesz ją w Imperium (karta „Stacja macierzysta”).', 'info', 3200);
       return;
     }
+    // Stacja nad obcym miejscem (krok 4c): ekran stacji przy aktywnej planecie (ona płaci za moduły planety).
+    const own = c.stationOverOwn;
     if (this.systemMode) {
-      this.enterPlanet(address, true);
+      this.enterPlanet(own ? address : c.address, true);
       return;
     }
-    if (c.address !== address) {
+    if (own && c.address !== address) {
       const result = c.switchPlanet(c.slotAt(address));
       if (!result.ok) {
         this.showToast(result.message, 'error', 2600);
@@ -765,11 +769,31 @@ export class PlanetScene extends Phaser.Scene {
     });
   }
 
+  /** Okno „Przenieś stację macierzystą” (krok 4c); `target` z widoku układu albo null — Twoje planety z listy. */
+  private openStationMove(target: { address: string; at?: 'belt' } | null): void {
+    const c = this.deps.controller;
+    this.closeAsteroid?.();
+    this.closeAsteroid = openStationMovePanel({
+      target,
+      planets: () => c.planets().map((p) => ({ address: p.address, name: p.name })),
+      info: (address, at) => c.stationMoveInfo(address, at),
+      status: () => c.stationMoveView(),
+      move: (address, at, escort) => c.moveStation(address, at, escort),
+      cancel: () => c.cancelStationMove(),
+      onDone: (message) => {
+        this.showToast(message, 'ok', 3200);
+        this.navKey = '';
+        this.refreshValues();
+      },
+    });
+  }
+
   /** Okno „Stacje wyspecjalizowane” (etap 4a). */
   private openOutposts(): void {
     const c = this.deps.controller;
     this.closeAsteroid?.();
     this.closeAsteroid = openOutpostPanel({
+      move: c.stationMoveUnlocked ? () => this.openStationMove(null) : undefined,
       view: () => c.outpostsView(),
       upgrade: (site) => c.upgradeOutpostAt(site),
       onDone: (message) => this.showToast(message, 'ok', 2600),
@@ -806,7 +830,7 @@ export class PlanetScene extends Phaser.Scene {
     const c = this.deps.controller;
     const tx = rect.x + pad + d + this.s(10);
     const tw = rect.x + rect.w - pad - tx;
-    const where = c.planets().find((p) => p.address === c.stationAddress)?.name ?? c.stationAddress ?? '';
+    const where = c.stationLocationName();
     this.text(tx, rect.y + this.s(8), 'Stacja macierzysta', 14, active ? COLORS.gold : COLORS.text, { fontStyle: '600', fixedWidth: this.px(tw) });
     this.text(tx, rect.y + this.s(27), `${active ? 'Tu jesteś · ' : ''}orbita: ${where}`, 10.5, COLORS.muted, { fixedWidth: this.px(tw) });
     if (active) return;
@@ -875,6 +899,8 @@ export class PlanetScene extends Phaser.Scene {
         if (o.miningUnlocked) actions.unshift({ label: 'Wyślij statek konstrukcyjny', primary: true, run: () => this.afterInfoAction(c.sendOutpost(this.viewSystem)) });
       }
     }
+    if (kind === 'belt' && c.stationMoveUnlocked && system.planets[0])
+      actions.push({ label: 'Przenieś tu stację', run: () => this.openStationMove({ address: system.planets[0]!.address, at: 'belt' }) });
     this.closeInfo?.();
     this.closeInfo = openObjectInfo(
       { title: kind === 'star' ? system.name : `Pas asteroid — ${system.name}`, lines, actions },
@@ -926,6 +952,7 @@ export class PlanetScene extends Phaser.Scene {
         actions.push({ label: 'Wyślij statek konstrukcyjny', primary: true, run: () => this.afterInfoAction(c.sendGasOutpost(p.address)) });
       } else if (c.outpostsView().unlocked) lines.push('Stację gazową odblokowuje badanie stacji „Czerpanie gazu” (Eksploracja).');
     }
+    if (c.stationMoveUnlocked) actions.push({ label: 'Przenieś tu stację', run: () => this.openStationMove({ address: p.address }) });
     actions.push({ label: 'Tabela układu', run: () => this.openMap(where!.system) });
     this.closeInfo?.();
     this.closeInfo = openObjectInfo(

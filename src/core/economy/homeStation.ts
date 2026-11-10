@@ -8,6 +8,8 @@ import { stationCoreLevel } from '../station/stationScreen.ts';
 import { STATION_CORE } from '../../data/stationModules.ts';
 import { parseStationAuto } from '../station/stationAuto.ts';
 import { parseMerchantSave } from '../station/merchants.ts';
+import { parseStationMove } from '../station/stationMove.ts';
+import { parseIncident } from './missionRisk.ts';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
@@ -124,8 +126,11 @@ export function parseHomeStation(raw: any): HomeStation | null {
   );
   const research = raw.research ? parseStationResearch(raw.research) : null;
   const amount = (v: unknown) => (isNum(v) && v > 0 ? v : 0);
+  const move = parseStationMove(raw.move, parseIncident);
   return {
     address: raw.address,
+    ...(raw.at === 'belt' ? { at: 'belt' as const } : {}),
+    ...(move ? { move } : {}),
     core,
     ...(storage ? { storage } : {}),
     ...(shipyard ? { shipyard } : {}),

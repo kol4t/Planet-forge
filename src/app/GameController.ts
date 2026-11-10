@@ -21,6 +21,7 @@ import { STATION_CORE, stationModuleDef } from '../data/stationModules.ts';
 import { activeResearch, completeStationResearch, EMPTY_STATION_RESEARCH, labLanes, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
 import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect, type StationStat } from '../data/stationResearch.ts';
 import { dockCost, dockLevel, marketSpread, TRADE, type TradeGood } from '../core/station/trade.ts';
+import { moveCheck, moveSeconds, STATION_MOVE } from '../core/station/stationMove.ts';
 import { OUTPOSTS, outpostLevel, outpostLimit, outpostOutput, outpostUpgradeCost, outpostYield, sendConstructionShip, siteKey, upgradeOutpost, type Outpost } from '../core/station/outposts.ts';
 import { BOOST_RULES, BOOSTABLE, BOOSTS, betterBoost, boostFactor, boostOutcome, boostSplits, buyBoost, findBoost, outageBoost, type ActiveBoost, type BoostDef } from '../core/station/boosts.ts';
 import { auraFees, buyPrice, contractOpen, marketBuy, marketSell, merchantAt, merchantVisit, MERCHANTS, sellPrice, type MerchantContract, type MerchantOffer } from '../core/station/merchants.ts';
@@ -562,6 +563,19 @@ export interface StationResearchView {
   }[];
 }
 
+/** Przenosiny stacji macierzystej (krok 4c). */
+export interface StationMoveInfo {
+  name: string;
+  from: string;
+  reason: string | null;
+  prepareSeconds: number;
+  seconds: number;
+  fuel: number;
+  escortMax: number;
+  /** Opis ryzyka dla 0..escortMax okrętów eskorty. */
+  risk: string[];
+}
+
 /** Stacje wyspecjalizowane (etap 4). */
 export interface OutpostsView {
   unlocked: boolean;
@@ -806,7 +820,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processStationMove(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -1185,7 +1199,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processStationMove(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     const guided = this.processGuide(now);
@@ -1936,7 +1950,7 @@ export class GameController {
       unlocked: this.unlocked('home-station'),
       built: !!s,
       ready: stationReady(s, now),
-      planetName: s ? (this.slots.find((x) => x.address === s.address)?.planet.displayName ?? s.address) : this.planet.displayName,
+      planetName: s ? this.stationLocationName() : this.planet.displayName,
       coreSecondsLeft: s ? Math.max(0, (s.core.readyAt - now) / 1000) : 0,
       coreCost: h.coreCost,
       storageLevel: storage ? (now >= storage.readyAt ? storage.level : storage.level - 1) : 0,
@@ -2241,6 +2255,159 @@ export class GameController {
     const { contract: _done, ...rest } = this.station!.merchant!;
     this.station = { ...this.station!, merchant: rest };
     return this.tradeDone(`Zamówienie wykonane: ${parts.join(', ')}.`, now);
+  }
+
+  // ——— przeniesienie stacji macierzystej (krok 4c) ———
+
+  /** Nazwa miejsca: Twoja planeta, obca planeta / olbrzym albo pas asteroid układu. */
+  locationName(address: string, at?: 'belt'): string {
+    const where = parseAddress(address);
+    const sys = where ? this.system(where.system) : null;
+    if (at === 'belt') return `pas asteroid — ${sys?.name ?? address}`;
+    const own = this.slots.find((x) => x.address === address);
+    if (own) return own.planet.displayName;
+    return (where && sys?.planets[where.position - 1]?.name) || address;
+  }
+
+  /** Gdzie stoi stacja macierzysta (nazwa do okien). */
+  stationLocationName(): string {
+    const s = this.station;
+    return s ? this.locationName(s.address, s.at) : '';
+  }
+
+  /** Stacja stoi przy pasie asteroid (krok 4c). */
+  get stationAtBelt(): boolean {
+    return this.station?.at === 'belt';
+  }
+
+  /** Przenosiny stacji odblokowane (badanie „Silniki stacji”). */
+  get stationMoveUnlocked(): boolean {
+    return stationReady(this.station, Date.now()) && this.stationDone(STATION_MOVE.research);
+  }
+
+  /** Czy stacja stoi nad Twoją planetą (wtedy wejście na ekran stacji przełącza na nią). */
+  get stationOverOwn(): boolean {
+    const s = this.station;
+    return !!s && !s.at && this.slotAt(s.address) >= 0;
+  }
+
+  private moveTargetValid(to: string, at?: 'belt'): boolean {
+    const where = parseAddress(to);
+    const sys = where ? this.system(where.system) : null;
+    if (!where || !sys) return false;
+    if (at === 'belt') return !!sys.belt;
+    return !!sys.planets[where.position - 1];
+  }
+
+  /** Przenosiny stacji do `to` (`at: 'belt'` — przy pasie): warunki, czas, paliwo, ryzyko dla 0..maks. eskorty. */
+  stationMoveInfo(to: string, at?: 'belt', now = Date.now()): StationMoveInfo {
+    const s = this.station;
+    const from = s?.address ?? this.address;
+    const distance = this.distanceBetween(from, to);
+    const seconds = moveSeconds(transportSeconds(distance, this.transportBalance()));
+    const fuel = Math.round(fuelCost('colonyShip', distance, this.balance) * STATION_MOVE.fuelFactor * 10) / 10;
+    const escortDocked = this.fleet.docked.escort;
+    const check = moveCheck({
+      done: s?.research?.done ?? [],
+      ready: stationReady(s, now),
+      moving: !!s?.move,
+      same: !!s && s.address === to && (s.at ?? null) === (at ?? null),
+      validTarget: this.moveTargetValid(to, at),
+      escort: 0,
+      escortDocked,
+    });
+    return {
+      name: this.locationName(to, at),
+      from: this.stationLocationName(),
+      reason: check.ok ? null : check.message,
+      prepareSeconds: STATION_MOVE.prepareSeconds,
+      seconds,
+      fuel,
+      escortMax: Math.min(STATION_MOVE.maxEscort, escortDocked),
+      risk: Array.from({ length: Math.min(STATION_MOVE.maxEscort, escortDocked) + 1 }, (_, n) => this.riskText(from, to, n)),
+    };
+  }
+
+  /** Start przenosin: paliwo z portfela, eskorta z floty; 2 h rozkładania, potem lot (stacja działa cały czas). */
+  moveStation(to: string, at: 'belt' | undefined, escort = 0, now = Date.now()): ActionMessage {
+    this.tick(now);
+    const s = this.station;
+    const info = this.stationMoveInfo(to, at, now);
+    const check = moveCheck({ done: s?.research?.done ?? [], ready: stationReady(s, now), moving: !!s?.move, same: !!s && s.address === to && (s.at ?? null) === (at ?? null), validTarget: this.moveTargetValid(to, at), escort, escortDocked: this.fleet.docked.escort });
+    if (!check.ok) return check;
+    const short = fuelShortage(info.fuel, this.economy.antimatter);
+    if (short) return { ok: false, message: short };
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter - info.fuel };
+    if (escort > 0) this.takeShips('escort', escort);
+    const departsAt = now + STATION_MOVE.prepareSeconds * 1000;
+    const incident = this.incidentFor(s!.address, to, 'cargo', departsAt, info.seconds, escort);
+    this.station = { ...s!, move: { to, ...(at ? { at } : {}), startedAt: now, departsAt, arrivesAt: departsAt + info.seconds * 1000, fuel: info.fuel, escort, ...(incident ? { incident } : {}) } };
+    const text = `Stacja macierzysta przenosi się: ${info.from} → ${info.name}. Rozkładanie ${formatFlight(STATION_MOVE.prepareSeconds)}, lot ${formatFlight(info.seconds)}, ${fuelLabel(info.fuel)}. Stacja pracuje w drodze.`;
+    this.log('ship', text, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: text };
+  }
+
+  /** Odwołanie przenosin przed startem (w czasie rozkładania): paliwo i eskorta wracają. */
+  cancelStationMove(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const s = this.station;
+    if (!s?.move) return { ok: false, message: 'Stacja się nie przenosi.' };
+    if (now >= s.move.departsAt) return { ok: false, message: 'Stacja już leci — przenosin nie da się odwołać.' };
+    this.economy = { ...this.economy, antimatter: this.economy.antimatter + s.move.fuel };
+    if (s.move.escort > 0) this.returnShips('escort', s.move.escort);
+    const { move: _gone, ...rest } = s;
+    this.station = rest;
+    const text = 'Przenosiny stacji odwołane — paliwo i eskorta wróciły.';
+    this.log('ship', text, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: text };
+  }
+
+  /** Stan przenosin do okien (null — stacja stoi). */
+  stationMoveView(now = Date.now()): { to: string; packing: boolean; secondsLeft: number; escort: number } | null {
+    const m = this.station?.move;
+    if (!m) return null;
+    const packing = now < m.departsAt;
+    return { to: this.locationName(m.to, m.at), packing, secondsLeft: Math.max(0, ((packing ? m.departsAt : m.arrivesAt) - now) / 1000), escort: m.escort };
+  }
+
+  /** Przebieg przenosin: atak piratów (opóźnienie, strata części magazynu i kredytów) i przylot. */
+  private processStationMove(now: number): string[] {
+    const s = this.station;
+    const m = s?.move;
+    if (!s || !m) return [];
+    const texts: string[] = [];
+    const inc = m.incident;
+    if (inc && !inc.done && inc.at <= now) {
+      const damaged = Math.min(inc.damaged ?? 0, m.escort);
+      const share = inc.lossShare ?? 0;
+      const lost = { metal: Math.ceil(s.stock.metal * share), crystal: Math.ceil(s.stock.crystal * share), credits: Math.floor((s.credits ?? 0) * share) };
+      this.station = {
+        ...s,
+        stock: { metal: s.stock.metal - lost.metal, crystal: s.stock.crystal - lost.crystal },
+        ...(s.credits ? { credits: s.credits - lost.credits } : {}),
+        move: { ...m, escort: m.escort - damaged, arrivesAt: m.arrivesAt + inc.delaySeconds * 1000, incident: { ...inc, done: true } },
+      };
+      this.repairEscort(damaged, inc.at);
+      const text = `Piraci zaatakowali przenoszoną stację: stracono ${lost.metal} metalu, ${lost.crystal} kryształów${lost.credits ? ` i ${lost.credits} kredytów` : ''} (${Math.round(share * 100)}% magazynu), opóźnienie ${formatFlight(inc.delaySeconds)}.${this.escortNote(m.escort, damaged)}`;
+      this.log('ship', text, inc.at);
+      texts.push(text);
+    }
+    const cur = this.station!;
+    const mv = cur.move!;
+    if (now < mv.arrivesAt) return texts;
+    const { move: _done, at: _oldAt, ...rest } = cur;
+    this.station = { ...rest, address: mv.to, ...(mv.at ? { at: mv.at } : {}) };
+    if (mv.escort > 0) this.returnShips('escort', mv.escort);
+    // Premia i loty liczą się od nowego miejsca (klucz balansu zawiera udział premii — przeliczy się sam).
+    const text = `Stacja macierzysta dotarła na nowe miejsce: ${this.locationName(mv.to, mv.at)}.`;
+    this.log('ship', text, mv.arrivesAt);
+    texts.push(text);
+    this.save();
+    return texts;
   }
 
   // ——— stacje wyspecjalizowane (etap 4) ———
@@ -2555,7 +2722,7 @@ export class GameController {
   /** Stacja nad aktywną planetą (do wyglądu orbity, tanie — co klatkę); null — brak albo krąży nad inną. */
   stationHere(now = Date.now()): { ready: boolean; storageLevel: number; shipyard: boolean } | null {
     const s = this.station;
-    if (!s || s.address !== this.address) return null;
+    if (!s || s.address !== this.address || s.at) return null;
     return { ready: stationReady(s, now), storageLevel: stationLevelAt(s.storage, now), shipyard: shipyardLevel(s, now) > 0 };
   }
 
@@ -2910,7 +3077,7 @@ export class GameController {
     const reach = this.stationAura(now).reach;
     if (reach === 0) return 0;
     const sameSystem = parseAddress(address)?.system === parseAddress(s.address)?.system;
-    return auraShare(reach, address === s.address, sameSystem, this.distanceBetween(address, s.address));
+    return auraShare(reach, address === s.address && !s.at, sameSystem, this.distanceBetween(address, s.address));
   }
 
   /** Premia stacji dla interfejsu: zasięg, siła i planety imperium w zasięgu (z udziałem). */

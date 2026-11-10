@@ -1166,3 +1166,12 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
 - Limit stacji wyspecjalizowanych z badań stacji (każde z 4 badań Eksploracji = 1 miejsce), jedna stacja na obiekt.
 - Urobek stacji górniczej idzie do magazynu stacji macierzystej (stacje gospodarują własnymi surowcami, jak przy
   kredytach). Kolejność: 4a górnicza, 4b gazowa, 4c przeniesienie stacji macierzystej.
+
+## 2026-11-10 — Stacja, krok 4c: przeniesienie stacji macierzystej (decyzje właściciela)
+
+- Cel dowolny: Twoje planety, wolne i obce (także innych graczy), gazowe olbrzymy, pas asteroid.
+- W czasie przenosin stacja działa w pełni (to stacja kosmiczna); premia i loty liczą się od starego miejsca do przylotu.
+- Piraci: opóźnienie + strata części magazynu stacji (metal, kryształy, kredyty). Koszt: badanie „Silniki stacji” + paliwo,
+  2 h rozkładania (można odwołać).
+- Stacja nad obcym miejscem nie przełącza aktywnej planety przy wejściu na ekran stacji (moduły płacone przez planetę —
+  płaci aktywna).

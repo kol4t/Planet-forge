@@ -7,6 +7,8 @@ export interface OutpostPanelOptions {
   view: () => OutpostsView;
   upgrade: (site: string) => ActionMessage;
   onDone: (message: string) => void;
+  /** Otwiera okno przenosin stacji macierzystej (krok 4c; brak — zablokowane). */
+  move?: () => void;
 }
 
 const ROW_BTN = 'style="min-height:44px;min-width:96px;padding:0 12px;font-size:14px;border:1.5px solid #72c4b6;background:#1a2b2d;color:#72c4b6;border-radius:8px;align-self:center"';
@@ -20,7 +22,7 @@ export function openOutpostPanel(options: OutpostPanelOptions): () => void {
       <p class="tp-hint op-info"></p>
       <div class="op-list"></div>
       <p class="tp-error" hidden></p>
-      <div class="tp-actions"><button type="button" class="tp-secondary">Zamknij</button></div>
+      <div class="tp-actions"><button type="button" class="tp-secondary op-move" hidden>Przenieś stację macierzystą</button><button type="button" class="tp-secondary op-close">Zamknij</button></div>
     </div>`;
   const close = () => root.remove();
   const error = root.querySelector<HTMLElement>('.tp-error')!;
@@ -59,7 +61,13 @@ export function openOutpostPanel(options: OutpostPanelOptions): () => void {
         render();
       });
   };
-  root.querySelector('.tp-secondary')!.addEventListener('click', close);
+  root.querySelector('.op-close')!.addEventListener('click', close);
+  const move = root.querySelector<HTMLButtonElement>('.op-move')!;
+  move.hidden = !options.move;
+  move.addEventListener('click', () => {
+    close();
+    options.move?.();
+  });
   root.addEventListener('click', (event) => {
     if (event.target === root) close();
   });
