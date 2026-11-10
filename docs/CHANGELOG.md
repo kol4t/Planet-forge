@@ -2,7 +2,7 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
-## v0.84.0 — stacja kosmiczna, krok 4c: przeniesienie stacji macierzystej — robocza
+## v0.84.0 — stacja kosmiczna, krok 4c: przeniesienie stacji macierzystej — 2026-11-10
 
 Decyzje właściciela 2026-11-10:
 - Po badaniu stacji **„Silniki stacji”**; koszt: paliwo (10× lot statku kolonizacyjnego na tę odległość) i 2 h
