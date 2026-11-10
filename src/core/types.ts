@@ -793,6 +793,10 @@ export interface ConstructTransfer {
  */
 export interface HomeStation {
   address: string;
+  /** `belt` — stacja stoi przy pasie asteroid układu adresu (krok 4c), nie nad planetą. */
+  at?: 'belt';
+  /** Przeniesienie w toku (krok 4c planu stacji). */
+  move?: import('./station/stationMove.ts').StationMove;
   core: AsteroidStation;
   storage?: AsteroidStation;
   /** Stocznia (v0.58) — moduł stacji, buduje statki floty. */

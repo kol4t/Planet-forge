@@ -75,6 +75,9 @@ Kopiuj zapis / Wczytaj zapis).
     "shipyard": { "level": 1, "readyAt": 0 },   //   stocznia (od v0.58, opcjonalna)
     "lab": { "level": 2, "readyAt": 0 },        //   Laboratorium orbitalne (od v0.73, opcjonalne; błędne pomijane)
     "dock": { "level": 1, "readyAt": 0 },       //   dok handlowy (od v0.79, opcjonalny)
+    "at": "belt",                               //   stacja przy pasie asteroid układu adresu (od v0.84, opcjonalne)
+    "move": { "to": "1:7:3", "startedAt": 0, "departsAt": 7200000, "arrivesAt": 9000000, "fuel": 60, "escort": 1,
+      "incident": { "at": 8000000, "delaySeconds": 600, "lossShare": 0.3 } },  // przenosiny w toku (od v0.84, opcjonalne)
     "credits": 1200,                            //   kredyty — waluta-przedmiot w magazynie stacji (od v0.80, opcjonalne, > 0)
     "feesAt": 0,                                //   ostatnie naliczenie opłat za premię stacji, ms (od v0.80, opcjonalne)
     "merchant": { "visit": 412, "used": [0], "shipSold": true, "boostSold": true,   // kupcy (od v0.80, opcjonalne): numer wizyty, zużyte oferty,

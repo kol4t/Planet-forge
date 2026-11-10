@@ -41,6 +41,8 @@ export interface SystemScene {
   beltAfter: number | null;
   /** Na pasie stoi stacja górnicza gracza (etap 4a planu stacji) — znaczek na pasie. */
   beltOutpost?: boolean;
+  /** Stacja macierzysta stoi przy pasie (krok 4c) — znaczek stacji na pasie, dotknięcie = ekran stacji. */
+  beltStation?: boolean;
 }
 
 /** Prostokąt widoku (piksele CSS, względem okna). */
@@ -167,6 +169,12 @@ export class SystemView {
     return pickBody(this.placed, cam, x - cx, y - cy, this.radius(cam), 1);
   }
 
+  /** Punkt znaczka stacji przy pasie (krok 4c): tylna część pasa, naprzeciw stacji górniczej. */
+  private beltStationPoint(star: { x: number; y: number }, r: number, cam: SystemCamera): { x: number; y: number } {
+    const a = Math.PI * 1.25;
+    return { x: star.x + Math.cos(a) * r * cam.scale, y: star.y + Math.sin(a) * r * cam.scale * SYSTEM_TILT };
+  }
+
   /** Znaczek stacji pod palcem (adres planety, nad którą krąży) albo null — sprawdzany przed `pick`. */
   pickStation(x: number, y: number): string | null {
     if (!this.shown || !this.scene) return null;
@@ -174,6 +182,13 @@ export class SystemView {
     const cx = this.rect.x + this.rect.w / 2;
     const cy = this.rect.y + this.rect.h / 2;
     const radius = this.radius(cam);
+    if (this.scene.beltStation && this.scene.beltAfter !== null && this.placed[this.scene.beltAfter]) {
+      const a = this.placed[this.scene.beltAfter]!.r;
+      const b = this.placed[this.scene.beltAfter + 1]?.r ?? a + 0.1;
+      const star = toScreen(cam, 0, 0);
+      const p = this.beltStationPoint(star, (a + b) / 2, cam);
+      if (Math.hypot(x - cx - p.x, y - cy - p.y) <= Math.max(22, radius)) return 'belt';
+    }
     for (let i = 0; i < this.scene.bodies.length; i++) {
       const b = this.scene.bodies[i]!;
       const p = this.placed[i];
@@ -316,6 +331,10 @@ export class SystemView {
       ctx.ellipse(star.x, star.y, r * cam.scale, r * cam.scale * SYSTEM_TILT, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+      if (scene.beltStation) {
+        const p = this.beltStationPoint(star, r, cam);
+        this.drawStationMark(p.x, p.y, Math.max(8, this.radius(cam) * 0.8));
+      }
       if (scene.beltOutpost) {
         // Stacja górnicza: znaczek na przedniej części pasa (stały kąt — łatwo ją znaleźć i stuknąć pas).
         const a = Math.PI * 0.3;

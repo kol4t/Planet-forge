@@ -2,6 +2,20 @@
 
 Na podstawie historii git (`git log`): opisy commitów wersji, bez commitów technicznych („opublikowana”, poprawki dokumentacji). Szczegóły każdej wersji — `CLAUDE.md` (Stan obecny) i `README.md` (lista kontrolna).
 
+## v0.84.0 — stacja kosmiczna, krok 4c: przeniesienie stacji macierzystej — robocza
+
+Decyzje właściciela 2026-11-10:
+- Po badaniu stacji **„Silniki stacji”**; koszt: paliwo (10× lot statku kolonizacyjnego na tę odległość) i 2 h
+  rozkładania przed startem (wtedy można odwołać — paliwo i eskorta wracają). Lot 3× dłuższy niż transportowiec (min. 30 min).
+- **Cel — dowolne miejsce:** nad Twoją planetą, wolną planetą, planetą innego gracza, gazowym olbrzymem albo przy pasie
+  asteroid (widok układu → obiekt → „Przenieś tu stację”; Twoje planety — okno „Placówki” → „Przenieś stację macierzystą”).
+- **W drodze wszystko działa** (badania, stocznia, dok, premia — w starym miejscu do przylotu).
+- **Piraci** między układami: opóźnienie i strata części magazynu stacji (metal, kryształy, kredyty); eskorta 0–5
+  zmniejsza ryzyko.
+- Stacja nad obcym miejscem: ekran stacji przy aktywnej planecie; przy pasie żadna planeta nie ma pełnej premii
+  (cały układ — połowa). Znaczek stacji przy obcych obiektach i na pasie w widoku układu.
+- `core/station/stationMove.ts` (`STATION_MOVE`), okno `game/ui/stationMovePanel.ts`, zapis `station.move`, `station.at`.
+
 ## v0.83.0 — stacja kosmiczna, krok 4b: stacja gazowa — 2026-11-09
 
 Decyzja właściciela 2026-11-09 (gaz → antymateria, bez nowego zasobu):
