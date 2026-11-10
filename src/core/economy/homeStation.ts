@@ -9,6 +9,7 @@ import { STATION_CORE } from '../../data/stationModules.ts';
 import { parseStationAuto } from '../station/stationAuto.ts';
 import { parseMerchantSave } from '../station/merchants.ts';
 import { parseStationMove } from '../station/stationMove.ts';
+import { parseCrew } from '../station/crew.ts';
 import { parseIncident } from './missionRisk.ts';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -122,7 +123,7 @@ export function parseHomeStation(raw: any): HomeStation | null {
   const shipyard = parseLevel(raw.shipyard);
   const lab = parseLevel(raw.lab);
   const extra = Object.fromEntries(
-    (['dock', 'coreUpgrade', 'storage2', 'shipyard2', 'lab2', 'storage3', 'shipyard3', 'lab3'] as const).map((k) => [k, parseLevel(raw[k])] as const).filter(([, v]) => v),
+    (['dock', 'habitat', 'coreUpgrade', 'storage2', 'shipyard2', 'lab2', 'storage3', 'shipyard3', 'lab3'] as const).map((k) => [k, parseLevel(raw[k])] as const).filter(([, v]) => v),
   );
   const research = raw.research ? parseStationResearch(raw.research) : null;
   const amount = (v: unknown) => (isNum(v) && v > 0 ? v : 0);
@@ -138,6 +139,7 @@ export function parseHomeStation(raw: any): HomeStation | null {
     ...extra,
     ...(parseStationAuto(raw.auto) ? { auto: parseStationAuto(raw.auto)! } : {}),
     ...(isNum(raw.credits) && raw.credits > 0 ? { credits: raw.credits } : {}),
+    ...(parseCrew(raw.crew) ? { crew: parseCrew(raw.crew)! } : {}),
     ...(isNum(raw.feesAt) ? { feesAt: raw.feesAt } : {}),
     ...(parseMerchantSave(raw.merchant) ? { merchant: parseMerchantSave(raw.merchant)! } : {}),
     ...(research && (research.done.length > 0 || research.current) ? { research } : {}),

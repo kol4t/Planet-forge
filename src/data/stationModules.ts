@@ -36,7 +36,7 @@ export const STATION_CORE = {
 export const AXIS_SOCKET = -1;
 
 /** Etap planu stacji, do którego moduły już działają (wyższe — „wkrótce”). */
-export const STATION_STAGE_READY = 3;
+export const STATION_STAGE_READY = 5;
 
 /** Liczba gniazd na pierścieniu stacji macierzystej (etap 1). */
 export const STATION_SOCKETS = 6;
@@ -47,7 +47,7 @@ export const STATION_MODULES: readonly StationModuleDef[] = [
   { id: 'shipyard', name: 'Stocznia', description: 'Dok z rusztowaniem: buduje statki floty. Wyższy poziom — szybsza budowa.', socket: 1, stage: 1, status: 'robocza' },
   { id: 'lab', name: 'Laboratorium orbitalne', description: 'Badania dla całego imperium naraz.', socket: 2, stage: 2, status: 'robocza' },
   { id: 'dock', name: 'Dok handlowy', description: 'Rynek za kredyty (sprzedaż i kupno surowców), kupcy co 6 h z ofertami i zamówieniami; wyższy poziom — lepszy kurs.', socket: 3, stage: 3, status: 'robocza' },
-  { id: 'habitat', name: 'Moduł mieszkalny', description: 'Miejsca dla załogi stacji.', socket: 4, stage: 5, status: 'robocza' },
+  { id: 'habitat', name: 'Moduł mieszkalny', description: 'Miejsca dla załogi; załoga rośnie sama i obsadza moduły — pełna obsada: do +25% szybsze badania i stocznia, silniejsza premia stacji.', socket: 4, stage: 5, status: 'robocza' },
   { id: 'listening', name: 'Nasłuch', description: 'Antena wyłapująca sygnały z głębi kosmosu.', socket: 5, stage: 6, status: 'robocza' },
   // Decyzja właściciela 2026-11-09: osobny moduł dla megakonstruktów — ostatni etap wątku stacji.
   { id: 'storage2', name: 'Magazyn orbitalny II', description: 'Drugi magazyn — więcej miejsca na surowce na stacji.', socket: 6, stage: 2, ring: 2, copyOf: 'storage', status: 'robocza' },

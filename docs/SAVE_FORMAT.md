@@ -75,6 +75,8 @@ Kopiuj zapis / Wczytaj zapis).
     "shipyard": { "level": 1, "readyAt": 0 },   //   stocznia (od v0.58, opcjonalna)
     "lab": { "level": 2, "readyAt": 0 },        //   Laboratorium orbitalne (od v0.73, opcjonalne; błędne pomijane)
     "dock": { "level": 1, "readyAt": 0 },       //   dok handlowy (od v0.79, opcjonalny)
+    "habitat": { "level": 2, "readyAt": 0 },     //   moduł mieszkalny (od v0.85, opcjonalny)
+    "crew": { "count": 12.5, "at": 0 },          //   załoga w chwili `at` (rośnie sama do liczby miejsc; od v0.85)
     "at": "belt",                               //   stacja przy pasie asteroid układu adresu (od v0.84, opcjonalne)
     "move": { "to": "1:7:3", "startedAt": 0, "departsAt": 7200000, "arrivesAt": 9000000, "fuel": 60, "escort": 1,
       "incident": { "at": 8000000, "delaySeconds": 600, "lossShare": 0.3 } },  // przenosiny w toku (od v0.84, opcjonalne)

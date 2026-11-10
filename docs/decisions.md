@@ -1175,3 +1175,9 @@ Decyzje właściciela (pytania przed etapem): **każdy poziom budynku zajmuje je
   2 h rozkładania (można odwołać).
 - Stacja nad obcym miejscem nie przełącza aktywnej planety przy wejściu na ekran stacji (moduły płacone przez planetę —
   płaci aktywna).
+
+## 2026-11-10 — Stacja, etap 5: załoga (decyzje właściciela)
+
+- Załoga rośnie sama na stacji do liczby miejsc Modułu mieszkalnego — bez nowego transportu ludzi.
+- Zapasy (5b) — metal i kryształy z magazynu stacji, bez nowego zasobu.
+- Łagodnie: obsada daje premię (do +25%), brak załogi nie osłabia stacji poniżej dzisiejszego stanu (stare zapisy nic nie tracą).

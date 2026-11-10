@@ -707,11 +707,17 @@ export class PlanetScene extends Phaser.Scene {
     if (card.state === 'soon') return `Wkrótce — etap ${card.stage} planu stacji`;
     if (card.state === 'locked') return `Pierścień ${card.ring} — najpierw rozbuduj rdzeń do poz. ${card.ring}`;
     if (card.state === 'building') return `${card.level === 0 ? 'Budowa' : `Rozbudowa do poz. ${card.upgrading}`} · ${formatDuration(card.secondsLeft)}`;
-    if (card.needs) return `Działa · poz. ${card.level} — rozbudowa po: ${card.needs}`;
+    if (card.needs) return card.level === 0 ? `Puste gniazdo — najpierw ${card.needs}` : `Działa · poz. ${card.level} — rozbudowa po: ${card.needs}`;
     if (card.state === 'empty') return card.id === 'shipyard' ? 'Puste gniazdo — zbuduj stocznię' : 'Puste gniazdo — zbuduj moduł';
     if (card.id === 'core') {
       const aura = this.deps.controller.stationAuraView();
       return aura.reach > 0 ? `Działa · premia stacji: ${formatPct(aura.output)} wydobycia, ${formatPct(aura.buildTime)} budowy — zasięg: ${aura.reachName}` : 'Działa · premia stacji po badaniu „Premia stacji: planeta”';
+    }
+    if (card.id === 'habitat') {
+      // Załoga (krok 5a): liczba / miejsca, obsada modułów i premia.
+      const crew = this.deps.controller.crewState();
+      const grow = crew.growthPerHour > 0 ? ` (+${crew.growthPerHour}/h)` : '';
+      return `Załoga ${Math.floor(crew.count)}/${crew.places}${grow} · obsada ${Math.round(crew.share * 100)}% → +${Math.round(crew.bonus * 100)}%`;
     }
     return 'Działa';
   }

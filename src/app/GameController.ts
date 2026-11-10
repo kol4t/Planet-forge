@@ -21,6 +21,7 @@ import { STATION_CORE, stationModuleDef } from '../data/stationModules.ts';
 import { activeResearch, completeStationResearch, EMPTY_STATION_RESEARCH, labLanes, withStationResearch, labCost, labLevel, startStationResearch, stationEmpireEffects, stationResearchCost, stationResearchProgress, stationResearchSeconds, stationResearchStatus, upgradeLab, type StationResearchStatus } from '../core/station/stationResearch.ts';
 import { findStationResearch, STATION_CATEGORIES, STATION_RESEARCH, STATION_RESEARCH_RULES, type StationCategoryId, type StationResearchEffect, type StationStat } from '../data/stationResearch.ts';
 import { dockCost, dockLevel, marketSpread, TRADE, type TradeGood } from '../core/station/trade.ts';
+import { CREW, crewAt, crewBonus, crewNeed, crewPlaces, habitatCost, habitatLevel } from '../core/station/crew.ts';
 import { moveCheck, moveSeconds, STATION_MOVE } from '../core/station/stationMove.ts';
 import { OUTPOSTS, outpostLevel, outpostLimit, outpostOutput, outpostUpgradeCost, outpostYield, sendConstructionShip, siteKey, upgradeOutpost, type Outpost } from '../core/station/outposts.ts';
 import { BOOST_RULES, BOOSTABLE, BOOSTS, betterBoost, boostFactor, boostOutcome, boostSplits, buyBoost, findBoost, outageBoost, type ActiveBoost, type BoostDef } from '../core/station/boosts.ts';
@@ -641,7 +642,7 @@ export interface StationModuleCard extends StationModuleView {
   /** Koszt następnego poziomu (null — najwyższy albo moduł bez rozbudowy). */
   nextCost: Resources | null;
   /** Akcja przycisku „Ulepsz” (id modułu; null — brak). */
-  action: 'core' | 'dock' | 'storage' | 'shipyard' | 'lab' | 'storage2' | 'shipyard2' | 'lab2' | 'storage3' | 'shipyard3' | 'lab3' | null;
+  action: 'core' | 'dock' | 'habitat' | 'storage' | 'shipyard' | 'lab' | 'storage2' | 'shipyard2' | 'lab2' | 'storage3' | 'shipyard3' | 'lab3' | null;
   /** Kto płaci: planeta pod stacją albo magazyn stacji. */
   payer: 'planet' | 'station';
   /** Czego brakuje do rozbudowy (np. badanie) — zamiast przycisku. */
@@ -820,7 +821,7 @@ export class GameController {
       this.reportAway(before, now);
       this.arrivedWhileAway = this.processMissions(now);
       this.expeditionsWhileAway = this.processExpeditions(now);
-      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processStationMove(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+      this.shipmentsWhileAway = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processStationMove(now), ...this.processCrew(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
       if (this.offlineGain) {
         const g = this.offlineGain;
         this.log('away', `Podczas nieobecności na ${this.planet.displayName}: +${Math.floor(g.metal)} metalu, +${Math.floor(g.crystal)} kryształów.`, now);
@@ -1199,7 +1200,7 @@ export class GameController {
     const arrived = this.processMissions(now);
     const returned = this.processExpeditions(now);
     // Dostawy: transportowce i holowniki z kometami (wspólny komunikat).
-    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processStationMove(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
+    const delivered = [...this.processShipments(now), ...this.processComets(now), ...this.processTransfers(now), ...this.processShipyard(now), ...this.processStationResearch(now), ...this.processStationAuto(now), ...this.processStationFees(now), ...this.processBoosts(now), ...this.processOutposts(now), ...this.processStationMove(now), ...this.processCrew(now), ...this.processMetalConstructs(now), ...this.processCrystalConstructs(now), ...this.processOrbit(now), ...this.processFinds(now)];
     const aiDone = this.runAutoAi(now);
     const exploited = this.markExploited(now);
     const guided = this.processGuide(now);
@@ -2008,6 +2009,17 @@ export class GameController {
         if (!allowed) card.needs = 'badanie „Dok handlowy” (Badania stacji → Handel)';
         return card;
       }
+      if (m.id === 'habitat') {
+        // Moduł mieszkalny (krok 5a): po badaniu, płaci magazyn stacji; załoga rośnie sama.
+        const next = (s.habitat?.level ?? 0) + 1;
+        card.secondsLeft = left(s.habitat);
+        card.payer = 'station';
+        card.nextCost = next <= CREW.habitat.maxLevel ? habitatCost(next) : null;
+        const allowed = done.includes(CREW.research);
+        card.action = model.ready && card.nextCost && allowed ? 'habitat' : null;
+        if (!allowed) card.needs = 'badanie „Moduł mieszkalny” (Badania stacji → Eksploracja)';
+        return card;
+      }
       const base = def.copyOf ?? (m.id as 'storage' | 'shipyard' | 'lab');
       const part = s[m.id as 'storage' | 'shipyard' | 'lab'];
       const next = (part?.level ?? 0) + 1;
@@ -2029,6 +2041,7 @@ export class GameController {
   upgradeStationModule(id: NonNullable<StationModuleCard['action']>, now = Date.now()): ActionMessage {
     if (id === 'core') return this.upgradeStationCore(now);
     if (id === 'dock') return this.upgradeStationDock(now);
+    if (id === 'habitat') return this.upgradeHabitat(now);
     const copy = (id.endsWith('3') ? 3 : id.endsWith('2') ? 2 : 1) as 1 | 2 | 3;
     if (id.startsWith('storage')) return this.upgradeStationStorage(now, copy);
     if (id.startsWith('shipyard')) return this.upgradeShipyard(now, copy);
@@ -2255,6 +2268,73 @@ export class GameController {
     const { contract: _done, ...rest } = this.station!.merchant!;
     this.station = { ...this.station!, merchant: rest };
     return this.tradeDone(`Zamówienie wykonane: ${parts.join(', ')}.`, now);
+  }
+
+  // ——— załoga stacji (krok 5a) ———
+
+  /** Załoga w chwili `now`: liczba, miejsca, potrzeba modułów, obsada i premia. */
+  crewState(now = Date.now()): { count: number; places: number; need: number; share: number; bonus: number; growthPerHour: number } {
+    const s = this.station;
+    const done = s?.research?.done ?? [];
+    if (!s || !stationReady(s, now)) return { count: 0, places: 0, need: 0, share: 0, bonus: 0, growthPerHour: 0 };
+    const count = crewAt(s, now, done);
+    const need = crewNeed(s, now, stationCoreLevel(s, now));
+    const places = crewPlaces(s, now, done);
+    return { count, places, need, ...crewBonus(count, need), growthPerHour: count < places ? CREW.growthPerLevel * habitatLevel(s, now) : 0 };
+  }
+
+  /** Mnożnik czasu badań stacji i budowy statków z obsady (1 — bez premii). */
+  private crewTimeFactor(now: number): number {
+    return 1 - this.crewState(now).bonus;
+  }
+
+  /** Balans stoczni z premią załogi (krótsza budowa statków). */
+  private shipBalance(now: number): Balance {
+    const f = this.crewTimeFactor(now);
+    if (f >= 1) return this.balance;
+    const b = this.balance;
+    const ships = Object.fromEntries(Object.entries(b.fleet.ships).map(([k, v]) => [k, { ...v, seconds: Math.max(60, Math.round(v.seconds * f)) }])) as Balance['fleet']['ships'];
+    return { ...b, fleet: { ...b.fleet, ships } };
+  }
+
+  /** Budowa / rozbudowa modułu mieszkalnego (po badaniu „Moduł mieszkalny”; płaci magazyn stacji). */
+  upgradeHabitat(now = Date.now()): ActionMessage {
+    this.tick(now);
+    const s = this.station;
+    if (!s || !stationReady(s, now)) return { ok: false, message: 'Stacja macierzysta nie jest jeszcze gotowa.' };
+    if (!this.stationDone(CREW.research)) return { ok: false, message: 'Najpierw zbadaj „Moduł mieszkalny” (Badania stacji → Eksploracja).' };
+    if (s.habitat && now < s.habitat.readyAt) return { ok: false, message: 'Moduł mieszkalny jest właśnie rozbudowywany.' };
+    const level = (s.habitat?.level ?? 0) + 1;
+    if (level > CREW.habitat.maxLevel) return { ok: false, message: `Moduł mieszkalny ma już najwyższy poziom (${CREW.habitat.maxLevel}).` };
+    const cost = habitatCost(level);
+    if (s.stock.metal < cost.metal || s.stock.crystal < cost.crystal) {
+      return { ok: false, message: `Moduł mieszkalny poz. ${level} — w magazynie stacji brakuje: ${Math.max(0, Math.ceil(cost.metal - s.stock.metal))} metalu, ${Math.max(0, Math.ceil(cost.crystal - s.stock.crystal))} kryształów.` };
+    }
+    const seconds = CREW.habitat.secondsPerLevel * level;
+    // Załoga liczy się do teraz po staremu (tempo rośnie z poziomem).
+    const crew = { count: crewAt(s, now, s.research?.done ?? []), at: now };
+    this.station = { ...s, crew, stock: { metal: s.stock.metal - cost.metal, crystal: s.stock.crystal - cost.crystal }, habitat: { level, readyAt: now + seconds * 1000 } };
+    this.log('build', `Stacja macierzysta: moduł mieszkalny — ${level === 1 ? 'budowa' : `rozbudowa do poz. ${level}`}.`, now);
+    this.save();
+    this.emit();
+    return { ok: true, message: `Moduł mieszkalny poz. ${level} — gotowy za ${formatFlight(seconds)}.` };
+  }
+
+  /** Załoga zapisana do teraz (rośnie sama); wpis w dzienniku przy pełnych kwaterach. */
+  private processCrew(now: number): string[] {
+    const s = this.station;
+    if (!s || !s.habitat) return [];
+    const done = s.research?.done ?? [];
+    const before = s.crew?.count ?? 0;
+    const count = crewAt(s, now, done);
+    const places = crewPlaces(s, now, done);
+    this.station = { ...s, crew: { count, at: now } };
+    if (before < places && count >= places && places > 0) {
+      const text = `Stacja macierzysta: kwatery pełne — załoga ${Math.floor(count)} osób.`;
+      this.log('empire', text, now);
+      return [text];
+    }
+    return [];
   }
 
   // ——— przeniesienie stacji macierzystej (krok 4c) ———
@@ -2771,7 +2851,7 @@ export class GameController {
   /** Start badania stacji (płaci magazyn stacji, kolejka osobna od planet). */
   startStationResearch(id: string, now = Date.now()): ActionMessage {
     this.tick(now);
-    const result = startStationResearch(this.station?.research ?? EMPTY_STATION_RESEARCH, this.station, id, now);
+    const result = startStationResearch(this.station?.research ?? EMPTY_STATION_RESEARCH, this.station, id, now, this.crewTimeFactor(now));
     if (!result.ok) return result;
     this.station = { ...result.station, research: result.research };
     const name = findStationResearch(id)!.name;
@@ -2807,7 +2887,7 @@ export class GameController {
     const texts: string[] = [];
     const start = (id: string, why: string) => {
       const st = this.station!;
-      const r = startStationResearch(st.research ?? EMPTY_STATION_RESEARCH, st, id, now);
+      const r = startStationResearch(st.research ?? EMPTY_STATION_RESEARCH, st, id, now, this.crewTimeFactor(now));
       if (!r.ok) return false;
       this.station = { ...r.station, research: { ...r.research, ...(st.research?.queued && st.research.queued !== id ? { queued: st.research.queued } : {}) } };
       if (this.station.research?.queued === id) this.station = { ...this.station, research: { ...this.station.research!, queued: undefined } };
@@ -2965,7 +3045,7 @@ export class GameController {
         effects: n.effects.map((e) => describeStationEffect(e)),
         status: stationResearchStatus(n, state, lab, Math.max(1, labLanes(s, now))),
         cost: stationResearchCost(n),
-        seconds: stationResearchSeconds(n, Math.max(1, lab), state.done),
+        seconds: stationResearchSeconds(n, Math.max(1, lab), state.done, this.crewTimeFactor(Date.now())),
         labNeeded: STATION_RESEARCH_RULES.labLevelForRing[Math.min(n.ring, STATION_RESEARCH_RULES.labLevelForRing.length) - 1]!,
       })),
     };
@@ -3067,7 +3147,12 @@ export class GameController {
   stationAura(now = Date.now()): AuraStats {
     const s = this.station;
     if (!s || !stationReady(s, now)) return auraStats([], 1) as AuraStats;
-    return auraStats(s.research?.done ?? [], stationCoreLevel(s, now));
+    const a = auraStats(s.research?.done ?? [], stationCoreLevel(s, now));
+    // Załoga (krok 5a): obsada modułów wzmacnia premię stacji (do +25%).
+    const bonus = this.crewState(now).bonus;
+    if (bonus <= 0) return a;
+    const k = 1 + bonus;
+    return { ...a, strength: a.strength * k, output: a.output * k, buildTime: a.buildTime * k };
   }
 
   /** Udział planety `address` w premii stacji (0–1): planeta pod stacją 100%, układ 50%, sąsiednie układy 25%. */
@@ -3940,7 +4025,7 @@ export class GameController {
         docked: this.fleet.docked[type],
         flying: flying[type],
         cost: f.ships[type].cost,
-        seconds: shipSeconds(type, Math.max(1, level), this.balance),
+        seconds: shipSeconds(type, Math.max(1, level), this.shipBalance(now)),
       })),
       repairing: (this.fleet.repairs ?? []).reduce((n, r) => n + r.count, 0),
       repairSecondsLeft: this.fleet.repairs?.length ? Math.max(0, (Math.min(...this.fleet.repairs.map((r) => r.readyAt)) - now) / 1000) : 0,
@@ -3973,7 +4058,7 @@ export class GameController {
     this.tick(now);
     const lockedShip = type === 'constructionShip' && !this.stationDone('st-space-mining') ? 'Statek konstrukcyjny odblokowuje badanie stacji „Wydobycie z kosmosu” (Badania stacji → Eksploracja).' : type === 'courier' && !this.stationDone('st-courier') ? 'Kuriera odblokowuje badanie stacji „Kurier” (Badania stacji → Flota).' : type === 'heavyTransport' && !this.stationDone('st-heavy-transport') ? 'Ciężki transportowiec odblokowuje badanie stacji „Ciężki transportowiec” (Badania stacji → Flota).' : null;
     if (lockedShip) return { ok: false, message: lockedShip };
-    const result = orderShip(this.fleet, type, { shipyard: shipyardLevel(this.station, now), stock: this.economy.stock, now, lanes: shipyardLanes(this.station, now) }, this.balance);
+    const result = orderShip(this.fleet, type, { shipyard: shipyardLevel(this.station, now), stock: this.economy.stock, now, lanes: shipyardLanes(this.station, now) }, this.shipBalance(now));
     if (!result.ok) return { ok: false, message: `${findShip(type).name}: ${result.message}` };
     this.pay(result.order.cost);
     this.fleet = result.fleet;

@@ -805,6 +805,10 @@ export interface HomeStation {
   lab?: AsteroidStation;
   /** Dok handlowy (etap 3a planu stacji). */
   dock?: AsteroidStation;
+  /** Moduł mieszkalny (krok 5a). */
+  habitat?: AsteroidStation;
+  /** Załoga (krok 5a): liczba w chwili `at` (rośnie sama do liczby miejsc). */
+  crew?: { count: number; at: number };
   /** Kredyty (krok 3b, nazwa robocza) — waluta-przedmiot w magazynie stacji. */
   credits?: number;
   /** Ostatnie naliczenie opłat za premię stacji (ms). */

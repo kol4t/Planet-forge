@@ -84,10 +84,11 @@ function speedPercent(done: readonly string[]): number {
   return p;
 }
 
-export function stationResearchSeconds(node: StationResearchNode, lab: number, done: readonly string[]): number {
+/** `crewFactor` — mnożnik czasu z obsady załogi (krok 5a; 1 — bez premii). */
+export function stationResearchSeconds(node: StationResearchNode, lab: number, done: readonly string[], crewFactor = 1): number {
   const base = R.baseSeconds * R.ringTimeGrowth ** (node.ring - 1);
   const speed = 1 + R.labSpeedPerLevel * Math.max(0, lab - 1);
-  return Math.max(60, Math.round((base * Math.max(0.3, 1 + speedPercent(done) / 100)) / speed));
+  return Math.max(60, Math.round((base * Math.max(0.3, 1 + speedPercent(done) / 100) * crewFactor) / speed));
 }
 
 export const labLevelForRing = (ring: number) => R.labLevelForRing[Math.min(ring, R.labLevelForRing.length) - 1]!;
@@ -105,7 +106,7 @@ export function stationResearchStatus(node: StationResearchNode, state: StationR
 export type StationResearchResult = { ok: true; research: StationResearchState; station: HomeStation; cost: Resources; seconds: number } | { ok: false; message: string };
 
 /** Start badania: wymagania, laboratorium, wolna kolejka, surowce w magazynie stacji. */
-export function startStationResearch(state: StationResearchState, station: HomeStation | null, id: string, now: number): StationResearchResult {
+export function startStationResearch(state: StationResearchState, station: HomeStation | null, id: string, now: number, crewFactor = 1): StationResearchResult {
   const node = findStationResearch(id);
   if (!node) return { ok: false, message: 'Nie ma takiego badania.' };
   if (!station) return { ok: false, message: 'Najpierw zbuduj stację macierzystą.' };
@@ -124,7 +125,7 @@ export function startStationResearch(state: StationResearchState, station: HomeS
   const cost = stationResearchCost(node);
   const missing = missingText(cost, station.stock);
   if (missing) return { ok: false, message: `„${node.name}” — w magazynie stacji brakuje: ${missing}. Dowieź surowce transportowcem („Na stację”).` };
-  const seconds = stationResearchSeconds(node, lab, state.done);
+  const seconds = stationResearchSeconds(node, lab, state.done, crewFactor);
   return {
     ok: true,
     research: state.current
